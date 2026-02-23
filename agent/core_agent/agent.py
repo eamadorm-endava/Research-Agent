@@ -32,7 +32,7 @@ agent_settings = GenerateContentConfig(
     # ),
 )
 
-agent = Agent(
+root_agent = Agent(
     model=agent_config.MODEL_NAME,
     name="research_agent",
     generate_content_config=agent_settings,
@@ -40,7 +40,7 @@ agent = Agent(
 )
 
 
-app = agent_engines.AdkApp(agent=agent)
+app = agent_engines.AdkApp(agent=root_agent)
 
 
 
@@ -59,6 +59,7 @@ async def start_agent():
         ):
             agent_response = event["content"]["parts"][0]["text"]
             logger.info(f'Agent response: {agent_response}')
+            logger.debug(f"Event details: {event}")
 
 
 if __name__ == "__main__":
