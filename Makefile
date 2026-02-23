@@ -6,4 +6,5 @@ gcloud-auth:
 	gcloud auth application-default set-quota-project $(PROJECT_ID)
 
 run-web-dev:
-	adk web --port 8000 
+	cd agent && \
+	uv run adk web --port 8000
