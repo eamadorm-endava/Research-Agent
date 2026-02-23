@@ -1,0 +1,21 @@
+[project]
+name = "research-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+ai-agent = [
+    "google-cloud-aiplatform[adk,agent-engines]>=1.138.0",
+]
+dev = [
+    "loguru>=0.7.3",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+]
+localdev = [
+    "dotenv>=0.9.9",
+    "ipykernel>=7.2.0",
+]
