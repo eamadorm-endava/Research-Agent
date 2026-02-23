@@ -50,7 +50,7 @@ class AgentConfig(BaseSettings):
             description="Name of the Gemini model to use.",
         ),
     ]
-    MODEL_TEMPERATURE: Annotated[
+    TEMPERATURE: Annotated[
         float,
         Field(
             default=0.5,
