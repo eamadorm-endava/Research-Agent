@@ -82,4 +82,18 @@ class AgentConfig(BaseSettings):
             description="Controls the maximum number of tokens generated in a single call to the LLM model",
         ),
     ]
+    SEED: Annotated[
+        int,
+        Field(
+            default=1080,
+            description="If seed is set, the model makes a best effort to provide the same response for repeated requests. By default, a random number is used.",
+        ),
+    ]
+    MODEL_ARMOR_TEMPLATE_ID: Annotated[
+        str,
+        Field(
+            default="dummy-template-id",
+            description="Model Armor Template ID",
+        ),
+    ]
 
