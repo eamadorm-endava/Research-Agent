@@ -1,5 +1,3 @@
-from loguru import logger
-import asyncio
 import vertexai
 from vertexai import agent_engines
 from google.genai.types import GenerateContentConfig, ModelArmorConfig
@@ -63,30 +61,3 @@ root_agent = Agent(
 
 
 app = agent_engines.AdkApp(agent=root_agent)
-
-
-
-async def start_agent():
-
-    while True:
-        
-        user_input = input("Enter a query (write 'exit' to finish): ").strip()
-        
-        if user_input.lower() == "exit":
-            break
-        
-        async for event in app.async_stream_query(
-            message=user_input,
-            user_id="eamadorm",
-        ):
-            agent_response = event["content"]["parts"][0]["text"]
-            logger.info(f'Agent response: {agent_response}')
-            logger.debug(f"Event details: {event}")
-
-
-if __name__ == "__main__":
-    logger.info("Starting the agent...")
-    logger.debug(f"Using model: {agent_config.MODEL_NAME}")
-    logger.debug(f"Project ID: {gcp_config.PROJECT_ID}")
-    logger.debug(f"Region: {gcp_config.REGION}")
-    asyncio.run(start_agent())
