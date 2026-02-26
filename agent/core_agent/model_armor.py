@@ -47,11 +47,9 @@ class ModelArmor:
             parent=self.template_parent,
         )
 
-        result = self.__client.list_templates(request=request)
+        pager = self.__client.list_templates(request=request)
 
-        templates = [page.templates for page in result.pages]
-
-        return templates
+        return list(pager)
 
 
     def is_safe(
