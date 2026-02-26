@@ -15,7 +15,7 @@ class SanitizationType(StrEnum):
     RESPONSE = "agent_response"
 
 
-class ModelArmor():
+class ModelArmor:
 
     # Code adapted from: https://docs.cloud.google.com/model-armor/manage-templates#create-ma-template
     def __init__(self, project_id:str, location:str):
