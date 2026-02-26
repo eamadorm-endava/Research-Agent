@@ -3,11 +3,6 @@ from google.cloud.modelarmor_v1.types import Template
 from google.api_core.client_options import ClientOptions
 from enum import StrEnum
 import re
-from .config import GCPConfig
-
-
-
-gcp_config = GCPConfig()
 
 
 class SanitizationType(StrEnum):
