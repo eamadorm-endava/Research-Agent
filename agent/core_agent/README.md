@@ -1,6 +1,6 @@
 # Basic LLM Agent Type Creation
 
-The main idea of this folder is to develop a basic agent that can be deployed in [Vertex AI Agent Engine](https://docs.cloud.google.com/agent-builder/agent-engine/overview), and connected with [Gemini Enterprise](https://cloud.google.com/blog/products/ai-machine-learning/introducing-gemini-enterprise).
+The main idea of this folder is to develop a basic agent that can be deployed in [Vertex AI Agent Engine](https://docs.cloud.google.com/agent-builder/agent-engine/overview) and connected to [Gemini Enterprise](https://cloud.google.com/blog/products/ai-machine-learning/introducing-gemini-enterprise).
 
 The agent to be developed is an [**LLM Agent**](/docs/ADK-Intro.md#llm-agents-llmagent-agent) type.
 
@@ -11,6 +11,7 @@ The `core_agent/` folder follows the [ADK project structure](https://google.gith
 - `__init__.py` -> Package initialization file, imports the agent module
 - `agent.py` -> Main agent definition with LLM Agent implementation
 - `config.py` -> Configuration settings for the agent
+- `model_armor.py` -> Custom Model Armor implementation class
 - `.env` -> Environment variables for model authentication (needed by the ADK CLI)
 
 The .env file must be set directly inside `/core_agent` and must have the following variables:
@@ -44,7 +45,7 @@ Open the terminal in the `agent/` folder, and run:
 
     uv run adk web --port 8000
 
-Also, you can also run the make command (make sure to be at the root of this repository):
+Also, you can run the make command (make sure to be at the root of this repository):
 
     make run-ui-agent
 
@@ -58,15 +59,44 @@ This agent takes advantage of the [ADK tools and integrations](https://google.gi
 
 ### Security: Model Armor Implementation
 
-**Model Armor** is a security guardrail mechanism designed to protect agents from malicious inputs and unsafe outputs. It validates:
+**Model Armor** is a security guardrail mechanism integrated into Vertex AI that protects agents from malicious inputs and unsafe outputs. It validates prompts and responses for harmful content, prompt injections, and jailbreak attempts.
 
-- User inputs for prompt injections and jailbreak attempts
-- Agent outputs for harmful or inappropriate content
-- Tool execution safety and policy compliance
+**Two Implementation Approaches**:
 
-**Implementation Strategy**: Model Armor will be implemented using ADK [Before Agent and After Agent Callbacks](https://google.github.io/adk-docs/callbacks/):
+#### 1. Custom Callback Class (Requires Implementation)
+Implement a custom safety evaluation class using ADK [Callbacks](https://google.github.io/adk-docs/callbacks/):
+- **Before Agent Callback**: Intercepts and validates user inputs before the agent processes them
+- **After Agent Callback**: Validates the agent's final output before returning it to the user
 
-- **Before Agent Callback**: Validates incoming user messages before the agent processes them, checking for prompt injections and unsafe inputs
-- **After Agent Callback**: Validates the agent's final output before returning it to the user, ensuring content safety and policy compliance
+This approach provides full control and customization but requires:
+- Writing custom Model Armor evaluation logic (currently, a version of this can be reviewed in [`model_armor.py`](/agent/core_agent/model_armor.py))
+- Handling multiple network round-trips (Python → Model Armor API → Vertex AI → Model Armor)
+- Increased latency due to sequential network calls
+- Setting appropriate permissions for your service account
 
-This callback-based approach provides a clean, non-invasive way to enforce security policies without modifying the core agent logic. For more information on callbacks and security best practices, see the [ADK Callbacks documentation](https://google.github.io/adk-docs/callbacks/) and [Safety and Security guide](https://google.github.io/adk-docs/safety/). 
+#### 2. Native ModelArmorConfig (**Current Implementation**)
+Integrate Model Armor directly into `GenerateContentConfig` at the model level:
+
+```python
+ModelArmorConfig(
+    prompt_template_name=model_armor_template_id,
+    response_template_name=model_armor_template_id,
+)
+```
+
+**Why Choosing ModelArmorConfig**:
+- **Lower Latency**: Google Cloud handles validation internally on their servers at high speed, eliminating multiple network round-trips
+- **Simpler Integration**: No custom code needed - just configure template names
+- **Better Performance**: Single validation within Vertex AI's infrastructure instead of callback-based validation
+
+**How It Works**: 
+- Your script sends the configuration to Vertex AI
+- Vertex AI's internal Service Agent contacts Model Armor on your behalf for prompt/response sanitization
+- Results are processed before and after generation
+
+**Setup Requirement**: 
+Grant the **Model Armor User** role (`roles/modelarmor.user`) to Vertex AI's internal Service Agent account:
+
+- service-[gcp-project-number]@gcp-sa-aiplatform.iam.gserviceaccount.com 
+
+This allows Vertex AI's backend to access and use your Model Armor templates on your behalf.
