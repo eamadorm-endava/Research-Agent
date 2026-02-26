@@ -47,3 +47,26 @@ Open the terminal in the `agent/` folder, and run:
 Also, you can also run the make command (make sure to be at the root of this repository):
 
     make run-ui-agent
+
+## Agent Capabilities
+
+This agent takes advantage of the [ADK tools and integrations](https://google.github.io/adk-docs/integrations/) to quickly implement required functionality. ADK provides pre-built tools for common use cases, and also supports creating custom [function-calling tools](https://google.github.io/adk-docs/tools-custom/function-tools/) for specific business needs.
+
+### Implemented Tools
+
+- **Google Cloud API Registry** - Dynamically exposes available Google Cloud services as Model Context Protocol (MCP) servers, allowing the agent to discover and access tools at runtime without hardcoded definitions
+
+### Security: Model Armor Implementation
+
+**Model Armor** is a security guardrail mechanism designed to protect agents from malicious inputs and unsafe outputs. It validates:
+
+- User inputs for prompt injections and jailbreak attempts
+- Agent outputs for harmful or inappropriate content
+- Tool execution safety and policy compliance
+
+**Implementation Strategy**: Model Armor will be implemented using ADK [Before Agent and After Agent Callbacks](https://google.github.io/adk-docs/callbacks/):
+
+- **Before Agent Callback**: Validates incoming user messages before the agent processes them, checking for prompt injections and unsafe inputs
+- **After Agent Callback**: Validates the agent's final output before returning it to the user, ensuring content safety and policy compliance
+
+This callback-based approach provides a clean, non-invasive way to enforce security policies without modifying the core agent logic. For more information on callbacks and security best practices, see the [ADK Callbacks documentation](https://google.github.io/adk-docs/callbacks/) and [Safety and Security guide](https://google.github.io/adk-docs/safety/). 
