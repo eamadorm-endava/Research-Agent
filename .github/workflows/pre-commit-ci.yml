@@ -1,0 +1,28 @@
+name: Code Quality CI
+
+on:
+  issue_comment:
+    types: [created] # Triggers when a new comment is added
+
+jobs:
+  pre-commit:
+    name: Lint & Format (Python)
+    # 1. Verify the comment was made on a Pull Request, not a regular issue
+    # 2. Verify the exact comment text is "/codequality"
+    if: ${{ github.event.issue.pull_request && github.event.comment.body == '/codequality' }}
+    runs-on: ubuntu-latest
+    steps:
+      # CRITICAL: Since the trigger is an issue_comment, the default context is the base branch (main). 
+      # We must explicitly check out the code from the Pull Request head branch.
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
