@@ -7,3 +7,9 @@ gcloud-auth:
 run-ui-agent:
 	cd agent && \
 	uv run adk web --port 8000
+
+install-precommit:
+	uvx pre-commit install
+
+run-precommit:
+	uvx pre-commit run --all-files
