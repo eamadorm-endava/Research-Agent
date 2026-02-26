@@ -27,10 +27,10 @@ agent_settings = GenerateContentConfig(
     top_k=agent_config.TOP_K,
     max_output_tokens=agent_config.MAX_OUTPUT_TOKENS,
     seed=agent_config.SEED,
-    # model_armor_config=ModelArmorConfig(
-    #     prompt_template_name=model_armor_template_id,
-    #     response_template_name=model_armor_template_id,
-    # ),
+    model_armor_config=ModelArmorConfig(
+        prompt_template_name=model_armor_template_id,
+        response_template_name=model_armor_template_id,
+    ),
 )
 
 # Configure with your Google Cloud Project ID and registered MCP server name
