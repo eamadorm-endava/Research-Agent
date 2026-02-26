@@ -9,13 +9,13 @@ jobs:
     name: Lint & Format (Python)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout del código
+      - name: Code Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar Python
+      - name: Python Setup
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Ejecutar pre-commit
+      - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
