@@ -19,6 +19,9 @@ The .env file must be set directly inside `/core_agent` and must have the follow
     GOOGLE_GENAI_USE_VERTEXAI=TRUE
     GOOGLE_CLOUD_PROJECT=mock-gcp-project-id
     GOOGLE_CLOUD_LOCATION=mock-location
+    PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
+    REGION=${GOOGLE_CLOUD_LOCATION}
+    MODEL_ARMOR_TEMPLATE_ID=mock-model-armor-template-id
 
 ## How to test the Agent Locally
 
