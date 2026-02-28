@@ -16,7 +16,7 @@ Before setting up the deployment, ensure you have the following ready in your Go
 The code to be deployed is located in the `/agent` directory. Here is the relevant structure:
 
 ```text
-/workspaces/Research-Agent
+/Research-Agent
 ├── pyproject.toml         # Defines dependencies: google-cloud-aiplatform[adk,agent-engines]
 └── agent/
     ├── core_agent/
