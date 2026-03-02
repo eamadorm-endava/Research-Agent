@@ -135,7 +135,7 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --project="$PROJECT_ID"
 
 
-# 7. Create Cloud Build Triggers
+# 8. Create Cloud Build Triggers
 # GitHub Configuration
 REPO_NAME="Research-Agent"
 REPO_OWNER="eamadorm-endava"
