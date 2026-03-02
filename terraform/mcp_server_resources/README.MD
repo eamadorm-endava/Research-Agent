@@ -1,5 +1,12 @@
-# Service Account Management & Impersonation
-This module manages the deployment of Service Accounts, their project-level permissions, and the IAM bindings required for developer impersonation.
+# MCP Server Resources
+
+### Overview
+
+This directory contains the Terraform configuration for the MCP Server.
+
+This module manages the activation of Google Cloud Service APIs, and also manage the service account used for AI Agent resource deployment
+
+This module enables Google Cloud Platform Service APIs across one or more projects. It uses a flattened data structure to efficiently manage multiple APIs via a single variable map, and deployed required services account for MCP server deployment with the required IAM roles.
 
 ## Usage: Local Impersonation Guide
 To test services locally using the Service Account's identity, developers in the permitted group can use GCP Service Account Impersonation. This removes the need for downloading and managing risky JSON key files.
@@ -33,6 +40,13 @@ gcloud auth list
 Your local code (Python, Go, Node.js, etc.) will now use the Service Account's permissions automatically when using Google Cloud SDKs.
 ```
 
+## Usage
+
+To enable services, define the `project_services` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
+
+To create service accounts, define the services accounts in the Terraform main modules and setup services account names in `terraform.tfvars` file.
+
+
 ##  IAM Architecture
 The module implements a two-tier IAM structure to satisfy security requirements:
 
@@ -59,13 +73,39 @@ Resource Permissions (Outward): The Service Account is granted specific function
 
 - Google group for developers must be already created and setup in terraform.tfvars file
 
-## Files
 
-- main.tf: Contains the module calls and resource definitions.
+## Deployment Permissions
 
-- variables.tf: Definitions for environment-specific configurations.
+Because this specific deployment is executed via Cloud Build, the Cloud Build Service Account requires the following permission  at project level or folder level for every project defined in the project's enabled services:
 
-- terraform.tfvars: Values for the current deployment (e.g., project IDs, group emails).
+| Role | Role ID | Why it's needed |
+| :--- | :--- | :--- |
+| **Service Usage Admin** | `roles/serviceusage.serviceUsageAdmin` | Required to enable and disable Google Cloud APIs. |
+
+## Resoucers deployed
+
+## APIs
+
+The following APIs are managed (enabled) by this module. This APIs must be enabled before deploying the MCP Server in any GCP project.
+
+- storage.googleapis.com
+- drive.googleapis.com
+- docs.googleapis.com
+- bigquery.googleapis.com
+
+## Service Accounts & Permissions
+
+Permissions are managed (assigned) under the `service_accounts/` directory. It creates/edits service accounts and assigns the required permissions to them.
+
+## Service Accounts Overview
+
+## Service Accounts Overview
+
+| Service Account Name | Status  | Description | Permissions Assigned |
+|----------------------|---------|-------------|----------------------|
+| mcp-server           | Created | This service account is used by the MCP server. | - Storage Object User<br>- BigQuery Data Viewer<br>- BigQuery Job User |
+
+*Note: The name of the service account can be easily changed by modifying the `service_account_name` variable in the permissions/ directory.
 
 ## CI/CD workflow
 
@@ -81,14 +121,11 @@ This project uses Google Cloud Build for automated deployments:
 
 ## Variables
 
-
 | Name | Description | Type | Default | Required |
 |---|---|---|---|:---:|
 | `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
 | `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
-| `adk-agent_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `adk-agent_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
-| `mcp-server_service_account_name` | The name of the MCP Server service account (the part before the @). | `string` | n/a | yes |
-| `mcp-server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the MCP Server service account. | `map(list(string))` | `{}` | no |
-| `vertex-ai-search-agent_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the Vertex AI Search Agent service account. | `map(list(string))` | `{}` | no |
+| `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
+| `mcp_server_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
+| `mcp_server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
 
