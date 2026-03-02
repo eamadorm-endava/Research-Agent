@@ -105,7 +105,7 @@ echo "Ensuring Cloud Build API is enabled..."
 gcloud services enable cloudbuild.googleapis.com --project=$PROJECT_ID
 
 # 6. --- Create GCS Bucket for Terraform State ---
-BUCKET_NAME="terraform-state"
+BUCKET_NAME="${PROJECT_ID}-terraform-state"
 
 if ! gcloud storage buckets describe gs://$BUCKET_NAME > /dev/null 2>&1; then
     echo "Creating GCS bucket for Terraform state: $BUCKET_NAME..."

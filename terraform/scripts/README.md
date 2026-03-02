@@ -16,15 +16,18 @@ Its primary goal is to establish a secure "Least Privilege" environment where a 
 ## Requirements
 Before running the script, ensure the following conditions are met:
 
-1. GCP Permissions: You must have Owner or Editor + Project IAM Admin roles on the that you need to work.
+1. GCP Permissions: 
 
-2. gcloud CLI: The Google Cloud SDK must be installed and authenticated (gcloud auth login).
+    - You must have Owner or Editor + Project IAM Admin roles on the user account or the sa that you need to work.
+    - You must have permissions to impersonate the Terraform service account (Need to have roles/iam.serviceAccountUser)
 
-3. GitHub Connection (Critical):
+2. The Google Cloud SDK must be installed and authenticated (gcloud auth login).
 
-4.  The GitHub repository Research-Agent must be manually connected to Cloud Build in the GCP Console.
+3. GitHub Connection:
 
-5. Navigate to: Cloud Build > Triggers > Manage Repositories to ensure the connection exists.
+    - The GitHub repository Research-Agent must be manually connected to Cloud Build in the GCP Console.
+
+    - Navigate to: Cloud Build > Triggers > Manage Repositories to ensure the connection exists.
 
 6. Developer Group: The group for developers must exist in your Google Workspace/Organization.
 

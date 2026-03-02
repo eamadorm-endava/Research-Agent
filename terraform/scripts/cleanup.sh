@@ -18,10 +18,10 @@ fi
 echo "---------------------------------------"
 echo "Deleting Cloud Build Triggers..."
 # Using '-' before the command or '|| true' allows the script to continue if a trigger is already gone
-gcloud beta builds triggers delete api-services-plan --project=$PROJECT_ID --quiet || echo "api-services-plan not found."
-gcloud beta builds triggers delete api-services-apply --project=$PROJECT_ID --quiet || echo "api-services-apply not found."
-gcloud beta builds triggers delete service-accounts-plan --project=$PROJECT_ID --quiet || echo "service-accounts-plan not found."
-gcloud beta builds triggers delete service-accounts-apply --project=$PROJECT_ID --quiet || echo "service-accounts-apply not found."
+gcloud beta builds triggers delete ai-agent-resources-plan --project=$PROJECT_ID --quiet || echo "ai-agent-resources-plan not found."
+gcloud beta builds triggers delete ai-agent-resources-apply --project=$PROJECT_ID --quiet || echo "ai-agent-resources-apply not found."
+gcloud beta builds triggers delete mcp-server-service-plan --project=$PROJECT_ID --quiet || echo "mcp-server-service-plan not found."
+gcloud beta builds triggers delete mcp-server-service-apply --project=$PROJECT_ID --quiet || echo "mcp-server-service-apply not found."
 
 echo "---------------------------------------"
 echo "Deleting Service Account..."
