@@ -19,7 +19,7 @@ Before running the script, ensure the following conditions are met:
 1. GCP Permissions: 
 
     - You must have Owner or Editor + Project IAM Admin roles on the user account or the sa that you need to work.
-    - You must have permissions to impersonate the Terraform service account (Need to have roles/iam.serviceAccountUser)
+    - You must have permissions to impersonate the Terraform service account (Need to have roles/iam.serviceAccountUser), this IAM role is assigned in the script you must only need to setup the parameter `USER_EMAIL` with your GCP email.
 
 2. The Google Cloud SDK must be installed and authenticated (gcloud auth login).
 
