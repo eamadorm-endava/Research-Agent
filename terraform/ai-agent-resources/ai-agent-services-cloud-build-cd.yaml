@@ -19,8 +19,10 @@ steps:
     args: ['apply', '-auto-approve']
     dir: 'terraform/ai-agent-resources'
 
+
+# Ensure this Service Account has 'Storage Object Admin' on the state bucket
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com'
+
 # Configuration for the build runner
 options:
   logging: CLOUD_LOGGING_ONLY
-  # Ensure this Service Account has 'Storage Object Admin' on the state bucket
-  serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com'

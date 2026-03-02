@@ -17,6 +17,7 @@ steps:
     args: ['apply', '-auto-approve']
     dir: 'terraform/mcp_server_resources'
 
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com'
+
 options:
   logging: CLOUD_LOGGING_ONLY
-  serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com'
