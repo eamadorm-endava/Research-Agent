@@ -181,9 +181,9 @@ create_trigger "ai-agent-services-apply" "push" "terraform/ai-agent-resources" "
 
 # --- Service Accounts Triggers ---
 # CI (Plan) on Pull Request
-create_trigger "mcp-server-service-plan" "pr" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-service-cloud-build-ci.yaml"
+create_trigger "mcp-server-services-plan" "pr" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-ci.yaml"
 # CD (Apply) on Push/Merge
-create_trigger "mcp-server-service-apply" "push" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-service-cloud-build-cd.yaml"
+create_trigger "mcp-server-services-apply" "push" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-cd.yaml"
 
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"
