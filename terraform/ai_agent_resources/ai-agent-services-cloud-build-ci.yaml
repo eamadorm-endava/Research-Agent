@@ -8,7 +8,7 @@ steps:
       - |
         terraform init \
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
-          -backend-config="prefix=terraform/state/ai=agent-resources"
+          -backend-config="prefix=terraform/state/ai-agent-resources"
     dir: 'terraform/ai-agent-resources'
 
   # Step 2: Ensure code is formatted correctly

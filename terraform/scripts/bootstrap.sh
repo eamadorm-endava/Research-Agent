@@ -7,6 +7,7 @@ set -e
 PROJECT_ID="p-dev-gce-60pf"
 SA_NAME="terraform-sa-gemini-project"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+USER_EMAIL="davidalejandro.sanchezarias@endava.com"
 DEVELOPER_GROUP_EMAIL="research-agent-dev-test@endava.com" # Update with your email or group
 
 echo "Starting bootstrap for project: $PROJECT_ID"
@@ -126,6 +127,14 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET_NAME \
     --member="serviceAccount:$SA_EMAIL" \
     --role="roles/storage.objectAdmin"
 
+
+# 7. Give impersonation in Terraform sa to your user
+gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
+  --member="user:$USER_EMAIL" \
+  --role="roles/iam.serviceAccountUser" \
+  --project="$PROJECT_ID"
+
+
 # 7. Create Cloud Build Triggers
 # GitHub Configuration
 REPO_NAME="Research-Agent"
@@ -175,9 +184,9 @@ create_trigger() {
 
 # --- API Services Triggers ---
 # CI (Plan) on Pull Request
-create_trigger "ai-agent-services-plan" "pr" "terraform/ai-agent-resources" "terraform/ai-agent-resources/ai-agent-services-cloud-build-ci.yaml"
+create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml"
 # CD (Apply) on Push/Merge
-create_trigger "ai-agent-services-apply" "push" "terraform/ai-agent-resources" "terraform/ai-agent-resources/ai-agent-services-cloud-build-cd.yaml"
+create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml"
 
 # --- Service Accounts Triggers ---
 # CI (Plan) on Pull Request
