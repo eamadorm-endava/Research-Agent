@@ -104,7 +104,29 @@ sleep 15  # <--- THIS IS THE FIX
 echo "Ensuring Cloud Build API is enabled..."
 gcloud services enable cloudbuild.googleapis.com --project=$PROJECT_ID
 
-# 6. Create Cloud Build Triggers
+# 6. --- Create GCS Bucket for Terraform State ---
+BUCKET_NAME="terraform-state"
+
+if ! gcloud storage buckets describe gs://$BUCKET_NAME > /dev/null 2>&1; then
+    echo "Creating GCS bucket for Terraform state: $BUCKET_NAME..."
+    gcloud storage buckets create gs://$BUCKET_NAME \
+        --project=$PROJECT_ID \
+        --location="us-central1" \
+        --uniform-bucket-level-access
+
+    echo "Enabling versioning on bucket..."
+    gcloud storage buckets update gs://$BUCKET_NAME --versioning
+else
+    echo "Bucket $BUCKET_NAME already exists."
+fi
+
+# 6.2 Grant the Service Account permissions on the bucket
+echo "Granting $SA_NAME Storage Object Admin on the state bucket..."
+gcloud storage buckets add-iam-policy-binding gs://$BUCKET_NAME \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/storage.objectAdmin"
+
+# 7. Create Cloud Build Triggers
 # GitHub Configuration
 REPO_NAME="Research-Agent"
 REPO_OWNER="eamadorm-endava"
@@ -153,16 +175,17 @@ create_trigger() {
 
 # --- API Services Triggers ---
 # CI (Plan) on Pull Request
-create_trigger "api-services-plan" "pr" "terraform/api-service" "terraform/api-service/api-service-cloud-build-ci.yaml"
+create_trigger "ai-agent-services-plan" "pr" "terraform/ai-agent-resources" "terraform/ai-agent-resources/ai-agent-services-cloud-build-ci.yaml"
 # CD (Apply) on Push/Merge
-create_trigger "api-services-apply" "push" "terraform/api-service" "terraform/api-service/api-service-cloud-build-cd.yaml"
+create_trigger "ai-agent-services-apply" "push" "terraform/ai-agent-resources" "terraform/ai-agent-resources/ai-agent-services-cloud-build-cd.yaml"
 
 # --- Service Accounts Triggers ---
 # CI (Plan) on Pull Request
-create_trigger "service-accounts-plan" "pr" "terraform/service-accounts" "terraform/service-accounts/service-accounts-cloud-build-ci.yaml"
+create_trigger "mcp-server-service-plan" "pr" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-service-cloud-build-ci.yaml"
 # CD (Apply) on Push/Merge
-create_trigger "service-accounts-apply" "push" "terraform/service-accounts" "terraform/service-accounts/service-accounts-cloud-build-cd.yaml"
+create_trigger "mcp-server-service-apply" "push" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-service-cloud-build-cd.yaml"
 
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"
 echo "To use this locally, run: gcloud auth application-default login --impersonate-service-account=$SA_EMAIL"
+
