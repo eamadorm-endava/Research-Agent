@@ -200,4 +200,3 @@ create_trigger "mcp-server-services-apply" "push" "terraform/mcp_server_resource
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"
 echo "To use this locally, run: gcloud auth application-default login --impersonate-service-account=$SA_EMAIL"
-
