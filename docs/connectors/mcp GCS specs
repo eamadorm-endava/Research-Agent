@@ -1,0 +1,32 @@
+As a developer,
+I want to build a dedicated data connector using the google-cloud-storage Python client,
+So that the MCP server has a modular, reusable, and secure way to interact with Google Cloud Storage to manage and retrieve files (blobs).
+
+Acceptance Criteria
+
+These conditions must be met for the feature to function as requested:
+
+Folder Structure
+
+All code for this connector must be developed and contained within the /connectors/cloud_storage directory at the root of the repository.
+
+Client Initialization
+
+The connector must initialize the Cloud Storage client seamlessly (relying on Google Application Default Credentials so it works locally via impersonation and in the cloud).
+
+Connector Capabilities
+
+The connector (a Python class) must implement methods to handle the following operations:
+
+Create: Upload a new file (blob) to a specified bucket. It should support both string/bytes content and uploading from a local file path. (mime-type must be identified/specified)
+Read: Download (in memory - bytes) and return the contents of a specific file (blob) from a bucket, so the agent can read it.
+Update: Overwrite the contents of an existing file (blob) or update its metadata (like content-type).
+List: Retrieve a list of files (blobs) within a specific bucket. It must support filtering by a prefix (to simulate folder structures).
+Definition of Done
+
+Code is fully typed (using Python type hints) and includes clear docstrings for every method.
+When necessary, use data types directly from the google-cloud-storage library (for example: google.cloud.storage.blob.Blob or google.cloud.storage.bucket.Bucket).
+Code passes standard formatting and linting checks (e.g., using ruff).
+Unit tests are implemented for the connector methods (mocking the Storage client to avoid actual cloud network calls during CI).
+A basic README.md or usage example is added inside /connectors/cloud_storage to show how to instantiate and call the connector.
+The PR is successfully reviewed and merged into the main development branch.
