@@ -192,7 +192,6 @@ create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "ter
 # CD (Apply) on Push/Merge
 create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml"
 
-# --- Service Accounts Triggers ---
 # CI (Plan) on Pull Request
 create_trigger "mcp-server-services-plan" "pr" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-ci.yaml"
 # CD (Apply) on Push/Merge
