@@ -10,14 +10,14 @@ steps:
         terraform init \
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
           -backend-config="prefix=terraform/state/ai-agent-resources"
-    dir: 'terraform/ai-agent-resources'
+    dir: 'terraform/ai_agent_resources'
 
   # Step 2: Run Terraform Apply
   # -auto-approve is critical here to prevent the build from hanging/failing
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
     args: ['apply', '-auto-approve']
-    dir: 'terraform/ai-agent-resources'
+    dir: 'terraform/ai_agent_resources'
 
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
