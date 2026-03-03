@@ -33,7 +33,7 @@ if ! gcloud iam service-accounts describe $SA_EMAIL --project=$PROJECT_ID > /dev
         --project=$PROJECT_ID
     
     echo "Waiting for identity propagation (15s)..."
-    sleep 15  # <--- THIS IS THE FIX
+    sleep 15
 else
     echo "Service Account $SA_NAME already exists."
 fi
@@ -110,7 +110,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --condition=None
 
 echo "Waiting for identity propagation (15s)..."
-sleep 15  # <--- THIS IS THE FIX
+sleep 15
 
 # 5. Enable Cloud Build API (Required for trigger creation)
 echo "Ensuring Cloud Build API is enabled..."

@@ -15,6 +15,8 @@ if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then
     exit 0
 fi
 
+# Note: Cloud build trigger names must match with names thar was created from the bootstrap.sh script
+
 echo "---------------------------------------"
 echo "Deleting Cloud Build Triggers..."
 # Using '-' before the command or '|| true' allows the script to continue if a trigger is already gone

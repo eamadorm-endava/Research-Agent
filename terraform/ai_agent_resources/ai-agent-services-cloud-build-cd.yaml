@@ -21,8 +21,10 @@ steps:
 
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
-serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com'
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 
 # Configuration for the build runner
 options:
   logging: CLOUD_LOGGING_ONLY
+substitutions:
+  _SA_NAME: 'terraform-sa-gemini-project'

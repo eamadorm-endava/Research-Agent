@@ -30,8 +30,10 @@ steps:
     dir: 'terraform/ai_agent_resources'
 
 # This matches the custom SA you created in your bootstrap script
-serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com'
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 
 # Configuration for the build runner
 options:
   logging: CLOUD_LOGGING_ONLY
+substitutions:
+  _SA_NAME: 'terraform-sa-gemini-project'
