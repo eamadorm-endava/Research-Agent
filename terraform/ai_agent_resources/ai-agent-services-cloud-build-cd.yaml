@@ -1,0 +1,28 @@
+steps:
+  # Step 1: Initialize Terraform with Dynamic Backend
+  # This must match the CI prefix exactly to use the same state
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/ai-agent-resources"
+    dir: 'terraform/ai-agent-resources'
+
+  # Step 2: Run Terraform Apply
+  # -auto-approve is critical here to prevent the build from hanging/failing
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply'
+    args: ['apply', '-auto-approve']
+    dir: 'terraform/ai-agent-resources'
+
+
+# Ensure this Service Account has 'Storage Object Admin' on the state bucket
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+# Configuration for the build runner
+options:
+  logging: CLOUD_LOGGING_ONLY
