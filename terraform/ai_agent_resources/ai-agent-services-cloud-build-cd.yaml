@@ -26,5 +26,3 @@ serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID
 # Configuration for the build runner
 options:
   logging: CLOUD_LOGGING_ONLY
-substitutions:
-  _SA_NAME: 'terraform-sa-gemini-project'

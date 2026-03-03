@@ -169,7 +169,8 @@ create_trigger() {
             --pull-request-pattern="^main$" \
             --build-config="$CONFIG" \
             --included-files="$DIR/**" \
-            --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL"
+            --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
+            --substitutions="_SA_NAME=$SA_NAME"
     else
         echo "Creating 2nd Gen Push Trigger: $NAME"
         gcloud alpha builds triggers create github \
@@ -180,7 +181,8 @@ create_trigger() {
             --branch-pattern="^main$" \
             --build-config="$CONFIG" \
             --included-files="$DIR/**" \
-            --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL"
+            --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
+            --substitutions="_SA_NAME=$SA_NAME"
     fi
 }
 

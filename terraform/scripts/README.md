@@ -74,7 +74,7 @@ After a successful run, developers do not need local keys. To run Terraform loca
 ```
 Bash
 
-gcloud auth application-default login --impersonate-service-account=terraform-sa-gemin
+gcloud auth application-default login --impersonate-service-account="the sa name that you defined" (example: terraform-sa-gemin)
 ```
 
 ## Terraform Infrastructure Access Setup
