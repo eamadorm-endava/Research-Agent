@@ -113,9 +113,11 @@ This project uses Google Cloud Build for automated deployments:
 
 1. **Feature Branches:** Create a branch for your changes (e.g., `feature/add-sa-roles`).
 2. **Pull Request:** Opening a PR to `main` triggers a `terraform plan`.
-   - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
-   - The PR cannot be merged if the plan fails.
-   - The PR required one approvers at least
+    - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
+    - The PR cannot be merged if the plan fails.
+    - The PR required one approvers at least
+    - Note: If the build fails with "Exit Status 3", run terraform fmt locally and push again.
+
 3. **Merge to Main:** Merging the PR triggers `terraform apply`.
    - Ensure the plan was reviewed before merging.
 

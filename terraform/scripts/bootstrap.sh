@@ -4,11 +4,24 @@
 set -e
 
 # --- Configuration ---
+
+#service accounts and IAM roles
 PROJECT_ID="p-dev-gce-60pf"
 SA_NAME="terraform-sa-gemini-project"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 USER_EMAIL="davidalejandro.sanchezarias@endava.com"
 DEVELOPER_GROUP_EMAIL="research-agent-dev-test@endava.com" # Update with your email or group
+
+#bucket
+BUCKET_NAME="${PROJECT_ID}-terraform-state" #GCS Bucket to storage terraform state
+LOCATION="us-central1"
+
+# GitHub
+REPO_NAME="Research-Agent"
+REPO_OWNER="eamadorm-endava"
+BRANCH_NAME="" # Your specific development branch
+GITHUB_REGION="us-central1"
+GITHUB_CONNECTION_NAME="eamadorm-github"
 
 echo "Starting bootstrap for project: $PROJECT_ID"
 
@@ -72,7 +85,6 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
     --role="roles/logging.logWriter" \
     --condition=None
 
-
 # 1. Grant the SA the Service Agent role at the project level
 echo "Granting Service Agent role to custom SA (Required for 2nd Gen)..."
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
@@ -81,7 +93,6 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --condition=None
 
 # 2. Grant the Cloud Build 'Internal System' permission to use your SA
-# (Using your project number 753988132239 from the error message)
 echo "Granting System Agent permission to act as your custom SA..."
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
     --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
@@ -106,13 +117,11 @@ echo "Ensuring Cloud Build API is enabled..."
 gcloud services enable cloudbuild.googleapis.com --project=$PROJECT_ID
 
 # 6. --- Create GCS Bucket for Terraform State ---
-BUCKET_NAME="${PROJECT_ID}-terraform-state"
-
 if ! gcloud storage buckets describe gs://$BUCKET_NAME > /dev/null 2>&1; then
     echo "Creating GCS bucket for Terraform state: $BUCKET_NAME..."
     gcloud storage buckets create gs://$BUCKET_NAME \
         --project=$PROJECT_ID \
-        --location="us-central1" \
+        --location=$LOCATION \
         --uniform-bucket-level-access
 
     echo "Enabling versioning on bucket..."
@@ -127,20 +136,13 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET_NAME \
     --member="serviceAccount:$SA_EMAIL" \
     --role="roles/storage.objectAdmin"
 
-
 # 7. Give impersonation in Terraform sa to your user
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --member="user:$USER_EMAIL" \
   --role="roles/iam.serviceAccountUser" \
   --project="$PROJECT_ID"
 
-
 # 8. Create Cloud Build Triggers
-# GitHub Configuration
-REPO_NAME="Research-Agent"
-REPO_OWNER="eamadorm-endava"
-BRANCH_NAME="" # Your specific development branch
-
 echo "Creating Cloud Build Triggers..."
 
 # Function to create triggers
@@ -149,10 +151,10 @@ create_trigger() {
     local TYPE=$2
     local DIR=$3
     local CONFIG=$4
-    local REGION="us-central1"
-    local CONNECTION_NAME="eamadorm-github"
+    local REGION=$GITHUB_REGION
+    local CONNECTION_NAME=$GITHUB_CONNECTION_NAME
     
-    # Use the PROJECT_NUMBER from your error (753988132239)
+    # Use the PROJECT_NUMBER
     # The path for Cloud Build v2 is /connections/NAME/repositories/REPO_NAME
     local REPO_PATH="projects/$PROJECT_NUMBER/locations/$REGION/connections/$CONNECTION_NAME/repositories/eamadorm-endava-Research-Agent"
 
@@ -182,7 +184,7 @@ create_trigger() {
     fi
 }
 
-# --- API Services Triggers ---
+# --- AI Agent and MCP Server Triggers ---
 # CI (Plan) on Pull Request
 create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml"
 # CD (Apply) on Push/Merge
