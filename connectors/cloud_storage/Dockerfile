@@ -1,6 +1,9 @@
 # Use a lightweight Python base image
 FROM python:3.11-slim
 
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -8,15 +11,18 @@ ENV PYTHONUNBUFFERED=1 \
 # Set the working directory to /app
 WORKDIR /app
 
-# Copy requirements.txt and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# NOTE: The Docker build context MUST be the root of the repository
+COPY pyproject.toml uv.lock ./
+
+# Install only the GCS MCP server dependencies using uv
+RUN uv sync --group mcp_gcs --no-dev --no-install-project
 
 # Copy the app directory
-COPY app/ app/
+COPY connectors/cloud_storage/app/ app/
 
 # Expose port 8080 (standard for Cloud Run)
 EXPOSE 8080
 
-# Run the FastAPI app using Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run the FastAPI app using uv run
+CMD ["uv", "run", "--group", "mcp_gcs", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+

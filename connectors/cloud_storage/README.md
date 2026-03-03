@@ -64,11 +64,11 @@ Deploying as a standalone Cloud Run service provides a scalable, serverless endp
 -   **Centralized**: Can be updated independently of the agents using it.
 
 **How to Deploy**:
-The repository includes a `Dockerfile` and `cloudbuild.yaml` optimized for Cloud Run.
+The repository includes a `Dockerfile` and `cloudbuild.yaml` optimized for Cloud Run. Note that the Docker build context **must be the root of the repository** so it can access the master `pyproject.toml`.
 1. Configure `cloudbuild.yaml` with your GCP Project and preferred Google Artifact Registry region.
-2. Run Cloud Build to create the image and deploy to Cloud Run:
+2. Run Cloud Build from the root of the repository to create the image and deploy to Cloud Run:
    ```bash
-   gcloud builds submit --config=cloudbuild.yaml
+   gcloud builds submit --config=connectors/cloud_storage/cloudbuild.yaml .
    ```
 3. **Agent Integration**: Once deployed, configure your Agent Development Kit (ADK) agent to use the resulting Cloud Run URL (e.g., `https://gcs-mcp-xyz.a.run.app/sse`).
 
@@ -90,10 +90,18 @@ If you are using Google's Vertex AI Agent Builder or orchestration frameworks he
 
 ## 💻 Local Development
 
-1.  **Virtual Environment**: Ensure dependencies are installed `pip install -r requirements.txt`.
-2.  **Authentication**: Run `gcloud auth application-default login` to use your local credentials, OR set `export GCP_SERVICE_ACCOUNT_PATH="/path/to/key.json"`.
-3.  **Run Server**: Start the FastAPI server locally:
+This project uses `uv` for dependency management with a unified `pyproject.toml` in the repository root.
+
+1.  **Dependencies**: From the root of the repository, sync the specific dependencies for this connector:
     ```bash
-    uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    uv sync --group mcp_gcs
     ```
-4.  **Testing**: Run unit tests (with mocked clients) using `pytest tests/`.
+2.  **Authentication**: Run `gcloud auth application-default login` to use your local credentials (or configure impersonation as described above).
+3.  **Run Server**: Start the FastAPI server locally from the repository root:
+    ```bash
+    uv run --group mcp_gcs uvicorn connectors.cloud_storage.app.main:app --host 0.0.0.0 --port 8080 --reload
+    ```
+4.  **Testing**: Run unit tests using `pytest`:
+    ```bash
+    uv run --group mcp_gcs pytest connectors/cloud_storage/tests/
+    ```

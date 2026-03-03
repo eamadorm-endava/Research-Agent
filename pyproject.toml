@@ -20,3 +20,11 @@ localdev = [
     "dotenv>=0.9.9",
     "ipykernel>=7.2.0",
 ]
+mcp_gcs = [
+    "fastapi>=0.109.0",
+    "google-cloud-storage>=2.14.0",
+    "mcp>=1.2.0",
+    "pydantic>=2.5.3",
+    "sse-starlette>=2.0.0",
+    "uvicorn>=0.27.0",
+]
