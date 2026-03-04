@@ -13,6 +13,7 @@ ai-agent = [
 dev = [
     "google-cloud-modelarmor>=0.4.0",
     "loguru>=0.7.3",
+    "pytest>=8.0.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
 ]
@@ -28,3 +29,17 @@ mcp_gcs = [
     "sse-starlette>=2.0.0",
     "uvicorn>=0.27.0",
 ]
+mcp_bq = [
+    "fastapi>=0.109.0",
+    "google-cloud-bigquery>=3.20.0",
+    "mcp>=1.2.0",
+    "pydantic>=2.5.3",
+    "sse-starlette>=2.0.0",
+    "uvicorn>=0.27.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
+

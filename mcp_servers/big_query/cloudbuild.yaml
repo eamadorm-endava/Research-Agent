@@ -1,0 +1,36 @@
+steps:
+  # 1. Build the docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/bigquery-server', '-f', 'mcp_servers/big_query/Dockerfile', '.']
+
+  # 2. Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/bigquery-server']
+
+  # 3. Deploy the image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/bigquery-server'
+      - '--region'
+      - '${_REGION}'
+      - '--port'
+      - '8080'
+      - '--allow-unauthenticated' # Adjust as needed for security
+      - '--service-account'
+      - '${_SERVICE_ACCOUNT}'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/bigquery-server'
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE_NAME: bigquery-mcp-server
+  _SERVICE_ACCOUNT: mcp-bigquery-sa@$PROJECT_ID.iam.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
