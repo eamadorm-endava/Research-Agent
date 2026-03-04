@@ -18,11 +18,12 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --group mcp_gcs --no-dev --no-install-project
 
 # Copy the app directory
-COPY connectors/cloud_storage/app/ app/
+COPY mcp_servers/gcs/app/ app/
 
 # Expose port 8080 (standard for Cloud Run)
 EXPOSE 8080
 
 # Run the FastAPI app using uv run
 CMD ["uv", "run", "--group", "mcp_gcs", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
 

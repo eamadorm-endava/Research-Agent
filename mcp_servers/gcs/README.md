@@ -21,6 +21,18 @@ The MCP Server wraps the `google-cloud-storage` client and exposes the following
     -   `GET /sse`: Establishes the agent connection.
     -   `POST /messages`: Handles incoming JSON-RPC tool-call execution requests.
 
+## 🤝 Connection Guide for Agents
+
+Because this server uses the Model Context Protocol (MCP), your agent will automatically self-discover all the available GCS tools (like `upload_object` or `list_objects`) and their schemas upon connecting. You only need to provide the agent framework with three details:
+
+1.  **Transport Protocol**: Server-Sent Events (SSE) over HTTP.
+2.  **Endpoint URL**: The exact URL pointing to the `/sse` route.
+    *   **Local Testing**: `http://localhost:8080/sse`
+    *   **Production (Cloud Run)**: `https://[CLOUD_RUN_SERVICE_URL]/sse` *(Placeholder: Update after deployment)*
+3.  **Authentication**:
+    *   **Locally**: None required. Relies on the host's `gcloud auth application-default login`.
+    *   **Production**: If Cloud Run is secured via IAM natively, the agent making the HTTP request must attach an `Authorization: Bearer <Google_ID_Token>` header to the `/sse` request.
+
 ## 🔐 Security & Authentication (Keyless Architecture)
 
 This MCP server relies entirely on **Google Application Default Credentials (ADC)**. We strictly avoid long-lived JSON key files to adhere to zero-trust security best practices.
@@ -68,7 +80,7 @@ The repository includes a `Dockerfile` and `cloudbuild.yaml` optimized for Cloud
 1. Configure `cloudbuild.yaml` with your GCP Project and preferred Google Artifact Registry region.
 2. Run Cloud Build from the root of the repository to create the image and deploy to Cloud Run:
    ```bash
-   gcloud builds submit --config=connectors/cloud_storage/cloudbuild.yaml .
+   gcloud builds submit --config=mcp_servers/gcs/cloudbuild.yaml .
    ```
 3. **Agent Integration**: Once deployed, configure your Agent Development Kit (ADK) agent to use the resulting Cloud Run URL (e.g., `https://gcs-mcp-xyz.a.run.app/sse`).
 
@@ -99,9 +111,9 @@ This project uses `uv` for dependency management with a unified `pyproject.toml`
 2.  **Authentication**: Run `gcloud auth application-default login` to use your local credentials (or configure impersonation as described above).
 3.  **Run Server**: Start the FastAPI server locally from the repository root:
     ```bash
-    uv run --group mcp_gcs uvicorn connectors.cloud_storage.app.main:app --host 0.0.0.0 --port 8080 --reload
+    uv run --group mcp_gcs uvicorn mcp_servers.gcs.app.main:app --host 0.0.0.0 --port 8080 --reload
     ```
 4.  **Testing**: Run unit tests using `pytest`:
     ```bash
-    uv run --group mcp_gcs pytest connectors/cloud_storage/tests/
+    uv run --group mcp_gcs pytest mcp_servers/gcs/tests/
     ```

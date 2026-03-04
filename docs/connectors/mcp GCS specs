@@ -8,7 +8,7 @@ These conditions must be met for the feature to function as requested:
 
 Folder Structure
 
-All code for this connector must be developed and contained within the /connectors/cloud_storage directory at the root of the repository.
+All code for this connector must be developed and contained within the /mcp_servers/gcs directory at the root of the repository.
 
 Client Initialization
 
