@@ -1,0 +1,37 @@
+steps:
+  # Step 1: Initialize Terraform with Dynamic Backend
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/ai-agent-resources"
+    dir: 'terraform/ai_agent_resources'
+
+  # Step 2: Ensure code is formatted correctly
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-fmt'
+    args: ['fmt', '-check']
+    dir: 'terraform/ai_agent_resources'
+
+  # Step 3: Validate the configuration syntax
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/ai_agent_resources'
+
+  # Step 4: Run Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args: ['plan', '-out=tfplan']
+    dir: 'terraform/ai_agent_resources'
+
+# This matches the custom SA you created in your bootstrap script
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+# Configuration for the build runner
+options:
+  logging: CLOUD_LOGGING_ONLY
