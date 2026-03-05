@@ -30,7 +30,6 @@ mcp_gcs = [
     "uvicorn>=0.27.0",
 ]
 mcp_bq = [
-    "fastapi>=0.109.0",
     "google-cloud-bigquery>=3.20.0",
     "mcp>=1.2.0",
     "pydantic>=2.5.3",
