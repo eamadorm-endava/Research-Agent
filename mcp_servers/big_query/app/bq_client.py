@@ -2,7 +2,8 @@ from typing import Optional, List, Dict, Any
 import logging
 import json
 from google.cloud import bigquery
-from google.cloud.exceptions import GoogleCloudError
+from google.cloud.bigquery.schema import SchemaField
+from google.cloud.exceptions import GoogleCloudError, NotFound
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,151 +22,187 @@ class BigQueryManager:
             logger.error(f"Failed to initialize BigQuery Client: {e}")
             raise
 
-    def create_dataset(self, dataset_id: str, location: str = "US") -> str:
+    def table_exists(self, project_id: str, dataset_id: str, table_id: str) -> bool:
         """
-        Creates a new BigQuery dataset.
-        
+        Checks if a specific table exists in a dataset within a GCP project.
+
         Args:
-            dataset_id: The ID of the dataset to create (e.g., 'my_dataset').
-            location: Data location.
-            
+            project_id (str): The GCP project ID.
+            dataset_id (str): The ID of the dataset containing the table.
+            table_id (str): The ID of the table to check.
+
         Returns:
-            str: The full dataset ID.
+            bool: True if the table exists, False otherwise.
         """
+        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
         try:
-            full_dataset_id = f"{self.client.project}.{dataset_id}"
-            dataset = bigquery.Dataset(full_dataset_id)
-            dataset.location = location
-            dataset = self.client.create_dataset(dataset, exists_ok=True)
-            logger.info(f"Dataset {dataset.dataset_id} created or already exists.")
-            return dataset.full_dataset_id
-        except GoogleCloudError as e:
-            logger.error(f"Error creating dataset {dataset_id}: {e}")
+            self.client.get_table(full_table_id)
+            return True
+        except NotFound:
+            return False
+        except Exception as e:
+            logger.error(f"Error checking if table exists {full_table_id}: {e}")
             raise
 
-    def create_table(self, dataset_id: str, table_id: str, schema_json: List[Dict[str, str]]) -> str:
+    def create_dataset(self, project_id: str, dataset_id: str, location: str) -> str:
         """
-        Creates a new table in BigQuery.
-        
+        Creates a new BigQuery dataset.
+
         Args:
-            dataset_id: The existing dataset ID.
-            table_id: The target table ID.
-            schema_json: A list of dicts defining the schema, e.g., [{"name": "id", "type": "INTEGER"}]
-            
+            project_id (str): The GCP project ID.
+            dataset_id (str): The ID for the new dataset.
+            location (str): The geographic location for the dataset.
+
         Returns:
-            str: The full table ID.
+            str: The full dataset ID of the created or existing dataset.
         """
         try:
-            full_table_id = f"{self.client.project}.{dataset_id}.{table_id}"
+            full_dataset_id = f"{project_id}.{dataset_id}"
+            dataset = bigquery.Dataset(full_dataset_id)
+            dataset.location = location
+            dataset = self.client.create_dataset(dataset, timeout=30, exists_ok=True)
+            return str(dataset.reference)
+        except Exception as e:
+            logger.error(f"Error creating dataset {dataset_id} in project {project_id}: {e}")
+            raise GoogleCloudError(f"Error creating dataset {dataset_id}: {e}")
+
+    def list_datasets(self, project_id: str) -> List[str]:
+        """
+        Lists all datasets in a project.
+
+        Args:
+            project_id (str): The GCP project ID.
+
+        Returns:
+            List[str]: A list of dataset IDs as strings.
+        """
+        try:
+            datasets = list(self.client.list_datasets(project=project_id))
+            return [d.dataset_id for d in datasets]
+        except Exception as e:
+            logger.error(f"Error listing datasets for project {project_id}: {e}")
+            raise GoogleCloudError(f"Error listing datasets for project {project_id}: {e}")
+
+    def create_table(self, project_id: str, dataset_id: str, table_id: str, schema_json: List[Dict[str, Any]]) -> str:
+        """
+        Creates a new table in BigQuery with the specified schema.
+
+        Args:
+            project_id (str): The GCP project ID.
+            dataset_id (str): The ID of the dataset.
+            table_id (str): The ID for the new table.
+            schema_json (List[Dict[str, Any]]): A list of dictionaries defining the schema.
+                                                 Ex: [{"name": "id", "type": "INTEGER"}]
+
+        Returns:
+            str: The full table ID of the created or existing table.
+        """
+        try:
+            full_table_id = f"{project_id}.{dataset_id}.{table_id}"
             schema = [bigquery.SchemaField.from_api_repr(field) for field in schema_json]
             table = bigquery.Table(full_table_id, schema=schema)
             table = self.client.create_table(table, exists_ok=True)
-            logger.info(f"Table {table.table_id} created or already exists.")
-            return table.full_table_id
-        except GoogleCloudError as e:
-            logger.error(f"Error creating table {table_id}: {e}")
-            raise
+            return str(table.reference)
+        except Exception as e:
+            logger.error(f"Error creating table {table_id} in {project_id}.{dataset_id}: {e}")
+            raise GoogleCloudError(f"Error creating table {table_id}: {e}")
 
-    def get_table_schema(self, dataset_id: str, table_id: str) -> List[Dict[str, Any]]:
+    def get_table_schema(self, project_id: str, dataset_id: str, table_id: str) -> List[SchemaField]:
         """
-        Retrieves the schema of a specific table.
-        
+        Retrieves the schema definition of an existing table.
+
         Args:
-            dataset_id: Dataset ID.
-            table_id: Table ID.
-            
+            project_id (str): The GCP project ID.
+            dataset_id (str): The ID of the dataset.
+            table_id (str): The ID of the table.
+
         Returns:
-            List[Dict[str, Any]]: The schema definition.
+            List[SchemaField]: A list of SchemaField objects representing the table structure.
         """
+        if not self.table_exists(project_id, dataset_id, table_id):
+            raise ValueError(f"Table {table_id} does not exist in {project_id}.{dataset_id}.")
+
+        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
         try:
-            full_table_id = f"{self.client.project}.{dataset_id}.{table_id}"
             table = self.client.get_table(full_table_id)
-            return [field.to_api_repr() for field in table.schema]
-        except GoogleCloudError as e:
-            logger.error(f"Error fetching schema for {table_id}: {e}")
-            raise
+            return list(table.schema)
+        except Exception as e:
+            raise ValueError(f"Error getting table schema for {full_table_id}: {e}")
 
-    def list_tables(self, dataset_id: str) -> List[str]:
+    def list_tables(self, project_id: str, dataset_id: str) -> List[str]:
         """
-        Lists all tables in a specific dataset.
-        
+        Lists the names of all tables within a specific dataset.
+
         Args:
-            dataset_id: The dataset ID.
-            
+            project_id (str): The GCP project ID.
+            dataset_id (str): The ID of the dataset.
+
         Returns:
-            List[str]: A list of table IDs.
+            List[str]: A list of table IDs as strings.
         """
         try:
-            tables = self.client.list_tables(dataset_id)
+            tables = self.client.list_tables(f"{project_id}.{dataset_id}")
             return [table.table_id for table in tables]
-        except GoogleCloudError as e:
-            logger.error(f"Error listing tables in {dataset_id}: {e}")
-            raise
+        except Exception as e:
+            logger.error(f"Error listing tables in {project_id}.{dataset_id}: {e}")
+            raise GoogleCloudError(f"Error listing tables in {dataset_id}: {e}")
 
-    def insert_rows(self, dataset_id: str, table_id: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def insert_rows(self, project_id: str, dataset_id: str, table_id: str, rows: List[Dict[str, Any]]) -> None:
         """
-        Inserts rows into an existing BigQuery table using streaming API.
-        
+        Inserts multiple rows into an existing table using a load job.
+
         Args:
-            dataset_id: Dataset ID.
-            table_id: Table ID.
-            rows: List of dicts representing the rows to insert.
+            project_id (str): The GCP project ID.
+            dataset_id (str): The ID of the dataset.
+            table_id (str): The ID of the target table.
+            rows (List[Dict[str, Any]]): A list of dictionaries, where each dict represents a row to insert.
+        """
+        if not self.table_exists(project_id, dataset_id, table_id):
+            raise ValueError(f"Table {table_id} does not exist in {project_id}.{dataset_id}.")
+
+        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
+        try:
+            # Retrieve schema to preserve field modes (preventing them from resetting to NULLABLE)
+            schema = self.get_table_schema(project_id, dataset_id, table_id)
             
+            job_config = bigquery.LoadJobConfig(
+                source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                schema=schema
+            )
+            load_job = self.client.load_table_from_json(rows, full_table_id, job_config=job_config)
+            load_job.result()
+        except Exception as e:
+            raise ValueError(f"Error inserting rows into {full_table_id}: {e}")
+
+    def execute_query(self, project_id: str, query: str) -> List[Dict[str, Any]]:
+        """
+        Executes a SQL query against BigQuery and returns the results.
+
+        Args:
+            project_id (str): The GCP project ID.
+            query (str): The SQL query string.
+
         Returns:
-            Dict[str, Any]: Success status or list of errors.
+            List[Dict[str, Any]]: A list of dictionaries, where each dict represents a result row.
         """
         try:
-            full_table_id = f"{self.client.project}.{dataset_id}.{table_id}"
-            errors = self.client.insert_rows_json(full_table_id, rows)
-            if not errors:
-                logger.info(f"Loaded {len(rows)} rows into {full_table_id}.")
-                return {"status": "success", "inserted": len(rows)}
-            else:
-                logger.error(f"Errors occurred while inserting rows: {errors}")
-                return {"status": "error", "errors": errors}
-        except GoogleCloudError as e:
-            logger.error(f"Error inserting rows into {table_id}: {e}")
-            raise
-
-    def execute_query(self, query: str) -> List[Dict[str, Any]]:
-        """
-        Executes a SQL query and safely returns the results, converting complex types (Struct/Arrays) 
-        into standard Python dictionaries/lists.
-        
-        Args:
-            query: The standard SQL query.
+            query_job = self.client.query(query, project=project_id)
+            results = query_job.result()
             
-        Returns:
-            List[Dict[str, Any]]: The query results as a list of dicts.
-        """
-        try:
-            query_job = self.client.query(query)
-            results = query_job.result() # Wait for job to finish
+            # Convert results to a list of dicts for easier handling/serialization
+            output = [dict(row) for row in results]
             
-            output = []
-            for row in results:
-                # dict(row) internally handles simple types and converts structs 
-                # to dictionaries if using standard settings, but we can enforce safety
-                row_dict = dict(row)
-                output.append(row_dict)
-                
-            logger.info(f"Query returned {len(output)} rows.")
-            
-            # Simple recursive helper to ensure JSON serializability for the MCP return payload
             def make_serializable(obj):
                 if isinstance(obj, dict):
                     return {k: make_serializable(v) for k, v in obj.items()}
                 elif isinstance(obj, list):
                     return [make_serializable(v) for v in obj]
                 else:
-                    # Rely on JSON dumping to catch weird types gracefully
                     try:
                         json.dumps(obj)
                         return obj
                     except (TypeError, ValueError):
                         return str(obj)
-                        
             return make_serializable(output)
-        except GoogleCloudError as e:
-            logger.error(f"Error executing query: {e}")
-            raise
+        except Exception as e:
+            raise ValueError(f"Error querying the data: {e}")
