@@ -1,7 +1,23 @@
 from mcp.server.fastmcp import FastMCP
-from mcp_servers.big_query.app.bq_client import BigQueryManager
+from .bq_client import BigQueryManager
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Annotated
+from .schemas import (
+    GetTableSchemaRequest,
+    GetTableSchemaResponse,
+    CreateDatasetRequest,
+    CreateDatasetResponse,
+    ListDatasetsRequest,
+    ListDatasetsResponse,
+    CreateTableRequest,
+    CreateTableResponse,
+    ListTablesRequest,
+    ListTablesResponse,
+    AddRowsRequest,
+    AddRowsResponse,
+    ExecuteQueryRequest,
+    ExecuteQueryResponse
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -13,103 +29,215 @@ mcp = FastMCP("bigquery-mcp-server")
 bq_manager = BigQueryManager()
 
 @mcp.tool()
-def create_dataset(dataset_id: str, location: str = "US") -> str:
+def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse:
     """
     Creates a new Google Cloud BigQuery dataset.
-    
     Args:
-        dataset_id (str): The ID of the dataset to create.
-        location (str): The location for the dataset (e.g., 'US', 'EU'). Defaults to 'US'.
-        
+        request (CreateDatasetRequest): Structured request containing project_id, dataset_id, and location.
     Returns:
-        str: Success message with the dataset ID.
+        CreateDatasetResponse: Full request details and status.
     """
-    logger.info(f"Tool call: create_dataset(dataset_id={dataset_id}, location={location})")
-    full_id = bq_manager.create_dataset(dataset_id, location)
-    return f"Successfully created dataset: {full_id}"
+    logger.info(f"Tool call: create_dataset(project_id={request.project_id}, dataset_id={request.dataset_id})")
+    try:
+        full_id = bq_manager.create_dataset(request.project_id, request.dataset_id, request.location)
+        return CreateDatasetResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            location=request.location,
+            execution_status="success",
+            execution_message=f"Successfully created dataset: {full_id}"
+        )
+    except Exception as e:
+        return CreateDatasetResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            location=request.location,
+            execution_status="error",
+            execution_message=str(e)
+        )
 
 @mcp.tool()
-def create_table(dataset_id: str, table_id: str, schema_json: List[Dict[str, str]]) -> str:
+def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
+    """
+    Lists all datasets in a BigQuery project.
+    Args:
+        request (ListDatasetsRequest): Structured request containing the project_id.
+    Returns:
+        ListDatasetsResponse: A List[str] containing dataset IDs.
+    """
+    logger.info(f"Tool call: list_datasets(project_id={request.project_id})")
+    try:
+        datasets = bq_manager.list_datasets(request.project_id)
+        return ListDatasetsResponse(
+            project_id=request.project_id,
+            datasets=datasets,
+            execution_status="success",
+            execution_message=f"Found {len(datasets)} datasets in project {request.project_id}."
+        )
+    except Exception as e:
+        return ListDatasetsResponse(
+            project_id=request.project_id,
+            datasets=[],
+            execution_status="error",
+            execution_message=str(e)
+        )
+
+@mcp.tool()
+def create_table(request: CreateTableRequest) -> CreateTableResponse:
     """
     Creates a new table in BigQuery.
-    
     Args:
-        dataset_id (str): The ID of the dataset.
-        table_id (str): The ID of the table to create.
-        schema_json (List[Dict[str, str]]): A list of dictionaries defining the schema. 
-                                            Example: [{"name": "id", "type": "INTEGER"}]
-                                            
+        request (CreateTableRequest): Structured request containing project_id, dataset_id, table_id, and schema_fields.
     Returns:
-        str: Success message with the table ID.
+        CreateTableResponse: Full request details and status.
     """
-    logger.info(f"Tool call: create_table(dataset_id={dataset_id}, table_id={table_id})")
-    full_id = bq_manager.create_table(dataset_id, table_id, schema_json)
-    return f"Successfully created table: {full_id}"
+    logger.info(f"Tool call: create_table(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
+    try:
+        full_id = bq_manager.create_table(
+            request.project_id,
+            request.dataset_id,
+            request.table_id,
+            request.schema_fields
+        )
+        return CreateTableResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            table_id=request.table_id,
+            schema_fields=request.schema_fields,
+            execution_status="success",
+            execution_message=f"Successfully created table: {full_id}"
+        )
+    except Exception as e:
+        return CreateTableResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            table_id=request.table_id,
+            schema_fields=request.schema_fields,
+            execution_status="error",
+            execution_message=str(e)
+        )
 
 @mcp.tool()
-def get_table_schema(dataset_id: str, table_id: str) -> str:
+def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResponse:
     """
     Retrieves the schema definition of a specific table.
-    
     Args:
-        dataset_id (str): The ID of the dataset.
-        table_id (str): The ID of the table.
-        
+        request (GetTableSchemaRequest): Structured request containing project_id, dataset_id, and table_id.
     Returns:
-        str: A JSON string representation of the schema.
+        GetTableSchemaResponse: The schema fields as a List[Dict[str, Any]].
     """
-    logger.info(f"Tool call: get_table_schema(dataset_id={dataset_id}, table_id={table_id})")
-    schema = bq_manager.get_table_schema(dataset_id, table_id)
-    import json
-    return json.dumps(schema, indent=2)
+    logger.info(f"Tool call: get_table_schema(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
+    try:
+        schema_fields = bq_manager.get_table_schema(
+            request.project_id,
+            request.dataset_id,
+            request.table_id
+        )
+        return GetTableSchemaResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            table_id=request.table_id,
+            fields=[field.to_api_repr() for field in schema_fields],
+            execution_status="success",
+            execution_message=f"Schema retrieved for table {request.table_id}."
+        )
+    except Exception as e:
+        return GetTableSchemaResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            table_id=request.table_id,
+            fields=[],
+            execution_status="error",
+            execution_message=str(e)
+        )
 
 @mcp.tool()
-def list_tables(dataset_id: str) -> str:
+def list_tables(request: ListTablesRequest) -> ListTablesResponse:
     """
     Retrieves a list of all tables within a given dataset.
-    
     Args:
-        dataset_id (str): The ID of the dataset.
-        
+        request (ListTablesRequest): Structured request containing project_id and dataset_id.
     Returns:
-        str: A comma-separated list of table IDs.
+        ListTablesResponse: A List[str] of table IDs.
     """
-    logger.info(f"Tool call: list_tables(dataset_id={dataset_id})")
-    tables = bq_manager.list_tables(dataset_id)
-    if not tables:
-        return f"No tables found in dataset {dataset_id}."
-    return f"Tables in {dataset_id}: " + ", ".join(tables)
+    logger.info(f"Tool call: list_tables(project_id={request.project_id}, dataset_id={request.dataset_id})")
+    try:
+        tables = bq_manager.list_tables(request.project_id, request.dataset_id)
+        return ListTablesResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            tables=tables,
+            execution_status="success",
+            execution_message=f"Found {len(tables)} tables in dataset {request.dataset_id}."
+        )
+    except Exception as e:
+        return ListTablesResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            tables=[],
+            execution_status="error",
+            execution_message=str(e)
+        )
 
 @mcp.tool()
-def add_row(dataset_id: str, table_id: str, row: Dict[str, Any]) -> str:
+def add_rows(request: AddRowsRequest) -> AddRowsResponse:
     """
-    Inserts a single new row into an existing table.
-    
+    Inserts one or more rows into an existing table.
     Args:
-        dataset_id (str): The ID of the dataset.
-        table_id (str): The ID of the table.
-        row (Dict[str, Any]): A dictionary mapping column names to values.
-        
+        request (AddRowsRequest): Structured request containing project_id, dataset_id, table_id, and rows.
     Returns:
-        str: Success or failure message.
+        AddRowsResponse: Full request details and status.
     """
-    logger.info(f"Tool call: add_row(dataset_id={dataset_id}, table_id={table_id})")
-    result = bq_manager.insert_rows(dataset_id, table_id, [row])
-    import json
-    return json.dumps(result)
+    logger.info(f"Tool call: add_rows(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
+    try:
+        bq_manager.insert_rows(
+            request.project_id,
+            request.dataset_id,
+            request.table_id,
+            request.rows
+        )
+        return AddRowsResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            table_id=request.table_id,
+            rows=request.rows,
+            execution_status="success",
+            execution_message=f"Successfully inserted {len(request.rows)} rows into table {request.table_id}."
+        )
+    except Exception as e:
+        return AddRowsResponse(
+            project_id=request.project_id,
+            dataset_id=request.dataset_id,
+            table_id=request.table_id,
+            rows=request.rows,
+            execution_status="error",
+            execution_message=str(e)
+        )
 
 @mcp.tool()
-def execute_query(query: str) -> str:
+def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     """
-    Executes a read-only SQL query against BigQuery and safely returns the results.
-    
+    Executes a read-only SQL query against BigQuery.
     Args:
-        query (str): The standard SQL query to execute. It's recommended to limit results (e.g., LIMIT 100).
-        
+        request (ExecuteQueryRequest): Structured request containing project_id and query.
     Returns:
-        str: A JSON string of the result rows.
+        ExecuteQueryResponse: The query results as a List[Dict[str, Any]].
     """
-    logger.info(f"Tool call: execute_query()")
-    results = bq_manager.execute_query(query)
-    import json
-    return json.dumps(results, indent=2)
+    logger.info(f"Tool call: execute_query(project_id={request.project_id})")
+    try:
+        results = bq_manager.execute_query(request.project_id, request.query)
+        return ExecuteQueryResponse(
+            project_id=request.project_id,
+            query=request.query,
+            results=results,
+            execution_status="success",
+            execution_message=f"Query executed successfully, returned {len(results)} rows."
+        )
+    except Exception as e:
+        return ExecuteQueryResponse(
+            project_id=request.project_id,
+            query=request.query,
+            results=[],
+            execution_status="error",
+            execution_message=str(e)
+        )
