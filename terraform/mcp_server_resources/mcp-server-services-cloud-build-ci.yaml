@@ -1,0 +1,35 @@
+steps:
+  # Step 1: Initialize Terraform with Dynamic Backend
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/mcp-server-resources"
+    dir: 'terraform/mcp_server_resources'
+
+  # Step 2: Format Check
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-fmt'
+    args: ['fmt', '-check']
+    dir: 'terraform/mcp_server_resources'
+
+  # Step 3: Validate
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/mcp_server_resources'
+
+  # Step 4: Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args: ['plan', '-out=tfplan']
+    dir: 'terraform/mcp_server_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
