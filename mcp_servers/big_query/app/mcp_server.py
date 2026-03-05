@@ -2,7 +2,6 @@ import asyncio
 from mcp.server.fastmcp import FastMCP
 from .bq_client import BigQueryManager
 import logging
-from typing import Optional, List, Dict, Any, Annotated
 from .schemas import (
     GetTableSchemaRequest,
     GetTableSchemaResponse,
@@ -17,7 +16,7 @@ from .schemas import (
     AddRowsRequest,
     AddRowsResponse,
     ExecuteQueryRequest,
-    ExecuteQueryResponse
+    ExecuteQueryResponse,
 )
 
 # Configure logging
@@ -29,6 +28,7 @@ mcp = FastMCP("bigquery-mcp-server")
 # Instantiate BigQuery Manager
 bq_manager = BigQueryManager()
 
+
 @mcp.tool()
 async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse:
     """
@@ -38,15 +38,22 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
     Returns:
         CreateDatasetResponse: Full request details and status.
     """
-    logger.info(f"Tool call: create_dataset(project_id={request.project_id}, dataset_id={request.dataset_id})")
+    logger.info(
+        f"Tool call: create_dataset(project_id={request.project_id}, dataset_id={request.dataset_id})"
+    )
     try:
-        full_id = await asyncio.to_thread(bq_manager.create_dataset, request.project_id, request.dataset_id, request.location)
+        full_id = await asyncio.to_thread(
+            bq_manager.create_dataset,
+            request.project_id,
+            request.dataset_id,
+            request.location,
+        )
         return CreateDatasetResponse(
             project_id=request.project_id,
             dataset_id=request.dataset_id,
             location=request.location,
             execution_status="success",
-            execution_message=f"Successfully created dataset: {full_id}"
+            execution_message=f"Successfully created dataset: {full_id}",
         )
     except Exception as e:
         return CreateDatasetResponse(
@@ -54,8 +61,9 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
             dataset_id=request.dataset_id,
             location=request.location,
             execution_status="error",
-            execution_message=str(e)
+            execution_message=str(e),
         )
+
 
 @mcp.tool()
 async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
@@ -73,15 +81,16 @@ async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
             project_id=request.project_id,
             datasets=datasets,
             execution_status="success",
-            execution_message=f"Found {len(datasets)} datasets in project {request.project_id}."
+            execution_message=f"Found {len(datasets)} datasets in project {request.project_id}.",
         )
     except Exception as e:
         return ListDatasetsResponse(
             project_id=request.project_id,
             datasets=[],
             execution_status="error",
-            execution_message=str(e)
+            execution_message=str(e),
         )
+
 
 @mcp.tool()
 async def create_table(request: CreateTableRequest) -> CreateTableResponse:
@@ -92,14 +101,16 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
     Returns:
         CreateTableResponse: Full request details and status.
     """
-    logger.info(f"Tool call: create_table(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
+    logger.info(
+        f"Tool call: create_table(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})"
+    )
     try:
         full_id = await asyncio.to_thread(
             bq_manager.create_table,
             request.project_id,
             request.dataset_id,
             request.table_id,
-            request.schema_fields
+            request.schema_fields,
         )
         return CreateTableResponse(
             project_id=request.project_id,
@@ -107,7 +118,7 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
             table_id=request.table_id,
             schema_fields=request.schema_fields,
             execution_status="success",
-            execution_message=f"Successfully created table: {full_id}"
+            execution_message=f"Successfully created table: {full_id}",
         )
     except Exception as e:
         return CreateTableResponse(
@@ -116,8 +127,9 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
             table_id=request.table_id,
             schema_fields=request.schema_fields,
             execution_status="error",
-            execution_message=str(e)
+            execution_message=str(e),
         )
+
 
 @mcp.tool()
 async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResponse:
@@ -128,13 +140,15 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
     Returns:
         GetTableSchemaResponse: The schema fields as a List[Dict[str, Any]].
     """
-    logger.info(f"Tool call: get_table_schema(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
+    logger.info(
+        f"Tool call: get_table_schema(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})"
+    )
     try:
         schema_fields = await asyncio.to_thread(
             bq_manager.get_table_schema,
             request.project_id,
             request.dataset_id,
-            request.table_id
+            request.table_id,
         )
         return GetTableSchemaResponse(
             project_id=request.project_id,
@@ -142,7 +156,7 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
             table_id=request.table_id,
             fields=[field.to_api_repr() for field in schema_fields],
             execution_status="success",
-            execution_message=f"Schema retrieved for table {request.table_id}."
+            execution_message=f"Schema retrieved for table {request.table_id}.",
         )
     except Exception as e:
         return GetTableSchemaResponse(
@@ -151,8 +165,9 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
             table_id=request.table_id,
             fields=[],
             execution_status="error",
-            execution_message=str(e)
+            execution_message=str(e),
         )
+
 
 @mcp.tool()
 async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
@@ -163,15 +178,19 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
     Returns:
         ListTablesResponse: A List[str] of table IDs.
     """
-    logger.info(f"Tool call: list_tables(project_id={request.project_id}, dataset_id={request.dataset_id})")
+    logger.info(
+        f"Tool call: list_tables(project_id={request.project_id}, dataset_id={request.dataset_id})"
+    )
     try:
-        tables = await asyncio.to_thread(bq_manager.list_tables, request.project_id, request.dataset_id)
+        tables = await asyncio.to_thread(
+            bq_manager.list_tables, request.project_id, request.dataset_id
+        )
         return ListTablesResponse(
             project_id=request.project_id,
             dataset_id=request.dataset_id,
             tables=tables,
             execution_status="success",
-            execution_message=f"Found {len(tables)} tables in dataset {request.dataset_id}."
+            execution_message=f"Found {len(tables)} tables in dataset {request.dataset_id}.",
         )
     except Exception as e:
         return ListTablesResponse(
@@ -179,8 +198,9 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
             dataset_id=request.dataset_id,
             tables=[],
             execution_status="error",
-            execution_message=str(e)
+            execution_message=str(e),
         )
+
 
 @mcp.tool()
 async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
@@ -191,14 +211,16 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
     Returns:
         AddRowsResponse: Full request details and status.
     """
-    logger.info(f"Tool call: add_rows(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
+    logger.info(
+        f"Tool call: add_rows(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})"
+    )
     try:
         await asyncio.to_thread(
             bq_manager.insert_rows,
             request.project_id,
             request.dataset_id,
             request.table_id,
-            request.rows
+            request.rows,
         )
         return AddRowsResponse(
             project_id=request.project_id,
@@ -206,7 +228,7 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
             table_id=request.table_id,
             rows=request.rows,
             execution_status="success",
-            execution_message=f"Successfully inserted {len(request.rows)} rows into table {request.table_id}."
+            execution_message=f"Successfully inserted {len(request.rows)} rows into table {request.table_id}.",
         )
     except Exception as e:
         return AddRowsResponse(
@@ -215,8 +237,9 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
             table_id=request.table_id,
             rows=request.rows,
             execution_status="error",
-            execution_message=str(e)
+            execution_message=str(e),
         )
+
 
 @mcp.tool()
 async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
@@ -229,13 +252,15 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     """
     logger.info(f"Tool call: execute_query(project_id={request.project_id})")
     try:
-        results = await asyncio.to_thread(bq_manager.execute_query, request.project_id, request.query)
+        results = await asyncio.to_thread(
+            bq_manager.execute_query, request.project_id, request.query
+        )
         return ExecuteQueryResponse(
             project_id=request.project_id,
             query=request.query,
             results=results,
             execution_status="success",
-            execution_message=f"Query executed successfully, returned {len(results)} rows."
+            execution_message=f"Query executed successfully, returned {len(results)} rows.",
         )
     except Exception as e:
         return ExecuteQueryResponse(
@@ -243,5 +268,5 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
             query=request.query,
             results=[],
             execution_status="error",
-            execution_message=str(e)
+            execution_message=str(e),
         )

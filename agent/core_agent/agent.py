@@ -39,9 +39,7 @@ root_agent = Agent(
     instruction="You are a helpful research assistant.",
     tools=[
         McpToolset(
-            connection_params=SseConnectionParams(
-                url="http://localhost:8080/sse"
-            )
+            connection_params=SseConnectionParams(url="http://localhost:8080/sse")
         )
     ],
 )

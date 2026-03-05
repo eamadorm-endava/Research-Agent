@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 import logging
 import json
 from google.cloud import bigquery
@@ -9,15 +9,19 @@ from google.cloud.exceptions import GoogleCloudError, NotFound
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class BigQueryManager:
     """
     Manager for Google Cloud BigQuery operations.
     Initializes a client using Application Default Credentials (ADC).
     """
+
     def __init__(self):
         try:
             self.client = bigquery.Client()
-            logger.info(f"BigQuery Client initialized using ADC (Project: {self.client.project}).")
+            logger.info(
+                f"BigQuery Client initialized using ADC (Project: {self.client.project})."
+            )
         except GoogleCloudError as e:
             logger.error(f"Failed to initialize BigQuery Client: {e}")
             raise
@@ -63,7 +67,9 @@ class BigQueryManager:
             dataset = self.client.create_dataset(dataset, timeout=30, exists_ok=True)
             return str(dataset.reference)
         except Exception as e:
-            logger.error(f"Error creating dataset {dataset_id} in project {project_id}: {e}")
+            logger.error(
+                f"Error creating dataset {dataset_id} in project {project_id}: {e}"
+            )
             raise GoogleCloudError(f"Error creating dataset {dataset_id}: {e}")
 
     def list_datasets(self, project_id: str) -> List[str]:
@@ -81,9 +87,17 @@ class BigQueryManager:
             return [d.dataset_id for d in datasets]
         except Exception as e:
             logger.error(f"Error listing datasets for project {project_id}: {e}")
-            raise GoogleCloudError(f"Error listing datasets for project {project_id}: {e}")
+            raise GoogleCloudError(
+                f"Error listing datasets for project {project_id}: {e}"
+            )
 
-    def create_table(self, project_id: str, dataset_id: str, table_id: str, schema_json: List[Dict[str, Any]]) -> str:
+    def create_table(
+        self,
+        project_id: str,
+        dataset_id: str,
+        table_id: str,
+        schema_json: List[Dict[str, Any]],
+    ) -> str:
         """
         Creates a new table in BigQuery with the specified schema.
 
@@ -99,15 +113,21 @@ class BigQueryManager:
         """
         try:
             full_table_id = f"{project_id}.{dataset_id}.{table_id}"
-            schema = [bigquery.SchemaField.from_api_repr(field) for field in schema_json]
+            schema = [
+                bigquery.SchemaField.from_api_repr(field) for field in schema_json
+            ]
             table = bigquery.Table(full_table_id, schema=schema)
             table = self.client.create_table(table, exists_ok=True)
             return str(table.reference)
         except Exception as e:
-            logger.error(f"Error creating table {table_id} in {project_id}.{dataset_id}: {e}")
+            logger.error(
+                f"Error creating table {table_id} in {project_id}.{dataset_id}: {e}"
+            )
             raise GoogleCloudError(f"Error creating table {table_id}: {e}")
 
-    def get_table_schema(self, project_id: str, dataset_id: str, table_id: str) -> List[SchemaField]:
+    def get_table_schema(
+        self, project_id: str, dataset_id: str, table_id: str
+    ) -> List[SchemaField]:
         """
         Retrieves the schema definition of an existing table.
 
@@ -120,7 +140,9 @@ class BigQueryManager:
             List[SchemaField]: A list of SchemaField objects representing the table structure.
         """
         if not self.table_exists(project_id, dataset_id, table_id):
-            raise ValueError(f"Table {table_id} does not exist in {project_id}.{dataset_id}.")
+            raise ValueError(
+                f"Table {table_id} does not exist in {project_id}.{dataset_id}."
+            )
 
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
         try:
@@ -147,7 +169,13 @@ class BigQueryManager:
             logger.error(f"Error listing tables in {project_id}.{dataset_id}: {e}")
             raise GoogleCloudError(f"Error listing tables in {dataset_id}: {e}")
 
-    def insert_rows(self, project_id: str, dataset_id: str, table_id: str, rows: List[Dict[str, Any]]) -> None:
+    def insert_rows(
+        self,
+        project_id: str,
+        dataset_id: str,
+        table_id: str,
+        rows: List[Dict[str, Any]],
+    ) -> None:
         """
         Inserts multiple rows into an existing table using a load job.
 
@@ -158,18 +186,22 @@ class BigQueryManager:
             rows (List[Dict[str, Any]]): A list of dictionaries, where each dict represents a row to insert.
         """
         if not self.table_exists(project_id, dataset_id, table_id):
-            raise ValueError(f"Table {table_id} does not exist in {project_id}.{dataset_id}.")
+            raise ValueError(
+                f"Table {table_id} does not exist in {project_id}.{dataset_id}."
+            )
 
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
         try:
             # Retrieve schema to preserve field modes (preventing them from resetting to NULLABLE)
             schema = self.get_table_schema(project_id, dataset_id, table_id)
-            
+
             job_config = bigquery.LoadJobConfig(
                 source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-                schema=schema
+                schema=schema,
             )
-            load_job = self.client.load_table_from_json(rows, full_table_id, job_config=job_config)
+            load_job = self.client.load_table_from_json(
+                rows, full_table_id, job_config=job_config
+            )
             load_job.result()
         except Exception as e:
             raise ValueError(f"Error inserting rows into {full_table_id}: {e}")
@@ -188,10 +220,10 @@ class BigQueryManager:
         try:
             query_job = self.client.query(query, project=project_id)
             results = query_job.result()
-            
+
             # Convert results to a list of dicts for easier handling/serialization
             output = [dict(row) for row in results]
-            
+
             def make_serializable(obj):
                 if isinstance(obj, dict):
                     return {k: make_serializable(v) for k, v in obj.items()}
@@ -203,6 +235,7 @@ class BigQueryManager:
                         return obj
                     except (TypeError, ValueError):
                         return str(obj)
+
             return make_serializable(output)
         except Exception as e:
             raise ValueError(f"Error querying the data: {e}")
