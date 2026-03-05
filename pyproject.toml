@@ -14,6 +14,7 @@ dev = [
     "google-cloud-modelarmor>=0.4.0",
     "loguru>=0.7.3",
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
 ]
