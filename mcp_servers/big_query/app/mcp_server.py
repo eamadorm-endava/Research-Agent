@@ -1,3 +1,4 @@
+import asyncio
 from mcp.server.fastmcp import FastMCP
 from .bq_client import BigQueryManager
 import logging
@@ -29,7 +30,7 @@ mcp = FastMCP("bigquery-mcp-server")
 bq_manager = BigQueryManager()
 
 @mcp.tool()
-def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse:
+async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse:
     """
     Creates a new Google Cloud BigQuery dataset.
     Args:
@@ -39,7 +40,7 @@ def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse:
     """
     logger.info(f"Tool call: create_dataset(project_id={request.project_id}, dataset_id={request.dataset_id})")
     try:
-        full_id = bq_manager.create_dataset(request.project_id, request.dataset_id, request.location)
+        full_id = await asyncio.to_thread(bq_manager.create_dataset, request.project_id, request.dataset_id, request.location)
         return CreateDatasetResponse(
             project_id=request.project_id,
             dataset_id=request.dataset_id,
@@ -57,7 +58,7 @@ def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse:
         )
 
 @mcp.tool()
-def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
+async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
     """
     Lists all datasets in a BigQuery project.
     Args:
@@ -67,7 +68,7 @@ def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
     """
     logger.info(f"Tool call: list_datasets(project_id={request.project_id})")
     try:
-        datasets = bq_manager.list_datasets(request.project_id)
+        datasets = await asyncio.to_thread(bq_manager.list_datasets, request.project_id)
         return ListDatasetsResponse(
             project_id=request.project_id,
             datasets=datasets,
@@ -83,7 +84,7 @@ def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
         )
 
 @mcp.tool()
-def create_table(request: CreateTableRequest) -> CreateTableResponse:
+async def create_table(request: CreateTableRequest) -> CreateTableResponse:
     """
     Creates a new table in BigQuery.
     Args:
@@ -93,7 +94,8 @@ def create_table(request: CreateTableRequest) -> CreateTableResponse:
     """
     logger.info(f"Tool call: create_table(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
     try:
-        full_id = bq_manager.create_table(
+        full_id = await asyncio.to_thread(
+            bq_manager.create_table,
             request.project_id,
             request.dataset_id,
             request.table_id,
@@ -118,7 +120,7 @@ def create_table(request: CreateTableRequest) -> CreateTableResponse:
         )
 
 @mcp.tool()
-def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResponse:
+async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResponse:
     """
     Retrieves the schema definition of a specific table.
     Args:
@@ -128,7 +130,8 @@ def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResponse:
     """
     logger.info(f"Tool call: get_table_schema(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
     try:
-        schema_fields = bq_manager.get_table_schema(
+        schema_fields = await asyncio.to_thread(
+            bq_manager.get_table_schema,
             request.project_id,
             request.dataset_id,
             request.table_id
@@ -152,7 +155,7 @@ def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResponse:
         )
 
 @mcp.tool()
-def list_tables(request: ListTablesRequest) -> ListTablesResponse:
+async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
     """
     Retrieves a list of all tables within a given dataset.
     Args:
@@ -162,7 +165,7 @@ def list_tables(request: ListTablesRequest) -> ListTablesResponse:
     """
     logger.info(f"Tool call: list_tables(project_id={request.project_id}, dataset_id={request.dataset_id})")
     try:
-        tables = bq_manager.list_tables(request.project_id, request.dataset_id)
+        tables = await asyncio.to_thread(bq_manager.list_tables, request.project_id, request.dataset_id)
         return ListTablesResponse(
             project_id=request.project_id,
             dataset_id=request.dataset_id,
@@ -180,7 +183,7 @@ def list_tables(request: ListTablesRequest) -> ListTablesResponse:
         )
 
 @mcp.tool()
-def add_rows(request: AddRowsRequest) -> AddRowsResponse:
+async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
     """
     Inserts one or more rows into an existing table.
     Args:
@@ -190,7 +193,8 @@ def add_rows(request: AddRowsRequest) -> AddRowsResponse:
     """
     logger.info(f"Tool call: add_rows(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})")
     try:
-        bq_manager.insert_rows(
+        await asyncio.to_thread(
+            bq_manager.insert_rows,
             request.project_id,
             request.dataset_id,
             request.table_id,
@@ -215,7 +219,7 @@ def add_rows(request: AddRowsRequest) -> AddRowsResponse:
         )
 
 @mcp.tool()
-def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
+async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     """
     Executes a read-only SQL query against BigQuery.
     Args:
@@ -225,7 +229,7 @@ def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     """
     logger.info(f"Tool call: execute_query(project_id={request.project_id})")
     try:
-        results = bq_manager.execute_query(request.project_id, request.query)
+        results = await asyncio.to_thread(bq_manager.execute_query, request.project_id, request.query)
         return ExecuteQueryResponse(
             project_id=request.project_id,
             query=request.query,
