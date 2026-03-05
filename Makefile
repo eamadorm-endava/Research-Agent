@@ -13,3 +13,6 @@ install-precommit:
 
 run-precommit:
 	uvx pre-commit run --all-files
+
+run-bq-mcp:
+	uv run --group mcp_bq uvicorn mcp_servers.big_query.app.main:app --host 0.0.0.0 --port 8080 --reload
