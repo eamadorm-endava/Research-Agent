@@ -1,5 +1,10 @@
-project_id             = "p-dev-gce-60pf"
-developers_group_email = "research-agent-dev-test@endava.com"
+################ Project configuration ################
+
+project_id             = "p-s-gcu-na-marketing-bd5y-1"
+main_region            = "us-central1"
+developers_group_email = "gcu_latam_team_devs@endava.com"
+
+################ APIs to enable ################
 
 apis_to_enable = {
   "p-dev-gce-60pf" = [
