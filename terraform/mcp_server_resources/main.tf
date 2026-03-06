@@ -9,7 +9,7 @@ module "enable_apis" {
 }
 
 ################ Service Accounts ################
-module "gemini-enterprise-project-mcp-server-service-account" {
+module "mcp-server-service-account" {
   source     = "../base_modules/iam-service-account"
   project_id = var.project_id
   name       = var.mcp_server_service_account_name
