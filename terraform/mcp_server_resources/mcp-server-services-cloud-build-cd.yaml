@@ -1,5 +1,20 @@
+substitutions:
+  _LOCATION: us-central1
+  _REPO_NAME: mcp_servers
+  _SERVICE_NAME: bigquery-mcp-server
+
 steps:
-  # Step 1: Initialize Terraform (Must match CI prefix)
+  # Step 1: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: ['build', '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}', '-f', 'mcp_servers/big_query/Dockerfile', '.']
+
+  # Step 2: Docker Push
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    args: ['push', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}']
+
+  # Step 3: Initialize Terraform (Must match CI prefix)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
@@ -11,10 +26,16 @@ steps:
           -backend-config="prefix=terraform/state/mcp-server-resources"
     dir: 'terraform/mcp_server_resources'
 
-  # Step 2: Apply
+  # Step 4: Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args: ['plan', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
+    dir: 'terraform/mcp_server_resources'
+
+  # Step 5: Apply
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
-    args: ['apply', '-auto-approve']
+    args: ['apply', '-auto-approve', 'tfplan']
     dir: 'terraform/mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
