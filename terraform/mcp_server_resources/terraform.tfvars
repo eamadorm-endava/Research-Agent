@@ -7,22 +7,34 @@ developers_group_email = "gcu_latam_team_devs@endava.com"
 ################ APIs to enable ################
 
 apis_to_enable = {
-  "p-dev-gce-60pf" = [
-    "storage.googleapis.com",
-    "drive.googleapis.com",
-    "docs.googleapis.com",
-    "bigquery.googleapis.com"
+  "p-s-gcu-na-marketing-bd5y-1" = [
+    "bigquery.googleapis.com",
+    "run.googleapis.com",
+    "artifactregistry.googleapis.com"
+  ],
+}
+
+################ MCP-Server Service Account and IAM Roles ################
+
+mcp_server_service_account_name = "bq-mcp-server"
+
+mcp_server_iam_project_roles = {
+  "p-s-gcu-na-marketing-bd5y-1" = [
+    "roles/bigquery.dataEditor",
+    "roles/bigquery.jobUser"
   ]
 }
 
-#mcp-server service account and IAM roles
+################ Artifact Registry ################
 
-mcp_server_service_account_name = "mcp-server"
+artifact_registry_name = "mcp_servers"
 
-mcp_server_iam_project_roles = {
-  "p-dev-gce-60pf" = [
-    "roles/storage.objectUser",
-    "roles/bigquery.dataViewer",
-    "roles/bigquery.jobUser"
-  ]
+################ Cloud Run ################
+
+mcp_server_cloud_run_name      = "bigquery-mcp-server"
+mcp_server_cloud_run_image_tag = "latest"
+# mcp_server_cloud_run_region = "us-central1" # if not set, it will use the region set in the region variable
+
+mcp_server_cloud_run_env = {
+  "LOG_LEVEL" = "INFO"
 }
