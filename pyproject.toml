@@ -4,17 +4,29 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    # Runtime config (used by agent/core_agent/config.py)
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+]
 
 [dependency-groups]
 ai-agent = [
     "google-cloud-aiplatform[adk,agent-engines]>=1.138.0",
+
+    # Google Drive connector deps
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
+    "google-auth-httplib2>=0.1.0",
+    # Local OAuth fallback (optional)
+    "google-auth-oauthlib>=1.0.0",
+    # File extraction / generation
+    "pypdf>=4.0.0",
+    "reportlab>=4.0.0",
 ]
 dev = [
     "google-cloud-modelarmor>=0.4.0",
     "loguru>=0.7.3",
-    "pydantic>=2.12.5",
-    "pydantic-settings>=2.13.1",
 ]
 localdev = [
     "dotenv>=0.9.9",

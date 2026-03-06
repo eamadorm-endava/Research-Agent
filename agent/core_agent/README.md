@@ -58,7 +58,17 @@ This agent takes advantage of the [ADK tools and integrations](https://google.gi
 
 ### Implemented Tools
 
-- **Google Cloud API Registry** - Dynamically exposes available Google Cloud services as Model Context Protocol (MCP) servers, allowing the agent to discover and access tools at runtime without hardcoded definitions
+- **Google Search** - Uses the built-in ADK Google Search tool for web grounding.
+- **Google Drive Connector** - Custom ADK FunctionTools that allow the agent to:
+  - List/search files in the user's Drive
+  - Fetch and extract file text (Docs/Sheets/Slides/PDF/plain text)
+  - (Optional) Create a Google Doc from text and upload a PDF to Drive
+
+  The Drive tools are implemented under: `agent/core_agent/tools/drive/`.
+
+  #### Authentication notes
+  - **Production (Gemini Enterprise):** the agent expects a delegated user access token to be injected into ADK session state under the key set by `GEMINI_ENTERPRISE_AUTH_ID`.
+  - **Local testing:** you can enable `ALLOW_LOCAL_OAUTH=true` and provide `GOOGLE_OAUTH_CLIENT_SECRETS=...`.
 
 ### Security: Model Armor Implementation
 
