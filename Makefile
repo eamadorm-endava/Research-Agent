@@ -21,4 +21,4 @@ run-bq-mcp:
 	uv run --group mcp_bq uvicorn mcp_servers.big_query.app.main:app --host 0.0.0.0 --port 8080 --reload
 
 run-bq-tests:
-	uv run pytest mcp_servers/big_query/tests/
+	uv run --group mcp_bq pytest mcp_servers/big_query/tests/
