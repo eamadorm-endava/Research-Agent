@@ -1,13 +1,13 @@
 ################ Project configuration ################
 
-project_id             = "p-s-gcu-na-marketing-bd5y-1"
+project_id             = "p-dev-gce-60pf"
 main_region            = "us-central1"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 
 ################ APIs to enable ################
 
 apis_to_enable = {
-  "p-s-gcu-na-marketing-bd5y-1" = [
+  "p-dev-gce-60pf" = [
     "bigquery.googleapis.com",
     "run.googleapis.com",
     "artifactregistry.googleapis.com"
