@@ -5,13 +5,14 @@ This module allows simplified creation and management of one a service account a
 Note that outputs have no dependencies on IAM bindings to prevent resource cycles.
 
 <!-- BEGIN TOC -->
-- [Simple Example](#simple-example)
-- [IAM](#iam)
-- [Reusing Existing Service Accounts](#reusing-existing-service-accounts)
-- [Tag Bindings](#tag-bindings)
-- [Files](#files)
-- [Variables](#variables)
-- [Outputs](#outputs)
+- [Google Service Account Module](#google-service-account-module)
+  - [Simple Example](#simple-example)
+  - [IAM](#iam)
+  - [Reusing Existing Service Accounts](#reusing-existing-service-accounts)
+  - [Tag Bindings](#tag-bindings)
+  - [Files](#files)
+  - [Variables](#variables)
+  - [Outputs](#outputs)
 <!-- END TOC -->
 
 ## Simple Example
