@@ -12,7 +12,11 @@ steps:
   # Step 2: Docker Push
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-push'
-    args: ['push', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}']
+    args: [
+      'push', 
+      '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}',
+      '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest',
+    ]
 
   # Step 3: Initialize Terraform (Must match CI prefix)
   - name: 'hashicorp/terraform:1.12.2'
