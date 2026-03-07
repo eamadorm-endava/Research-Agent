@@ -19,7 +19,7 @@ apis_to_enable = {
 mcp_server_service_account_name = "bq-mcp-server"
 
 mcp_server_iam_project_roles = {
-  "p-s-gcu-na-marketing-bd5y-1" = [
+  "p-dev-gce-60pf" = [
     "roles/bigquery.dataEditor",
     "roles/bigquery.jobUser"
   ]
