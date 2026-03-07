@@ -1,3 +1,9 @@
+substitutions:
+  _LOCATION: us-central1
+  _REPO_NAME: mcp_servers
+  _SERVICE_NAME: bigquery-mcp-server
+
+
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
   - name: 'hashicorp/terraform:1.12.2'
@@ -30,7 +36,7 @@ steps:
 
   # Step 4: Python Tests
   - name: 'python:3.12'
-    id: 'python-test'
+    id: 'bq-mcp-test'
     entrypoint: 'sh'
     args:
       - '-c'
@@ -42,23 +48,32 @@ steps:
   # Step 5: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-build'
-    args: ['build', '-t', 'bq-mcp-test:ci', '-f', 'mcp_servers/big_query/Dockerfile', '.']
+    args: ['build', '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}', '-f', 'mcp_servers/big_query/Dockerfile', '.']
 
-  # Step 6: Docker Test
+  # Step 6: Docker Test (HTTP Health Check)
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-test'
+    id: 'docker-test-http'
     entrypoint: 'sh'
     args:
       - '-c'
       - |
-        docker run -d --name bq-mcp-test-container -p 8080:8080 bq-mcp-test:ci
+        # Start the container joined to the host network so we can hit it easily
+        docker run -d --name bq-mcp-test-container --network cloudbuild -p 8080:8080 ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
+        
+        # Wait a few seconds for the Uvicorn server to start
         sleep 5
-        docker logs bq-mcp-test-container
-        # Check if container is still running
-        if [ "$(docker inspect -f '{{.State.Running}}' bq-mcp-test-container)" != "true" ]; then
-          echo "Container stopped unexpectedly"
+        
+        # Use a temporary alpine container to curl the SSE endpoint
+        echo "Testing HTTP endpoint..."
+        docker run --network cloudbuild curlimages/curl -sSf http://bq-mcp-test-container:8080/sse || { 
+          echo "Health check failed. Container logs:"
+          docker logs bq-mcp-test-container
+          # Clean up container before failing
+          docker rm -f bq-mcp-test-container
           exit 1
-        fi
+        }
+        
+        echo "Health check passed."
         docker rm -f bq-mcp-test-container
 
   # Step 7: Validate (Terraform)
