@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from .bq_client import BigQueryManager
 from .schemas import (
     GetTableSchemaRequest,
