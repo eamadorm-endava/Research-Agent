@@ -14,11 +14,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Check https://github.com/modelcontextprotocol/python-sdk/blob/main/src/mcp/server/mcpserver/server.py#L126
     mcp.settings.host = args.host
     mcp.settings.port = args.port
     mcp.settings.log_level = args.log_level
 
-    # Create ASGI application, check: https://github.com/modelcontextprotocol/python-sdk/tree/main and
-    # https://github.com/modelcontextprotocol/python-sdk/tree/main?tab=readme-ov-file#quickstart
-    # also check https://github.com/modelcontextprotocol/python-sdk/tree/main?tab=readme-ov-file#streamable-http-transport
+    # Check https://github.com/modelcontextprotocol/python-sdk/tree/main?tab=readme-ov-file#streamable-http-transport
     mcp.run(transport="streamable-http")
