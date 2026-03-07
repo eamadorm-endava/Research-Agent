@@ -14,11 +14,17 @@ install-precommit:
 run-precommit:
 	uvx pre-commit run --all-files
 
+### BigQuery MCP Commands ###
+
 run-bq-precommit:
 	uvx pre-commit run --files mcp_servers/big_query/**/*
 
-run-bq-mcp:
-	uv run --group mcp_bq uvicorn mcp_servers.big_query.app.main:app --host 0.0.0.0 --port 8080 --reload
-
 run-bq-tests:
 	uv run --group mcp_bq pytest mcp_servers/big_query/tests/
+
+run-bq-mcp-locally:
+	uv run --group mcp_bq uvicorn mcp_servers.big_query.app.main:app --host 0.0.0.0 --port 8080 --reload
+
+build-bq-mcp-image:
+	docker build -t test-mcp-server -f mcp_servers/big_query/Dockerfile .
+
