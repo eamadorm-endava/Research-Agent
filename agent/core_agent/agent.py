@@ -2,8 +2,7 @@ import vertexai
 from vertexai import agent_engines
 from google.genai.types import GenerateContentConfig, ModelArmorConfig
 from google.adk.agents import Agent
-from google.adk.tools.mcp_tool import McpToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import SseConnectionParams
+from google.adk.tools import google_search
 from .config import GCPConfig, AgentConfig
 
 gcp_config = GCPConfig()
@@ -38,9 +37,7 @@ root_agent = Agent(
     generate_content_config=agent_settings,
     instruction="You are a helpful research assistant.",
     tools=[
-        McpToolset(
-            connection_params=SseConnectionParams(url="http://localhost:8080/sse")
-        )
+        google_search,
     ],
 )
 
