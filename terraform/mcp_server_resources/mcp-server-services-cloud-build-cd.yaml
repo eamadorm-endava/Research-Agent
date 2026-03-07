@@ -1,6 +1,6 @@
 substitutions:
   _LOCATION: us-central1
-  _REPO_NAME: mcp_servers
+  _REPO_NAME: mcp-servers
   _SERVICE_NAME: bigquery-mcp-server
 
 steps:
