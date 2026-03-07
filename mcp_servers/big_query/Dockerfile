@@ -1,12 +1,14 @@
 # Use a lightweight Python base image
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+ENV UV_VERSION=0.10.7
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+# Copy pyproject.toml and uv.lock in the working directory
+COPY pyproject.toml uv.lock ./
+
+# Upgrade pip and install the required uv version
+RUN pip install --upgrade pip &&\
+    pip install uv==${UV_VERSION}
 
 # Set the working directory to /app
 WORKDIR /app
