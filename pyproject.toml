@@ -9,6 +9,11 @@ dependencies = []
 [dependency-groups]
 ai-agent = [
     "google-cloud-aiplatform[adk,agent-engines]>=1.138.0",
+    "google-cloud-modelarmor>=0.4.0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
 ]
 dev = [
     "google-cloud-modelarmor>=0.4.0",
@@ -34,7 +39,6 @@ mcp_bq = [
     "google-cloud-bigquery>=3.20.0",
     "mcp>=1.26.0",
     "pydantic>=2.5.3",
-    "sse-starlette>=2.0.0",
 ]
 
 [tool.pytest.ini_options]

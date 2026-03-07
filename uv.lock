@@ -2576,6 +2576,11 @@ source = { virtual = "." }
 [package.dev-dependencies]
 ai-agent = [
     { name = "google-cloud-aiplatform", extra = ["adk", "agent-engines"] },
+    { name = "google-cloud-modelarmor" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 dev = [
     { name = "google-cloud-modelarmor" },
@@ -2593,7 +2598,6 @@ mcp-bq = [
     { name = "google-cloud-bigquery" },
     { name = "mcp" },
     { name = "pydantic" },
-    { name = "sse-starlette" },
 ]
 mcp-gcs = [
     { name = "fastapi" },
@@ -2607,7 +2611,14 @@ mcp-gcs = [
 [package.metadata]
 
 [package.metadata.requires-dev]
-ai-agent = [{ name = "google-cloud-aiplatform", extras = ["adk", "agent-engines"], specifier = ">=1.138.0" }]
+ai-agent = [
+    { name = "google-cloud-aiplatform", extras = ["adk", "agent-engines"], specifier = ">=1.138.0" },
+    { name = "google-cloud-modelarmor", specifier = ">=0.4.0" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pydantic-settings", specifier = ">=2.13.1" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+]
 dev = [
     { name = "google-cloud-modelarmor", specifier = ">=0.4.0" },
     { name = "loguru", specifier = ">=0.7.3" },
@@ -2624,7 +2635,6 @@ mcp-bq = [
     { name = "google-cloud-bigquery", specifier = ">=3.20.0" },
     { name = "mcp", specifier = ">=1.26.0" },
     { name = "pydantic", specifier = ">=2.5.3" },
-    { name = "sse-starlette", specifier = ">=2.0.0" },
 ]
 mcp-gcs = [
     { name = "fastapi", specifier = ">=0.109.0" },
