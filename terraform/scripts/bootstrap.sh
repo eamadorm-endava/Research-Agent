@@ -44,6 +44,9 @@ ROLES=(
     "roles/serviceusage.serviceUsageAdmin"
     "roles/iam.serviceAccountAdmin"
     "roles/resourcemanager.projectIamAdmin"
+    "roles/artifactregistry.admin"
+    "roles/run.admin"
+    "roles/iam.serviceAccountUser"
 )
 
 for ROLE in "${ROLES[@]}"; do
