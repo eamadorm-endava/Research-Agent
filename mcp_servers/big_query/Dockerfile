@@ -23,11 +23,7 @@ RUN uv sync --group mcp_bq --no-dev --no-install-project
 COPY mcp_servers/big_query/app/ mcp_servers/big_query/app/
 
 # Expose port 8080
-EXPOSE 8080
+EXPOSE ${PORT:-8080}
 
 # Run the FastAPI app using uv run
-CMD [
-    "sh", 
-    "-c", 
-    "uv run --group mcp_bq python -m mcp_servers.big_query.app.main --host 0.0.0.0 --port ${PORT:-8080}"
-]
+CMD ["uv run --group mcp_bq python -m mcp_servers.big_query.app.main --host 0.0.0.0 --port ${PORT:-8080}"]
