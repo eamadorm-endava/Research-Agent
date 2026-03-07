@@ -23,7 +23,13 @@ from .schemas import (
 logger = logging.getLogger(__name__)
 
 # Instantiate MCP Server
-mcp = FastMCP("bigquery-mcp-server")
+mcp = FastMCP(
+    "bigquery-mcp-server",
+    stateless_http=True,
+    json_response=True,
+    host="0.0.0.0",
+    port="8080",
+)
 
 # Instantiate BigQuery Manager
 bq_manager = BigQueryManager()
