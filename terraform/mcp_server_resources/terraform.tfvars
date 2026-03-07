@@ -27,7 +27,7 @@ mcp_server_iam_project_roles = {
 
 ################ Artifact Registry ################
 
-artifact_registry_name = "mcp_servers"
+artifact_registry_name = "mcp-servers"
 
 ################ Cloud Run ################
 
