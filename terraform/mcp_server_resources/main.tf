@@ -64,6 +64,10 @@ module "mcp_server_cloud_run" {
     }
   }
 
+  iam = {
+    "roles/run.invoker" = ["allUsers"]
+  }
+
   service_account_config = {
     create = false
     email  = module.mcp-server-service-account.email
