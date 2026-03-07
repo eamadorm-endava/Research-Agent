@@ -1,3 +1,4 @@
 from .mcp_server import mcp
 
-app = mcp.run()
+# Create ASGI application, check: https://gofastmcp.com/deployment/http#http-deployment
+app = mcp.http_app()
