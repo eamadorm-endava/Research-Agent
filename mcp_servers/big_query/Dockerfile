@@ -1,14 +1,12 @@
 # Use a lightweight Python base image
 FROM python:3.12-slim
 
-ENV UV_VERSION=0.10.7
+ENV UV_VERSION=0.10.7 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Copy pyproject.toml and uv.lock in the working directory
-COPY pyproject.toml uv.lock ./
-
-# Upgrade pip and install the required uv version
-RUN pip install --upgrade pip &&\
-    pip install uv==${UV_VERSION}
+# Install the required uv version
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /bin/
 
 # Set the working directory to /app
 WORKDIR /app
@@ -23,7 +21,7 @@ RUN uv sync --group mcp_bq --no-dev --no-install-project
 COPY mcp_servers/big_query/app/ mcp_servers/big_query/app/
 
 # Expose port 8080
-EXPOSE ${PORT:-8080}
+EXPOSE ${PORT}
 
 # Run the FastAPI app using uv run
-CMD ["uv run --group mcp_bq python -m mcp_servers.big_query.app.main --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD sh -c "uv run --group mcp_bq --no-sync python -m mcp_servers.big_query.app.main --host 0.0.0.0 --port ${PORT}"
