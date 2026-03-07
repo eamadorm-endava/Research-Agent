@@ -96,3 +96,30 @@ class AgentConfig(BaseSettings):
             description="Model Armor Template ID",
         ),
     ]
+
+
+class MCPServersConfig(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        validate_assignment=True,
+    )
+    """
+    Class that holds configuration values for MCP servers.
+    """
+
+    BIGQUERY_URL: Annotated[
+        str,
+        Field(
+            default="https://bigquery-mcp-server-753988132239.us-central1.run.app",
+            description="BigQuery MCP Server URL, uses a streamable http connection",
+        ),
+    ]
+    BIGQUERY_ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="BigQuery MCP Server Endpoint",
+        ),
+    ]
