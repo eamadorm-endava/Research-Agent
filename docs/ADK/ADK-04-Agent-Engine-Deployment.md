@@ -1,6 +1,8 @@
 # Agent Engine Deployment Guide
 
-This guide describes how to deploy the ADK agent located in the `/agent` directory to Google Cloud Vertex AI Agent Engine using a source repository. This approach mimics a production-grade deployment, relying on version control and CI/CD pipelines (such as GitHub Actions or Cloud Build) rather than deploying locally from a developer's machine.
+[Agent Engine](https://docs.cloud.google.com/agent-builder/agent-engine/overview?hl=en) is a set of modular services that help developers scale and govern agents in production; it manages end-to-end infrastructure. When deploying an agent to Agent Engine, the code runs in the *Agent Engine runtime* environment.
+
+This document describes how to deploy the ADK agent located in the `/agent` directory to Google Cloud Vertex AI Agent Engine using a source repository. This approach mimics a production-grade deployment, relying on version control and CI/CD pipelines (such as GitHub Actions or Cloud Build) rather than deploying locally from a developer's machine.
 
 ## Prerequisites
 
