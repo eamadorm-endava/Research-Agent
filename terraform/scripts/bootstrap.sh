@@ -10,7 +10,7 @@ PROJECT_ID="p-dev-gce-60pf"
 SA_NAME="terraform-sa-gemini-project"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 USER_EMAIL="davidalejandro.sanchezarias@endava.com"
-DEVELOPER_GROUP_EMAIL="research-agent-dev-test@endava.com" # Update with your email or group
+DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com" # Update with your email or group
 
 #bucket
 BUCKET_NAME="${PROJECT_ID}-terraform-state" #GCS Bucket to storage terraform state
@@ -44,6 +44,9 @@ ROLES=(
     "roles/serviceusage.serviceUsageAdmin"
     "roles/iam.serviceAccountAdmin"
     "roles/resourcemanager.projectIamAdmin"
+    "roles/artifactregistry.admin"
+    "roles/run.admin"
+    "roles/iam.serviceAccountUser"
 )
 
 for ROLE in "${ROLES[@]}"; do
