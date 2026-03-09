@@ -1,9 +1,8 @@
 import vertexai
 from vertexai import agent_engines
-from google.genai.types import GenerateContentConfig, ModelArmorConfig
+from google.genai.types import GenerateContentConfig, ModelArmorConfig, HttpRetryOptions
 from google.adk.agents import Agent
 from google.adk.models import Gemini
-from google.genai import types
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 from .config import GCPConfig, AgentConfig, MCPServersConfig
@@ -37,7 +36,7 @@ agent_settings = GenerateContentConfig(
     ),
 )
 
-agent_retry_options = types.HttpRetryOptions(
+agent_retry_options = HttpRetryOptions(
     attempts=agent_config.RETRY_ATTEMPTS,
     initial_delay=agent_config.RETRY_INITIAL_DELAY,
     exp_base=agent_config.RETRY_EXP_BASE,
