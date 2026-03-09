@@ -96,6 +96,34 @@ class AgentConfig(BaseSettings):
             description="Model Armor Template ID",
         ),
     ]
+    RETRY_ATTEMPTS: Annotated[
+        int,
+        Field(
+            default=5,
+            description="Number of attempts to retry the request in case of failure.",
+        ),
+    ]
+    RETRY_INITIAL_DELAY: Annotated[
+        int,
+        Field(
+            default=1,
+            description="Initial delay in seconds to retry the request in case of failure.",
+        ),
+    ]
+    RETRY_EXP_BASE: Annotated[
+        int,
+        Field(
+            default=3,
+            description="Exponential base to retry the request in case of failure.",
+        ),
+    ]
+    RETRY_MAX_DELAY: Annotated[
+        int,
+        Field(
+            default=90,
+            description="Maximum delay in seconds to retry the request in case of failure.",
+        ),
+    ]
 
 
 class MCPServersConfig(BaseSettings):

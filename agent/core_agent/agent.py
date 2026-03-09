@@ -2,6 +2,8 @@ import vertexai
 from vertexai import agent_engines
 from google.genai.types import GenerateContentConfig, ModelArmorConfig
 from google.adk.agents import Agent
+from google.adk.models import Gemini
+from google.genai import types
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 from .config import GCPConfig, AgentConfig, MCPServersConfig
@@ -35,13 +37,22 @@ agent_settings = GenerateContentConfig(
     ),
 )
 
-# TODO: Replace with actual id token
-token = "mock-id-token"
+agent_retry_options = types.HttpRetryOptions(
+    attempts=agent_config.RETRY_ATTEMPTS,
+    initial_delay=agent_config.RETRY_INITIAL_DELAY,
+    exp_base=agent_config.RETRY_EXP_BASE,
+    max_delay=agent_config.RETRY_MAX_DELAY,
+)
+
+token = "mock-token-id"
 
 # Check https://google.github.io/adk-docs/tools-custom/mcp-tools/#pattern-2-remote-mcp-servers-streamable-http to learn how to connect
 # and also https://github.com/google/adk-python/blob/327b3affd2d0a192f5a072b90fdb4aae7575be90/src/google/adk/tools/mcp_tool/mcp_session_manager.py#L113
 root_agent = Agent(
-    model=agent_config.MODEL_NAME,
+    model=Gemini(
+        model_name=agent_config.MODEL_NAME,
+        retry_options=agent_retry_options,
+    ),
     name="research_agent",
     generate_content_config=agent_settings,
     instruction="You are a helpful research assistant.",
