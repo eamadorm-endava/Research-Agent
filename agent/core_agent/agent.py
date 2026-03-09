@@ -1,3 +1,4 @@
+import logging
 import vertexai
 from vertexai import agent_engines
 from google.genai.types import GenerateContentConfig, ModelArmorConfig, HttpRetryOptions
@@ -6,6 +7,9 @@ from google.adk.models import Gemini
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 from .config import GCPConfig, AgentConfig, MCPServersConfig
+from .utils.security import get_id_token
+
+logging.getLogger().setLevel(logging.INFO)
 
 gcp_config = GCPConfig()
 agent_config = AgentConfig()
@@ -23,6 +27,8 @@ vertexai.Client(
 model_armor_template_id = f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
 
 full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOINT
+
+token_id = get_id_token(mcp_servers.BIGQUERY_URL)
 
 agent_settings = GenerateContentConfig(
     temperature=agent_config.TEMPERATURE,
@@ -43,8 +49,6 @@ agent_retry_options = HttpRetryOptions(
     max_delay=agent_config.RETRY_MAX_DELAY,
 )
 
-token = "mock-token-id"
-
 # Check https://google.github.io/adk-docs/tools-custom/mcp-tools/#pattern-2-remote-mcp-servers-streamable-http to learn how to connect
 # and also https://github.com/google/adk-python/blob/327b3affd2d0a192f5a072b90fdb4aae7575be90/src/google/adk/tools/mcp_tool/mcp_session_manager.py#L113
 root_agent = Agent(
@@ -59,7 +63,7 @@ root_agent = Agent(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
                 url=f"{full_bq_mcp_server_path}",
-                headers={"Authorization": f"Bearer {token}"},
+                headers={"Authorization": f"Bearer {token_id}"},
             ),
         ),
     ],
