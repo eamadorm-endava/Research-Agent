@@ -1,3 +1,8 @@
+substitutions:
+  _REGION: "us-central1"
+  _AGENT_DISPLAY_NAME: "Research Agent"
+  _MODEL_ARMOR_TEMPLATE_ID: "security-template"
+
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
   # This must match the CI prefix exactly to use the same state
@@ -18,7 +23,30 @@ steps:
     id: 'tf-apply'
     args: ['apply', '-auto-approve']
     dir: 'terraform/ai_agent_resources'
-
+  
+  # Step 3: Deploy the AI-Agent to Agent Engine
+  - name: 'python:3.12'
+    id: 'deploy-agent-engine'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        pip install uv
+        uv export \
+          --group ai-agent \
+          --no-hashes \
+          --no-annotate \
+          -o agent/core_agent/requirements.txt
+        uv run --group ai-agent --group dev python -m agent.deployment.deploy \
+          --project ${PROJECT_ID} \
+          --location ${_REGION} \
+          --display-name ${_AGENT_DISPLAY_NAME} \
+          --source-packages=./agent \
+          --entrypoint-module=agent.core_agent.agent \
+          --entrypoint-object=app \
+          --requirements-file=./agent/core_agent/requirements.txt \
+          --service-account=${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
