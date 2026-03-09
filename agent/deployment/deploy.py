@@ -1,9 +1,8 @@
 # Check https://docs.cloud.google.com/python/docs/reference/vertexai/latest
 # and https://googlecloudplatform.github.io/agent-starter-pack/guide/development-guide.html
 import vertexai
-import vertexai.types
 from vertexai._genai import _agent_engines_utils
-from vertexai.types import AgentEngine, AgentEngineConfig
+from vertexai._genai.types import AgentEngine, AgentEngineConfig
 from typing import Optional, Any
 import click
 import logging
