@@ -5,13 +5,17 @@ apis_to_enable = {
   "p-dev-gce-60pf" = [
     "aiplatform.googleapis.com",
     "modelarmor.googleapis.com",
+    "cloudresourcemanager.googleapis.com"
   ]
 }
 ai_agent_service_account_name = "adk-agent"
 ai_agent_iam_project_roles = {
   "p-dev-gce-60pf" = [
     "roles/aiplatform.user",
-    "roles/modelarmor.user"
+    "roles/modelarmor.user",
+    "roles/run.invoker",
+    "roles/serviceusage.serviceUsageConsumer",
+    "roles/iam.serviceAccountOpenIdTokenCreator"
   ]
 }
 vertex_ai_agent_iam_project_roles = {
