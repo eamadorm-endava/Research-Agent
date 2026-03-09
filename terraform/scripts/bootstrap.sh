@@ -154,9 +154,15 @@ create_trigger() {
     local TYPE=$2
     local DIR=$3
     local CONFIG=$4
+    local EXTRA_DIR=$5
     local REGION=$GITHUB_REGION
     local CONNECTION_NAME=$GITHUB_CONNECTION_NAME
     
+    local INCLUDED_FILES="$DIR/**"
+    if [[ -n "$EXTRA_DIR" ]]; then
+        INCLUDED_FILES="$DIR/**,$EXTRA_DIR"
+    fi
+
     # Use the PROJECT_NUMBER
     # The path for Cloud Build v2 is /connections/NAME/repositories/REPO_NAME
     local REPO_PATH="projects/$PROJECT_NUMBER/locations/$REGION/connections/$CONNECTION_NAME/repositories/eamadorm-endava-Research-Agent"
@@ -171,7 +177,7 @@ create_trigger() {
             --repository="$REPO_PATH" \
             --pull-request-pattern="^main$" \
             --build-config="$CONFIG" \
-            --included-files="$DIR/**" \
+            --included-files="$INCLUDED_FILES" \
             --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
             --substitutions="_SA_NAME=$SA_NAME"
     else
@@ -183,7 +189,7 @@ create_trigger() {
             --repository="$REPO_PATH" \
             --branch-pattern="^main$" \
             --build-config="$CONFIG" \
-            --included-files="$DIR/**" \
+            --included-files="$INCLUDED_FILES" \
             --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
             --substitutions="_SA_NAME=$SA_NAME"
     fi
@@ -191,14 +197,14 @@ create_trigger() {
 
 # --- AI Agent and MCP Server Triggers ---
 # CI (Plan) on Pull Request
-create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml"
+create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**"
 # CD (Apply) on Push/Merge
-create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml"
+create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
 
 # CI (Plan) on Pull Request
-create_trigger "mcp-server-services-plan" "pr" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-ci.yaml"
+create_trigger "mcp-server-services-plan" "pr" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/big_query/**"
 # CD (Apply) on Push/Merge
-create_trigger "mcp-server-services-apply" "push" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-cd.yaml"
+create_trigger "mcp-server-services-apply" "push" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
 
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"
