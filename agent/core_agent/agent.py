@@ -20,7 +20,6 @@ project_id = gcp_config.PROJECT_ID
 region = gcp_config.REGION
 model_armor_template_id = f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
 full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOINT
-bq_server_token_id = get_id_token(mcp_servers.BIGQUERY_URL)
 
 vertexai.Client(
     project=project_id,
@@ -61,8 +60,11 @@ root_agent = Agent(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
                 url=full_bq_mcp_server_path,
-                headers={"Authorization": f"Bearer {bq_server_token_id}"},
+                timeout=mcp_servers.GENERAL_TIMEOUT,
             ),
+            header_provider=lambda ctx: {
+                "Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
+            },
         ),
     ],
 )

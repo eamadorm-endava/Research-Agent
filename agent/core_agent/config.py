@@ -137,6 +137,13 @@ class MCPServersConfig(BaseSettings):
     Class that holds configuration values for MCP servers.
     """
 
+    GENERAL_TIMEOUT: Annotated[
+        int,
+        Field(
+            default=60,
+            description="Timeout in seconds for MCP servers.",
+        ),
+    ]
     BIGQUERY_URL: Annotated[
         str,
         Field(
