@@ -17,7 +17,20 @@ steps:
     args: ['fmt', '-check']
     dir: 'terraform/ai_agent_resources'
 
-  # Step 3: Validate the configuration syntax
+  # Step 3: Format Check & Tests (Python)
+  - name: 'python:3.12'
+    id: 'python-lint-and-tests'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y make
+        pip install uv
+        uv sync --group ai-agent --group dev
+        make run-agent-precommit
+        make test-agent
+
+  # Step 4: Validate the configuration syntax
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-validate'
     args: ['validate']
