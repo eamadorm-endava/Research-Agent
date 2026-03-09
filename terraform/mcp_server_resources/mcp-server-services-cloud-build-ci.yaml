@@ -11,22 +11,49 @@ steps:
           -backend-config="prefix=terraform/state/mcp-server-resources"
     dir: 'terraform/mcp_server_resources'
 
-  # Step 2: Format Check
+  # Step 2: Format Check (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-fmt'
     args: ['fmt', '-check']
     dir: 'terraform/mcp_server_resources'
 
-  # Step 3: Validate
+  # Step 3: Format Check (Python)
+  - name: 'python:3.12'
+    id: 'python-lint'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y make
+        pip install uv
+        make run-bq-precommit
+
+  # Step 4: Python Tests
+  - name: 'python:3.12'
+    id: 'python-test'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y make
+        pip install uv
+        make run-bq-tests
+
+  # Step 5: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: ['build', '-t', 'bq-mcp-test:ci', '-f', 'mcp_servers/big_query/Dockerfile', '.']
+
+  # Step 6: Validate (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-validate'
     args: ['validate']
     dir: 'terraform/mcp_server_resources'
 
-  # Step 4: Plan
+  # Step 7: Plan (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-out=tfplan']
+    args: ['plan', '-var=mcp_server_cloud_run_image_tag=ci', '-out=tfplan']
     dir: 'terraform/mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
