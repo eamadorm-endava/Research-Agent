@@ -13,6 +13,12 @@ run-precommit:
 
 ### AI Agent Commands ###
 
+run-agent-precommit:
+	uvx pre-commit run --files agent/**/*
+
+test-agent:
+	cd agent && uv run --group ai-agent --group dev pytest tests/ -v
+
 run-ui-agent:
 	cd agent && \
 	uv run --group ai-agent adk web --port 8000
