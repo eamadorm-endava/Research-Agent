@@ -62,7 +62,7 @@ root_agent = Agent(
     tools=[
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
-                url=f"{full_bq_mcp_server_path}",
+                url=full_bq_mcp_server_path,
                 headers={"Authorization": f"Bearer {token_id}"},
             ),
         ),
