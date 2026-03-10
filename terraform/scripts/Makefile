@@ -2,7 +2,7 @@
 #PROJECT_ID             := p-dev-gce-60pf
 SA_NAME                := terraform-sa-gemini-project
 SA_EMAIL               := $(SA_NAME)@$(PROJECT_ID).iam.gserviceaccount.com
-DEVELOPER_GROUP_EMAIL  := research-agent-dev-test@endava.com
+DEVELOPER_GROUP_EMAIL  := gcu_latam_team_devs@endava.com
 REPO_NAME              := Research-Agent
 REPO_OWNER             := eamadorm-endava
 

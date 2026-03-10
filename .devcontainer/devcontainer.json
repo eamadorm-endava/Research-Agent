@@ -4,7 +4,6 @@
 	"name": "Ubuntu 22.04",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
-
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 	"features": {
@@ -23,32 +22,27 @@
 			"version": "latest"
 		},
 		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
-		"ghcr.io/devcontainers/features/node:1":{}
+		"ghcr.io/devcontainers/features/node:1": {}
 	},
-
 	// To use ssh credentials 
 	"mounts": [
-  		"source=${env:USERPROFILE}\\.ssh,target=/home/vscode/.ssh,type=bind" // bring your ssh configuration
+		"source=${env:USERPROFILE}\\.ssh,target=/home/vscode/.ssh,type=bind" // bring your ssh configuration
 	],
-
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "bash .devcontainer/setup-ssh.sh && uv sync --all-groups",
-
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
-			"extensions":[
+			"extensions": [
 				"ms-toolsai.jupyter",
-      			"ms-python.python",
-				"bierner.markdown-mermaid"
+				"ms-python.python",
+				"bierner.markdown-mermaid",
+				"hashicorp.terraform"
 			]
 		}
 	}
-
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
 }

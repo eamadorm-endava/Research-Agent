@@ -13,22 +13,37 @@ dependencies = [
 [dependency-groups]
 ai-agent = [
     "google-cloud-aiplatform[adk,agent-engines]>=1.138.0",
-
-    # Google Drive connector deps
-    "google-api-python-client>=2.0.0",
-    "google-auth>=2.0.0",
-    "google-auth-httplib2>=0.1.0",
-    # Local OAuth fallback (optional)
-    "google-auth-oauthlib>=1.0.0",
-    # File extraction / generation
-    "pypdf>=4.0.0",
-    "reportlab>=4.0.0",
+    "google-cloud-modelarmor>=0.4.0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
 ]
 dev = [
     "google-cloud-modelarmor>=0.4.0",
-    "loguru>=0.7.3",
-]
-localdev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+    "click>=8.3.1",
     "dotenv>=0.9.9",
     "ipykernel>=7.2.0",
+    "datetime>=6.0",
 ]
+mcp_gcs = [
+    "fastapi>=0.109.0",
+    "google-cloud-storage>=2.14.0",
+    "mcp>=1.2.0",
+    "pydantic>=2.5.3",
+    "sse-starlette>=2.0.0",
+    "uvicorn>=0.27.0",
+]
+mcp_bq = [
+    "google-cloud-bigquery>=3.20.0",
+    "mcp>=1.26.0",
+    "pydantic>=2.5.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
+
