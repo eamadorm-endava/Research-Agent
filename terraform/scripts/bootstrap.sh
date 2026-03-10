@@ -202,9 +202,9 @@ create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "ter
 create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
 
 # CI (Plan) on Pull Request
-create_trigger "bq-mcp-server-services-plan" "pr" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/big_query/**"
+create_trigger "bq-mcp-server-services-plan" "pr" "terraform/bq_mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/big_query/**"
 # CD (Apply) on Push/Merge
-create_trigger "bq-mcp-server-services-apply" "push" "terraform/mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
+create_trigger "bq-mcp-server-services-apply" "push" "terraform/bq_mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
 
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"
