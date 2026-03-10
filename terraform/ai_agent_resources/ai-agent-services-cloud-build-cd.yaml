@@ -40,7 +40,7 @@ steps:
         uv run --group ai-agent --group dev python -m agent.deployment.deploy \
           --project ${PROJECT_ID} \
           --location ${_REGION} \
-          --display-name ${_AGENT_DISPLAY_NAME} \
+          --display-name "${_AGENT_DISPLAY_NAME}" \
           --source-packages=./agent \
           --entrypoint-module=agent.core_agent.agent \
           --entrypoint-object=app \
