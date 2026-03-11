@@ -196,3 +196,9 @@ For detailed information about specific topics:
 
 - **ADK Introduction** - See [docs/ADK-Intro.md](docs/ADK-Intro.md) for detailed information about the Agent Development Kit
 - **Model Armor** - See [notebooks/model_armor.ipynb](notebooks/model_armor.ipynb) for model safeguards exploration
+
+
+## MCP servers in this repo
+
+- `mcp_servers/big_query` - BigQuery MCP server
+- `mcp_servers/google_drive` - Google Drive MCP server

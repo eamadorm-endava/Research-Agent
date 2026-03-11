@@ -1,40 +1,45 @@
 import logging
+
 import vertexai
-from vertexai import agent_engines
-from google.genai.types import GenerateContentConfig, ModelArmorConfig, HttpRetryOptions
 from google.adk.agents import Agent
 from google.adk.models import Gemini
+from google.adk.tools import google_search
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from .config import GCPConfig, AgentConfig, MCPServersConfig
-from .utils.security import get_id_token
+from google.genai.types import GenerateContentConfig, HttpRetryOptions, ModelArmorConfig
+from vertexai import agent_engines
+
+from .config import AgentConfig, GCPConfig, MCPServersConfig
+from .utils.security import build_mcp_headers
 
 logging.getLogger().setLevel(logging.INFO)
 
-# Custom tools
+# Backward-compatible fallback while the Drive MCP server is being adopted.
 from .tools.drive.adk_tools import (
+    drive_create_google_doc_tool,
+    drive_get_file_text_tool,
     drive_list_files_tool,
     drive_search_files_tool,
-    drive_get_file_text_tool,
-    drive_create_google_doc_tool,
     drive_upload_pdf_tool,
 )
+
 
 gcp_config = GCPConfig()
 agent_config = AgentConfig()
 mcp_servers = MCPServersConfig()
 
-# Variables
 project_id = gcp_config.PROJECT_ID
 region = gcp_config.REGION
-model_armor_template_id = f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
+model_armor_template_id = (
+    f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
+)
 full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOINT
+full_drive_mcp_server_path = mcp_servers.DRIVE_URL + mcp_servers.DRIVE_ENDPOINT
 
 vertexai.Client(
     project=project_id,
     location=region,
 )
-
 
 agent_settings = GenerateContentConfig(
     temperature=agent_config.TEMPERATURE,
@@ -55,8 +60,48 @@ agent_retry_options = HttpRetryOptions(
     max_delay=agent_config.RETRY_MAX_DELAY,
 )
 
-# Check https://google.github.io/adk-docs/tools-custom/mcp-tools/#pattern-2-remote-mcp-servers-streamable-http to learn how to connect
-# and also https://github.com/google/adk-python/blob/327b3affd2d0a192f5a072b90fdb4aae7575be90/src/google/adk/tools/mcp_tool/mcp_session_manager.py#L113
+
+def _build_bigquery_headers(ctx):
+    return build_mcp_headers(
+        audience_url=mcp_servers.BIGQUERY_URL,
+        call_context=ctx,
+        delegated_token_header=None,
+    )
+
+
+def _build_drive_headers(ctx):
+    return build_mcp_headers(
+        audience_url=mcp_servers.DRIVE_URL,
+        call_context=ctx,
+        delegated_token_header=mcp_servers.DRIVE_DELEGATED_TOKEN_HEADER,
+        force_disable_id_token_auth=mcp_servers.DRIVE_DISABLE_ID_TOKEN_AUTH,
+    )
+
+
+def _build_drive_toolset_or_fallback():
+    """Use the new Drive MCP server when configured; otherwise keep the legacy in-process tools."""
+    if mcp_servers.DRIVE_URL:
+        return McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_drive_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            header_provider=_build_drive_headers,
+        )
+
+    return [
+        drive_list_files_tool,
+        drive_search_files_tool,
+        drive_get_file_text_tool,
+        drive_create_google_doc_tool,
+        drive_upload_pdf_tool,
+    ]
+
+
+_drive_tools = _build_drive_toolset_or_fallback()
+if not isinstance(_drive_tools, list):
+    _drive_tools = [_drive_tools]
+
 root_agent = Agent(
     model=Gemini(
         model_name=agent_config.MODEL_NAME,
@@ -66,32 +111,21 @@ root_agent = Agent(
     generate_content_config=agent_settings,
     instruction=(
         "You are a helpful research assistant. "
-        "You can search and read the user's Google Drive using the Drive tools. "
+        "You can search and read the user's Google Drive using the Drive MCP tools. "
         "When you need information from Drive, first search for relevant files, then fetch the file text. "
         "If you need to create a document or PDF in Drive, explain what you will create and proceed."
     ),
     tools=[
         google_search,
-
-        # Google Drive tools
-        drive_list_files_tool,
-        drive_search_files_tool,
-        drive_get_file_text_tool,
-
-        # Write-back tools (require confirmation when supported)
-        drive_create_google_doc_tool,
-        drive_upload_pdf_tool,
+        *_drive_tools,
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
                 url=full_bq_mcp_server_path,
                 timeout=mcp_servers.GENERAL_TIMEOUT,
             ),
-            header_provider=lambda ctx: {
-                "Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
-            },
+            header_provider=_build_bigquery_headers,
         ),
     ],
 )
-
 
 app = agent_engines.AdkApp(agent=root_agent)

@@ -158,3 +158,31 @@ class MCPServersConfig(BaseSettings):
             description="BigQuery MCP Server Endpoint",
         ),
     ]
+    DRIVE_URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8081",
+            description="Google Drive MCP Server base URL.",
+        ),
+    ]
+    DRIVE_ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="Google Drive MCP Server endpoint path.",
+        ),
+    ]
+    DRIVE_DELEGATED_TOKEN_HEADER: Annotated[
+        str,
+        Field(
+            default="x-drive-access-token",
+            description="Header used to forward the user's delegated OAuth access token to the Drive MCP server.",
+        ),
+    ]
+    DRIVE_DISABLE_ID_TOKEN_AUTH: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="Disable Cloud Run ID-token auth for the Drive MCP server, useful for local development.",
+        ),
+    ]

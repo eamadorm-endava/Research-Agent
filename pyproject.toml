@@ -41,6 +41,18 @@ mcp_bq = [
     "mcp>=1.26.0",
     "pydantic>=2.5.3",
 ]
+mcp_drive = [
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.0",
+    "mcp>=1.26.0",
+    "pydantic>=2.5.3",
+    "pypdf>=4.0.0",
+    "python-dotenv>=1.2.2",
+    "reportlab>=4.0.0",
+    "uvicorn>=0.27.0",
+]
 
 [tool.pytest.ini_options]
 pythonpath = [

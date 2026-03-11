@@ -1,38 +1,106 @@
-import google.auth
-from google.auth.transport.requests import Request
-import google.oauth2.id_token
 import logging
+import os
+from urllib.parse import urlparse
+from typing import Any
+
+import google.auth
+import google.oauth2.id_token
+from google.auth.transport.requests import Request
 
 
-def get_id_token(audience: str) -> str:
+def get_id_token(audience: str) -> str | None:
     """
-    Generate a valid IDToken to call a GCP service (CloudRun).
+    Generate a valid ID token to call a GCP service such as Cloud Run.
 
-    It first tries to retrieve an ID token from the server that is executing
-    the code, and then it tries to retrieve a personal token (when running locally).
-
-    The 'audience' must be the base URL of the Cloud Run service.
-
-    Args:
-        audience: str -> The CloudRun base URL that wants to call
-
-    Returns:
-        token: str -> The ID token
+    It first tries the metadata server (when running on GCP) and then falls back to
+    local ADC credentials for development.
     """
+    request = Request()
     try:
-        logging.debug("Retrieving ID token from server...")
-        request = Request()
+        logging.debug("Retrieving ID token from metadata server for audience %s", audience)
         id_token = google.oauth2.id_token.fetch_id_token(request, audience)
-        logging.debug("IDToken successfully retrieved from server...")
-    except Exception as e:
-        logging.debug(f"Attempt to retrieve IDtoken from server failed: {e}")
-        logging.debug("Retrieving token from personal credentials... (local dev only)")
+        logging.debug("ID token successfully retrieved from metadata server")
+        return id_token
+    except Exception as exc:
+        logging.debug("Metadata-server ID token retrieval failed: %s", exc)
+
+    try:
+        logging.debug("Retrieving ID token from local ADC credentials")
         credentials, _ = google.auth.default()
         credentials.refresh(request)
         id_token = getattr(credentials, "id_token", None)
         if id_token:
-            logging.debug("Token from personal credentials successfully retrieved")
-        else:
-            logging.warning("No ID token generated, neither personal nor server")
+            logging.debug("ID token retrieved from local ADC credentials")
+            return id_token
+        logging.warning("ADC credentials did not yield an ID token")
+    except Exception as exc:
+        logging.warning("Unable to obtain ID token from local ADC credentials: %s", exc)
 
-    return id_token
+    return None
+
+
+def extract_access_token(maybe_token: Any) -> str | None:
+    """Extract a bearer token from common state shapes."""
+    if maybe_token is None:
+        return None
+    if isinstance(maybe_token, str) and maybe_token.strip():
+        return maybe_token.strip()
+    if isinstance(maybe_token, dict):
+        for key in ("access_token", "token", "value"):
+            value = maybe_token.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def get_delegated_access_token(call_context: Any | None) -> str | None:
+    """Read the Gemini Enterprise delegated user token from ADK context state."""
+    auth_id = os.getenv("GEMINI_ENTERPRISE_AUTH_ID")
+    if not auth_id or call_context is None:
+        return None
+
+    state = getattr(call_context, "state", None)
+    if state is None:
+        return None
+
+    try:
+        injected = state.get(auth_id)
+    except Exception:
+        return None
+
+    return extract_access_token(injected)
+
+
+def is_local_url(url: str | None) -> bool:
+    if not url:
+        return False
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").lower()
+    return hostname in {"localhost", "127.0.0.1", "0.0.0.0"}
+
+
+def build_mcp_headers(
+    *,
+    audience_url: str,
+    call_context: Any | None,
+    delegated_token_header: str | None = None,
+    force_disable_id_token_auth: bool = False,
+) -> dict[str, str]:
+    """Build headers for MCP requests.
+
+    - Adds a Cloud Run ID token in `Authorization` unless disabled or the target is local.
+    - Adds a delegated user access token in a custom header when available.
+    """
+    headers: dict[str, str] = {}
+
+    if not force_disable_id_token_auth and not is_local_url(audience_url):
+        id_token = get_id_token(audience_url)
+        if id_token:
+            headers["Authorization"] = f"Bearer {id_token}"
+
+    if delegated_token_header:
+        delegated_token = get_delegated_access_token(call_context)
+        if delegated_token:
+            headers[delegated_token_header] = delegated_token
+
+    return headers

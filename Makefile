@@ -56,3 +56,18 @@ run-bq-mcp-locally:
 build-bq-mcp-image:
 	docker build -t test-mcp-server -f mcp_servers/big_query/Dockerfile .
 
+
+
+### Drive MCP Commands ###
+
+run-drive-precommit:
+	uvx pre-commit run --files mcp_servers/google_drive/**/*
+
+run-drive-tests:
+	uv run --group mcp_drive pytest mcp_servers/google_drive/tests/
+
+run-drive-mcp-locally:
+	uv run --group mcp_drive python -m mcp_servers.google_drive.app.main --host localhost --port 8081
+
+build-drive-mcp-image:
+	docker build -t test-drive-mcp-server -f mcp_servers/google_drive/Dockerfile .
