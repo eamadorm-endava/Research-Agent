@@ -2,6 +2,7 @@ substitutions:
   _REGION: "us-central1"
   _AGENT_DISPLAY_NAME: "Research Agent"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
+  _AGENT_SA: "adk-agent"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
