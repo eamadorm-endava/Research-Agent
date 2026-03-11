@@ -47,6 +47,7 @@ ROLES=(
     "roles/artifactregistry.admin"
     "roles/run.admin"
     "roles/iam.serviceAccountUser"
+    "roles/aiplatform.admin"
 )
 
 for ROLE in "${ROLES[@]}"; do
