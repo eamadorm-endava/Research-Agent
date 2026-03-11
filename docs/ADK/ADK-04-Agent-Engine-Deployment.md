@@ -1,8 +1,10 @@
 # Agent Engine Deployment Guide
 
-[Agent Engine](https://docs.cloud.google.com/agent-builder/agent-engine/overview?hl=en) is a set of modular services that help developers scale and govern agents in production; it manages end-to-end infrastructure. When deploying an agent to Agent Engine, the code runs in the *Agent Engine runtime* environment.
+[Agent Engine](https://docs.cloud.google.com/agent-builder/agent-engine/overview?hl=en) is a set of modular services to scale and govern agents in production; it manages end-to-end infrastructure. When deploying an agent to Agent Engine, the code runs in the *Agent Engine runtime* environment.
 
-This document describes how to deploy the ADK agent located in the `/agent` directory to Google Cloud Vertex AI Agent Engine using a source repository. This approach mimics a production-grade deployment, relying on version control and CI/CD pipelines (such as GitHub Actions or Cloud Build) rather than deploying locally from a developer's machine.
+This document describes how to deploy the ADK agent located in the `/agent` directory to Google Cloud Vertex AI Agent Engine using a source repository.
+
+This guide is based on the [ADK Starter Pack](https://github.com/GoogleCloudPlatform/agent-starter-pack?tab=readme-ov-file).
 
 ## Prerequisites
 
@@ -18,13 +20,16 @@ Before setting up the deployment, ensure you have the following ready in your Go
 The code to be deployed is located in the `/agent` directory. Here is the relevant structure:
 
 ```text
-/Research-Agent
-├── pyproject.toml         # Defines dependencies: google-cloud-aiplatform[adk,agent-engines]
+/Root
+├── pyproject.toml         # Defines dependencies
+├── uv.lock                # Locked dependencies (managed by uv)
 └── agent/
     ├── core_agent/
     │   ├── agent.py       # Entry point defining the agent App
-    │   └── config.py      # Configuration logic
-    └── tools/             # Custom tools for the agent
+    │   ├── config.py      # Configuration logic
+    │   └── utils/         # Helper functions (e.g. security.py)
+    └── deployment/
+        └── deploy.py      # Custom script for Agent Engine deployment
 ```
 
 The primary entry point is `agent/core_agent/agent.py`, where the application instance is defined and exposed:
@@ -40,38 +45,69 @@ For a production environment, you should trigger the deployment securely and aut
 
 ### 1. Connecting the Source Repository
 
-Connect your source repository (e.g., GitHub, GitLab, or Cloud Source Repositories) to a CI/CD platform like Google Cloud Build or GitHub Actions. 
+Connect your source repository (e.g., GitHub, GitLab, or Cloud Source Repositories) to a CI/CD platform like Google Cloud Build or GitHub Actions. In this case, CloudBuild will be used.
 
-### 2. Configure Service Account Authentication
-
-In your CI/CD pipeline, authenticate using Workload Identity Federation or a Service Account JSON key. This grants the pipeline permission to deploy resources to your Google Cloud project.
-
-### 3. CI/CD Pipeline Steps
+### 2. CI/CD Pipeline Steps
 
 Your CI/CD pipeline should execute the following steps on every release:
 
-1. **Checkout Code**: Clone the repository containing the `/agent` directory.
-2. **Setup Environment**: Install Python and the `adk` CLI tool.
-3. **Authenticate**: Authenticate with Google Cloud using your Service Account.
-4. **Deploy**: Run the `adk deploy agent_engine` command targeting the `agent` directory.
+1. **Checkout Code**: Clone the repository containing the source code.
+2. **Setup Terraform & Infrastructure**: Provision any needed infrastructure prior to deployment.
+3. **Setup Environment & Deploy Agent**: Use Python and `uv` to manage dependencies, generate the requirements file, and execute the custom deployment script (`deploy.py`).
 
-#### Example Deployment Step (Shell Script)
+#### Understanding the Deployment Script (`deploy.py`)
 
-```shell
-export PROJECT_ID="your-gcp-project-id"
-export LOCATION_ID="us-central1"
+Instead of standard CLI tools, this project uses a custom deployment script `agent/deployment/deploy.py` for flexibility and programmatic configuration control prior to deployment. 
 
-# The command packages the /agent folder into a container and deploys it
-adk deploy agent_engine \
-  --project=$PROJECT_ID \
-  --region=$LOCATION_ID \
-  --display_name="Production Research Agent" \
-  agent
+The script makes use of the [Click](https://click.palletsprojects.com/) Python package, which is a library for creating command line interfaces in a composable way with as little code as possible. It is used here to parse the numerous deployment options required by the Agent Engine API and convert them into Python variables. 
+
+The `deploy.py` script accepts the following parameters to configure the deployment:
+- `--project`, `--location`, `--service-account`: Identify the GCP environment and identity.
+- `--display-name`, `--description`: Set the Agent metadata displayed in Vertex AI.
+- `--source-packages`: The source directories to bundle into the container.
+- `--entrypoint-module`, `--entrypoint-object`: Dictate where the main `app` instance is initialized.
+- `--requirements-file`: Specifies the exact dependency requirements file to bundle.
+- `--set-env-vars`: Environment variables passed into the Agent's runtime execution.
+- `--min-instances`, `--max-instances`, `--cpu`, `--memory`, `--container-concurrency`, `--num-workers`: Infrastructure-level configurations mapping to the underlying Cloud Run backend.
+
+#### Example Deployment Step (Using Cloud Build and `uv`)
+
+Within the CI/CD pipeline, `uv` (an extremely fast Python package installer and resolver) is used to compile dependencies from the project into a `requirements.txt` file and execute the script. 
+
+An example step in a Cloud Build configuration looks like this:
+
+```yaml
+  - name: 'python:3.12'
+    id: 'deploy-agent-engine'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        # 1. Install uv for fast dependency management
+        pip install uv
+        
+        # 2. Export dependencies to a requirements.txt file
+        # This file will be bundled in the container by Vertex AI
+        uv export \
+          --group ai-agent \
+          --no-hashes \
+          --no-annotate \
+          -o agent/core_agent/requirements.txt
+          
+        # 3. Execute the deploy.py script using uv to run it within the managed environment
+        uv run --group ai-agent --group dev python -m agent.deployment.deploy \
+          --project ${PROJECT_ID} \
+          --location ${_REGION} \
+          --display-name "${_AGENT_DISPLAY_NAME}" \
+          --source-packages=./agent \
+          --entrypoint-module=agent.core_agent.agent \
+          --entrypoint-object=app \
+          --requirements-file=./agent/core_agent/requirements.txt \
+          --service-account=${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
 ```
 
-*Note: You must run this command from the root of the repository so that the `agent` positional argument correctly targets the `/agent` directory.*
-
-### 4. Post-Deployment
+### 3. Post-Deployment
 
 After a successful deployment, the deployment logs will output a unique **Resource Name** for your Agent Engine deployment, which looks like this:
 
@@ -79,30 +115,14 @@ After a successful deployment, the deployment logs will output a unique **Resour
 projects/<PROJECT_NUMBER>/locations/<LOCATION_ID>/reasoningEngines/<RESOURCE_ID>
 ```
 
-Keep note of the `RESOURCE_ID`. You will need it to interact with your deployed agent from client applications.
+Keep note of the `RESOURCE_ID`. You will need it to interact with your deployed agent from client applications. 
 
-## Using the Deployed Agent
+To learn how to use and query your newly deployed agent programmatically, you can follow the [deployed_agent.ipynb](../../notebooks/deployed_agent.ipynb) notebook. Nevertheless, the main objective of this repository is to connect and interact with this agent through **Gemini Enterprise**.
 
-Once deployed, you can interact with your agent running on Agent Engine using various methods, including the Vertex AI Python SDK.
+## Managed Sessions and Long-Term Memory
+When you deploy to Vertex AI Agent Engine, Google Cloud natively handles conversational context, session state, and long-term memory for your agent without requiring custom database backends (like Redis or PostgreSQL).
 
-```python
-import vertexai
-from vertexai import agent_engines
+* **Fully Managed Sessions**: The `VertexAiSessionService` is automatically provisioned and utilized. Any `Session` state or interactions you have over a conversation are automatically persisted and managed by Vertex AI.
+* **Long-Term Knowledge (Memory Bank)**: Vertex AI provides [Memory Bank](https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/memory-bank/overview), an advanced storage solution that automatically processes, consolidates, and persists conversation histories as searchable memories. Connected agents can look up past conversations across sessions using the `VertexAiMemoryBankService`.
 
-project_id = "your-gcp-project-id"
-location = "us-central1"
-resource_id = "YOUR_RESOURCE_ID"  # Found in deployment logs
-
-vertexai.init(project=project_id, location=location)
-
-# Get the deployed reasoning engine
-agent_engine = agent_engines.get(
-    f"projects/{project_id}/locations/{location}/reasoningEngines/{resource_id}"
-)
-
-# Query the remote agent
-response = agent_engine.query(
-    input="Research the latest advancements in quantum computing."
-)
-print(response)
-```
+Using these built-in services offloads infrastructure management and data persistence, allowing you to focus purely on configuring the agent logic.
