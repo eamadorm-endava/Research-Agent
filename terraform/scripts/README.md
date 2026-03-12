@@ -92,6 +92,12 @@ By default it creates/ensures:
 - `gcs-mcp-server-services-plan`
 - `gcs-mcp-server-services-apply`
 
+If a trigger already exists but still points to an old build config path, recreate it in place:
+
+```
+FORCE_RECREATE=true ./terraform/scripts/run_once.sh
+```
+
 ## Terraform Infrastructure Access Setup
 
 ### Service Account

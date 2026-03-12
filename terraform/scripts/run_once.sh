@@ -17,17 +17,27 @@ REPOSITORY_SLUG="${REPOSITORY_SLUG:-eamadorm-endava-Research-Agent}"
 
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
 PUSH_BRANCH_REGEX="${PUSH_BRANCH_REGEX:-^main$}"
+FORCE_RECREATE="${FORCE_RECREATE:-false}"
 
 REPO_PATH="projects/${PROJECT_NUMBER}/locations/${GITHUB_REGION}/connections/${GITHUB_CONNECTION_NAME}/repositories/${REPOSITORY_SLUG}"
 
 echo "Creating MCP Cloud Build triggers in project: ${PROJECT_ID}"
 echo "Using repository connection path: ${REPO_PATH}"
+echo "Force recreate existing triggers: ${FORCE_RECREATE}"
 
 trigger_exists() {
   local name="$1"
   gcloud builds triggers describe "$name" \
     --project="$PROJECT_ID" \
     --region="$GITHUB_REGION" >/dev/null 2>&1
+}
+
+delete_trigger() {
+  local name="$1"
+  gcloud builds triggers delete "$name" \
+    --project="$PROJECT_ID" \
+    --region="$GITHUB_REGION" \
+    --quiet
 }
 
 create_trigger() {
@@ -43,8 +53,13 @@ create_trigger() {
   fi
 
   if trigger_exists "$name"; then
-    echo "Trigger already exists, skipping: ${name}"
-    return
+    if [[ "$FORCE_RECREATE" == "true" ]]; then
+      echo "Trigger exists and will be recreated: ${name}"
+      delete_trigger "$name"
+    else
+      echo "Trigger already exists, skipping: ${name}"
+      return
+    fi
   fi
 
   if [[ "$type" == "pr" ]]; then
