@@ -162,8 +162,12 @@ cython_debug/
 *.swo
 
 # Project specific
-uv.lock
 .antigravity*
 !.antigravityignore
 .adk/
 .adk*
+
+.ruff_cache/
+
+## Terraform
+.terraform**

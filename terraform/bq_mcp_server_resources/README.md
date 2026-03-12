@@ -122,7 +122,7 @@ Example:
 
 ```
 project_id             = "p-dev-gce-60pf"
-developers_group_email = "research-agent-dev-test@endava.com"
+developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
   "p-dev-gce-60pf" = [
     "aiplatform.googleapis.com",
