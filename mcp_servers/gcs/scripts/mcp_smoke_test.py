@@ -26,6 +26,7 @@ def main() -> None:
     parser.add_argument("--endpoint", default="http://localhost:8080/mcp")
     parser.add_argument("--bucket", required=True)
     parser.add_argument("--prefix", default="")
+    parser.add_argument("--bucket-prefix", default="")
     args = parser.parse_args()
 
     init_response = post_jsonrpc(
@@ -65,11 +66,29 @@ def main() -> None:
     )
     print("tools/list ->", json.dumps(tools_response, indent=2))
 
-    list_objects_response = post_jsonrpc(
+    list_buckets_response = post_jsonrpc(
         args.endpoint,
         {
             "jsonrpc": "2.0",
             "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "list_buckets",
+                "arguments": {
+                    "request": {
+                        "prefix": args.bucket_prefix,
+                    }
+                },
+            },
+        },
+    )
+    print("tools/call(list_buckets) ->", json.dumps(list_buckets_response, indent=2))
+
+    list_objects_response = post_jsonrpc(
+        args.endpoint,
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
             "method": "tools/call",
             "params": {
                 "name": "list_objects",

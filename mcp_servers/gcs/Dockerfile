@@ -17,10 +17,10 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --group mcp_gcs --no-dev --no-install-project
 
 # Copy the app directory to preserve module structure
-COPY connectors/cloud_storage/app/ connectors/cloud_storage/app/
+COPY mcp_servers/gcs/app/ mcp_servers/gcs/app/
 
 EXPOSE ${PORT}
 
-CMD ["sh", "-c", "uv run --group mcp_gcs --no-sync python -m connectors.cloud_storage.app.main --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uv run --group mcp_gcs --no-sync python -m mcp_servers.gcs.app.main --host 0.0.0.0 --port ${PORT}"]
 
 

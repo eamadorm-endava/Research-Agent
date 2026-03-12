@@ -243,3 +243,23 @@ class GCSManager:
         except GoogleCloudError as e:
             logger.error(f"Error listing blobs in bucket {bucket_name}: {e}")
             raise
+
+    def list_buckets(self, prefix: Optional[str] = None) -> List[str]:
+        """
+        Lists all buckets visible to the current project credentials
+        (optionally filtering by bucket-name prefix).
+
+        Args:
+            prefix: Optional prefix to filter bucket names.
+
+        Returns:
+            List[str]: A list of bucket names.
+        """
+        try:
+            buckets = self.client.list_buckets(prefix=prefix)
+            bucket_names = [bucket.name for bucket in buckets]
+            logger.info(f"Listed {len(bucket_names)} buckets with prefix '{prefix or ''}'.")
+            return bucket_names
+        except GoogleCloudError as e:
+            logger.error(f"Error listing buckets with prefix '{prefix or ''}': {e}")
+            raise

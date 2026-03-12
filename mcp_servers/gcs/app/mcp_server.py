@@ -17,6 +17,8 @@ from .schemas import (
     DeleteObjectResponse,
     ListObjectsRequest,
     ListObjectsResponse,
+    ListBucketsRequest,
+    ListBucketsResponse,
 )
 
 # Configure logging
@@ -325,6 +327,38 @@ async def list_objects(request: ListObjectsRequest) -> ListObjectsResponse:
             bucket_name=request.bucket_name,
             prefix=request.prefix,
             objects=[],
+            execution_status="error",
+            execution_message=str(e),
+        )
+
+
+@mcp.tool()
+async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
+    """
+    Lists buckets available to the current project credentials,
+    optionally filtered by bucket-name prefix.
+
+    Args:
+        prefix (str, optional): A prefix to filter bucket names.
+
+    Returns:
+        ListBucketsResponse: A structured response with matching bucket names.
+    """
+    logger.info(f"Tool call: list_buckets(prefix={request.prefix})")
+    try:
+        buckets = await asyncio.to_thread(gcs_manager.list_buckets, request.prefix)
+        return ListBucketsResponse(
+            prefix=request.prefix,
+            buckets=buckets,
+            execution_status="success",
+            execution_message=(
+                f"Found {len(buckets)} buckets with prefix '{request.prefix or ''}'."
+            ),
+        )
+    except Exception as e:
+        return ListBucketsResponse(
+            prefix=request.prefix,
+            buckets=[],
             execution_status="error",
             execution_message=str(e),
         )

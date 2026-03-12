@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from connectors.cloud_storage.app.gcs_client import GCSManager
+from mcp_servers.gcs.app.gcs_client import GCSManager
 from google.cloud.exceptions import GoogleCloudError
 
 
@@ -126,6 +126,19 @@ class TestGCSManager(unittest.TestCase):
         self.mock_client_instance.list_blobs.assert_called_with(
             mock_bucket, prefix="data/"
         )
+
+    def test_list_buckets(self):
+        mock_bucket1 = MagicMock()
+        mock_bucket1.name = "my-bucket-a"
+        mock_bucket2 = MagicMock()
+        mock_bucket2.name = "my-bucket-b"
+
+        self.mock_client_instance.list_buckets.return_value = [mock_bucket1, mock_bucket2]
+
+        result = self.gcs_manager.list_buckets(prefix="my-")
+
+        self.assertEqual(result, ["my-bucket-a", "my-bucket-b"])
+        self.mock_client_instance.list_buckets.assert_called_with(prefix="my-")
 
 
 if __name__ == "__main__":

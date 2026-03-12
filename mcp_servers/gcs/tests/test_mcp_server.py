@@ -2,20 +2,22 @@ import pytest
 import asyncio
 from unittest.mock import patch
 
-from connectors.cloud_storage.app.mcp_server import (
+from mcp_servers.gcs.app.mcp_server import (
     create_bucket,
     list_objects,
+    list_buckets,
 )
-from connectors.cloud_storage.app.schemas import (
+from mcp_servers.gcs.app.schemas import (
     CreateBucketRequest,
     ListObjectsRequest,
+    ListBucketsRequest,
     UploadObjectRequest,
 )
 
 
 @pytest.fixture
 def mock_gcs_manager():
-    with patch("connectors.cloud_storage.app.mcp_server.gcs_manager") as mock:
+    with patch("mcp_servers.gcs.app.mcp_server.gcs_manager") as mock:
         yield mock
 
 
@@ -44,3 +46,14 @@ def test_mcp_list_objects_success(mock_gcs_manager):
     assert result.execution_status == "success"
     assert result.objects == ["docs/a.txt", "docs/b.txt"]
     mock_gcs_manager.list_blobs.assert_called_once_with("my-gcs-bucket", "docs/")
+
+
+def test_mcp_list_buckets_success(mock_gcs_manager):
+    mock_gcs_manager.list_buckets.return_value = ["my-gcs-bucket", "my-gcs-backup"]
+
+    request = ListBucketsRequest(prefix="my-")
+    result = asyncio.run(list_buckets(request))
+
+    assert result.execution_status == "success"
+    assert result.buckets == ["my-gcs-bucket", "my-gcs-backup"]
+    mock_gcs_manager.list_buckets.assert_called_once_with("my-")

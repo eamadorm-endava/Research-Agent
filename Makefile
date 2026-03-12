@@ -60,14 +60,17 @@ build-bq-mcp-image:
 ### GCS MCP Commands ###
 
 run-gcs-precommit:
-	uvx pre-commit run --files connectors/cloud_storage/**/*
+	uvx pre-commit run --files mcp_servers/gcs/**/*
 
 run-gcs-tests:
-	uv run --group mcp_gcs pytest connectors/cloud_storage/tests/
+	uv run --group mcp_gcs pytest mcp_servers/gcs/tests/
 
 run-gcs-mcp-locally:
-	uv run --group mcp_gcs python -m connectors.cloud_storage.app.main --host localhost --port 8080
+	uv run --group mcp_gcs python -m mcp_servers.gcs.app.main --host localhost --port 8080
 
 run-gcs-mcp-smoke:
-	uv run --group mcp_gcs python connectors/cloud_storage/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket $(BUCKET) --prefix $(PREFIX)
+	uv run --group mcp_gcs python mcp_servers/gcs/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket $(BUCKET) --prefix $(PREFIX)$(if $(BUCKET_PREFIX), --bucket-prefix $(BUCKET_PREFIX),)
+
+build-gcs-mcp-image:
+	docker build -t test-gcs-mcp-server -f mcp_servers/gcs/Dockerfile .
 

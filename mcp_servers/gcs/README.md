@@ -12,6 +12,7 @@ The MCP Server wraps the `google-cloud-storage` client and exposes the following
 -   **`read_object`**: Download an object's contents securely into the agent's memory (attempts UTF-8 decoding, falls back to raw bytes for binary files).
 -   **`update_object_metadata`**: Update metadata, including the crucial `content_type` attribute.
 -   **`list_objects`**: List files in a bucket, with support for prefix filtering (simulating directory structures), essential for agent discovery and navigation.
+-   **`list_buckets`**: List buckets available in the current project, with optional bucket-name prefix filtering.
 -   **`delete_object`**: Safely remove files.
 
 ## 🛠️ Architecture
@@ -79,7 +80,7 @@ The repository includes a `Dockerfile` and `cloudbuild.yaml` optimized for Cloud
 1. Configure `cloudbuild.yaml` with your GCP Project and preferred Google Artifact Registry region.
 2. Run Cloud Build from the root of the repository to create the image and deploy to Cloud Run:
    ```bash
-    gcloud builds submit --config=connectors/cloud_storage/cloudbuild.yaml .
+    gcloud builds submit --config=mcp_servers/gcs/cloudbuild.yaml .
    ```
 3. **Agent Integration**: Once deployed, configure your Agent Development Kit (ADK) agent to use the resulting Cloud Run URL (e.g., `https://gcs-mcp-xyz.a.run.app/mcp`).
 
@@ -110,11 +111,11 @@ This project uses `uv` for dependency management with a unified `pyproject.toml`
 2.  **Authentication**: Run `gcloud auth application-default login` to use your local credentials (or configure impersonation as described above).
 3.  **Run Server**: Start the MCP server locally from the repository root:
     ```bash
-    uv run --group mcp_gcs python -m connectors.cloud_storage.app.main --host localhost --port 8080
+    uv run --group mcp_gcs python -m mcp_servers.gcs.app.main --host localhost --port 8080
     ```
 4.  **Testing**: Run unit tests using `pytest`:
     ```bash
-    uv run --group mcp_gcs pytest connectors/cloud_storage/tests/
+    uv run --group mcp_gcs pytest mcp_servers/gcs/tests/
     ```
 
 ### Terminal MCP Smoke Test (No Browser)
@@ -130,13 +131,21 @@ You can validate the MCP protocol handshake and a real tool call from terminal o
     make run-gcs-mcp-smoke BUCKET=my-gcs-bucket PREFIX=docs/
     ```
 
+   Optional bucket prefix filter:
+   ```bash
+   make run-gcs-mcp-smoke BUCKET=my-gcs-bucket PREFIX=docs/ BUCKET_PREFIX=my-
+   ```
+
 This executes:
 - `initialize`
 - `notifications/initialized`
 - `tools/list`
+- `tools/call` for `list_buckets`
 - `tools/call` for `list_objects`
+
+You can also call `list_buckets` with an optional prefix using your MCP client once the server is running.
 
 If you prefer direct command usage without `make`:
 ```bash
-uv run --group mcp_gcs python connectors/cloud_storage/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket mikes-bucket --prefix docs/
+uv run --group mcp_gcs python mcp_servers/gcs/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket mikes-bucket --prefix docs/ --bucket-prefix my-
 ```

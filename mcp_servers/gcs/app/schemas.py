@@ -142,3 +142,17 @@ class ListObjectsResponse(ListObjectsRequest, BaseResponse):
         List[str],
         Field(description="List of object names in the bucket."),
     ]
+
+
+class ListBucketsRequest(BaseModel):
+    prefix: Annotated[
+        Optional[str],
+        Field(default=None, description="Optional bucket-name prefix filter."),
+    ]
+
+
+class ListBucketsResponse(ListBucketsRequest, BaseResponse):
+    buckets: Annotated[
+        List[str],
+        Field(description="List of bucket names available in the current project."),
+    ]
