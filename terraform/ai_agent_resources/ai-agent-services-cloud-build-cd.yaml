@@ -2,6 +2,7 @@ substitutions:
   _REGION: "us-central1"
   _AGENT_DISPLAY_NAME: "Research Agent"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
+  _AGENT_SA: "adk-agent"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
@@ -45,7 +46,7 @@ steps:
           --entrypoint-module=agent.core_agent.agent \
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
-          --service-account=${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
           --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
