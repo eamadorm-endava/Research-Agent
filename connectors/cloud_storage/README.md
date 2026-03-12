@@ -1,6 +1,6 @@
 # Cloud Storage Connector (MCP Server)
 
-This connector is built using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) and Python's FastAPI. It provides a secure, modular server that exposes Google Cloud Storage (GCS) operations as tools for AI Agents.
+This connector is built using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) and the Python MCP SDK `FastMCP` stack, aligned with `mcp_servers/big_query`.
 
 ## 🌟 Server Capabilities
 
@@ -16,19 +16,18 @@ The MCP Server wraps the `google-cloud-storage` client and exposes the following
 
 ## 🛠️ Architecture
 
--   **Transport**: Server-Sent Events (SSE). This HTTP-based transport makes the server highly compatible with cloud-native deployments and avoids the complexities of maintaining persistent WebSocket connections in stateless environments.
--   **Routing**: Built on `FastAPI`.
-    -   `GET /sse`: Establishes the agent connection.
-    -   `POST /messages`: Handles incoming JSON-RPC tool-call execution requests.
+-   **Server Stack**: `FastMCP` (`mcp.server.fastmcp.FastMCP`) with asynchronous tool functions.
+-   **Transport**: `streamable-http`, matching the BigQuery MCP implementation style.
+-   **Execution Model**: blocking SDK calls are executed via `asyncio.to_thread` to keep the MCP server responsive.
 
 ## 🤝 Connection Guide for Agents
 
-Because this server uses the Model Context Protocol (MCP), your agent will automatically self-discover all the available GCS tools (like `upload_object` or `list_objects`) and their schemas upon connecting. You only need to provide the agent framework with three details:
+Because this server uses MCP, your agent auto-discovers tools and schemas after connecting.
 
-1.  **Transport Protocol**: Server-Sent Events (SSE) over HTTP.
-2.  **Endpoint URL**: The exact URL pointing to the `/sse` route.
-    *   **Local Testing**: `http://localhost:8080/sse`
-    *   **Production (Cloud Run)**: `https://[CLOUD_RUN_SERVICE_URL]/sse` *(Placeholder: Update after deployment)*
+1.  **Transport Protocol**: `streamable-http`
+2.  **Endpoint URL**:
+    *   **Local Testing**: `http://localhost:8080/mcp`
+    *   **Production (Cloud Run)**: `https://[CLOUD_RUN_SERVICE_URL]/mcp`
 3.  **Authentication**:
     *   **Locally**: None required. Relies on the host's `gcloud auth application-default login`.
     *   **Production**: If Cloud Run is secured via IAM natively, the agent making the HTTP request must attach an `Authorization: Bearer <Google_ID_Token>` header to the `/sse` request.
@@ -64,7 +63,7 @@ To test restricted permissions locally without downloading a JSON key, developer
 
 ## 🚀 Deployment Options in Google Cloud
 
-Because this MCP Server uses HTTP/SSE, deployment on Google Cloud is straightforward and scalable. There are two primary deployment patterns:
+Because this MCP Server uses streamable HTTP transport, deployment on Google Cloud is straightforward and scalable. There are two primary deployment patterns:
 
 ### Option 1: Google Cloud Run (Recommended for Scalability)
 
@@ -80,9 +79,9 @@ The repository includes a `Dockerfile` and `cloudbuild.yaml` optimized for Cloud
 1. Configure `cloudbuild.yaml` with your GCP Project and preferred Google Artifact Registry region.
 2. Run Cloud Build from the root of the repository to create the image and deploy to Cloud Run:
    ```bash
-   gcloud builds submit --config=mcp_servers/gcs/cloudbuild.yaml .
+    gcloud builds submit --config=connectors/cloud_storage/cloudbuild.yaml .
    ```
-3. **Agent Integration**: Once deployed, configure your Agent Development Kit (ADK) agent to use the resulting Cloud Run URL (e.g., `https://gcs-mcp-xyz.a.run.app/sse`).
+3. **Agent Integration**: Once deployed, configure your Agent Development Kit (ADK) agent to use the resulting Cloud Run URL (e.g., `https://gcs-mcp-xyz.a.run.app/mcp`).
 
 ### Option 2: Vertex AI Tool / Extension
 
@@ -109,11 +108,35 @@ This project uses `uv` for dependency management with a unified `pyproject.toml`
     uv sync --group mcp_gcs
     ```
 2.  **Authentication**: Run `gcloud auth application-default login` to use your local credentials (or configure impersonation as described above).
-3.  **Run Server**: Start the FastAPI server locally from the repository root:
+3.  **Run Server**: Start the MCP server locally from the repository root:
     ```bash
-    uv run --group mcp_gcs uvicorn mcp_servers.gcs.app.main:app --host 0.0.0.0 --port 8080 --reload
+    uv run --group mcp_gcs python -m connectors.cloud_storage.app.main --host localhost --port 8080
     ```
 4.  **Testing**: Run unit tests using `pytest`:
     ```bash
-    uv run --group mcp_gcs pytest mcp_servers/gcs/tests/
+    uv run --group mcp_gcs pytest connectors/cloud_storage/tests/
     ```
+
+### Terminal MCP Smoke Test (No Browser)
+
+You can validate the MCP protocol handshake and a real tool call from terminal only.
+
+1. Start the server in one terminal:
+    ```bash
+    make run-gcs-mcp-locally
+    ```
+2. Run a smoke test from another terminal (replace bucket/prefix):
+    ```bash
+    make run-gcs-mcp-smoke BUCKET=my-gcs-bucket PREFIX=docs/
+    ```
+
+This executes:
+- `initialize`
+- `notifications/initialized`
+- `tools/list`
+- `tools/call` for `list_objects`
+
+If you prefer direct command usage without `make`:
+```bash
+uv run --group mcp_gcs python connectors/cloud_storage/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket mikes-bucket --prefix docs/
+```
