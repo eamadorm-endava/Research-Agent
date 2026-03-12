@@ -8,13 +8,13 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
+    dir: 'terraform/gcs_mcp_server_resources'
     args:
       - '-c'
       - |
         terraform init \
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
-            -backend-config="prefix=terraform/state/gcs-mcp-server-resources"
-          dir: 'terraform/gcs_mcp_server_resources'
+          -backend-config="prefix=terraform/state/gcs-mcp-server-resources"
 
   # Step 2: Bootstrap Artifact Registry
   # Creates the registry so Docker can push to it before Cloud Run needs the image

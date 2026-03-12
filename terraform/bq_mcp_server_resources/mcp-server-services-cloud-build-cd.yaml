@@ -8,13 +8,13 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
+    dir: 'terraform/bq_mcp_server_resources'
     args:
       - '-c'
       - |
         terraform init \
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
-          -backend-config="prefix=terraform/state/mcp-server-resources"
-    dir: 'terraform/mcp_server_resources'
+          -backend-config="prefix=terraform/state/bq-mcp-server-resources"
 
   # Step 2: Bootstrap Artifact Registry
   # Creates the registry so Docker can push to it before Cloud Run needs the image
@@ -25,7 +25,7 @@ steps:
       - '-target=module.enable_apis'
       - '-target=module.artifact_registry'
       - '-auto-approve'
-    dir: 'terraform/mcp_server_resources'
+    dir: 'terraform/bq_mcp_server_resources'
 
   # Step 3: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
@@ -52,13 +52,13 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
     args: ['plan', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
-    dir: 'terraform/mcp_server_resources'
+    dir: 'terraform/bq_mcp_server_resources'
 
   # Step 6: Full Terraform Apply
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
     args: ['apply', '-auto-approve', 'tfplan']
-    dir: 'terraform/mcp_server_resources'
+    dir: 'terraform/bq_mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 
