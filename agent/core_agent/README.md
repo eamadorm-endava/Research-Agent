@@ -23,6 +23,17 @@ The .env file must be set directly inside `/core_agent` and must have the follow
     REGION=${GOOGLE_CLOUD_LOCATION}
     MODEL_ARMOR_TEMPLATE_ID=mock-model-armor-template-id
 
+Optional MCP server variables:
+
+    BIGQUERY_URL=https://bigquery-mcp-server-753988132239.us-central1.run.app
+    BIGQUERY_ENDPOINT=/mcp
+    GCS_URL=https://your-gcs-mcp-server-xxxxx-uc.a.run.app
+    GCS_ENDPOINT=/mcp
+
+Notes:
+- Set `GCS_URL` to your deployed Cloud Run **base URL** (without `/mcp`) to enable GCS tools.
+- Leave `GCS_URL` empty to disable GCS MCP integration.
+
 ## How to test the Agent Locally
 
 There are [three ways](https://google.github.io/adk-docs/get-started/quickstart/#run-your-agent) to test the agent, here it is explained how to test it using the **Dev UI**

@@ -74,3 +74,9 @@ run-gcs-mcp-smoke:
 build-gcs-mcp-image:
 	docker build -t test-gcs-mcp-server -f mcp_servers/gcs/Dockerfile .
 
+test-gcs-terraform:
+	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
+
+run-once-mcp-triggers:
+	./terraform/scripts/run_once.sh
+

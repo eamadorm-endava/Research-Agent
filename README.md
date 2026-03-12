@@ -176,6 +176,21 @@ Once approved by at least one reviewer:
 
 ## Development Workflow
 
+### Infrastructure Tests
+
+Use this command to validate the GCS MCP Terraform module:
+
+```bash
+make test-gcs-terraform
+```
+
+This target runs:
+- `terraform fmt -check -recursive`
+- `terraform init -backend=false`
+- `terraform test`
+
+It executes inside `terraform/gcs_mcp_server_resources`.
+
 ### Setting Up for Development
 
 ```bash

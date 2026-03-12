@@ -158,3 +158,17 @@ class MCPServersConfig(BaseSettings):
             description="BigQuery MCP Server Endpoint",
         ),
     ]
+    GCS_URL: Annotated[
+        str,
+        Field(
+            default="",
+            description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
+        ),
+    ]
+    GCS_ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="GCS MCP Server Endpoint",
+        ),
+    ]

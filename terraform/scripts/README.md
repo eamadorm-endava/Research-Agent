@@ -77,6 +77,21 @@ Bash
 gcloud auth application-default login --impersonate-service-account="the sa name that you defined" (example: terraform-sa-gemin)
 ```
 
+## Trigger-Only Setup (Run Once)
+
+Use `run_once.sh` when you only want to create MCP Cloud Build triggers (without running full bootstrap):
+
+```
+chmod +x terraform/scripts/run_once.sh
+./terraform/scripts/run_once.sh
+```
+
+By default it creates/ensures:
+- `bq-mcp-server-services-plan`
+- `bq-mcp-server-services-apply`
+- `gcs-mcp-server-services-plan`
+- `gcs-mcp-server-services-apply`
+
 ## Terraform Infrastructure Access Setup
 
 ### Service Account

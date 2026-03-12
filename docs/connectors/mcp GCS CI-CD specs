@@ -1,0 +1,21 @@
+As an engineer, I want to deploy the Google Cloud Storage (GCS) MCP Server to Cloud Run using Terraform and automated CI/CD pipelines, so that the AI Agent can reliably and securely interact with the GCS MCP Server in a deployed Cloud environment without managing token-based authentication at the Cloud Run instance level.
+
+Acceptance Criteria
+The GCS MCP Server deployment is instantiated via Terraform.
+Authentication at the Cloud Run instance level could not be managed (yet), i.e., it could be an unauth instance.
+There is a structured Terraform module specifically for this deployment, located at terraform/gcs_mcp_server_resources/.
+The Terraform configuration and resource definition (terraform/gcs_mcp_server_resources/) must be fundamentally similar to the existing terraform/mcp_server_resources/ (which deploys the BigQuery MCP server).
+Automated CI/CD pipelines (Cloud Build triggers) are created and configured to build and deploy the GCS MCP Server automatically when changes occur.
+Integration/Unit tests for the GCS MCP Server must exist and pass successfully before deployment. These tests must be located under mcp_servers/gcs/tests/.
+A valid Dockerfile must exist under mcp_servers/gcs/ to containerize the GCS MCP Server, serving as the basis for the deployment image.
+The deployed GCS MCP Server must be fully accessible and testable by the Agent created in agent/core_agent.
+Definition of Done
+Create a new directory terraform/gcs_mcp_server_resources/ alongside the existing mcp_server_resources/.
+Implement main.tf, variables.tf, and outputs.tf inside the new Terraform folder to provision:
+The Google Artifact Registry repository (with the same artifact registry name: mcp-servers).
+The Google Cloud Run service for the GCS MCP Server, explicitly configuring roles/run.invoker to allUsers (or the equivalent configuration to explicitly disable IDToken requirement).
+The Google Cloud Build triggers mapping to the repository branches.
+Verify that the new CI/CD pipelines successfully build the image using mcp_servers/gcs/Dockerfile and deploy it to the new Cloud Run instance.
+Ensure automated tests are correctly placed mcp_servers/gcs/tests/ and are executed successfully locally (e.g., make run-gcs-tests) and in the CI pipeline.
+Verify the deployed Cloud Run URL successfully exposes the MCP Server (e.g., via the configured StreamableHTTP endpoints) and that the remote Agent can connect to it.
+Check how the BigQuery MCP Server Deployment is implemented for architectural guidance.
