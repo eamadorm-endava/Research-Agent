@@ -1,46 +1,56 @@
 import logging
-
 import vertexai
+from vertexai import agent_engines
+from google.genai.types import GenerateContentConfig, ModelArmorConfig, HttpRetryOptions
 from google.adk.agents import Agent
 from google.adk.models import Gemini
-from google.adk.tools import google_search
+from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.genai.types import GenerateContentConfig, HttpRetryOptions, ModelArmorConfig
-from vertexai import agent_engines
-
-from .config import AgentConfig, GCPConfig, MCPServersConfig
-from .utils.security import build_mcp_headers, build_mcp_tool_auth
-
+from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCode
+from .config import GCPConfig, AgentConfig, MCPServersConfig
+from .utils.security import get_id_token
+ 
 logging.getLogger().setLevel(logging.INFO)
-
-# Backward-compatible fallback while the Drive MCP server is being adopted.
-from .tools.drive.adk_tools import (
-    drive_create_google_doc_tool,
-    drive_get_file_text_tool,
-    drive_list_files_tool,
-    drive_search_files_tool,
-    drive_upload_pdf_tool,
-)
-
-
+ 
 gcp_config = GCPConfig()
 agent_config = AgentConfig()
 mcp_servers = MCPServersConfig()
-
+ 
+# Variables
 project_id = gcp_config.PROJECT_ID
 region = gcp_config.REGION
-model_armor_template_id = (
-    f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
-)
+model_armor_template_id = f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
 full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOINT
 full_drive_mcp_server_path = mcp_servers.DRIVE_URL + mcp_servers.DRIVE_ENDPOINT
-
+ 
 vertexai.Client(
     project=project_id,
     location=region,
 )
-
+ 
+# Authentication Configuration for Google Drive (Authorization Code Flow)
+auth_scheme = OAuth2(
+    flows=OAuthFlows(
+        authorizationCode=OAuthFlowAuthorizationCode(
+            authorizationUrl="https://accounts.google.com/o/oauth2/v2/auth",
+            tokenUrl="https://oauth2.googleapis.com/token",
+            scopes={
+                "https://www.googleapis.com/auth/drive": "Full access to Google Drive"
+            },
+        )
+    )
+)
+ 
+auth_credential = AuthCredential(
+    auth_type=AuthCredentialTypes.OAUTH2,
+    oauth2=OAuth2Auth(
+        client_id=mcp_servers.DRIVE_OAUTH_CLIENT_ID,
+        client_secret=mcp_servers.DRIVE_OAUTH_CLIENT_SECRET,
+        redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
+    ),
+)
+ 
 agent_settings = GenerateContentConfig(
     temperature=agent_config.TEMPERATURE,
     top_p=agent_config.TOP_P,
@@ -52,101 +62,14 @@ agent_settings = GenerateContentConfig(
         response_template_name=model_armor_template_id,
     ),
 )
-
+ 
 agent_retry_options = HttpRetryOptions(
     attempts=agent_config.RETRY_ATTEMPTS,
     initial_delay=agent_config.RETRY_INITIAL_DELAY,
     exp_base=agent_config.RETRY_EXP_BASE,
     max_delay=agent_config.RETRY_MAX_DELAY,
 )
-
-
-def _build_bigquery_headers(ctx):
-    return build_mcp_headers(
-        audience_url=mcp_servers.BIGQUERY_URL,
-        call_context=ctx,
-        delegated_token_header=None,
-        force_disable_id_token_auth=mcp_servers.BIGQUERY_DISABLE_ID_TOKEN_AUTH,
-    )
-
-
-def _build_drive_headers(ctx):
-    return build_mcp_headers(
-        audience_url=mcp_servers.DRIVE_URL,
-        call_context=ctx,
-        delegated_token_header=mcp_servers.DRIVE_DELEGATED_TOKEN_HEADER,
-        force_disable_id_token_auth=mcp_servers.DRIVE_DISABLE_ID_TOKEN_AUTH,
-    )
-
-
-def _build_drive_mcp_auth_kwargs() -> dict[str, object]:
-    """Build optional McpToolset auth kwargs for the Drive MCP server.
-
-    These kwargs authenticate the agent to the MCP server itself (for example, through an API
-    gateway or OAuth2-protected ingress). User-specific delegated Drive access continues to flow
-    through ``header_provider`` so Gemini Enterprise can forward a different token per user.
-    """
-    return build_mcp_tool_auth(
-        auth_mode=mcp_servers.DRIVE_MCP_AUTH_MODE,
-        header_name=mcp_servers.DRIVE_MCP_AUTH_HEADER_NAME,
-        token_value=mcp_servers.DRIVE_MCP_AUTH_TOKEN,
-        oauth_client_id=mcp_servers.DRIVE_MCP_OAUTH_CLIENT_ID,
-        oauth_client_secret=mcp_servers.DRIVE_MCP_OAUTH_CLIENT_SECRET,
-        oauth_token_url=mcp_servers.DRIVE_MCP_OAUTH_TOKEN_URL,
-        oauth_authorization_url=mcp_servers.DRIVE_MCP_OAUTH_AUTH_URL,
-        oauth_scopes=mcp_servers.DRIVE_MCP_OAUTH_SCOPES,
-    )
-
-
-def _build_drive_toolset_or_fallback():
-    """Use the Drive MCP server when configured; otherwise keep the legacy in-process tools."""
-    if mcp_servers.DRIVE_URL:
-        base_kwargs = {
-            "connection_params": StreamableHTTPConnectionParams(
-                url=full_drive_mcp_server_path,
-                timeout=mcp_servers.GENERAL_TIMEOUT,
-            ),
-            "header_provider": _build_drive_headers,
-        }
-        auth_kwargs = _build_drive_mcp_auth_kwargs()
-        try:
-            return McpToolset(**base_kwargs, **auth_kwargs)
-        except TypeError as exc:
-            logging.warning(
-                "This ADK version does not accept McpToolset auth kwargs for Drive. Falling back to header_provider-only MCP auth. Details: %s",
-                exc,
-            )
-            return McpToolset(**base_kwargs)
-
-    return [
-        drive_list_files_tool,
-        drive_search_files_tool,
-        drive_get_file_text_tool,
-        drive_create_google_doc_tool,
-        drive_upload_pdf_tool,
-    ]
-
-
-def _build_bigquery_toolset():
-    if not mcp_servers.BIGQUERY_URL:
-        return []
-    return [
-        McpToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url=full_bq_mcp_server_path,
-                timeout=mcp_servers.GENERAL_TIMEOUT,
-            ),
-            header_provider=_build_bigquery_headers,
-        )
-    ]
-
-
-_drive_tools = _build_drive_toolset_or_fallback()
-if not isinstance(_drive_tools, list):
-    _drive_tools = [_drive_tools]
-
-_bq_tools = _build_bigquery_toolset()
-
+ 
 root_agent = Agent(
     model=Gemini(
         model_name=agent_config.MODEL_NAME,
@@ -155,18 +78,31 @@ root_agent = Agent(
     name="research_agent",
     generate_content_config=agent_settings,
     instruction=(
-        "You are a helpful research assistant. "
-        "You can search and read the user's Google Drive using the Drive MCP tools. "
-        "When you need information from Drive, first search for relevant files, then fetch the file text. "
-        "If you need to create a document or PDF in Drive, explain what you will create and proceed. "
-        "The Drive MCP server may use two distinct authentication layers: one for reaching the MCP service itself, "
-        "and another delegated user token for accessing the user's Drive content."
+        "You are a helpful research assistant with access to BigQuery data and Google Drive. "
+        "You can list, read, write, update, and upload files in the user's Google Drive. "
+        "IMPORTANT: If a Google Drive tool returns an error stating the user is not authenticated, "
+        "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
+        "access in their browser before you can continue with Drive tasks."
     ),
     tools=[
-        google_search,
-        *_drive_tools,
-        *_bq_tools,
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_bq_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            header_provider=lambda ctx: {
+                "Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
+            },
+        ),
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_drive_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            auth_scheme=auth_scheme,
+            auth_credential=auth_credential,
+        ),
     ],
 )
-
+ 
 app = agent_engines.AdkApp(agent=root_agent)

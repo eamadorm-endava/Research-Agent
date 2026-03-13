@@ -1,8 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import Annotated
-
-
+ 
+ 
 class GCPConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -14,7 +14,7 @@ class GCPConfig(BaseSettings):
     Class that holds configuration values for GCP services. Allowing to, in any future, change the
     cloud provider or the way to access the secrets.
     """
-
+ 
     PROJECT_ID: Annotated[
         str,
         Field(
@@ -29,8 +29,8 @@ class GCPConfig(BaseSettings):
             description="GCP Region where most of the services will be deployed",
         ),
     ]
-
-
+ 
+ 
 class AgentConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -42,7 +42,7 @@ class AgentConfig(BaseSettings):
     Class that holds configuration values for the agent, it requires to assign
     parameters after initialization.
     """
-
+ 
     MODEL_NAME: Annotated[
         str,
         Field(
@@ -124,8 +124,8 @@ class AgentConfig(BaseSettings):
             description="Maximum delay in seconds to retry the request in case of failure.",
         ),
     ]
-
-
+ 
+ 
 class MCPServersConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -136,7 +136,7 @@ class MCPServersConfig(BaseSettings):
     """
     Class that holds configuration values for MCP servers.
     """
-
+ 
     GENERAL_TIMEOUT: Annotated[
         int,
         Field(
@@ -161,91 +161,35 @@ class MCPServersConfig(BaseSettings):
     DRIVE_URL: Annotated[
         str,
         Field(
-            default="http://localhost:8081",
-            description="Google Drive MCP Server base URL.",
+            default="http://localhost:8080",
+            description="Google Drive MCP Server URL, uses a streamable http connection",
         ),
     ]
     DRIVE_ENDPOINT: Annotated[
         str,
         Field(
             default="/mcp",
-            description="Google Drive MCP Server endpoint path.",
+            description="Google Drive MCP Server Endpoint",
         ),
     ]
-    DRIVE_DELEGATED_TOKEN_HEADER: Annotated[
-        str,
-        Field(
-            default="x-drive-access-token",
-            description="Header used to forward the user's delegated OAuth access token to the Drive MCP server.",
-        ),
-    ]
-    BIGQUERY_DISABLE_ID_TOKEN_AUTH: Annotated[
-        bool,
-        Field(
-            default=False,
-            description="Disable Cloud Run ID-token auth for the BigQuery MCP server, useful for local development.",
-        ),
-    ]
-    DRIVE_DISABLE_ID_TOKEN_AUTH: Annotated[
-        bool,
-        Field(
-            default=False,
-            description="Disable Cloud Run ID-token auth for the Drive MCP server, useful for local development.",
-        ),
-    ]
-    DRIVE_MCP_AUTH_MODE: Annotated[
-        str,
-        Field(
-            default="none",
-            description="Optional authentication mode for the Drive MCP server itself. Supported values: none, api_key_header, oauth2_client_credentials.",
-        ),
-    ]
-    DRIVE_MCP_AUTH_HEADER_NAME: Annotated[
-        str,
-        Field(
-            default="Authorization",
-            description="Header name to use when DRIVE_MCP_AUTH_MODE=api_key_header.",
-        ),
-    ]
-    DRIVE_MCP_AUTH_TOKEN: Annotated[
+    DRIVE_OAUTH_CLIENT_ID: Annotated[
         str,
         Field(
             default="",
-            description="Static token value to send when DRIVE_MCP_AUTH_MODE=api_key_header. When using the Authorization header include the Bearer prefix if your gateway expects it.",
+            description="OAuth 2.0 Client ID for Google Drive (provided to the Agent)",
         ),
     ]
-    DRIVE_MCP_OAUTH_CLIENT_ID: Annotated[
+    DRIVE_OAUTH_CLIENT_SECRET: Annotated[
         str,
         Field(
             default="",
-            description="OAuth2 client ID for MCP-server authentication when DRIVE_MCP_AUTH_MODE=oauth2_client_credentials.",
+            description="OAuth 2.0 Client Secret for Google Drive (provided to the Agent)",
         ),
     ]
-    DRIVE_MCP_OAUTH_CLIENT_SECRET: Annotated[
+    DRIVE_OAUTH_REDIRECT_URI: Annotated[
         str,
         Field(
-            default="",
-            description="OAuth2 client secret for MCP-server authentication when DRIVE_MCP_AUTH_MODE=oauth2_client_credentials.",
-        ),
-    ]
-    DRIVE_MCP_OAUTH_TOKEN_URL: Annotated[
-        str,
-        Field(
-            default="",
-            description="OAuth2 token URL for MCP-server authentication. Leave blank to rely on ADK discovery if your MCP gateway exposes RFC 8414 metadata.",
-        ),
-    ]
-    DRIVE_MCP_OAUTH_AUTH_URL: Annotated[
-        str,
-        Field(
-            default="",
-            description="Optional OAuth2 authorization URL for MCP-server authentication. Mainly useful for future interactive flows.",
-        ),
-    ]
-    DRIVE_MCP_OAUTH_SCOPES: Annotated[
-        str,
-        Field(
-            default="",
-            description="Comma-separated OAuth2 scopes for MCP-server authentication.",
+            default="http://localhost:8000/dev-ui",
+            description="OAuth 2.0 Redirect URI for Google Drive (provided to the Agent)",
         ),
     ]
