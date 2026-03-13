@@ -11,6 +11,11 @@ install-precommit:
 run-precommit:
 	uvx pre-commit run --all-files
 
+verify-all-ci:
+	$(MAKE) verify-agent-ci
+	$(MAKE) verify-bq-ci
+	$(MAKE) verify-gcs-ci
+
 ### AI Agent Commands ###
 
 run-agent-precommit:
@@ -41,6 +46,10 @@ deploy-agent:
 		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template"
 	rm agent/core_agent/requirements.txt
 
+verify-agent-ci:
+	$(MAKE) run-agent-precommit
+	$(MAKE) test-agent
+
 
 ### BigQuery MCP Commands ###
 
@@ -55,6 +64,11 @@ run-bq-mcp-locally:
 
 build-bq-mcp-image:
 	docker build -t test-mcp-server -f mcp_servers/big_query/Dockerfile .
+
+verify-bq-ci:
+	$(MAKE) run-bq-precommit
+	$(MAKE) run-bq-tests
+	$(MAKE) build-bq-mcp-image
 
 
 ### GCS MCP Commands ###
@@ -73,6 +87,12 @@ run-gcs-mcp-smoke:
 
 build-gcs-mcp-image:
 	docker build -t test-gcs-mcp-server -f mcp_servers/gcs/Dockerfile .
+
+verify-gcs-ci:
+	$(MAKE) run-gcs-precommit
+	$(MAKE) run-gcs-tests
+	$(MAKE) build-gcs-mcp-image
+	$(MAKE) test-gcs-terraform
 
 test-gcs-terraform:
 	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
