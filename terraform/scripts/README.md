@@ -4,7 +4,6 @@ The bootstrap.sh script automates the initial setup of Google Cloud Platform (GC
 
 Its primary goal is to establish a secure "Least Privilege" environment where a dedicated Service Account manages infrastructure, while developers and CI/CD pipelines use Identity Federation (Impersonation) instead of static JSON keys.
 
-Gemini ha dicho
 This README is designed to provide a professional overview of your automation script, ensuring that any developer on your team understands the "why" and "how" of the infrastructure setup.
 
 Infrastructure Bootstrap Script

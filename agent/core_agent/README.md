@@ -12,6 +12,7 @@ The `core_agent/` folder follows the [ADK project structure](https://google.gith
 - `agent.py` -> Main agent definition with LLM Agent implementation
 - `config.py` -> Configuration settings for the agent
 - `model_armor.py` -> Custom Model Armor implementation class
+- `utils/auxiliars.py` -> MCP helper utilities (builds `McpToolset` list from MCP config)
 - `.env` -> Environment variables for model authentication (needed by the ADK CLI)
 
 The .env file must be set directly inside `/core_agent` and must have the following variables:
@@ -33,6 +34,8 @@ Optional MCP server variables:
 Notes:
 - Set `GCS_URL` to your deployed Cloud Run **base URL** (without `/mcp`) to enable GCS tools.
 - Leave `GCS_URL` empty to disable GCS MCP integration.
+
+MCP tool wiring is centralized in `get_mcp_servers_tools` inside `utils/auxiliars.py`, so `agent.py` stays focused on agent configuration and initialization.
 
 ## How to test the Agent Locally
 

@@ -82,9 +82,6 @@ Because this specific deployment is executed via Cloud Build, the Cloud Build Se
 The following APIs are managed (enabled) by this module. This APIs must be enabled before deploying the MCP Server in any GCP project.
 
 - storage.googleapis.com
-- drive.googleapis.com
-- docs.googleapis.com
-- bigquery.googleapis.com
 
 ## Service Accounts & Permissions
 
@@ -94,7 +91,7 @@ Permissions are managed (assigned) under the `service_accounts/` directory. It c
 
 | Service Account Name | Status  | Description | Permissions Assigned |
 |----------------------|---------|-------------|----------------------|
-| mcp-server           | Created | This service account is used by the MCP server. | - Storage Object User<br>- BigQuery Data Viewer<br>- BigQuery Job User |
+| mcp-server           | Created | This service account is used by the MCP server. | - Storage Object Admin |
 
 **Note:** The name of the service account can be easily changed by modifying the `service_account_name` variable in the permissions/ directory.
 
