@@ -14,6 +14,7 @@ from starlette.routing import Mount
 from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG, DRIVE_SERVER_CONFIG
 from .drive_client import DriveManager, build_drive_credentials
 from .schemas import (
+    AuthenticationError,
     CreateGoogleDocRequest,
     CreateGoogleDocResponse,
     GetFileTextRequest,
@@ -36,9 +37,11 @@ mcp = FastMCP(
     port=str(DRIVE_SERVER_CONFIG.default_port),
 )
 
-_current_http_headers: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
-    DRIVE_SERVER_CONFIG.header_context_key,
-    default=None,
+_current_http_headers: contextvars.ContextVar[dict[str, str] | None] = (
+    contextvars.ContextVar(
+        DRIVE_SERVER_CONFIG.header_context_key,
+        default=None,
+    )
 )
 
 
@@ -86,6 +89,17 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
             execution_status="success",
             execution_message=f"Found {len(files)} files.",
         )
+    except AuthenticationError as exc:
+        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.read_scopes_list())
+        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
+        return ListFilesResponse(
+            max_results=request.max_results,
+            folder_id=request.folder_id,
+            include_folders=request.include_folders,
+            files=[],
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}.{url_hint}",
+        )
     except Exception as exc:
         return ListFilesResponse(
             max_results=request.max_results,
@@ -126,6 +140,20 @@ async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
             execution_status="success",
             execution_message=f"Found {len(files)} matching files.",
         )
+    except AuthenticationError as exc:
+        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.read_scopes_list())
+        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
+        return SearchFilesResponse(
+            search_text=request.search_text,
+            drive_query=request.drive_query,
+            max_results=request.max_results,
+            folder_id=request.folder_id,
+            include_folders=request.include_folders,
+            mime_types=request.mime_types,
+            files=[],
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}.{url_hint}",
+        )
     except Exception as exc:
         return SearchFilesResponse(
             search_text=request.search_text,
@@ -157,6 +185,16 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
             execution_status="success",
             execution_message=f"Retrieved text for file {request.file_id}.",
         )
+    except AuthenticationError as exc:
+        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.read_scopes_list())
+        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
+        return GetFileTextResponse(
+            file_id=request.file_id,
+            max_chars=request.max_chars,
+            document=None,
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}.{url_hint}",
+        )
     except Exception as exc:
         return GetFileTextResponse(
             file_id=request.file_id,
@@ -185,6 +223,17 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
             file=file,
             execution_status="success",
             execution_message=f"Created Google Doc '{request.title}'.",
+        )
+    except AuthenticationError as exc:
+        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.write_doc_scopes_list())
+        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
+        return CreateGoogleDocResponse(
+            title=request.title,
+            content=request.content,
+            folder_id=request.folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}.{url_hint}",
         )
     except Exception as exc:
         return CreateGoogleDocResponse(
@@ -216,6 +265,17 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
             execution_status="success",
             execution_message=f"Uploaded PDF '{request.title}.pdf'.",
         )
+    except AuthenticationError as exc:
+        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.write_pdf_scopes_list())
+        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
+        return UploadPdfResponse(
+            title=request.title,
+            text=request.text,
+            folder_id=request.folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}.{url_hint}",
+        )
     except Exception as exc:
         return UploadPdfResponse(
             title=request.title,
@@ -234,15 +294,13 @@ async def lifespan(app: Starlette):
         yield
 
 
-
 def create_app() -> Starlette:
     wrapped_mcp_app = HeaderCaptureMiddleware(mcp.streamable_http_app())
     return Starlette(
         debug=DRIVE_SERVER_CONFIG.debug,
-        routes=[Mount(DRIVE_SERVER_CONFIG.route_path, app=wrapped_mcp_app)],
+        routes=[Mount("/", app=wrapped_mcp_app)],
         lifespan=lifespan,
     )
-
 
 
 def _make_drive_manager(*, scopes: list[str]) -> DriveManager:
@@ -251,16 +309,48 @@ def _make_drive_manager(*, scopes: list[str]) -> DriveManager:
     return DriveManager(creds)
 
 
-
 def _get_current_headers() -> dict[str, str]:
     return _current_http_headers.get() or {}
 
 
-
 def _get_delegated_access_token_from_headers() -> str | None:
-    header_name = os.getenv(
+    headers = _get_current_headers()
+
+    # 1. Check custom delegated header if provided via env
+    custom_header_name = os.getenv(
         DRIVE_AUTH_CONFIG.delegated_token_header_env,
         DRIVE_AUTH_CONFIG.delegated_token_header_default,
     ).lower()
-    headers = _get_current_headers()
-    return headers.get(header_name)
+    token = headers.get(custom_header_name)
+    if token:
+        return token
+
+    # 2. Check standard Authorization header
+    auth_header = headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        return auth_header[7:].strip()
+
+    return None
+
+
+def _get_auth_url(scopes: list[str]) -> str:
+    """Construct the Google Drive authorization URL if client info is available."""
+    client_id = os.getenv("DRIVE_OAUTH_CLIENT_ID")
+    redirect_uri = os.getenv("DRIVE_OAUTH_REDIRECT_URI")
+
+    if not (client_id and redirect_uri):
+        return ""
+
+    import urllib.parse
+
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": " ".join(scopes),
+        "access_type": "offline",
+        "prompt": "consent",
+    }
+    return (
+        f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+    )

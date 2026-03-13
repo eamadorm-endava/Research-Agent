@@ -11,6 +11,7 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from pypdf import PdfReader
 
 from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG
+from .schemas import AuthenticationError
 from .schemas import DriveDocumentModel as DriveTextDocument
 from .schemas import DriveFileModel as DriveFile
 
@@ -48,7 +49,10 @@ class DriveManager:
             )
             .execute()
         )
-        return [DriveFile.model_validate(file_payload) for file_payload in response.get("files", [])]
+        return [
+            DriveFile.model_validate(file_payload)
+            for file_payload in response.get("files", [])
+        ]
 
     def search_files(
         self,
@@ -98,7 +102,10 @@ class DriveManager:
             )
             .execute()
         )
-        return [DriveFile.model_validate(file_payload) for file_payload in response.get("files", [])]
+        return [
+            DriveFile.model_validate(file_payload)
+            for file_payload in response.get("files", [])
+        ]
 
     def get_file_text(self, file_id: str) -> DriveTextDocument:
         metadata = (
@@ -242,8 +249,9 @@ class DriveManager:
 
     def _export_bytes(self, file_id: str, export_mime: str) -> bytes:
         data = self.drive.files().export(fileId=file_id, mimeType=export_mime).execute()
-        return data if isinstance(data, (bytes, bytearray)) else bytes(str(data), "utf-8")
-
+        return (
+            data if isinstance(data, (bytes, bytearray)) else bytes(str(data), "utf-8")
+        )
 
 
 def build_drive_credentials(
@@ -262,6 +270,8 @@ def build_drive_credentials(
     scopes = scopes or DRIVE_API_CONFIG.read_scopes_list()
 
     if access_token:
+        # Validate the token before using it
+        validate_access_token(access_token, scopes)
         return Credentials(token=access_token, scopes=scopes)
 
     if _truthy(_first_set_env(DRIVE_AUTH_CONFIG.use_adc_env_names)):
@@ -322,6 +332,51 @@ def build_drive_credentials(
     )
 
 
+def validate_access_token(
+    access_token: str, required_scopes: list[str] | None = None
+) -> dict[str, Any]:
+    """Validate the access token against Google's tokeninfo endpoint.
+
+    Args:
+        access_token: The OAuth2 access token to validate.
+        required_scopes: Optional list of scopes that the token must have.
+
+    Returns:
+        The token info dictionary if valid.
+
+    Raises:
+        AuthenticationError: If the token is invalid or missing required scopes.
+    """
+    import requests
+
+    try:
+        response = requests.get(
+            "https://www.googleapis.com/oauth2/v3/tokeninfo",
+            params={"access_token": access_token},
+            timeout=10,
+        )
+    except Exception as exc:
+        raise AuthenticationError(f"Failed to reach token validation endpoint: {exc}")
+
+    if response.status_code != 200:
+        try:
+            error_detail = response.json().get("error_description", response.text)
+        except Exception:
+            error_detail = response.text
+        raise AuthenticationError(f"Invalid OAuth token: {error_detail}")
+
+    token_info = response.json()
+
+    if required_scopes:
+        token_scopes = token_info.get("scope", "").split()
+        missing = [s for s in required_scopes if s not in token_scopes]
+        if missing:
+            raise AuthenticationError(
+                f"Token is missing required scopes: {', '.join(missing)}"
+            )
+
+    return token_info
+
 
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
     try:
@@ -336,15 +391,12 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
         return f"[PDF_TEXT_EXTRACTION_FAILED: {type(exc).__name__}: {exc}]"
 
 
-
 def _escape_q(value: str) -> str:
     return (value or "").replace("'", "\\'")
 
 
-
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
-
 
 
 def _first_set_env(env_names: Sequence[str], default: str | None = None) -> str | None:

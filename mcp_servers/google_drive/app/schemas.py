@@ -5,6 +5,12 @@ from typing import Annotated, Any, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class AuthenticationError(Exception):
+    """Raised when OAuth token validation fails."""
+
+    pass
+
+
 class DriveSchemaModel(BaseModel):
     """Shared schema base for the Google Drive MCP server."""
 
@@ -31,7 +37,7 @@ MAX_RESULTS = Annotated[
         default=10,
         description="Maximum number of files to return.",
         ge=1,
-        le=100,
+        le=1000,
     ),
 ]
 OPTIONAL_FOLDER_ID = Annotated[
