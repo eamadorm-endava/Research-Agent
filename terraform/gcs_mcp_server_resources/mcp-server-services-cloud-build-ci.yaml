@@ -3,19 +3,19 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
     args:
       - '-c'
       - |
         terraform init \
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
-          -backend-config="prefix=terraform/state/bq-mcp-server-resources"
+          -backend-config="prefix=terraform/state/gcs-mcp-server-resources"
 
   # Step 2: Format Check (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-fmt'
     args: ['fmt', '-check']
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
 
   # Step 3: Format Check (Python)
   - name: 'python:3.12'
@@ -26,7 +26,7 @@ steps:
       - |
         apt-get update && apt-get install -y make
         pip install uv
-        make run-bq-precommit
+        make run-gcs-precommit
 
   # Step 4: Python Tests
   - name: 'python:3.12'
@@ -37,24 +37,24 @@ steps:
       - |
         apt-get update && apt-get install -y make
         pip install uv
-        make run-bq-tests
+        make run-gcs-tests
 
   # Step 5: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-build'
-    args: ['build', '-t', 'bq-mcp-test:ci', '-f', 'mcp_servers/big_query/Dockerfile', '.']
+    args: ['build', '-t', 'gcs-mcp-test:ci', '-f', 'mcp_servers/gcs/Dockerfile', '.']
 
   # Step 6: Validate (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-validate'
     args: ['validate']
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
 
   # Step 7: Plan (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
     args: ['plan', '-var=mcp_server_cloud_run_image_tag=ci', '-out=tfplan']
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 

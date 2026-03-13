@@ -4,7 +4,6 @@ The bootstrap.sh script automates the initial setup of Google Cloud Platform (GC
 
 Its primary goal is to establish a secure "Least Privilege" environment where a dedicated Service Account manages infrastructure, while developers and CI/CD pipelines use Identity Federation (Impersonation) instead of static JSON keys.
 
-Gemini ha dicho
 This README is designed to provide a professional overview of your automation script, ensuring that any developer on your team understands the "why" and "how" of the infrastructure setup.
 
 Infrastructure Bootstrap Script
@@ -75,6 +74,27 @@ After a successful run, developers do not need local keys. To run Terraform loca
 Bash
 
 gcloud auth application-default login --impersonate-service-account="the sa name that you defined" (example: terraform-sa-gemin)
+```
+
+## Trigger-Only Setup (Run Once)
+
+Use `run_once.sh` when you only want to create MCP Cloud Build triggers (without running full bootstrap):
+
+```
+chmod +x terraform/scripts/run_once.sh
+./terraform/scripts/run_once.sh
+```
+
+By default it creates/ensures:
+- `bq-mcp-server-services-plan`
+- `bq-mcp-server-services-apply`
+- `gcs-mcp-server-services-plan`
+- `gcs-mcp-server-services-apply`
+
+If a trigger already exists but still points to an old build config path, recreate it in place:
+
+```
+FORCE_RECREATE=true ./terraform/scripts/run_once.sh
 ```
 
 ## Terraform Infrastructure Access Setup
