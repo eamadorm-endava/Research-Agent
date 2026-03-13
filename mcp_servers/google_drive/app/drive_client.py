@@ -1,74 +1,22 @@
-"""Google Drive connector (RAG-ready).
-
-This module contains a small wrapper around the Google Drive API (v3):
-- List/search files
-- Download/export content
-- Extract text from common formats
-
-It is designed to be called from ADK FunctionTools.
-"""
-
 from __future__ import annotations
 
 import io
-from typing import Annotated, Any, Sequence
+import os
+from pathlib import Path
+from typing import Any, Sequence
 
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
-from pydantic import BaseModel, ConfigDict, Field
 from pypdf import PdfReader
 
-from .config import DRIVE_MIME_TYPE_CONFIG, DRIVE_TOOL_RUNTIME_CONFIG
-
-DRIVE_FILE_ID = Annotated[
-    str,
-    Field(min_length=1, description="Drive file ID."),
-]
-DRIVE_FILE_NAME = Annotated[
-    str,
-    Field(min_length=1, description="Display name of the file."),
-]
-DRIVE_FILE_MIME_TYPE = Annotated[
-    str,
-    Field(min_length=1, description="Drive MIME type."),
-]
-DRIVE_FILE_MODIFIED_TIME = Annotated[
-    str | None,
-    Field(default=None, description="Last modified time."),
-]
-DRIVE_FILE_WEB_VIEW_LINK = Annotated[
-    str | None,
-    Field(default=None, description="Browser URL for the file."),
-]
-DRIVE_DOCUMENT_TEXT = Annotated[
-    str,
-    Field(default="", description="Extracted text content."),
-]
+from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG
+from .schemas import DriveDocumentModel as DriveTextDocument
+from .schemas import DriveFileModel as DriveFile
 
 
-class DriveBaseModel(BaseModel):
-    """Shared schema base for the in-process Drive connector."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(mode="python")
-
-
-class DriveFile(DriveBaseModel):
-    id: DRIVE_FILE_ID
-    name: DRIVE_FILE_NAME
-    mimeType: DRIVE_FILE_MIME_TYPE
-    modifiedTime: DRIVE_FILE_MODIFIED_TIME
-    webViewLink: DRIVE_FILE_WEB_VIEW_LINK
-
-
-class DriveTextDocument(DriveFile):
-    text: DRIVE_DOCUMENT_TEXT
-
-
-class DriveConnector:
-    """A thin wrapper around the Drive API."""
+class DriveManager:
+    """Manager for Google Drive operations."""
 
     def __init__(self, creds: Any):
         self.creds = creds
@@ -77,7 +25,7 @@ class DriveConnector:
     def list_files(
         self,
         *,
-        max_results: int = DRIVE_TOOL_RUNTIME_CONFIG.default_max_results,
+        max_results: int = 10,
         folder_id: str | None = None,
         include_folders: bool = False,
     ) -> list[DriveFile]:
@@ -85,7 +33,7 @@ class DriveConnector:
         if folder_id:
             query_parts.append(f"'{_escape_q(folder_id)}' in parents")
         if not include_folders:
-            query_parts.append(f"mimeType != '{DRIVE_MIME_TYPE_CONFIG.google_folder}'")
+            query_parts.append(f"mimeType != '{DRIVE_API_CONFIG.google_folder}'")
         query = " and ".join(query_parts) if query_parts else None
 
         response = (
@@ -93,8 +41,8 @@ class DriveConnector:
             .list(
                 q=query,
                 pageSize=max_results,
-                fields=DRIVE_MIME_TYPE_CONFIG.file_list_fields,
-                orderBy=DRIVE_MIME_TYPE_CONFIG.order_by,
+                fields=DRIVE_API_CONFIG.file_list_fields,
+                orderBy=DRIVE_API_CONFIG.order_by,
                 supportsAllDrives=True,
                 includeItemsFromAllDrives=True,
             )
@@ -107,7 +55,7 @@ class DriveConnector:
         *,
         search_text: str | None = None,
         drive_query: str | None = None,
-        max_results: int = DRIVE_TOOL_RUNTIME_CONFIG.default_max_results,
+        max_results: int = 10,
         folder_id: str | None = None,
         include_folders: bool = False,
         mime_types: Sequence[str] | None = None,
@@ -134,7 +82,7 @@ class DriveConnector:
             query_parts.append(f"({mime_filters})")
 
         if not include_folders:
-            query_parts.append(f"mimeType != '{DRIVE_MIME_TYPE_CONFIG.google_folder}'")
+            query_parts.append(f"mimeType != '{DRIVE_API_CONFIG.google_folder}'")
 
         query = " and ".join([part for part in query_parts if part]) or None
 
@@ -143,8 +91,8 @@ class DriveConnector:
             .list(
                 q=query,
                 pageSize=max_results,
-                fields=DRIVE_MIME_TYPE_CONFIG.file_list_fields,
-                orderBy=DRIVE_MIME_TYPE_CONFIG.order_by,
+                fields=DRIVE_API_CONFIG.file_list_fields,
+                orderBy=DRIVE_API_CONFIG.order_by,
                 supportsAllDrives=True,
                 includeItemsFromAllDrives=True,
             )
@@ -157,7 +105,7 @@ class DriveConnector:
             self.drive.files()
             .get(
                 fileId=file_id,
-                fields=DRIVE_MIME_TYPE_CONFIG.file_metadata_fields,
+                fields=DRIVE_API_CONFIG.file_metadata_fields,
                 supportsAllDrives=True,
             )
             .execute()
@@ -167,25 +115,25 @@ class DriveConnector:
         file_name = metadata.get("name", "")
         extracted_text = ""
 
-        if mime_type == DRIVE_MIME_TYPE_CONFIG.google_doc:
+        if mime_type == DRIVE_API_CONFIG.google_doc:
             extracted_text = self._export_bytes(
-                file_id, DRIVE_MIME_TYPE_CONFIG.export_text_plain
+                file_id, DRIVE_API_CONFIG.export_text_plain
             ).decode("utf-8", errors="ignore")
-        elif mime_type == DRIVE_MIME_TYPE_CONFIG.google_sheet:
+        elif mime_type == DRIVE_API_CONFIG.google_sheet:
             extracted_text = self._export_bytes(
-                file_id, DRIVE_MIME_TYPE_CONFIG.export_csv
+                file_id, DRIVE_API_CONFIG.export_csv
             ).decode("utf-8", errors="ignore")
-        elif mime_type == DRIVE_MIME_TYPE_CONFIG.google_slide:
+        elif mime_type == DRIVE_API_CONFIG.google_slide:
             try:
                 extracted_text = self._export_bytes(
-                    file_id, DRIVE_MIME_TYPE_CONFIG.export_text_plain
+                    file_id, DRIVE_API_CONFIG.export_text_plain
                 ).decode("utf-8", errors="ignore")
             except Exception:
-                pdf_bytes = self._export_bytes(file_id, DRIVE_MIME_TYPE_CONFIG.pdf)
+                pdf_bytes = self._export_bytes(file_id, DRIVE_API_CONFIG.pdf)
                 extracted_text = _extract_text_from_pdf_bytes(pdf_bytes)
         else:
             raw_bytes = self._download_bytes(file_id)
-            if mime_type == DRIVE_MIME_TYPE_CONFIG.pdf or file_name.lower().endswith(".pdf"):
+            if mime_type == DRIVE_API_CONFIG.pdf or file_name.lower().endswith(".pdf"):
                 extracted_text = _extract_text_from_pdf_bytes(raw_bytes)
             else:
                 extracted_text = raw_bytes.decode("utf-8", errors="ignore")
@@ -208,7 +156,7 @@ class DriveConnector:
     ) -> DriveFile:
         file_metadata: dict[str, Any] = {
             "name": title,
-            "mimeType": DRIVE_MIME_TYPE_CONFIG.google_doc,
+            "mimeType": DRIVE_API_CONFIG.google_doc,
         }
         if folder_id:
             file_metadata["parents"] = [folder_id]
@@ -217,7 +165,7 @@ class DriveConnector:
             self.drive.files()
             .create(
                 body=file_metadata,
-                fields=DRIVE_MIME_TYPE_CONFIG.file_metadata_fields,
+                fields=DRIVE_API_CONFIG.file_metadata_fields,
                 supportsAllDrives=True,
             )
             .execute()
@@ -261,14 +209,14 @@ class DriveConnector:
 
         file_metadata: dict[str, Any] = {
             "name": f"{title}.pdf",
-            "mimeType": DRIVE_MIME_TYPE_CONFIG.pdf,
+            "mimeType": DRIVE_API_CONFIG.pdf,
         }
         if folder_id:
             file_metadata["parents"] = [folder_id]
 
         media = MediaIoBaseUpload(
             pdf_io,
-            mimetype=DRIVE_MIME_TYPE_CONFIG.pdf,
+            mimetype=DRIVE_API_CONFIG.pdf,
             resumable=False,
         )
         created = (
@@ -276,7 +224,7 @@ class DriveConnector:
             .create(
                 body=file_metadata,
                 media_body=media,
-                fields=DRIVE_MIME_TYPE_CONFIG.file_metadata_fields,
+                fields=DRIVE_API_CONFIG.file_metadata_fields,
                 supportsAllDrives=True,
             )
             .execute()
@@ -298,6 +246,83 @@ class DriveConnector:
 
 
 
+def build_drive_credentials(
+    *,
+    access_token: str | None = None,
+    scopes: list[str] | None = None,
+) -> Any:
+    """Build Drive credentials.
+
+    Resolution order:
+    1) Delegated user access token passed by the agent.
+    2) ADC if DRIVE_USE_ADC / USE_ADC_FOR_DRIVE is enabled.
+    3) Local OAuth if DRIVE_ALLOW_LOCAL_OAUTH / ALLOW_LOCAL_OAUTH is enabled.
+    """
+
+    scopes = scopes or DRIVE_API_CONFIG.read_scopes_list()
+
+    if access_token:
+        return Credentials(token=access_token, scopes=scopes)
+
+    if _truthy(_first_set_env(DRIVE_AUTH_CONFIG.use_adc_env_names)):
+        import google.auth
+
+        creds, _ = google.auth.default(scopes=scopes)
+        return creds
+
+    if _truthy(_first_set_env(DRIVE_AUTH_CONFIG.allow_local_oauth_env_names)):
+        from google.auth.transport.requests import Request
+        from google_auth_oauthlib.flow import InstalledAppFlow
+
+        client_secrets_path = Path(
+            _first_set_env(
+                DRIVE_AUTH_CONFIG.oauth_client_secret_env_names,
+                DRIVE_AUTH_CONFIG.default_client_secret_path,
+            )
+        )
+        token_cache_path = Path(
+            os.getenv(
+                DRIVE_AUTH_CONFIG.token_cache_env,
+                DRIVE_AUTH_CONFIG.default_token_cache_path,
+            )
+        )
+        token_cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+        creds: Credentials | None = None
+        if token_cache_path.exists():
+            try:
+                creds = Credentials.from_authorized_user_file(
+                    str(token_cache_path), scopes=scopes
+                )
+            except Exception:
+                creds = None
+
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                if not client_secrets_path.exists():
+                    raise FileNotFoundError(
+                        f"OAuth client secrets not found at {client_secrets_path}. "
+                        "Set one of the configured Drive OAuth client-secret environment variables."
+                    )
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    str(client_secrets_path), scopes=scopes
+                )
+                creds = flow.run_local_server(port=0)
+            token_cache_path.write_text(creds.to_json(), encoding="utf-8")
+
+        if creds is None:
+            raise RuntimeError("Local OAuth flow did not return credentials.")
+        return creds
+
+    raise RuntimeError(
+        "No Drive credentials available. Provide a delegated user access token header, "
+        "or enable one of the ADC flags, or enable one of the local OAuth flags."
+    )
+
+
+
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
@@ -314,3 +339,17 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 def _escape_q(value: str) -> str:
     return (value or "").replace("'", "\\'")
+
+
+
+def _truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+
+def _first_set_env(env_names: Sequence[str], default: str | None = None) -> str | None:
+    for env_name in env_names:
+        value = os.getenv(env_name)
+        if value not in (None, ""):
+            return value
+    return default

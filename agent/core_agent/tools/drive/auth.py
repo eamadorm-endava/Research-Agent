@@ -18,39 +18,32 @@ Important: In production, do NOT ship client secrets; rely on Gemini Enterprise.
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from google.oauth2.credentials import Credentials
 
-# Default scopes for read/search RAG workflows.
-# Add drive.file + documents if you enable write-back tools.
-DRIVE_SCOPES: list[str] = [
-    "https://www.googleapis.com/auth/drive.readonly",
-]
+from .config import DRIVE_AUTH_ENV_CONFIG, DRIVE_SCOPE_CONFIG
 
 
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
-def _extract_access_token(maybe_token: Any) -> Optional[str]:
+def _extract_access_token(maybe_token: Any) -> str | None:
     """Best-effort extraction of an OAuth access token from common shapes."""
     if maybe_token is None:
         return None
 
-    # Most common: a raw token string.
     if isinstance(maybe_token, str) and maybe_token.strip():
         return maybe_token.strip()
 
-    # Sometimes: a dict-like object.
     if isinstance(maybe_token, dict):
-        for key in ("access_token", "token", "value"):
-            v = maybe_token.get(key)
-            if isinstance(v, str) and v.strip():
-                return v.strip()
+        for key in DRIVE_AUTH_ENV_CONFIG.injected_token_candidate_keys:
+            value = maybe_token.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
 
     return None
 
@@ -66,22 +59,11 @@ def get_drive_credentials(
     1) Gemini Enterprise injected token via ToolContext state.
     2) ADC (Application Default Credentials) if USE_ADC_FOR_DRIVE=true.
     3) Local OAuth (InstalledAppFlow) if ALLOW_LOCAL_OAUTH=true.
-
-    Args:
-        tool_context: ADK ToolContext (passed automatically to tool functions).
-        scopes: OAuth scopes.
-
-    Returns:
-        google.oauth2.credentials.Credentials
-
-    Raises:
-        RuntimeError if no credential source is available.
     """
 
-    scopes = scopes or DRIVE_SCOPES
+    scopes = scopes or DRIVE_SCOPE_CONFIG.read_only_list()
 
-    # --- 1) Gemini Enterprise token injection ---
-    auth_id = os.getenv("GEMINI_ENTERPRISE_AUTH_ID")
+    auth_id = os.getenv(DRIVE_AUTH_ENV_CONFIG.gemini_enterprise_auth_id_env)
     if auth_id and tool_context is not None:
         try:
             injected = getattr(tool_context, "state", {}).get(auth_id)
@@ -92,27 +74,29 @@ def get_drive_credentials(
         if token:
             return Credentials(token=token, scopes=scopes)
 
-    # --- 2) ADC fallback (service account / user ADC) ---
-    if _truthy(os.getenv("USE_ADC_FOR_DRIVE")):
+    if _truthy(os.getenv(DRIVE_AUTH_ENV_CONFIG.use_adc_env)):
         import google.auth
 
         creds, _ = google.auth.default(scopes=scopes)
-        # google.auth.default returns various credential types; normalize if possible.
         if isinstance(creds, Credentials):
             return creds
-        # Some creds types (e.g., google.auth.credentials.Credentials) still work with discovery build.
         return creds  # type: ignore[return-value]
 
-    # --- 3) Local OAuth fallback (explicitly enabled) ---
-    if _truthy(os.getenv("ALLOW_LOCAL_OAUTH")):
+    if _truthy(os.getenv(DRIVE_AUTH_ENV_CONFIG.allow_local_oauth_env)):
         from google.auth.transport.requests import Request
         from google_auth_oauthlib.flow import InstalledAppFlow
 
         client_secrets_path = Path(
-            os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS", "client_secret.json")
+            os.getenv(
+                DRIVE_AUTH_ENV_CONFIG.oauth_client_secrets_env,
+                DRIVE_AUTH_ENV_CONFIG.default_client_secrets_path,
+            )
         )
         token_cache_path = Path(
-            os.getenv("DRIVE_TOKEN_CACHE", str(Path(".cache") / "drive_token.json"))
+            os.getenv(
+                DRIVE_AUTH_ENV_CONFIG.token_cache_env,
+                DRIVE_AUTH_ENV_CONFIG.default_token_cache_path,
+            )
         )
         token_cache_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -133,12 +117,11 @@ def get_drive_credentials(
                     raise FileNotFoundError(
                         f"OAuth client secrets not found at {client_secrets_path}. "
                         "Download OAuth client JSON from Google Cloud Console (Desktop app for local) "
-                        "and set GOOGLE_OAUTH_CLIENT_SECRETS env var."
+                        f"and set {DRIVE_AUTH_ENV_CONFIG.oauth_client_secrets_env} env var."
                     )
                 flow = InstalledAppFlow.from_client_secrets_file(
                     str(client_secrets_path), scopes=scopes
                 )
-                # In some environments you may need flow.run_console().
                 creds = flow.run_local_server(port=0)
 
             token_cache_path.write_text(creds.to_json(), encoding="utf-8")
@@ -150,7 +133,8 @@ def get_drive_credentials(
 
     raise RuntimeError(
         "No Google Drive credentials available. "
-        "For Gemini Enterprise, set GEMINI_ENTERPRISE_AUTH_ID and configure the agent authorization. "
-        "For local testing, set ALLOW_LOCAL_OAUTH=true and GOOGLE_OAUTH_CLIENT_SECRETS=path/to/client_secret.json, "
-        "or set USE_ADC_FOR_DRIVE=true to use Application Default Credentials."
+        f"For Gemini Enterprise, set {DRIVE_AUTH_ENV_CONFIG.gemini_enterprise_auth_id_env} and configure the agent authorization. "
+        f"For local testing, set {DRIVE_AUTH_ENV_CONFIG.allow_local_oauth_env}=true and "
+        f"{DRIVE_AUTH_ENV_CONFIG.oauth_client_secrets_env}=path/to/client_secret.json, "
+        f"or set {DRIVE_AUTH_ENV_CONFIG.use_adc_env}=true to use Application Default Credentials."
     )

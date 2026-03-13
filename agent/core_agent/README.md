@@ -1,115 +1,91 @@
-# Basic LLM Agent Type Creation
+# Core ADK Agent
 
-The main idea of this folder is to develop a basic agent that can be deployed in [Vertex AI Agent Engine](https://docs.cloud.google.com/agent-builder/agent-engine/overview) and connected to [Gemini Enterprise](https://cloud.google.com/blog/products/ai-machine-learning/introducing-gemini-enterprise).
+This folder contains the ADK agent that is deployed to Vertex AI Agent Engine and surfaced through Gemini Enterprise.
 
-The agent to be developed is an [**LLM Agent**](/docs/ADK-Intro.md#llm-agents-llmagent-agent) type.
+## Current integration pattern
 
-## Folder Structure
+- **BigQuery** is consumed through a remote MCP server.
+- **Google Drive** is consumed through a remote MCP server via `McpToolset`, matching the same `mcp_servers/<service>/app/...` layout as BigQuery.
+- The Drive MCP integration now supports two authentication layers:
+  - **MCP-service authentication** through `McpToolset(auth_scheme=..., auth_credential=...)` when the Drive MCP endpoint itself sits behind an API gateway or OAuth2-protected ingress.
+  - **Delegated user Drive authentication** through `header_provider`, which forwards the Gemini Enterprise user token to the MCP server on each request.
+- The legacy in-process Drive tools are still present as a fallback, but the preferred runtime path is the Drive MCP server.
 
-The `core_agent/` folder follows the [ADK project structure](https://google.github.io/adk-docs/get-started/quickstart/#project-structure) and contains the following files:
+## Folder structure
 
-- `__init__.py` -> Package initialization file, imports the agent module
-- `agent.py` -> Main agent definition with LLM Agent implementation
-- `config.py` -> Configuration settings for the agent
-- `model_armor.py` -> Custom Model Armor implementation class
-- `.env` -> Environment variables for model authentication (needed by the ADK CLI)
-
-The .env file must be set directly inside `/core_agent` and must have the following variables:
-
-    GOOGLE_GENAI_USE_VERTEXAI=TRUE
-    GOOGLE_CLOUD_PROJECT=mock-gcp-project-id
-    GOOGLE_CLOUD_LOCATION=mock-location
-    PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
-    REGION=${GOOGLE_CLOUD_LOCATION}
-    MODEL_ARMOR_TEMPLATE_ID=mock-model-armor-template-id
-
-## How to test the Agent Locally
-
-There are [three ways](https://google.github.io/adk-docs/get-started/quickstart/#run-your-agent) to test the agent, here it is explained how to test it using the **Dev UI**
-
-### 1. Authenticate in GCP 
-
-As the project uses Vertex AI to connect with Gemini models, it is required to previously authenticate with Google Cloud using the gcloud CLI.
-
-To do so, open the terminal and run:
-
-    gcloud auth application default login --project mock-gcp-project-id
-    gcloud config set project mock-gcp-project-id
-
-Or you can run the make command (the terminal must be at the root of this repository):
-
-    make gcloud-auth
-
-### 2. Execute the ADK CLI comand
-
-As ADK was installed using uv, it is needed to execute the command inside uv.
-
-Open the terminal in the `agent/` folder, and run:
-
-    uv run adk web --port 8000
-
-Also, you can run the make command (make sure to be at the root of this repository):
-
-    make run-ui-agent
-
-## Agent Capabilities
-
-This agent takes advantage of the [ADK tools and integrations](https://google.github.io/adk-docs/integrations/) to quickly implement required functionality. ADK provides pre-built tools for common use cases, and also supports creating custom [function-calling tools](https://google.github.io/adk-docs/tools-custom/function-tools/) for specific business needs.
-
-### Implemented Tools
-
-- **Google Search** - Uses the built-in ADK Google Search tool for web grounding.
-- **Google Drive Connector** - Custom ADK FunctionTools that allow the agent to:
-  - List/search files in the user's Drive
-  - Fetch and extract file text (Docs/Sheets/Slides/PDF/plain text)
-  - (Optional) Create a Google Doc from text and upload a PDF to Drive
-
-  The Drive tools are implemented under: `agent/core_agent/tools/drive/`.
-
-  #### Authentication notes
-  - **Production (Gemini Enterprise):** the agent expects a delegated user access token to be injected into ADK session state under the key set by `GEMINI_ENTERPRISE_AUTH_ID`.
-  - **Local testing:** you can enable `ALLOW_LOCAL_OAUTH=true` and provide `GOOGLE_OAUTH_CLIENT_SECRETS=...`.
-
-### Security: Model Armor Implementation
-
-**Model Armor** is a security guardrail mechanism integrated into Vertex AI that protects agents from malicious inputs and unsafe outputs. It validates prompts and responses for harmful content, prompt injections, and jailbreak attempts.
-
-**Two Implementation Approaches**:
-
-#### 1. Custom Callback Class (Requires Implementation)
-Implement a custom safety evaluation class using ADK [Callbacks](https://google.github.io/adk-docs/callbacks/):
-- **Before Agent Callback**: Intercepts and validates user inputs before the agent processes them
-- **After Agent Callback**: Validates the agent's final output before returning it to the user
-
-This approach provides full control and customization but requires:
-- Writing custom Model Armor evaluation logic (currently, a version of this can be reviewed in [`model_armor.py`](/agent/core_agent/model_armor.py))
-- Handling multiple network round-trips (Python → Model Armor API → Vertex AI → Model Armor)
-- Increased latency due to sequential network calls
-- Setting appropriate permissions for your service account
-
-#### 2. Native ModelArmorConfig (**Current Implementation**)
-Integrate Model Armor directly into `GenerateContentConfig` at the model level:
-
-```python
-ModelArmorConfig(
-    prompt_template_name=model_armor_template_id,
-    response_template_name=model_armor_template_id,
-)
+```text
+agent/core_agent/
+├── __init__.py
+├── agent.py
+├── config.py
+├── model_armor.py
+├── .env.example
+└── utils/
+    └── security.py
 ```
 
-**Why Choosing ModelArmorConfig**:
-- **Lower Latency**: Google Cloud handles validation internally on their servers at high speed, eliminating multiple network round-trips
-- **Simpler Integration**: No custom code needed - just configure template names
-- **Better Performance**: Single validation within Vertex AI's infrastructure instead of callback-based validation
+## Required `.env` placement
 
-**How It Works**: 
-- Your script sends the configuration to Vertex AI
-- Vertex AI's internal Service Agent contacts Model Armor on your behalf for prompt/response sanitization
-- Results are processed before and after generation
+Place the `.env` file directly inside `agent/core_agent/`.
 
-**Setup Requirement**: 
-Grant the **Model Armor User** role (`roles/modelarmor.user`) to Vertex AI's internal Service Agent account:
+At minimum, configure:
 
-- service-[gcp-project-number]@gcp-sa-aiplatform.iam.gserviceaccount.com 
+```env
+GOOGLE_GENAI_USE_VERTEXAI=TRUE
+GOOGLE_CLOUD_PROJECT=mock-gcp-project-id
+GOOGLE_CLOUD_LOCATION=us-central1
+PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
+REGION=${GOOGLE_CLOUD_LOCATION}
+MODEL_ARMOR_TEMPLATE_ID=mock-model-armor-template-id
 
-This allows Vertex AI's backend to access and use your Model Armor templates on your behalf.
+# Gemini Enterprise delegated Drive OAuth
+GEMINI_ENTERPRISE_AUTH_ID=drive-oauth
+
+# Google Drive MCP server
+DRIVE_URL=http://localhost:8081
+DRIVE_ENDPOINT=/mcp
+DRIVE_DELEGATED_TOKEN_HEADER=x-drive-access-token
+DRIVE_DISABLE_ID_TOKEN_AUTH=true
+
+# Optional authentication for the MCP service itself
+DRIVE_MCP_AUTH_MODE=none
+DRIVE_MCP_AUTH_HEADER_NAME=Authorization
+DRIVE_MCP_AUTH_TOKEN=
+DRIVE_MCP_OAUTH_CLIENT_ID=
+DRIVE_MCP_OAUTH_CLIENT_SECRET=
+DRIVE_MCP_OAUTH_TOKEN_URL=
+DRIVE_MCP_OAUTH_AUTH_URL=
+DRIVE_MCP_OAUTH_SCOPES=
+```
+
+## Local testing flow
+
+1. Start the Drive MCP server:
+
+```bash
+make run-drive-mcp-locally
+```
+
+2. Start the ADK web UI:
+
+```bash
+make run-ui-agent
+```
+
+3. Ask the agent to search Drive, fetch file text, or create a doc.
+
+For local Drive auth, enable one of the following in the Drive MCP server environment:
+
+- `DRIVE_ALLOW_LOCAL_OAUTH=true`
+- `DRIVE_USE_ADC=true`
+
+## Deployment pattern
+
+In production, the agent can call the Drive MCP server using up to two layers of auth:
+
+- **MCP service auth** for reaching the Drive MCP endpoint itself:
+  - a **Cloud Run ID token** in `Authorization` when the service is protected by Cloud Run IAM, or
+  - an ADK-managed `auth_scheme` / `auth_credential` pair when the MCP endpoint is protected by an OAuth2-capable gateway or another token-based auth layer.
+- **Delegated user Drive auth** in `x-drive-access-token` (or your configured header name) so the MCP server can call Google Drive on the user's behalf.
+
+That delegated token originates from Gemini Enterprise authorization attached to the agent registration. The code intentionally keeps delegated Drive access in `header_provider` so the token can vary per user/session while still allowing optional static MCP-service auth through `McpToolset`.

@@ -118,15 +118,19 @@ celerybeat.pid
 # Environments
 .env
 **.env
+**.env.example
 .adk/
 notebooks/.cache/
 notebooks/client_secret.json
+/client_secret.json
+mcp_servers/google_drive/temp_secrets/
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
 
 # SpiderFoot data
 spiderfoot.db
