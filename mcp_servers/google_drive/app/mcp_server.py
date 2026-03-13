@@ -50,7 +50,7 @@ class HeaderCaptureMiddleware:
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         context_token = None
-        if scope.get("type") == "http":
+        if scope.get("type") in ["http", "https"]:
             headers = {
                 raw_key.decode("latin-1").lower(): raw_value.decode("latin-1")
                 for raw_key, raw_value in scope.get("headers", [])
