@@ -1,8 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import Annotated
-
-
+ 
+ 
 class GCPConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -14,7 +14,7 @@ class GCPConfig(BaseSettings):
     Class that holds configuration values for GCP services. Allowing to, in any future, change the
     cloud provider or the way to access the secrets.
     """
-
+ 
     PROJECT_ID: Annotated[
         str,
         Field(
@@ -29,8 +29,8 @@ class GCPConfig(BaseSettings):
             description="GCP Region where most of the services will be deployed",
         ),
     ]
-
-
+ 
+ 
 class AgentConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -42,7 +42,7 @@ class AgentConfig(BaseSettings):
     Class that holds configuration values for the agent, it requires to assign
     parameters after initialization.
     """
-
+ 
     MODEL_NAME: Annotated[
         str,
         Field(
@@ -124,8 +124,8 @@ class AgentConfig(BaseSettings):
             description="Maximum delay in seconds to retry the request in case of failure.",
         ),
     ]
-
-
+ 
+ 
 class MCPServersConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -136,7 +136,7 @@ class MCPServersConfig(BaseSettings):
     """
     Class that holds configuration values for MCP servers.
     """
-
+ 
     GENERAL_TIMEOUT: Annotated[
         int,
         Field(
@@ -156,5 +156,40 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="/mcp",
             description="BigQuery MCP Server Endpoint",
+        ),
+    ]
+    DRIVE_URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8080",
+            description="Google Drive MCP Server URL, uses a streamable http connection",
+        ),
+    ]
+    DRIVE_ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="Google Drive MCP Server Endpoint",
+        ),
+    ]
+    DRIVE_OAUTH_CLIENT_ID: Annotated[
+        str,
+        Field(
+            default="",
+            description="OAuth 2.0 Client ID for Google Drive (provided to the Agent)",
+        ),
+    ]
+    DRIVE_OAUTH_CLIENT_SECRET: Annotated[
+        str,
+        Field(
+            default="",
+            description="OAuth 2.0 Client Secret for Google Drive (provided to the Agent)",
+        ),
+    ]
+    DRIVE_OAUTH_REDIRECT_URI: Annotated[
+        str,
+        Field(
+            default="http://localhost:8000/dev-ui",
+            description="OAuth 2.0 Redirect URI for Google Drive (provided to the Agent)",
         ),
     ]
