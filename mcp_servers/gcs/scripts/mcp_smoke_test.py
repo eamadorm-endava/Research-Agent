@@ -53,7 +53,9 @@ def main() -> None:
         },
     )
     if initialized_response:
-        print("notifications/initialized ->", json.dumps(initialized_response, indent=2))
+        print(
+            "notifications/initialized ->", json.dumps(initialized_response, indent=2)
+        )
 
     tools_response = post_jsonrpc(
         args.endpoint,

@@ -133,7 +133,10 @@ class TestGCSManager(unittest.TestCase):
         mock_bucket2 = MagicMock()
         mock_bucket2.name = "my-bucket-b"
 
-        self.mock_client_instance.list_buckets.return_value = [mock_bucket1, mock_bucket2]
+        self.mock_client_instance.list_buckets.return_value = [
+            mock_bucket1,
+            mock_bucket2,
+        ]
 
         result = self.gcs_manager.list_buckets(prefix="my-")
 
