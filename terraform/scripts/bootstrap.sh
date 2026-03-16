@@ -225,11 +225,6 @@ create_trigger "bq-mcp-server-services-plan" "pr" "terraform/bq_mcp_server_resou
 # CD (Apply) on Push/Merge
 create_trigger "bq-mcp-server-services-apply" "push" "terraform/bq_mcp_server_resources" "terraform/bq_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
 
-# CI (Plan) on Pull Request
-create_trigger "gcs-mcp-server-services-plan" "pr" "terraform/gcs_mcp_server_resources" "terraform/gcs_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/gcs/**"
-# CD (Apply) on Push/Merge
-create_trigger "gcs-mcp-server-services-apply" "push" "terraform/gcs_mcp_server_resources" "terraform/gcs_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/gcs/**"
-
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"
 echo "To use this locally, run: gcloud auth application-default login --impersonate-service-account=$SA_EMAIL"

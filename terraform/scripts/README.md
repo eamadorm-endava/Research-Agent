@@ -1,6 +1,6 @@
 ## Infrastructure Bootstrap Script
 
-### Overview
+This README is designed to provide a professional overview of your automation script, ensuring that any developer on your team understands the "why" and "how" of the infrastructure setup.
 
 `bootstrap.sh` automates the initial setup of Google Cloud Platform resources required to run Terraform through Cloud Build.
 
@@ -104,6 +104,27 @@ terraform apply
 
 ```
 APPLY_SHARED_RESOURCES=false ./terraform/scripts/bootstrap.sh
+```
+
+## Trigger-Only Setup (Run Once)
+
+Use `run_once.sh` when you only want to create MCP Cloud Build triggers (without running full bootstrap):
+
+```
+chmod +x terraform/scripts/run_once.sh
+./terraform/scripts/run_once.sh
+```
+
+By default it creates/ensures:
+- `bq-mcp-server-services-plan`
+- `bq-mcp-server-services-apply`
+- `gcs-mcp-server-services-plan`
+- `gcs-mcp-server-services-apply`
+
+If a trigger already exists but still points to an old build config path, recreate it in place:
+
+```
+FORCE_RECREATE=true ./terraform/scripts/run_once.sh
 ```
 
 ## Terraform Infrastructure Access Setup

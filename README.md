@@ -182,6 +182,9 @@ make verify-all-ci
 ```
 
 For the GCS Terraform module specifically:
+### Infrastructure Tests
+
+Use this command to validate the GCS MCP Terraform module:
 
 ```bash
 make test-gcs-terraform
@@ -228,6 +231,12 @@ Convenience Make targets:
 make bootstrap
 make bootstrap-no-shared
 ```
+This target runs:
+- `terraform fmt -check -recursive`
+- `terraform init -backend=false`
+- `terraform test`
+
+It executes inside `terraform/gcs_mcp_server_resources`.
 
 ### Setting Up for Development
 

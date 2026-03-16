@@ -16,12 +16,14 @@ steps:
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
           -backend-config="prefix=terraform/state/gcs-mcp-server-resources"
 
-  # Step 2: Bootstrap required APIs before Docker push/apply
+  # Step 2: Bootstrap Artifact Registry
+  # Creates the registry so Docker can push to it before Cloud Run needs the image
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-bootstrap'
     args: 
       - 'apply'
       - '-target=module.enable_apis'
+      - '-target=module.artifact_registry'
       - '-auto-approve'
     dir: 'terraform/gcs_mcp_server_resources'
 

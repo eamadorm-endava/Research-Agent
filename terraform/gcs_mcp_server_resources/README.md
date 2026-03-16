@@ -8,6 +8,7 @@ This module manages API enablement, the service account used by the GCS MCP serv
 
 This module enables the required Google Cloud APIs and deploys the resources needed by the GCS MCP server.
 
+
 ## Usage: Local Impersonation Guide
 To test services locally using the Service Account's identity, developers in the permitted group can use GCP Service Account Impersonation. This removes the need for downloading and managing risky JSON key files.
 
@@ -82,6 +83,11 @@ This module does not create the shared Artifact Registry repository. It creates 
 ## APIs
 
 The following APIs are managed by this module and must be enabled before deploying the GCS MCP server:
+## Resoucers deployed
+
+## APIs
+
+The following APIs are managed (enabled) by this module. This APIs must be enabled before deploying the MCP Server in any GCP project.
 
 - storage.googleapis.com
 
@@ -105,7 +111,7 @@ This project uses Google Cloud Build for automated deployments:
 2. **Pull Request:** Opening a PR to `main` triggers a `terraform plan`.
     - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
     - The PR cannot be merged if the plan fails.
-    - The PR requires at least one approver.
+    - The PR required one approvers at least
     - Note: If the build fails with "Exit Status 3", run terraform fmt locally and push again.
 
 3. **Merge to Main:** Merging the PR triggers `terraform apply`.
@@ -113,9 +119,9 @@ This project uses Google Cloud Build for automated deployments:
 
 ## Usage
 
-To enable services, define the `apis_to_enable` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
+To enable services, define the `project_services` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
 
-To create service accounts, define the service account names and IAM role mappings in `terraform.tfvars`.
+To create service accounts, define the services accounts in the Terraform main modules and setup services account names in `terraform.tfvars` file.
 
 ## Terraform Native Tests
 
@@ -141,7 +147,7 @@ chmod +x terraform/scripts/run_once.sh
 ./terraform/scripts/run_once.sh
 ```
 
-This script creates or verifies the PR/CD triggers for:
+This script creates (or skips if existing) the PR/CD triggers for:
 - BigQuery MCP (`terraform/bq_mcp_server_resources`)
 - GCS MCP (`terraform/gcs_mcp_server_resources`)
 
@@ -149,23 +155,26 @@ Example:
 
 ```
 project_id             = "p-dev-gce-60pf"
-main_region            = "us-central1"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
   "p-dev-gce-60pf" = [
-    "storage.googleapis.com",
+    "aiplatform.googleapis.com",
+    "modelarmor.googleapis.com",
   ]
 }
-mcp_server_service_account_name = "mcp-server"
-mcp_server_iam_project_roles = {
+ai_agent_service_account_name = "adk-agent"
+ai_agent_iam_project_roles = {
   "p-dev-gce-60pf" = [
-    "roles/storage.objectAdmin"
+    "roles/aiplatform.user",
+    "roles/modelarmor.user"
   ]
 }
-artifact_registry_name         = "mcp-servers"
-mcp_server_cloud_run_name      = "gcs-mcp-server"
-mcp_server_cloud_run_region    = "us-central1"
-mcp_server_cloud_run_image_tag = "latest"
+vertex_ai_agent_iam_project_roles = {
+  "p-dev-gce-60pf" = [
+    "roles/modelarmor.user"
+  ]
+}
+
 ```
 
 ## Variables
