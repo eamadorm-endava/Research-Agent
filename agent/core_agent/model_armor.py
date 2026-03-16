@@ -72,7 +72,7 @@ class ModelArmor:
         # Code adapted from:
         # https://docs.cloud.google.com/model-armor/sanitize-prompts-responses#sanitize-prompts
         # https://docs.cloud.google.com/model-armor/sanitize-prompts-responses#sanitize-model
-        
+
         # Validate template_id
         template_pattern = r"^\w+[\w-]*$"
 

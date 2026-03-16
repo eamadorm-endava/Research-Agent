@@ -17,13 +17,15 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
     with patch.dict(os.environ, mock_env, clear=True):
         config = MCPServersConfig()
 
-    with patch(
-        "agent.core_agent.utils.auxiliars.StreamableHTTPConnectionParams"
-    ) as mock_connection_params, patch(
-        "agent.core_agent.utils.auxiliars.McpToolset"
-    ) as mock_toolset, patch(
-        "agent.core_agent.utils.auxiliars.get_id_token",
-        side_effect=lambda url: f"token-for-{url}",
+    with (
+        patch(
+            "agent.core_agent.utils.auxiliars.StreamableHTTPConnectionParams"
+        ) as mock_connection_params,
+        patch("agent.core_agent.utils.auxiliars.McpToolset") as mock_toolset,
+        patch(
+            "agent.core_agent.utils.auxiliars.get_id_token",
+            side_effect=lambda url: f"token-for-{url}",
+        ),
     ):
         get_mcp_servers_tools(config)
 
@@ -62,16 +64,21 @@ def test_get_mcp_servers_tools_skips_empty_url_values():
     with patch.dict(os.environ, mock_env, clear=True):
         config = MCPServersConfig()
 
-    with patch(
-        "agent.core_agent.utils.auxiliars.StreamableHTTPConnectionParams"
-    ) as mock_connection_params, patch(
-        "agent.core_agent.utils.auxiliars.McpToolset"
-    ) as mock_toolset, patch(
-        "agent.core_agent.utils.auxiliars.get_id_token",
-        return_value="token",
+    with (
+        patch(
+            "agent.core_agent.utils.auxiliars.StreamableHTTPConnectionParams"
+        ) as mock_connection_params,
+        patch("agent.core_agent.utils.auxiliars.McpToolset") as mock_toolset,
+        patch(
+            "agent.core_agent.utils.auxiliars.get_id_token",
+            return_value="token",
+        ),
     ):
         get_mcp_servers_tools(config)
 
     assert mock_connection_params.call_count == 1
-    assert mock_connection_params.call_args.kwargs["url"] == "https://bq-server.example/mcp"
+    assert (
+        mock_connection_params.call_args.kwargs["url"]
+        == "https://bq-server.example/mcp"
+    )
     assert mock_toolset.call_count == 1

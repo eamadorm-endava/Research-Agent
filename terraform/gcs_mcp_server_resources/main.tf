@@ -27,24 +27,6 @@ module "mcp-server-service-account" {
   ]
 }
 
-################ Artifact Registry ################
-module "artifact_registry" {
-  source     = "../base_modules/artifact-registry"
-  project_id = var.project_id
-  name       = var.artifact_registry_name
-  location   = coalesce(var.mcp_server_cloud_run_region, var.main_region)
-
-  format = {
-    docker = {
-      standard = {}
-    }
-  }
-
-  depends_on = [
-    module.enable_apis
-  ]
-}
-
 ################ Cloud Run ################
 locals {
   cloud_run_region = coalesce(var.mcp_server_cloud_run_region, var.main_region)
@@ -72,7 +54,6 @@ module "mcp_server_cloud_run" {
   }
 
   depends_on = [
-    module.enable_apis,
-    module.artifact_registry
+    module.enable_apis
   ]
 }
