@@ -1,21 +1,20 @@
 # Research-Agent
 
-An AI-powered research agent platform combining the Agent Development Kit (ADK) with advanced Google Cloud Platform integrations through a Model Context Protocol (MCP) server.
+An AI-powered research platform combining the Agent Development Kit (ADK) with Google Cloud integrations exposed through Model Context Protocol (MCP) servers.
 
 ## Overview
 
-This repository contains two main features/projects:
+This repository contains two main areas:
 
-### 1. Agent Development using the ADK
-Build and customize intelligent agents using the Agent Development Kit. This framework provides all the necessary tools and utilities to develop, test, and deploy AI agents that can interact with various data sources and services.
+### 1. Agent Development using ADK
+Build and customize intelligent agents using the Agent Development Kit. The agent can connect to MCP servers for Google Cloud capabilities without hardcoding tool definitions in the agent itself.
 
-### 2. MCP Server for GCP Services
-A comprehensive Model Context Protocol (MCP) server that connects with different Google Cloud Platform (GCP) services, including:
+### 2. MCP Servers for GCP Services
+Independent MCP servers connect the agent to Google Cloud Platform services, including:
 - **BigQuery** - Query and analyze large datasets
-- **Cloud Storage (GCS)** - Manage cloud storage buckets and objects
-- **Google Drive** - Access and manage documents
+- **Cloud Storage (GCS)** - Manage buckets and objects
 
-**Key Differentiator:** Unlike current Google MCP servers, our implementation supports **write operations** in addition to read operations, enabling agents to create, update, and modify data in these services.
+**Key differentiator:** these MCP servers support write operations in addition to read operations, enabling agents to create, update, and modify data in supported services.
 
 ## Project Structure
 
@@ -28,19 +27,16 @@ Research-Agent/
 │   │   └── model_armor.py     # Model safeguards and alignment
 │   └── __init__.py
 │
-├── connectors/                 # Individual service connectors
-│   │                           # Serves as tools for the agent
-│   │                           # Will be wrapped in mcp_server in future
-│   └── ...
-│
-├── mcp_server/                 # MCP Server implementation
-│   │                           # Integrates connectors for protocol compliance
-│   └── ...
+├── mcp_servers/               # MCP server implementations
+│   ├── big_query/             # BigQuery MCP server
+│   └── gcs/                   # Cloud Storage MCP server
 │
 ├── terraform/                  # Infrastructure as Code
-│   │                           # Service Accounts (SAs), IAM Permissions
-│   │                           # and other required infrastructure
-│   └── ...
+│   ├── ai_agent_resources/    # Agent service accounts and APIs
+│   ├── bq_mcp_server_resources/
+│   ├── gcs_mcp_server_resources/
+│   ├── shared_resources/      # Shared Artifact Registry ownership
+│   └── scripts/               # Bootstrap and trigger setup scripts
 │
 ├── docs/                       # Detailed documentation
 │   │                           # In-depth explanations for complex topics
@@ -67,7 +63,7 @@ Before getting started, ensure you have the following CLIs installed:
 - **Git** - For version control
 - **Docker** - For containerization and running the dev container
 - **Google Cloud CLI (`gcloud`)** - For interacting with Google Cloud Platform
-- **Terraform** - For managing infrastructure (if deploying infrastructure)
+- **Terraform** - For managing infrastructure
 
 ### Running with Dev Container
 
@@ -105,16 +101,14 @@ Once inside the container, you can use the Makefile for common tasks:
 
 ```bash
 # Install dependencies
-make install
+uv sync --all-groups
 
-# Run tests (if configured)
-make test
+# Run agent tests
+make test-agent
 
-# Build/compile (if needed)
-make build
-
-# View all available commands
-make help
+# Run MCP tests
+make run-bq-tests
+make run-gcs-tests
 ```
 
 ## How to Contribute
@@ -176,20 +170,64 @@ Once approved by at least one reviewer:
 
 ## Development Workflow
 
-### Infrastructure Tests
+### Infrastructure Validation
 
-Use this command to validate the GCS MCP Terraform module:
+Useful local verification targets:
+
+```bash
+make verify-agent-ci
+make verify-bq-ci
+make verify-gcs-ci
+make verify-all-ci
+```
+
+For the GCS Terraform module specifically:
 
 ```bash
 make test-gcs-terraform
 ```
 
-This target runs:
-- `terraform fmt -check -recursive`
-- `terraform init -backend=false`
-- `terraform test`
+This runs `terraform fmt -check -recursive`, `terraform init -backend=false`, and `terraform test` inside `terraform/gcs_mcp_server_resources`.
 
-It executes inside `terraform/gcs_mcp_server_resources`.
+### Trigger Commands
+
+Use these commands from repository root to create or refresh Cloud Build triggers for MCP Terraform stacks:
+
+```bash
+make run-once-terraform-triggers
+```
+
+Backward-compatible aliases:
+
+```bash
+make run-once-mcp-triggers
+```
+
+### One-Time Shared Resources Apply
+
+Apply `shared_resources` once for the shared Artifact Registry state:
+
+```bash
+cd terraform/shared_resources
+terraform init -reconfigure \
+   -backend-config="bucket=<PROJECT_ID>-terraform-state" \
+   -backend-config="prefix=terraform/state/shared-resources"
+terraform plan
+terraform apply
+```
+
+`bootstrap.sh` now runs this sequence by default. To skip it:
+
+```bash
+APPLY_SHARED_RESOURCES=false ./terraform/scripts/bootstrap.sh
+```
+
+Convenience Make targets:
+
+```bash
+make bootstrap
+make bootstrap-no-shared
+```
 
 ### Setting Up for Development
 
@@ -205,9 +243,26 @@ uv sync --all-groups
 make run-ui-agent
 ```
 
+### Running MCP Servers Locally
+
+```bash
+make run-bq-mcp-locally
+make run-gcs-mcp-locally
+```
+
+For the GCS MCP smoke test:
+
+```bash
+make run-gcs-mcp-smoke BUCKET=my-bucket PREFIX=docs/
+```
+
 ## Documentation
 
 For detailed information about specific topics:
 
 - **ADK Introduction** - See [docs/ADK-Intro.md](docs/ADK-Intro.md) for detailed information about the Agent Development Kit
+- **Core Agent** - See [agent/core_agent/README.md](agent/core_agent/README.md)
+- **BigQuery MCP Server** - See [mcp_servers/big_query/README.md](mcp_servers/big_query/README.md)
+- **GCS MCP Server** - See [mcp_servers/gcs/README.md](mcp_servers/gcs/README.md)
+- **Terraform Infrastructure** - See [terraform/README.md](terraform/README.md)
 - **Model Armor** - See [notebooks/model_armor.ipynb](notebooks/model_armor.ipynb) for model safeguards exploration

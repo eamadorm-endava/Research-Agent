@@ -1,100 +1,109 @@
-##  Infrastructure Bootstrap Script
+## Infrastructure Bootstrap Script
+
 ### Overview
-The bootstrap.sh script automates the initial setup of Google Cloud Platform (GCP) resources required to run Terraform via Cloud Build.
 
-Its primary goal is to establish a secure "Least Privilege" environment where a dedicated Service Account manages infrastructure, while developers and CI/CD pipelines use Identity Federation (Impersonation) instead of static JSON keys.
+`bootstrap.sh` automates the initial setup of Google Cloud Platform resources required to run Terraform through Cloud Build.
 
-This README is designed to provide a professional overview of your automation script, ensuring that any developer on your team understands the "why" and "how" of the infrastructure setup.
-
-Infrastructure Bootstrap Script
-Purpose
-The bootstrap.sh script automates the initial setup of Google Cloud Platform (GCP) resources required to run Terraform via Cloud Build.
-
-Its primary goal is to establish a secure "Least Privilege" environment where a dedicated Service Account manages infrastructure, while developers and CI/CD pipelines use Identity Federation (Impersonation) instead of static JSON keys.
+Its goal is to establish a least-privilege setup where a dedicated service account manages infrastructure, while developers and CI/CD pipelines use impersonation instead of static JSON keys.
 
 ## Requirements
 Before running the script, ensure the following conditions are met:
 
-1. GCP Permissions: 
+1. GCP permissions:
 
-    - You must have Owner or Editor + Project IAM Admin roles on the user account or the sa that you need to work.
-    - You must have permissions to impersonate the Terraform service account (Need to have roles/iam.serviceAccountUser), this IAM role is assigned in the script you must only need to setup the parameter `USER_EMAIL` with your GCP email.
+    - You must have Owner or Editor plus Project IAM Admin on the account you are using.
+    - You must be allowed to impersonate the Terraform service account. The script grants this access after you set `USER_EMAIL` correctly.
 
 2. The Google Cloud SDK must be installed and authenticated (gcloud auth login).
 
-3. GitHub Connection:
+3. GitHub connection:
 
-    - The GitHub repository Research-Agent must be manually connected to Cloud Build in the GCP Console.
+    - The `Research-Agent` repository must already be connected to Cloud Build in GCP.
+    - Check Cloud Build > Triggers > Manage Repositories.
 
-    - Navigate to: Cloud Build > Triggers > Manage Repositories to ensure the connection exists.
-
-6. Developer Group: The group for developers must exist in your Google Workspace/Organization.
+4. Developer group: the developer Google Group must already exist in your organization.
 
 ## Architecture Flow
-The script executes the following logical steps to secure and automate the environment:
+The script performs the following steps:
 
-1. Identity Creation: Creates the terraform-sa-gemini-project Service Account.
-
-2. Propagation Buffer: Pauses for 15 seconds to ensure the global IAM system recognizes the new identity.
-
-3. Infrastructure Permissions: Grants the Service Account authority to manage APIs, IAM policies, and Project resources.
-
-4. Impersonation Setup:
-
-    - Grants the Developer Group the Service Account Token Creator role.
-
-    -  Grants the Cloud Build Service Account the same role.
-
-5. API Activation: Enables the cloudbuild.googleapis.com service.
-
-6. CI/CD Automation: Creates four GitHub-connected triggers (2 for Plan/PR and 2 for Apply/Merge) targeting specific Terraform directories.
+1. Creates the Terraform service account.
+2. Waits briefly for IAM propagation.
+3. Grants the service account the roles required to manage APIs, IAM policies, and project resources.
+4. Grants impersonation access to the developer group and Cloud Build service account.
+5. Enables the Cloud Build API.
+6. Prepares Terraform automation prerequisites.
 
 ## Execution Guide
 
-1. Set Permissions
-Ensure the script is executable:
+1. Make the script executable:
 
 ```
-Bash
-
-chmod +x scripts/bootstrap-terraform.sh
+chmod +x terraform/scripts/bootstrap.sh
 ```
-2. Run the Script
-Execute the script from the root of the repository:
+2. Run the script from the repository root:
 
 ```
-Bash
-
-./scripts/bootstrap-terraform.sh
+./terraform/scripts/bootstrap.sh
 ```
-3. Local Impersonation
-After a successful run, developers do not need local keys. To run Terraform locally using the newly created identity, run:
+
+Or use Make targets from repository root:
 
 ```
-Bash
+make bootstrap
+make bootstrap-no-shared
+```
+3. For local impersonation after setup:
 
-gcloud auth application-default login --impersonate-service-account="the sa name that you defined" (example: terraform-sa-gemin)
+```
+gcloud auth application-default login --impersonate-service-account="SERVICE_ACCOUNT_EMAIL"
 ```
 
 ## Trigger-Only Setup (Run Once)
 
-Use `run_once.sh` when you only want to create MCP Cloud Build triggers (without running full bootstrap):
+Use `run_once.sh` when you only want to create MCP Cloud Build triggers without rerunning the full bootstrap:
 
 ```
 chmod +x terraform/scripts/run_once.sh
 ./terraform/scripts/run_once.sh
 ```
 
-By default it creates/ensures:
+From repository root you can also use:
+
+```
+make run-once-terraform-triggers
+```
+
+By default it creates or verifies:
 - `bq-mcp-server-services-plan`
 - `bq-mcp-server-services-apply`
 - `gcs-mcp-server-services-plan`
 - `gcs-mcp-server-services-apply`
 
+`shared_resources` is intentionally not on a trigger flow. Apply it once during bootstrap/manual setup.
+
 If a trigger already exists but still points to an old build config path, recreate it in place:
 
 ```
 FORCE_RECREATE=true ./terraform/scripts/run_once.sh
+```
+
+## One-Time Shared Resources Apply
+
+Apply `shared_resources` once during bootstrap/manual setup (not via trigger flow):
+
+```
+cd terraform/shared_resources
+terraform init -reconfigure \
+    -backend-config="bucket=<PROJECT_ID>-terraform-state" \
+    -backend-config="prefix=terraform/state/shared-resources"
+terraform plan
+terraform apply
+```
+
+`bootstrap.sh` runs this sequence by default. To skip this step when needed:
+
+```
+APPLY_SHARED_RESOURCES=false ./terraform/scripts/bootstrap.sh
 ```
 
 ## Terraform Infrastructure Access Setup
@@ -120,13 +129,11 @@ FORCE_RECREATE=true ./terraform/scripts/run_once.sh
 
 | Resource | Name / Scope | Purpose |
 |----------|--------------|----------|
-| Cloud Build Triggers | `api-services`, `service-accounts` | Automates CI/CD workflows for Terraform folders. |
+| Cloud Build Triggers | MCP plan/apply triggers | Automates CI/CD workflows for MCP Terraform folders. |
 
 ##  Cleanup
-To remove all resources created by this script:
+To remove resources created by these scripts:
 
 ```
-Bash
-
-./scripts/clean.sh
+./terraform/scripts/cleanup.sh
 ```

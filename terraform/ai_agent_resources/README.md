@@ -48,7 +48,7 @@ Identity Permissions (Inward): The developers_group_email is granted roles/iam.s
 Resource Permissions (Outward): The Service Account is granted specific functional roles (e.g., roles/logging.logWriter) across the target projects to perform its automated tasks.
 
 ## Requirements
-- Cloud build triggers must be already created so deployment of service accounts resources will be excecuted in cloud build
+- Cloud Build triggers and bootstrap prerequisites should already be created before this module is deployed through Cloud Build.
 
 - Cloud build service account or Terraform service account must have the next IAM roles:
 
@@ -62,7 +62,7 @@ Resource Permissions (Outward): The Service Account is granted specific function
     | **Project IAM Admin** | `roles/resourcemanager.projectIamAdmin` | To grant roles (like `roles/modelarmor.user`) to the service accounts on the project. |
 
 
-- Terraform version: 12.1.2 or higher
+- Terraform version: 1.12.2 or higher
 
 - Google group for developers must be already created and setup in terraform.tfvars file
 
@@ -75,11 +75,11 @@ Because this specific deployment is executed via Cloud Build, the Cloud Build Se
 | :--- | :--- | :--- |
 | **Service Usage Admin** | `roles/serviceusage.serviceUsageAdmin` | Required to enable and disable Google Cloud APIs. |
 
-## Resoucers deployed
+## Resources Deployed
 
 ## APIs
 
-The following APIs are managed (enabled) under the api_services/ directory. This APIs must be enabled before deploying the AI Agent in any GCP project.
+The following APIs are managed by this module and must be enabled before deploying the AI Agent:
 
 - aiplatform.googleapis.com
 - modelarmor.googleapis.com
@@ -105,22 +105,23 @@ This project uses Google Cloud Build for automated deployments:
 2. **Pull Request:** Opening a PR to `main` triggers a `terraform plan`.
     - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
     - The PR cannot be merged if the plan fails.
-    - The PR required one approvers at least
+    - The PR requires at least one approver.
     - Note: If the build fails with "Exit Status 3", run terraform fmt locally and push again.
 3. **Merge to Main:** Merging the PR triggers `terraform apply`.
    - Ensure the plan was reviewed before merging.
 
 ## Usage
 
-To enable services, define the `project_services` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
+To enable services, define the `apis_to_enable` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
 
-To create service accounts, define the services accounts in the Terraform main modules and setup services account names in `terraform.tfvars` file.
+To create service accounts, define the service account names and IAM role mappings in `terraform.tfvars`.
 
 Example:
 
 ```
 project_id             = "p-dev-gce-60pf"
 developers_group_email = "gcu_latam_team_devs@endava.com"
+main_region            = "us-central1"
 apis_to_enable = {
   "p-dev-gce-60pf" = [
     "aiplatform.googleapis.com",

@@ -100,3 +100,12 @@ test-gcs-terraform:
 run-once-mcp-triggers:
 	./terraform/scripts/run_once.sh
 
+run-once-terraform-triggers:
+	$(MAKE) run-once-mcp-triggers
+
+bootstrap:
+	./terraform/scripts/bootstrap.sh
+
+bootstrap-no-shared:
+	APPLY_SHARED_RESOURCES=false ./terraform/scripts/bootstrap.sh
+
