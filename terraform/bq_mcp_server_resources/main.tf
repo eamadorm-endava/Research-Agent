@@ -2,6 +2,14 @@ data "google_project" "project" {
   project_id = var.project_id
 }
 
+removed {
+  from = module.artifact_registry.google_artifact_registry_repository.registry
+
+  lifecycle {
+    destroy = false
+  }
+}
+
 ################ APIs ################
 module "enable_apis" {
   source           = "../base_modules/api-manager"
@@ -21,24 +29,6 @@ module "mcp-server-service-account" {
 
   # non-authoritative roles granted *to* the service account
   iam_project_roles = var.mcp_server_iam_project_roles
-
-  depends_on = [
-    module.enable_apis
-  ]
-}
-
-################ Artifact Registry ################
-module "artifact_registry" {
-  source     = "../base_modules/artifact-registry"
-  project_id = var.project_id
-  name       = var.artifact_registry_name
-  location   = coalesce(var.mcp_server_cloud_run_region, var.main_region)
-
-  format = {
-    docker = {
-      standard = {}
-    }
-  }
 
   depends_on = [
     module.enable_apis
@@ -72,7 +62,6 @@ module "mcp_server_cloud_run" {
   }
 
   depends_on = [
-    module.enable_apis,
-    module.artifact_registry
+    module.enable_apis
   ]
 }
