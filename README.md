@@ -34,7 +34,7 @@ AI Agents are the core of the system, allowing to address different use cases wi
 ```mermaid
 graph TD
     subgraph Entry ["Access Interface"]
-        User(["<b>User Query</b><br/>Gemini Enterprise"])
+        User(["<b>User Query</b><br/>(Gemini Enterprise)"])
     end
 
     subgraph Core ["Agent Logic"]
@@ -56,9 +56,9 @@ graph TD
     end
 
     subgraph Processing ["Data Pipelines"]
-        BQ_Pipe["<b>BQ Pipeline</b>"]
-        GCS_Pipe["<b>GCS Pipeline</b>"]
-        Drive_Pipe["<b>Drive Pipeline</b>"]
+        BQ_Pipe["<b>BQ Ingestion Pipeline</b>"]
+        GCS_Pipe["<b>GCS Ingestion Pipeline</b>"]
+        Drive_Pipe["<b>Drive Ingestion Pipeline</b>"]
     end
 
     %% Flow through MCP
@@ -78,3 +78,103 @@ graph TD
     GCS_Res <--- GCS_Pipe
     Drive_Res <--- Drive_Pipe
 ```
+
+## Project Structure
+
+```text
+Research-Agent/
+├── agent/                      # ADK Agent implementation
+│   ├── core_agent/            # Main logic, config, model safeguards
+│   ├── deployment/            # Vertex AI / Agent Engine deployment scripts
+│   └── tests/                  # Agent unit and integration tests
+├── mcp_servers/               # MCP server implementations
+│   ├── big_query/             # BigQuery MCP server
+│   ├── gcs/                   # Cloud Storage MCP server
+│   └── google_drive/          # Google Drive MCP server
+├── terraform/                  # Infrastructure as Code
+│   ├── ai_agent_resources/    # Service accounts, IAM, and APIs
+│   ├── bq_mcp_server_resources/
+│   ├── gcs_mcp_server_resources/
+│   ├── shared_resources/      # Shared state and Artifact Registry
+│   └── scripts/               # Bootstrap and trigger scripts
+├── docs/                       # Detailed documentation
+├── notebooks/                  # Exploration and research notebooks
+├── Makefile                   # Development automation commands
+├── pyproject.toml             # Python project configuration (uv)
+```
+
+## Getting Started
+
+### Developing with Dev Containers
+
+We recommend using **VS Code Dev Containers** for an optimal development experience.
+
+*   **Consistency**: Ensures everyone uses the exact same toolset and OS versions.
+*   **Zero Setup**: All dependencies (uv, gcloud, terraform, docker) come pre-installed.
+*   **Isolation**: Keep your local machine clean; everything runs inside a Docker container.
+
+To use Dev Containers, the only requirements are to have **Docker** installed and the **Dev Containers extension** (available for both **VS Code** and **Antigravity**).
+
+To start, simply open this project and click **"Reopen in Container"** when prompted.
+
+---
+
+### Prerequisites (If not using Dev Containers)
+
+Ensure you have the following tools installed:
+
+- **uv**: Python package and project manager.
+- **make**: Task runner for development commands.
+- **gcloud CLI**: For Google Cloud Platform interactions.
+- **Terraform**: For infrastructure deployment and management.
+- **Docker**: Required for building and testing MCP server images.
+
+### Local Development & Testing
+
+Use the `Makefile` commands to manage common tasks:
+
+#### 1. Setup & Environment
+```bash
+# Authenticate with Google Cloud
+make gcloud-auth
+
+# Install dependencies using uv
+uv sync --all-groups
+```
+
+#### 2. Running Tests
+```bash
+# Run the core Agent unit tests
+make test-agent
+
+# Run MCP Server integration tests
+make run-bq-tests
+make run-gcs-tests
+```
+
+#### 3. Execution & Local Verification
+```bash
+# Start the Agent Web UI (ADK)
+make run-ui-agent
+
+# Start MCP Servers locally for direct testing
+make run-bq-mcp-locally
+make run-gcs-mcp-locally
+```
+
+## Documentation
+
+For more detailed information about each component, refer to the following documentation:
+
+### Core AI Agent
+- [AI Agent Overview](agent/core_agent/README.md): Core logic, configuration, and model safeguards.
+
+### MCP Servers
+- [BigQuery MCP Server](mcp_servers/big_query/README.md): Detailed usage and implementation of the BigQuery connector.
+- [Cloud Storage (GCS) MCP Server](mcp_servers/gcs/README.md): Detailed usage and implementation of the GCS connector.
+
+### Security & Authentication
+- [Authentication Methods](docs/security/auth_methods.md): Strategies for identity propagation (DWD vs. OAuth).
+
+### ADK Framework
+- [ADK Introduction](docs/ADK/ADK-01-Intro.md): Introduction to the Agent Development Kit.
