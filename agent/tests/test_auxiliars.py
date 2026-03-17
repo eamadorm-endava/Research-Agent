@@ -49,7 +49,7 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
         for call, expected_url in zip(mock_toolset.call_args_list, expected_auth):
             header_provider = call.kwargs["header_provider"]
             assert header_provider(None) == {
-                "Authorization": f"Bearer token-for-{expected_url}"
+                 "X-Serverless-Authorization": f"Bearer token-for-{expected_url}"
             }
 
 
