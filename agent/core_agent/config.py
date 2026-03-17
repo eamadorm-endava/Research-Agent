@@ -161,7 +161,7 @@ class MCPServersConfig(BaseSettings):
     GCS_URL: Annotated[
         str,
         Field(
-            default="",
+            default="https://gcs-mcp-server-753988132239.us-central1.run.app",
             description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
         ),
     ]
