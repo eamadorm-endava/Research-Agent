@@ -1,13 +1,13 @@
 # AI Agents in Gemini Enterprise
 
-This repository is planned to be an accelerator for implementing Gemini Enterprise in any company; allowing to integrate AI Agents capable of reading/writing data from multiple sources, such as:
+This repository is planned to be an accelerator for implementing Gemini Enterprise in any company; allowing to integrate AI Agents capable of reading/writing data from multiple sources (based on user's permissions), such as:
 
 - Google Drive
 - Google Cloud Storage
 - BigQuery
 - Google Calendar
 
-using the user's permissions to access it, leveraging full AI Agent's capabilities to solve different use cases within a company.
+leveraging full AI Agent's capabilities to solve different use cases within a company.
 
 ## System Architecture
 
