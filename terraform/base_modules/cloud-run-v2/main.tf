@@ -37,7 +37,7 @@ locals {
     WORKERPOOL = ""
     SERVICE    = <<-EOT
     curl -H "Authorization: bearer $(gcloud auth print-identity-token)" \
-        ${local.resource.uri} \
+      ${try(local.resource.uri, null) != null ? local.resource.uri : ""} \
         -X POST -d 'data'
     EOT
   }

@@ -2,14 +2,6 @@ data "google_project" "project" {
   project_id = var.project_id
 }
 
-removed {
-  from = module.artifact_registry.google_artifact_registry_repository.registry
-
-  lifecycle {
-    destroy = false
-  }
-}
-
 ################ APIs ################
 module "enable_apis" {
   source           = "../base_modules/api-manager"

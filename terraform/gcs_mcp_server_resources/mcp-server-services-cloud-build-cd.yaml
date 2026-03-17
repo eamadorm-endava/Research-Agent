@@ -1,20 +1,20 @@
 substitutions:
   _LOCATION: us-central1
   _REPO_NAME: mcp-servers
-  _SERVICE_NAME: bigquery-mcp-server
+  _SERVICE_NAME: gcs-mcp-server
 
 steps:
   # Step 1: Initialize Terraform
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
     args:
       - '-c'
       - |
         terraform init \
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
-          -backend-config="prefix=terraform/state/bq-mcp-server-resources"
+          -backend-config="prefix=terraform/state/gcs-mcp-server-resources"
 
   # Step 2: Bootstrap required APIs before Docker push/apply
   - name: 'hashicorp/terraform:1.12.2'
@@ -23,7 +23,7 @@ steps:
       - 'apply'
       - '-target=module.enable_apis'
       - '-auto-approve'
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
 
   # Step 3: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
@@ -32,7 +32,7 @@ steps:
       'build', 
       '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}', 
       '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest', 
-      '-f', 'mcp_servers/big_query/Dockerfile', 
+      '-f', 'mcp_servers/gcs/Dockerfile', 
       '.'
     ]
 
@@ -50,13 +50,13 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
     args: ['plan', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
 
   # Step 6: Full Terraform Apply
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
     args: ['apply', '-auto-approve', 'tfplan']
-    dir: 'terraform/bq_mcp_server_resources'
+    dir: 'terraform/gcs_mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 

@@ -3,6 +3,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # --- Configuration ---
 
 #service accounts and IAM roles
@@ -22,6 +25,7 @@ REPO_OWNER="eamadorm-endava"
 BRANCH_NAME="" # Your specific development branch
 GITHUB_REGION="us-central1"
 GITHUB_CONNECTION_NAME="eamadorm-github"
+APPLY_SHARED_RESOURCES="${APPLY_SHARED_RESOURCES:-true}"
 
 echo "Starting bootstrap for project: $PROJECT_ID"
 
@@ -146,7 +150,21 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --role="roles/iam.serviceAccountUser" \
   --project="$PROJECT_ID"
 
-# 8. Create Cloud Build Triggers
+# 8. One-time shared resources apply (Artifact Registry owner state)
+if [[ "$APPLY_SHARED_RESOURCES" == "true" ]]; then
+    echo "Applying one-time shared resources (Artifact Registry)..."
+    pushd "$REPO_ROOT/terraform/shared_resources" >/dev/null
+    terraform init -reconfigure \
+        -backend-config="bucket=${BUCKET_NAME}" \
+        -backend-config="prefix=terraform/state/shared-resources"
+    terraform plan
+    terraform apply -auto-approve
+    popd >/dev/null
+else
+    echo "Skipping shared_resources apply (APPLY_SHARED_RESOURCES=${APPLY_SHARED_RESOURCES})."
+fi
+
+# 9. Create Cloud Build Triggers
 echo "Creating Cloud Build Triggers..."
 
 # Function to create triggers
@@ -203,9 +221,9 @@ create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "ter
 create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
 
 # CI (Plan) on Pull Request
-create_trigger "bq-mcp-server-services-plan" "pr" "terraform/bq_mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/big_query/**"
+create_trigger "bq-mcp-server-services-plan" "pr" "terraform/bq_mcp_server_resources" "terraform/bq_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/big_query/**"
 # CD (Apply) on Push/Merge
-create_trigger "bq-mcp-server-services-apply" "push" "terraform/bq_mcp_server_resources" "terraform/mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
+create_trigger "bq-mcp-server-services-apply" "push" "terraform/bq_mcp_server_resources" "terraform/bq_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
 
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"

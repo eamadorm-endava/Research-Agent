@@ -1,12 +1,12 @@
-# MCP Server Resources
+# BigQuery MCP Server Resources
 
 ### Overview
 
-This directory contains the Terraform configuration for the MCP Server.
+This directory contains the Terraform configuration for the BigQuery MCP server.
 
-This module manages the activation of Google Cloud Service APIs, and also manage the service account used for AI Agent resource deployment
+This module manages API enablement, the service account used by the BigQuery MCP service, and the Cloud Run deployment for the server.
 
-This module enables Google Cloud Platform Service APIs across one or more projects. It uses a flattened data structure to efficiently manage multiple APIs via a single variable map, and deployed required services account for MCP server deployment with the required IAM roles.
+This module enables the required Google Cloud APIs and deploys the resources needed by the BigQuery MCP server.
 
 ## Usage: Local Impersonation Guide
 To test services locally using the Service Account's identity, developers in the permitted group can use GCP Service Account Impersonation. This removes the need for downloading and managing risky JSON key files.
@@ -48,7 +48,8 @@ Identity Permissions (Inward): The developers_group_email is granted roles/iam.s
 Resource Permissions (Outward): The Service Account is granted specific functional roles (e.g., roles/logging.logWriter) across the target projects to perform its automated tasks.
 
 ## Requirements
-- Cloud build triggers must be already created so deployment of service accounts resources will be excecuted in cloud build
+- Cloud Build triggers are created outside this module using `terraform/scripts/run_once.sh`.
+- The shared Artifact Registry repository `mcp-servers` is managed in `terraform/shared_resources`. This module only consumes it when building the Cloud Run image URL.
 
 - Cloud build service account or Terraform service account must have the next IAM roles:
 
@@ -62,7 +63,7 @@ Resource Permissions (Outward): The Service Account is granted specific function
     | **Project IAM Admin** | `roles/resourcemanager.projectIamAdmin` | To grant roles (like `roles/modelarmor.user`) to the service accounts on the project. |
 
 
-- Terraform version: 12.1.2 or higher
+- Terraform version: 1.12.2 or higher
 
 - Google group for developers must be already created and setup in terraform.tfvars file
 
@@ -75,11 +76,13 @@ Because this specific deployment is executed via Cloud Build, the Cloud Build Se
 | :--- | :--- | :--- |
 | **Service Usage Admin** | `roles/serviceusage.serviceUsageAdmin` | Required to enable and disable Google Cloud APIs. |
 
-## Resoucers deployed
+## Resources Deployed
+
+This module does not create the shared Artifact Registry repository. It creates the BigQuery MCP service account, enables required APIs, and deploys the Cloud Run service using the existing `mcp-servers` repository.
 
 ## APIs
 
-The following APIs are managed (enabled) by this module. This APIs must be enabled before deploying the MCP Server in any GCP project.
+The following APIs are managed by this module and must be enabled before deploying the BigQuery MCP server:
 
 - storage.googleapis.com
 - drive.googleapis.com
@@ -94,7 +97,7 @@ Permissions are managed (assigned) under the `service_accounts/` directory. It c
 
 | Service Account Name | Status  | Description | Permissions Assigned |
 |----------------------|---------|-------------|----------------------|
-| mcp-server           | Created | This service account is used by the MCP server. | - Storage Object User<br>- BigQuery Data Viewer<br>- BigQuery Job User |
+| mcp-server           | Created | Service account used by the BigQuery MCP server. | - Storage Object User<br>- BigQuery Data Viewer<br>- BigQuery Job User |
 
 **Note:** The name of the service account can be easily changed by modifying the `service_account_name` variable in the permissions/ directory.
 
@@ -106,7 +109,7 @@ This project uses Google Cloud Build for automated deployments:
 2. **Pull Request:** Opening a PR to `main` triggers a `terraform plan`.
     - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
     - The PR cannot be merged if the plan fails.
-    - The PR required one approvers at least
+    - The PR requires at least one approver.
     - Note: If the build fails with "Exit Status 3", run terraform fmt locally and push again.
 
 3. **Merge to Main:** Merging the PR triggers `terraform apply`.
@@ -114,34 +117,34 @@ This project uses Google Cloud Build for automated deployments:
 
 ## Usage
 
-To enable services, define the `project_services` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
+To enable services, define the `apis_to_enable` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
 
-To create service accounts, define the services accounts in the Terraform main modules and setup services account names in `terraform.tfvars` file.
+To create service accounts, define the service account names and IAM role mappings in `terraform.tfvars`.
 
 Example:
 
 ```
 project_id             = "p-dev-gce-60pf"
+main_region            = "us-central1"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
   "p-dev-gce-60pf" = [
-    "aiplatform.googleapis.com",
-    "modelarmor.googleapis.com",
+    "bigquery.googleapis.com",
+    "storage.googleapis.com",
   ]
 }
-ai_agent_service_account_name = "adk-agent"
-ai_agent_iam_project_roles = {
+mcp_server_service_account_name = "mcp-server"
+mcp_server_iam_project_roles = {
   "p-dev-gce-60pf" = [
-    "roles/aiplatform.user",
-    "roles/modelarmor.user"
+    "roles/bigquery.dataViewer",
+    "roles/bigquery.jobUser",
+    "roles/storage.objectUser"
   ]
 }
-vertex_ai_agent_iam_project_roles = {
-  "p-dev-gce-60pf" = [
-    "roles/modelarmor.user"
-  ]
-}
-
+artifact_registry_name         = "mcp-servers"
+mcp_server_cloud_run_name      = "bigquery-mcp-server"
+mcp_server_cloud_run_region    = "us-central1"
+mcp_server_cloud_run_image_tag = "latest"
 ```
 
 ## Variables

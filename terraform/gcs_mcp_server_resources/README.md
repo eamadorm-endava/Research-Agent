@@ -1,12 +1,13 @@
-# AI Agent Resources
+# GCS MCP Server Resources
 
 ### Overview
 
-This directory contains the Terraform configuration for the AI Agent.
+This directory contains the Terraform configuration for the GCS MCP server.
 
-This module manages the activation of Google Cloud Service APIs, and also manage the service account used for AI Agent resource deployment
+This module manages API enablement, the service account used by the GCS MCP service, and the Cloud Run deployment for the server.
 
-This module enables Google Cloud Platform Service APIs across one or more projects. It uses a flattened data structure to efficiently manage multiple APIs via a single variable map, and deployed required services account for AI agent deployment with the required IAM roles.
+This module enables the required Google Cloud APIs and deploys the resources needed by the GCS MCP server.
+
 
 ## Usage: Local Impersonation Guide
 To test services locally using the Service Account's identity, developers in the permitted group can use GCP Service Account Impersonation. This removes the need for downloading and managing risky JSON key files.
@@ -48,7 +49,7 @@ Identity Permissions (Inward): The developers_group_email is granted roles/iam.s
 Resource Permissions (Outward): The Service Account is granted specific functional roles (e.g., roles/logging.logWriter) across the target projects to perform its automated tasks.
 
 ## Requirements
-- Cloud Build triggers and bootstrap prerequisites should already be created before this module is deployed through Cloud Build.
+- Cloud Build triggers are created outside this module using `terraform/scripts/run_once.sh`.
 
 - Cloud build service account or Terraform service account must have the next IAM roles:
 
@@ -77,12 +78,18 @@ Because this specific deployment is executed via Cloud Build, the Cloud Build Se
 
 ## Resources Deployed
 
+This module does not create the shared Artifact Registry repository. It creates the GCS MCP service account, enables required APIs, and deploys the Cloud Run service using the existing `mcp-servers` repository managed by `terraform/shared_resources`.
+
 ## APIs
 
-The following APIs are managed by this module and must be enabled before deploying the AI Agent:
+The following APIs are managed by this module and must be enabled before deploying the GCS MCP server:
+## Resoucers deployed
 
-- aiplatform.googleapis.com
-- modelarmor.googleapis.com
+## APIs
+
+The following APIs are managed (enabled) by this module. This APIs must be enabled before deploying the MCP Server in any GCP project.
+
+- storage.googleapis.com
 
 ## Service Accounts & Permissions
 
@@ -90,10 +97,9 @@ Permissions are managed (assigned) under the `service_accounts/` directory. It c
 
 ## Service Accounts Overview
 
-| Service Account Name | Status   | Description | Permissions Assigned |
-|----------------------|----------|-------------|----------------------|
-| adk-agent            | Created  | This service account can be impersonated by a user or group to develop or test ADK Agent capabilities. | - Vertex AI User<br>- Model Armor User |
-| Vertex AI Service Agent | Edited | Service account automatically created by Vertex AI. Used internally to invoke Gemini models, Model Armor templates, and Agent engines. | - Vertex AI User<br>- Model Armor User |
+| Service Account Name | Status  | Description | Permissions Assigned |
+|----------------------|---------|-------------|----------------------|
+| mcp-server           | Created | Service account used by the GCS MCP server. | - Storage Object Admin |
 
 **Note:** The name of the service account can be easily changed by modifying the `service_account_name` variable in the permissions/ directory.
 
@@ -105,23 +111,51 @@ This project uses Google Cloud Build for automated deployments:
 2. **Pull Request:** Opening a PR to `main` triggers a `terraform plan`.
     - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
     - The PR cannot be merged if the plan fails.
-    - The PR requires at least one approver.
+    - The PR required one approvers at least
     - Note: If the build fails with "Exit Status 3", run terraform fmt locally and push again.
+
 3. **Merge to Main:** Merging the PR triggers `terraform apply`.
    - Ensure the plan was reviewed before merging.
 
 ## Usage
 
-To enable services, define the `apis_to_enable` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
+To enable services, define the `project_services` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
 
-To create service accounts, define the service account names and IAM role mappings in `terraform.tfvars`.
+To create service accounts, define the services accounts in the Terraform main modules and setup services account names in `terraform.tfvars` file.
+
+## Terraform Native Tests
+
+This module includes native Terraform tests in `gcs_mcp_server_resources.tftest.hcl`.
+
+Run from this directory:
+
+```
+terraform init -backend=false
+terraform test
+```
+
+What is covered:
+- Cloud Run region fallback to `main_region`
+- Cloud Run image naming convention
+
+## Cloud Build Triggers (Run Once)
+
+From repository root:
+
+```
+chmod +x terraform/scripts/run_once.sh
+./terraform/scripts/run_once.sh
+```
+
+This script creates (or skips if existing) the PR/CD triggers for:
+- BigQuery MCP (`terraform/bq_mcp_server_resources`)
+- GCS MCP (`terraform/gcs_mcp_server_resources`)
 
 Example:
 
 ```
 project_id             = "p-dev-gce-60pf"
 developers_group_email = "gcu_latam_team_devs@endava.com"
-main_region            = "us-central1"
 apis_to_enable = {
   "p-dev-gce-60pf" = [
     "aiplatform.googleapis.com",
@@ -150,6 +184,6 @@ vertex_ai_agent_iam_project_roles = {
 | `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
 | `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
 | `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
-| `ai_agent_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `ai_agent_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
-| `vertex-ai-search-agent_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the Vertex AI Search Agent service account. | `map(list(string))` | `{}` | no |
+| `mcp_server_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
+| `mcp_server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
+
