@@ -1,12 +1,13 @@
-# MCP Server Resources
+# GCS MCP Server Resources
 
 ### Overview
 
-This directory contains the Terraform configuration for the MCP Server.
+This directory contains the Terraform configuration for the GCS MCP server.
 
-This module manages the activation of Google Cloud Service APIs, and also manage the service account used for AI Agent resource deployment
+This module manages API enablement, the service account used by the GCS MCP service, and the Cloud Run deployment for the server.
 
-This module enables Google Cloud Platform Service APIs across one or more projects. It uses a flattened data structure to efficiently manage multiple APIs via a single variable map, and deployed required services account for MCP server deployment with the required IAM roles.
+This module enables the required Google Cloud APIs and deploys the resources needed by the GCS MCP server.
+
 
 ## Usage: Local Impersonation Guide
 To test services locally using the Service Account's identity, developers in the permitted group can use GCP Service Account Impersonation. This removes the need for downloading and managing risky JSON key files.
@@ -62,7 +63,7 @@ Resource Permissions (Outward): The Service Account is granted specific function
     | **Project IAM Admin** | `roles/resourcemanager.projectIamAdmin` | To grant roles (like `roles/modelarmor.user`) to the service accounts on the project. |
 
 
-- Terraform version: 12.1.2 or higher
+- Terraform version: 1.12.2 or higher
 
 - Google group for developers must be already created and setup in terraform.tfvars file
 
@@ -75,6 +76,13 @@ Because this specific deployment is executed via Cloud Build, the Cloud Build Se
 | :--- | :--- | :--- |
 | **Service Usage Admin** | `roles/serviceusage.serviceUsageAdmin` | Required to enable and disable Google Cloud APIs. |
 
+## Resources Deployed
+
+This module does not create the shared Artifact Registry repository. It creates the GCS MCP service account, enables required APIs, and deploys the Cloud Run service using the existing `mcp-servers` repository managed by `terraform/shared_resources`.
+
+## APIs
+
+The following APIs are managed by this module and must be enabled before deploying the GCS MCP server:
 ## Resoucers deployed
 
 ## APIs
@@ -91,7 +99,7 @@ Permissions are managed (assigned) under the `service_accounts/` directory. It c
 
 | Service Account Name | Status  | Description | Permissions Assigned |
 |----------------------|---------|-------------|----------------------|
-| mcp-server           | Created | This service account is used by the MCP server. | - Storage Object Admin |
+| mcp-server           | Created | Service account used by the GCS MCP server. | - Storage Object Admin |
 
 **Note:** The name of the service account can be easily changed by modifying the `service_account_name` variable in the permissions/ directory.
 
