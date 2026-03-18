@@ -1,277 +1,180 @@
-# Research-Agent
+# AI Agents in Gemini Enterprise
 
-An AI-powered research platform combining the Agent Development Kit (ADK) with Google Cloud integrations exposed through Model Context Protocol (MCP) servers.
+This repository is planned to be an accelerator for implementing Gemini Enterprise in any company; allowing to integrate AI Agents capable of reading/writing data from multiple sources (based on user's permissions), such as:
 
-## Overview
+- Google Drive
+- Google Cloud Storage
+- BigQuery
+- Google Calendar
 
-This repository contains two main areas:
+leveraging full AI Agent's capabilities to solve different use cases within a company.
 
-### 1. Agent Development using ADK
-Build and customize intelligent agents using the Agent Development Kit. The agent can connect to MCP servers for Google Cloud capabilities without hardcoding tool definitions in the agent itself.
+## System Architecture
 
-### 2. MCP Servers for GCP Services
-Independent MCP servers connect the agent to Google Cloud Platform services, including:
-- **BigQuery** - Query and analyze large datasets
-- **Cloud Storage (GCS)** - Manage buckets and objects
+This project is divided into three main systems:
 
-**Key differentiator:** these MCP servers support write operations in addition to read operations, enabling agents to create, update, and modify data in supported services.
+- Data Pipelines
+- MCP Servers
+- AI Agents
+
+### Data Pipelines
+
+Data is always in very different formats and sources, this system allows to process it and make it available to the AI Agents based on the different types of authorization.
+
+### MCP Servers
+
+This are the way AI Agents can access the data processed by the Data Pipelines. Due to some Gemini Enterprise pre-built connectors has limited capabilities (read-only tools), it was decided to implement custom MCP Servers for the different data sources, allowing to create, read, and update data (based on user's permissions).
+
+### AI Agents
+
+AI Agents are the core of the system, allowing to address different use cases within a company taking advantage of Gemini Enterprise and the custom MCP servers. So that people within the company can not only interact with the data in a more natural and efficient way, but also automate tasks and processes.
+
+### High-Level Architecture
+
+```mermaid
+graph TD
+    subgraph Entry ["Access Interface"]
+        User(["<b>User Query</b><br/>(Gemini Enterprise)"])
+    end
+
+    subgraph Core ["Agent Logic"]
+        Agent["<b>AI Agent</b><br/>(ADK Agent Engine)"]
+    end
+
+    subgraph Gateway ["Protocol Layer (MCP)"]
+        BQ_MCP["<b>BQ MCP Server</b>"]
+        GCS_MCP["<b>GCS MCP Server</b>"]
+        Drive_MCP["<b>Drive MCP Server</b>"]
+        Calendar_MCP["<b>Calendar MCP Server</b>"]
+    end
+
+    subgraph Service ["GCP API Resources"]
+        BQ_Res[("<b>BigQuery</b><br/>Datasets/Tables")]
+        GCS_Res[("<b>Cloud Storage</b><br/>Buckets/Blobs")]
+        Drive_Res[("<b>Google Drive</b><br/>Docs/Folders")]
+        Calendar_Res[("<b>Google Calendar</b><br/>Events")]
+    end
+
+    subgraph Processing ["Data Pipelines"]
+        BQ_Pipe["<b>BQ Ingestion Pipeline</b>"]
+        GCS_Pipe["<b>GCS Ingestion Pipeline</b>"]
+        Drive_Pipe["<b>Drive Ingestion Pipeline</b>"]
+    end
+
+    %% Flow through MCP
+    User --> Agent
+    Agent --> BQ_MCP
+    Agent --> GCS_MCP
+    Agent --> Drive_MCP
+    Agent --> Calendar_MCP
+
+    BQ_MCP <--> BQ_Res
+    GCS_MCP <--> GCS_Res
+    Drive_MCP <--> Drive_Res
+    Calendar_MCP <--> Calendar_Res
+
+    %% Ingestion Flow (visually below Databases)
+    BQ_Res <--- BQ_Pipe
+    GCS_Res <--- GCS_Pipe
+    Drive_Res <--- Drive_Pipe
+```
 
 ## Project Structure
 
-```
+```text
 Research-Agent/
-├── agent/                      # Agent Development Kit (ADK) implementation
-│   ├── core_agent/            # Core agent components and logic
-│   │   ├── agent.py           # Main agent implementation
-│   │   ├── config.py          # Agent configuration
-│   │   └── model_armor.py     # Model safeguards and alignment
-│   └── __init__.py
-│
+├── agent/                      # ADK Agent implementation
+│   ├── core_agent/            # Main logic, config, model safeguards
+│   ├── deployment/            # Vertex AI / Agent Engine deployment scripts
+│   └── tests/                  # Agent unit and integration tests
 ├── mcp_servers/               # MCP server implementations
 │   ├── big_query/             # BigQuery MCP server
-│   └── gcs/                   # Cloud Storage MCP server
-│
+│   ├── gcs/                   # Cloud Storage MCP server
+│   └── google_drive/          # Google Drive MCP server
 ├── terraform/                  # Infrastructure as Code
-│   ├── ai_agent_resources/    # Agent service accounts and APIs
+│   ├── ai_agent_resources/    # Service accounts, IAM, and APIs
 │   ├── bq_mcp_server_resources/
 │   ├── gcs_mcp_server_resources/
-│   ├── shared_resources/      # Shared Artifact Registry ownership
-│   └── scripts/               # Bootstrap and trigger setup scripts
-│
+│   ├── shared_resources/      # Shared state and Artifact Registry
+│   └── scripts/               # Bootstrap and trigger scripts
 ├── docs/                       # Detailed documentation
-│   │                           # In-depth explanations for complex topics
-│   └── ADK-Intro.md
-│
-├── notebooks/                  # Jupyter notebooks for exploration
-│   └── model_armor.ipynb
-│
-├── pyproject.toml             # Python project configuration
-├── Makefile                   # Development commands
-└── README.md                  # This file
+├── notebooks/                  # Exploration and research notebooks
+├── Makefile                   # Development automation commands
+├── pyproject.toml             # Python project configuration (uv)
 ```
 
 ## Getting Started
 
-### Prerequisites
+### Developing with Dev Containers
 
-#### Required CLIs
+We recommend using **VS Code Dev Containers** for an optimal development experience.
 
-Before getting started, ensure you have the following CLIs installed:
+*   **Consistency**: Ensures everyone uses the exact same toolset and OS versions.
+*   **Zero Setup**: All dependencies (uv, gcloud, terraform, docker) come pre-installed.
+*   **Isolation**: Keep your local machine clean; everything runs inside a Docker container.
 
-- **uv** - Python package manager and version manager
-- **make** - For running development tasks and commands
-- **Git** - For version control
-- **Docker** - For containerization and running the dev container
-- **Google Cloud CLI (`gcloud`)** - For interacting with Google Cloud Platform
-- **Terraform** - For managing infrastructure
+To use Dev Containers, the only requirements are to have **Docker** installed and the **Dev Containers extension** (available for both **VS Code** and **Antigravity**).
 
-### Running with Dev Container
+To start, simply open this project and click **"Reopen in Container"** when prompted.
 
-We provide a pre-configured development container to ensure a consistent development environment across all team members.
+---
 
-#### Using VS Code Dev Container
+### Prerequisites (If not using Dev Containers)
 
-1. **Install Required Extensions:**
-   - Install the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension in VS Code
+Ensure you have the following tools installed:
 
-2. **Open the Project:**
-   - Open the `/Research-Agent` folder in VS Code
-   - You should see a notification suggesting to "Reopen in Container"
-   - Click **"Reopen in Container"** or use the command palette:
-     - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
-     - Type **"Dev Containers: Reopen in Container"**
-     - Press Enter
+- **uv**: Python package and project manager.
+- **make**: Task runner for development commands.
+- **gcloud CLI**: For Google Cloud Platform interactions.
+- **Terraform**: For infrastructure deployment and management.
+- **Docker**: Required for building and testing MCP server images.
 
-3. **Development Environment Ready:**
-   - VS Code will build and start the dev container
-   - All required dependencies will be pre-installed
-   - You'll have access to all CLIs and tools mentioned above
+### Local Development & Testing
 
-#### Benefits of Using Dev Container
+Use the `Makefile` commands to manage common tasks:
 
-- **Consistency** - Same environment for all developers, eliminating "works on my machine" issues
-- **Isolation** - Dependencies don't conflict with your host machine
-- **Pre-configured** - All CLIs, Python packages, and tools are already installed
-- **Easy Cleanup** - Remove the container without affecting your host system
-- **Team Alignment** - Everyone uses the same development setup
-
-#### Running Commands in Dev Container
-
-Once inside the container, you can use the Makefile for common tasks:
-
+#### 1. Setup & Environment
 ```bash
-# Install dependencies
-uv sync --all-groups
+# Authenticate with Google Cloud
+make gcloud-auth
 
-# Run agent tests
-make test-agent
-
-# Run MCP tests
-make run-bq-tests
-make run-gcs-tests
-```
-
-## How to Contribute
-
-We follow a standard Git workflow for contributions:
-
-### 1. Create a Feature Branch
-
-```bash
-# Update main branch first
-git checkout main
-git pull origin main
-
-# Create a new branch for your feature
-git checkout -b feature/your-feature-name
-```
-
-Branch naming conventions:
-- `feature/` - For new features
-- `bugfix/` - For bug fixes
-- `docs/` - For documentation updates
-- `refactor/` - For code refactoring
-
-### 2. Make Your Changes
-
-- Write clean, well-documented code
-- Follow the existing code style and patterns
-- Add or update tests as needed
-- Update relevant documentation
-
-### 3. Commit Your Changes
-
-```bash
-git add .
-git commit -m "Clear, descriptive commit message"
-```
-
-### 4. Push to Remote
-
-```bash
-git push origin feature/your-feature-name
-```
-
-### 5. Submit a Pull Request
-
-- Go to the GitHub repository
-- You should see a prompt to create a Pull Request for your branch
-- Click **"Compare & pull request"**
-- Provide a clear title and description of your changes
-- Reference any related issues using `#issue-number`
-- Request review from team members
-- Address any comments or requested changes
-
-### 6. Merge
-
-Once approved by at least one reviewer:
-- Squash and merge commits (preferred for clean history)
-- Delete the branch after merging
-
-## Development Workflow
-
-### Infrastructure Validation
-
-Useful local verification targets:
-
-```bash
-make verify-agent-ci
-make verify-bq-ci
-make verify-gcs-ci
-make verify-all-ci
-```
-
-For the GCS Terraform module specifically:
-### Infrastructure Tests
-
-Use this command to validate the GCS MCP Terraform module:
-
-```bash
-make test-gcs-terraform
-```
-
-This runs `terraform fmt -check -recursive`, `terraform init -backend=false`, and `terraform test` inside `terraform/gcs_mcp_server_resources`.
-
-### Trigger Commands
-
-Use these commands from repository root to create or refresh Cloud Build triggers for MCP Terraform stacks:
-
-```bash
-make run-once-terraform-triggers
-```
-
-Backward-compatible aliases:
-
-```bash
-make run-once-mcp-triggers
-```
-
-### One-Time Shared Resources Apply
-
-Apply `shared_resources` once for the shared Artifact Registry state:
-
-```bash
-cd terraform/shared_resources
-terraform init -reconfigure \
-   -backend-config="bucket=<PROJECT_ID>-terraform-state" \
-   -backend-config="prefix=terraform/state/shared-resources"
-terraform plan
-terraform apply
-```
-
-`bootstrap.sh` now runs this sequence by default. To skip it:
-
-```bash
-APPLY_SHARED_RESOURCES=false ./terraform/scripts/bootstrap.sh
-```
-
-Convenience Make targets:
-
-```bash
-make bootstrap
-make bootstrap-no-shared
-```
-This target runs:
-- `terraform fmt -check -recursive`
-- `terraform init -backend=false`
-- `terraform test`
-
-It executes inside `terraform/gcs_mcp_server_resources`.
-
-### Setting Up for Development
-
-```bash
 # Install dependencies using uv
 uv sync --all-groups
 ```
 
-### Running the Agent
-
+#### 2. Running Tests
 ```bash
-# Example command (adjust based on actual implementation)
-make run-ui-agent
+# Run the core Agent unit tests
+make test-agent
+
+# Run MCP Server integration tests
+make run-bq-tests
+make run-gcs-tests
 ```
 
-### Running MCP Servers Locally
-
+#### 3. Execution & Local Verification
 ```bash
+# Start the Agent Web UI (ADK)
+make run-ui-agent
+
+# Start MCP Servers locally for direct testing
 make run-bq-mcp-locally
 make run-gcs-mcp-locally
 ```
 
-For the GCS MCP smoke test:
-
-```bash
-make run-gcs-mcp-smoke BUCKET=my-bucket PREFIX=docs/
-```
-
 ## Documentation
 
-For detailed information about specific topics:
+For more detailed information about each component, refer to the following documentation:
 
-- **ADK Introduction** - See [docs/ADK-Intro.md](docs/ADK-Intro.md) for detailed information about the Agent Development Kit
-- **Core Agent** - See [agent/core_agent/README.md](agent/core_agent/README.md)
-- **BigQuery MCP Server** - See [mcp_servers/big_query/README.md](mcp_servers/big_query/README.md)
-- **GCS MCP Server** - See [mcp_servers/gcs/README.md](mcp_servers/gcs/README.md)
-- **Terraform Infrastructure** - See [terraform/README.md](terraform/README.md)
-- **Model Armor** - See [notebooks/model_armor.ipynb](notebooks/model_armor.ipynb) for model safeguards exploration
+### Core AI Agent
+- [AI Agent Overview](agent/core_agent/README.md): Core logic, configuration, and model safeguards.
+
+### MCP Servers
+- [BigQuery MCP Server](mcp_servers/big_query/README.md): Detailed usage and implementation of the BigQuery connector.
+- [Cloud Storage (GCS) MCP Server](mcp_servers/gcs/README.md): Detailed usage and implementation of the GCS connector.
+
+### Security & Authentication
+- [Authentication Methods](docs/security/auth_methods.md): Strategies for identity propagation (DWD vs. OAuth).
+
+### ADK Framework
+- [ADK Introduction](docs/ADK/ADK-01-Intro.md): Introduction to the Agent Development Kit.
