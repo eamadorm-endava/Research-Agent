@@ -13,6 +13,7 @@ The `core_agent/` folder follows the [ADK project structure](https://google.gith
 - `config.py` -> Configuration settings for the agent
 - `model_armor.py` -> Custom Model Armor implementation class
 - `utils/auxiliars.py` -> MCP helper utilities (builds `McpToolset` list from MCP config)
+- `utils/security.py` -> Security utilities (handles generating Identity Tokens for GCP service authentication)
 - `.env` -> Environment variables for model authentication (needed by the ADK CLI)
 
 The .env file must be set directly inside `/core_agent` and must have the following variables:
@@ -26,14 +27,18 @@ The .env file must be set directly inside `/core_agent` and must have the follow
 
 Optional MCP server variables:
 
-    BIGQUERY_URL=https://bigquery-mcp-server-753988132239.us-central1.run.app
+    BIGQUERY_URL=https://bigquery-mcp-server-xxxxx-uc.a.run.app
     BIGQUERY_ENDPOINT=/mcp
-    GCS_URL=https://your-gcs-mcp-server-xxxxx-uc.a.run.app
-    GCS_ENDPOINT=/mcp
+    DRIVE_URL=https://google-drive-mcp-server-xxxxx-uc.a.run.app
+    DRIVE_ENDPOINT=/mcp
+    DRIVE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
+    DRIVE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
+    DRIVE_OAUTH_REDIRECT_URI=http://localhost:8000/oauth2callback
 
 Notes:
-- Set `GCS_URL` to your deployed Cloud Run **base URL** (without `/mcp`) to enable GCS tools.
-- Leave `GCS_URL` empty to disable GCS MCP integration.
+- Set `BIGQUERY_URL` and `DRIVE_URL` to your deployed Cloud Run **base URL** (without `/mcp`).
+- If you leave any URL empty, the corresponding MCP integration will be disabled automatically.
+- The `DRIVE_OAUTH_` variables are required for the agent to authenticate users via the interactive Per-User OAuth 2.0 flow.
 
 MCP tool wiring is centralized in `get_mcp_servers_tools` inside `utils/auxiliars.py`, so `agent.py` stays focused on agent configuration and initialization.
 
@@ -72,7 +77,12 @@ This agent takes advantage of the [ADK tools and integrations](https://google.gi
 
 ### Implemented Tools
 
-- **Google Cloud API Registry** - Dynamically exposes available Google Cloud services as Model Context Protocol (MCP) servers, allowing the agent to discover and access tools at runtime without hardcoded definitions
+This agent connects to robust backend tools by consuming **Model Context Protocol (MCP)** servers dynamically:
+
+- **BigQuery MCP Server**: Enables the agent to execute analytical queries against structural tables.
+- **Google Drive MCP Server**: Connects the agent directly to Google Drive, allowing it to read, list, and upload files.
+
+> **Authentication Status**: Currently, each MCP Server operates using its own dedicated Google Cloud Service Account, which holds the necessary backend permissions to access the resources (BigQuery datasets and Drive files). In the near future, this architecture will be upgraded to use **Per-User OAuth 2.0**, allowing the MCP servers to act on behalf of the specific end-user interacting with the agent.
 
 ### Security: Model Armor Implementation
 
