@@ -20,7 +20,7 @@ mcp_server_service_account_name = "gcs-mcp-server"
 
 mcp_server_iam_project_roles = {
   "p-dev-gce-60pf" = [
-    "roles/storage.objectAdmin"
+    "roles/storage.admin"
   ]
 }
 

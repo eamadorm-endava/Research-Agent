@@ -37,9 +37,9 @@ def get_mcp_servers_tools(mcp_config: MCPServersConfig) -> list[McpToolset]:
                     timeout=mcp_config.GENERAL_TIMEOUT,
                 ),
                 header_provider=lambda ctx, url=server_url: {
-                    "Authorization": f"Bearer {get_id_token(url)}"
+                    "X-Serverless-Authorization": f"Bearer {get_id_token(url)}"
                 },
             )
         )
-
+        
     return tools
