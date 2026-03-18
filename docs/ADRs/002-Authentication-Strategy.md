@@ -1,4 +1,4 @@
-# ADR-002: Authentication Methods for MCP Servers
+# ADR-002: Authentication Strategy for MCP Servers
 
 **Status**: Accepted
 **Date**: March 18, 2026
