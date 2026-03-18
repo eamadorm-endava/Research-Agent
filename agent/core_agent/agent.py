@@ -9,7 +9,7 @@ from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCode
 from .config import GCPConfig, AgentConfig, MCPServersConfig
-from .utils.security import get_id_token
+from .utils.auxiliars import get_mcp_servers_tools
  
 logging.getLogger().setLevel(logging.INFO)
  
@@ -91,25 +91,14 @@ root_agent = Agent(
         "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
         "access in their browser before you can continue with Drive tasks."
     ),
-    tools=[
-        # McpToolset(
-        #     connection_params=StreamableHTTPConnectionParams(
-        #         url=full_bq_mcp_server_path,
-        #         timeout=mcp_servers.GENERAL_TIMEOUT,
-        #     ),
-        #     header_provider=lambda ctx: {
-        #         "Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
-        #     },
-        # ),
-        McpToolset(
+    tools = tools + [McpToolset(
             connection_params=StreamableHTTPConnectionParams(
                 url=full_drive_mcp_server_path,
                 timeout=mcp_servers.GENERAL_TIMEOUT,
             ),
             auth_scheme=auth_scheme,
             auth_credential=auth_credential,
-        ),
-    ],
+        )]
 )
  
 app = agent_engines.AdkApp(agent=root_agent)
