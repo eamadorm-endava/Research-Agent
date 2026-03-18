@@ -1,24 +1,41 @@
-# Agent Runtime
+# ADK Runtime & Event Loop
 
-The ADK *Runtime* is the underlying engine that powers the agent application during user interactions. It's the system that takes the defined agents, tools, and callbacks and orchestrates their execution in response to user input, managing the flow of information, state changes, and interactions with external services like LLMs or storage.
-
-Think of the *Runtime* as the ***engine*** of the agentic application. You define the parts (agent, tools, SessionService, MemoryService), and the *RunTime* handles how they connect and run together to fulfill a user's request.
+The ADK **Runtime** is the underlying engine that powers the agent application. It takes your defined components (Agents, Tools, Services) and orchestrates their execution in response to user input.
 
 ## The Event Loop
 
-In its core, the ADK Runtime operates on an Event Loop. This loop facilitates a back-and-forth communication between the *Runner* component and your defined "Execution Logic" (including the Agents, the LLM calls they make, Callbacks, and Tools).
+At its core, the ADK Runtime operates on an **Event Loop**. This loop facilitates communication between the *Runner* component and your *Execution Logic* (Agents, LLMs, Callbacks).
 
-![alt text](/docs/images/image.png)
+![Event Reference Diagram](/docs/images/image.png)
 
-In simple terms:
+### Execution Flow:
 
-1. The *Runner* receives a user query and asks the main Agent to start processing.
+1. **Trigger**: The Runner receives a user query and starts the primary Agent.
+2. **Execute & Yield**: The Agent runs until it needs to report a state change, use a tool, or return a final response. It then *yields* an Event (e.g., `adk_request_credential`).
+3. **Process**: The Runner intercepts the Event, updates context (like Session state), and forwards it to the client/UI.
+4. **Resume**: The Agent's logic pauses while the event is handled. Once the client responds, the Runner resumes the Agent with the new context.
+5. **Loop**: This cycle repeats until the agent fulfills the user query.
 
-2. The Agent (and its associated logic) runs until it has something to report (like a response, a request to use a tool, or a state change) – it then yields or emits an Event.
+This event-driven architecture allows ADK to be highly extensible—enabling asynchronous UI updates, streaming text, and interrupting flows for secure credentials (like OAuth).
 
-3. The Runner receives this Event, processes any associated actions (like saving state changes via Services), and forwards the event onwards (e.g., to the user interface).
+---
 
-4. The Agent's logic resumes from where it paused only after the Runner has processed the event, and then potentially sees the effects of the changes committed by the Runner.
-5. This cycle repeats until the agent has no more events to yield for the current user query.
+## Available Engines (Apps)
 
-This event-driven loop is the fundamental pattern governing how ADK executes your agent code.
+To execute an agent through the Runtime, ADK wraps the agent in an "App" engine depending on the deployment target:
+
+| Engine | Primary Use Case |
+| :--- | :--- |
+| `HttpApp` | Deploys the agent as a local FastAPI web server (REST endpoints & SSE Streaming). Ideal for custom microservices. |
+| `ConsoleApp` | Runs the agent interactively in a terminal command line interface. Ideal for quick debugging and local iterations. |
+| `AdkApp` | Native integration wrapper designed exclusively for deploying to **Vertex AI Agent Engine**. |
+| `GradioApp` | Generates a quick, locally-hosted web UI using Gradio to visually test the agent's behavior. |
+
+---
+
+## References
+
+For detailed usage, configuration, and constraints, refer to the official documentation:
+
+* **[Apps: Workflow Management Class (Engines)](https://google.github.io/adk-docs/apps/)**
+* **[Agent Runtime (Executing Apps)](https://google.github.io/adk-docs/runtime/)**
