@@ -193,3 +193,14 @@ class MCPServersConfig(BaseSettings):
             description="OAuth 2.0 Redirect URI for Google Drive (provided to the Agent)",
         ),
     ]
+    DRIVE_OAUTH_SCOPES: Annotated[
+        str,
+        Field(
+            default=(
+                "https://www.googleapis.com/auth/drive.readonly "
+                "https://www.googleapis.com/auth/drive.file "
+                "https://www.googleapis.com/auth/documents"
+            ),
+            description="Space-separated OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
+        ),
+    ]

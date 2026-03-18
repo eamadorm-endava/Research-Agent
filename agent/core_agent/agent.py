@@ -30,14 +30,18 @@ vertexai.Client(
 )
  
 # Authentication Configuration for Google Drive (Authorization Code Flow)
+drive_oauth_scopes = {
+    scope: "google drive access"
+    for scope in mcp_servers.DRIVE_OAUTH_SCOPES.split()
+    if scope.strip()
+}
+
 auth_scheme = OAuth2(
     flows=OAuthFlows(
         authorizationCode=OAuthFlowAuthorizationCode(
             authorizationUrl="https://accounts.google.com/o/oauth2/v2/auth",
             tokenUrl="https://oauth2.googleapis.com/token",
-            scopes={
-                "https://www.googleapis.com/auth/drive": "Full access to Google Drive"
-            },
+            scopes=drive_oauth_scopes,
         )
     )
 )
@@ -85,15 +89,15 @@ root_agent = Agent(
         "access in their browser before you can continue with Drive tasks."
     ),
     tools=[
-        McpToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url=full_bq_mcp_server_path,
-                timeout=mcp_servers.GENERAL_TIMEOUT,
-            ),
-            header_provider=lambda ctx: {
-                "Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
-            },
-        ),
+        # McpToolset(
+        #     connection_params=StreamableHTTPConnectionParams(
+        #         url=full_bq_mcp_server_path,
+        #         timeout=mcp_servers.GENERAL_TIMEOUT,
+        #     ),
+        #     header_provider=lambda ctx: {
+        #         "Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
+        #     },
+        # ),
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
                 url=full_drive_mcp_server_path,
