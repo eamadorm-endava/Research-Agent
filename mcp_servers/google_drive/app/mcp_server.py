@@ -7,7 +7,12 @@ import logging
 import os
 from typing import Any
 
+import httpx
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.provider import AccessToken, TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from pydantic import AnyHttpUrl
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
@@ -29,12 +34,42 @@ from .schemas import (
 
 logger = logging.getLogger(__name__)
 
+
+class GoogleDriveTokenVerifier(TokenVerifier):
+    """Verifies a Google OAuth access token."""
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return AccessToken(
+                        token=token,
+                        client_id=data.get("aud", "unknown"),
+                        scopes=data.get("scope", "").split(),
+                    )
+        except Exception:
+            pass
+        return None
+
+
 mcp = FastMCP(
     DRIVE_SERVER_CONFIG.server_name,
     stateless_http=DRIVE_SERVER_CONFIG.stateless_http,
     json_response=DRIVE_SERVER_CONFIG.json_response,
     host=DRIVE_SERVER_CONFIG.default_host,
     port=str(DRIVE_SERVER_CONFIG.default_port),
+    token_verifier=GoogleDriveTokenVerifier(),
+    auth=AuthSettings(
+        issuer_url=AnyHttpUrl("https://accounts.google.com"),
+        resource_server_url=AnyHttpUrl(
+            f"http://{DRIVE_SERVER_CONFIG.default_host}:{DRIVE_SERVER_CONFIG.default_port}"
+        ),
+        required_scopes=[],
+    ),
 )
 
 _current_http_headers: contextvars.ContextVar[dict[str, str] | None] = (
@@ -314,9 +349,14 @@ def _get_current_headers() -> dict[str, str]:
 
 
 def _get_delegated_access_token_from_headers() -> str | None:
+    # 1. Try to get native MCP access token which is validated by middleware
+    token_obj = get_access_token()
+    if token_obj:
+        return token_obj.token
+
     headers = _get_current_headers()
 
-    # 1. Check custom delegated header if provided via env
+    # 2. Check custom delegated header if provided via env
     custom_header_name = os.getenv(
         DRIVE_AUTH_CONFIG.delegated_token_header_env,
         DRIVE_AUTH_CONFIG.delegated_token_header_default,
@@ -325,7 +365,7 @@ def _get_delegated_access_token_from_headers() -> str | None:
     if token:
         return token
 
-    # 2. Check standard Authorization header
+    # 3. Check standard Authorization header
     auth_header = headers.get("authorization", "")
     if auth_header.lower().startswith("bearer "):
         return auth_header[7:].strip()
