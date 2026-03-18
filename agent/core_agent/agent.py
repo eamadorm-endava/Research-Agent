@@ -73,7 +73,10 @@ agent_retry_options = HttpRetryOptions(
     exp_base=agent_config.RETRY_EXP_BASE,
     max_delay=agent_config.RETRY_MAX_DELAY,
 )
- 
+
+# MCP toolset construction is centralized in utils/auxiliars.py:get_mcp_servers_tools
+tools = get_mcp_servers_tools(mcp_servers)
+
 root_agent = Agent(
     model=Gemini(
         model_name=agent_config.MODEL_NAME,

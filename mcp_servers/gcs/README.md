@@ -1,6 +1,6 @@
-# Cloud Storage Connector (MCP Server)
+# Cloud Storage MCP Server
 
-This connector is built using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) and the Python MCP SDK `FastMCP` stack, aligned with `mcp_servers/big_query`.
+This server is built using the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) and the Python MCP SDK `FastMCP` stack, aligned with `mcp_servers/big_query`.
 
 ## 🌟 Server Capabilities
 
@@ -77,7 +77,7 @@ Deploying as a standalone Cloud Run service provides a scalable, serverless endp
 
 **How to Deploy**:
 The repository includes a `Dockerfile` and `cloudbuild.yaml` optimized for Cloud Run. Note that the Docker build context **must be the root of the repository** so it can access the master `pyproject.toml`.
-1. Configure `cloudbuild.yaml` with your GCP Project and preferred Google Artifact Registry region.
+1. Ensure the shared Artifact Registry repository and Terraform-managed Cloud Run infrastructure already exist.
 2. Run Cloud Build from the root of the repository to create the image and deploy to Cloud Run:
    ```bash
     gcloud builds submit --config=mcp_servers/gcs/cloudbuild.yaml .

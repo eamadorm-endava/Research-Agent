@@ -1,41 +1,34 @@
 ## Infrastructure Management
 
-This directory contains the Terraform configurations and bootstrap scripts required to manage the Research-Agent infrastructure on Google Cloud Platform.
+This directory contains the Terraform configurations and bootstrap scripts used to manage Research-Agent infrastructure on Google Cloud Platform.
 
 ## Prerequisites and Required Permissions
 
-Before running any scripts, ensure your active account (the one you used to run gcloud auth login) has the following IAM roles at the Project Level:
+Before running any scripts, ensure your active account has the following IAM roles at the project level:
 
-- ```roles/resourcemanager.projectIamAdmin (To manage Service Account permissions)```
-
-- ```roles/iam.serviceAccountAdmin (To create the Terraform SA)```
-
-- ```roles/serviceusage.serviceUsageAdmin (To enable APIs)```
-
-- ```roles/storage.admin (To create the State Bucket)```
+- `roles/resourcemanager.projectIamAdmin` to manage service account permissions
+- `roles/iam.serviceAccountAdmin` to create the Terraform service account
+- `roles/serviceusage.serviceUsageAdmin` to enable APIs
+- `roles/storage.admin` to create the Terraform state bucket
 
 
-## Infrastructure deployment workflow
+## Infrastructure Deployment Workflow
 
-The environment uses a dedicated Service Account and a GCS Backend to manage state securely via Cloud Build 2nd Gen.
+The environment uses a dedicated service account and a GCS backend to manage Terraform state securely through Cloud Build.
 
-1. Open your terminal (Cloud Shell or local).
+1. Open a terminal.
 
 2. Navigate to the scripts folder:
 
 ```
-cd terraform/scripts/
+cd terraform/scripts
 ```
 
-3. Execute the Bootstrap script:
+3. Review [terraform/scripts/README.md](scripts/README.md).
 
-    - Check README.md inside script folder and follow the instructions
+4. Execute the bootstrap script when you need to create the Terraform service account, state bucket, and baseline Cloud Build setup.
 
-This script creates the Service Account, grants required IAM roles and permissions, creates the GCS state bucket, and sets up the Cloud Build Triggers.
-
-#### Folder Structure and Resources
-
-Once the bootstrap is complete, you can manage specific resources.
+The bootstrap script creates the Terraform service account, grants required IAM roles, creates the state bucket, and prepares Cloud Build integration.
 
 ## Terraform Project Structure
 
@@ -43,16 +36,33 @@ Once the bootstrap is complete, you can manage specific resources.
 |-----------------------|----------------------------------------------------------|
 | `base_modules/`       | Reusable modules (IAM, APIs, Networking).               |
 | `ai_agent_resources/` | Service Accounts and APIs for the AI Agent.             |
-| `mcp_server_resources/` | Cloud Run and Vertex AI setup for MCP.               |
+| `bq_mcp_server_resources/` | BigQuery MCP service resources.                  |
+| `gcs_mcp_server_resources/` | GCS MCP service resources.                      |
+| `shared_resources/` | Shared infrastructure such as Artifact Registry.         |
 
-For deployment details check:
+## Apply Order
+
+Apply shared infrastructure before service-specific MCP modules:
+
+1. `shared_resources/`
+2. `ai_agent_resources/` as needed
+3. `bq_mcp_server_resources/`
+4. `gcs_mcp_server_resources/`
+
+This order ensures the shared `mcp-servers` Artifact Registry repository is owned by a single Terraform state before the MCP service modules consume it.
+
+## Module Guides
 
 - AI Agent Services: View README.md inside ai_agent_resources folder
-- MCP Server Resources: View README.md inside mcp_server_resources folder
+- BigQuery MCP Resources: View README.md inside bq_mcp_server_resources folder
+- GCS MCP Resources: View README.md inside gcs_mcp_server_resources folder
+- Shared Resources: View README.md inside shared_resources folder
 
 ## CI/CD Workflow
 
-The infrastructure is deployed automatically via Cloud Build:
+Infrastructure is deployed automatically via Cloud Build:
 
-1. CI (Terraform Plan): Triggered automatically when a Pull Request is opened against main. 
-2. CD (Terraform Apply): Triggered automatically when code is Merged/Pushed to main.
+1. CI (`terraform plan`) is triggered when a pull request is opened against `main`.
+2. CD (`terraform apply`) is triggered when code is merged or pushed to `main`.
+3. Trigger creation is managed outside Terraform with `terraform/scripts/run_once.sh` for `bq_mcp_server_resources` and `gcs_mcp_server_resources`.
+4. `shared_resources` is applied one-time during bootstrap/manual setup (not continuous CI/CD).
