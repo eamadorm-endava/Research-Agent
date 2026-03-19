@@ -1,4 +1,4 @@
-# MCP Tools & Dual Authentication Architecture
+# MCP Tools & Dual Authentication process Architecture
 
 This document provides a detailed overview of the Model Context Protocol (MCP) tools implemented in this repository and breaks down the dual-layer authentication model used to securely manage communications between the AI Agent, the MCP Servers, and Google Cloud APIs.
 
