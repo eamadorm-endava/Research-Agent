@@ -78,7 +78,9 @@ async def test_create_google_doc_success(mock_drive_manager):
     )
     mock_drive_manager.return_value = manager
 
-    result = await create_google_doc(CreateGoogleDocRequest(title="Summary", content="hello"))
+    result = await create_google_doc(
+        CreateGoogleDocRequest(title="Summary", content="hello")
+    )
 
     assert result.execution_status == "success"
     assert result.file is not None

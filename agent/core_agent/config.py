@@ -1,8 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import Annotated
- 
- 
+
+
 class GCPConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -14,7 +14,7 @@ class GCPConfig(BaseSettings):
     Class that holds configuration values for GCP services. Allowing to, in any future, change the
     cloud provider or the way to access the secrets.
     """
- 
+
     PROJECT_ID: Annotated[
         str,
         Field(
@@ -29,8 +29,8 @@ class GCPConfig(BaseSettings):
             description="GCP Region where most of the services will be deployed",
         ),
     ]
- 
- 
+
+
 class AgentConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -42,7 +42,7 @@ class AgentConfig(BaseSettings):
     Class that holds configuration values for the agent, it requires to assign
     parameters after initialization.
     """
- 
+
     MODEL_NAME: Annotated[
         str,
         Field(
@@ -144,8 +144,8 @@ class AgentConfig(BaseSettings):
             description="Instructions for the agent",
         ),
     ]
- 
- 
+
+
 class MCPServersConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -156,7 +156,7 @@ class MCPServersConfig(BaseSettings):
     """
     Class that holds configuration values for MCP servers.
     """
- 
+
     GENERAL_TIMEOUT: Annotated[
         int,
         Field(

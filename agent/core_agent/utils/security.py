@@ -1,7 +1,4 @@
 import logging
-import os
-from typing import Any
-from urllib.parse import urlparse
 
 import google.auth
 import google.oauth2.id_token
@@ -17,7 +14,9 @@ def get_id_token(audience: str) -> str | None:
     """
     request = Request()
     try:
-        logging.debug("Retrieving ID token from metadata server for audience %s", audience)
+        logging.debug(
+            "Retrieving ID token from metadata server for audience %s", audience
+        )
         id_token = google.oauth2.id_token.fetch_id_token(request, audience)
         logging.debug("ID token successfully retrieved from metadata server")
         return id_token

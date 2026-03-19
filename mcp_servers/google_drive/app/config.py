@@ -14,19 +14,31 @@ class DriveMcpConfigBase(BaseModel):
 class DriveApiConfig(DriveMcpConfigBase):
     google_doc: Annotated[
         str,
-        Field(default="application/vnd.google-apps.document", description="Google Docs MIME type."),
+        Field(
+            default="application/vnd.google-apps.document",
+            description="Google Docs MIME type.",
+        ),
     ]
     google_sheet: Annotated[
         str,
-        Field(default="application/vnd.google-apps.spreadsheet", description="Google Sheets MIME type."),
+        Field(
+            default="application/vnd.google-apps.spreadsheet",
+            description="Google Sheets MIME type.",
+        ),
     ]
     google_slide: Annotated[
         str,
-        Field(default="application/vnd.google-apps.presentation", description="Google Slides MIME type."),
+        Field(
+            default="application/vnd.google-apps.presentation",
+            description="Google Slides MIME type.",
+        ),
     ]
     google_folder: Annotated[
         str,
-        Field(default="application/vnd.google-apps.folder", description="Google Drive folder MIME type."),
+        Field(
+            default="application/vnd.google-apps.folder",
+            description="Google Drive folder MIME type.",
+        ),
     ]
     pdf: Annotated[
         str,
@@ -125,7 +137,10 @@ class DriveAuthConfig(DriveMcpConfigBase):
     oauth_client_secret_env_names: Annotated[
         tuple[str, ...],
         Field(
-            default=("DRIVE_GOOGLE_OAUTH_CLIENT_SECRETS", "GOOGLE_OAUTH_CLIENT_SECRETS"),
+            default=(
+                "DRIVE_GOOGLE_OAUTH_CLIENT_SECRETS",
+                "GOOGLE_OAUTH_CLIENT_SECRETS",
+            ),
             description="Environment variables checked for the local OAuth client-secret path.",
         ),
     ]
@@ -138,11 +153,17 @@ class DriveAuthConfig(DriveMcpConfigBase):
     ]
     default_client_secret_path: Annotated[
         str,
-        Field(default="client_secret.json", description="Default local OAuth client-secret path."),
+        Field(
+            default="client_secret.json",
+            description="Default local OAuth client-secret path.",
+        ),
     ]
     default_token_cache_path: Annotated[
         str,
-        Field(default=".cache/drive_token.json", description="Default Drive token cache path."),
+        Field(
+            default=".cache/drive_token.json",
+            description="Default Drive token cache path.",
+        ),
     ]
     google_token_info_url_v3: Annotated[
         str,
@@ -177,19 +198,33 @@ class DriveAuthConfig(DriveMcpConfigBase):
 class DriveServerConfig(DriveMcpConfigBase):
     server_name: Annotated[
         str,
-        Field(default="google-drive-mcp-server", description="Published name of the Drive MCP server."),
+        Field(
+            default="google-drive-mcp-server",
+            description="Published name of the Drive MCP server.",
+        ),
     ]
     default_host: Annotated[
         str,
-        Field(default="0.0.0.0", description="Default interface the Drive MCP server binds to."),
+        Field(
+            default="0.0.0.0",
+            description="Default interface the Drive MCP server binds to.",
+        ),
     ]
     default_port: Annotated[
         int,
-        Field(default=8080, ge=1, le=65535, description="Default port for the Drive MCP server."),
+        Field(
+            default=8080,
+            ge=1,
+            le=65535,
+            description="Default port for the Drive MCP server.",
+        ),
     ]
     default_log_level: Annotated[
         str,
-        Field(default="info", description="Default log level for the local Drive MCP server."),
+        Field(
+            default="info",
+            description="Default log level for the local Drive MCP server.",
+        ),
     ]
     route_path: Annotated[
         str,
@@ -197,19 +232,31 @@ class DriveServerConfig(DriveMcpConfigBase):
     ]
     header_context_key: Annotated[
         str,
-        Field(default="drive_mcp_headers", description="Context variable key used to cache inbound HTTP headers."),
+        Field(
+            default="drive_mcp_headers",
+            description="Context variable key used to cache inbound HTTP headers.",
+        ),
     ]
     stateless_http: Annotated[
         bool,
-        Field(default=True, description="Whether the server should use stateless HTTP mode."),
+        Field(
+            default=True,
+            description="Whether the server should use stateless HTTP mode.",
+        ),
     ]
     json_response: Annotated[
         bool,
-        Field(default=True, description="Whether the MCP server should use JSON responses."),
+        Field(
+            default=True,
+            description="Whether the MCP server should use JSON responses.",
+        ),
     ]
     debug: Annotated[
         bool,
-        Field(default=False, description="Whether the Starlette app should run in debug mode."),
+        Field(
+            default=False,
+            description="Whether the Starlette app should run in debug mode.",
+        ),
     ]
 
 

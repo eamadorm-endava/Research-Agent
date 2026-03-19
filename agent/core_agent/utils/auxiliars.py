@@ -41,5 +41,5 @@ def get_mcp_servers_tools(mcp_config: MCPServersConfig) -> list[McpToolset]:
                 },
             )
         )
-        
+
     return tools
