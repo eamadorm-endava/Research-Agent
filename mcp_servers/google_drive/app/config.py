@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -127,29 +127,6 @@ class DriveAuthConfig(DriveMcpConfigBase):
         Field(
             default="https://accounts.google.com",
             description="Google Accounts issuer URL.",
-        ),
-    ]
-    google_oauth2_auth_url: Annotated[
-        str,
-        Field(
-            default="https://accounts.google.com/o/oauth2/v2/auth",
-            description="Google OAuth2 authorization endpoint.",
-        ),
-    ]
-    google_oauth_client_id: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            validation_alias="DRIVE_OAUTH_CLIENT_ID",
-            description="Google OAuth2 Client ID for authentication.",
-        ),
-    ]
-    google_oauth_redirect_uri: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            validation_alias="DRIVE_OAUTH_REDIRECT_URI",
-            description="Google OAuth2 Redirect URI.",
         ),
     ]
 

@@ -318,7 +318,7 @@ def build_drive_credentials(
     access_token: Optional[str] = None,
     scopes: Optional[Sequence[str]] = None,
     validate: bool = True,
-) -> Any:
+) -> Credentials:
     """
     Builds Google OAuth2 credentials from a provided access token.
     Args:

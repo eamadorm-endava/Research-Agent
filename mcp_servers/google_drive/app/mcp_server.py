@@ -104,15 +104,13 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
             execution_message=f"Found {len(files)} files.",
         )
     except AuthenticationError as exc:
-        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.read_scopes)
-        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
         return ListFilesResponse(
             max_results=request.max_results,
             folder_id=request.folder_id,
             include_folders=request.include_folders,
             files=[],
             execution_status="error",
-            execution_message=f"Authentication Error: {exc}.{url_hint}",
+            execution_message=f"Authentication Error: {exc}",
         )
     except Exception as exc:
         return ListFilesResponse(
@@ -161,8 +159,6 @@ async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
             execution_message=f"Found {len(files)} matching files.",
         )
     except AuthenticationError as exc:
-        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.read_scopes)
-        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
         return SearchFilesResponse(
             search_text=request.search_text,
             drive_query=request.drive_query,
@@ -172,7 +168,7 @@ async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
             mime_types=request.mime_types,
             files=[],
             execution_status="error",
-            execution_message=f"Authentication Error: {exc}.{url_hint}",
+            execution_message=f"Authentication Error: {exc}",
         )
     except Exception as exc:
         return SearchFilesResponse(
@@ -212,14 +208,12 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
             execution_message=f"Retrieved text for file {request.file_id}.",
         )
     except AuthenticationError as exc:
-        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.read_scopes)
-        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
         return GetFileTextResponse(
             file_id=request.file_id,
             max_chars=request.max_chars,
             document=None,
             execution_status="error",
-            execution_message=f"Authentication Error: {exc}.{url_hint}",
+            execution_message=f"Authentication Error: {exc}",
         )
     except Exception as exc:
         return GetFileTextResponse(
@@ -257,15 +251,13 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
             execution_message=f"Created Google Doc '{request.title}'.",
         )
     except AuthenticationError as exc:
-        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.write_doc_scopes)
-        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
         return CreateGoogleDocResponse(
             title=request.title,
             content=request.content,
             folder_id=request.folder_id,
             file=None,
             execution_status="error",
-            execution_message=f"Authentication Error: {exc}.{url_hint}",
+            execution_message=f"Authentication Error: {exc}",
         )
     except Exception as exc:
         return CreateGoogleDocResponse(
@@ -304,15 +296,13 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
             execution_message=f"Uploaded PDF '{request.title}.pdf'.",
         )
     except AuthenticationError as exc:
-        auth_url = _get_auth_url(scopes=DRIVE_API_CONFIG.write_pdf_scopes)
-        url_hint = f" Please authorize access here: {auth_url}" if auth_url else ""
         return UploadPdfResponse(
             title=request.title,
             text=request.text,
             folder_id=request.folder_id,
             file=None,
             execution_status="error",
-            execution_message=f"Authentication Error: {exc}.{url_hint}",
+            execution_message=f"Authentication Error: {exc}",
         )
     except Exception as exc:
         return UploadPdfResponse(
@@ -333,9 +323,7 @@ def _make_drive_manager(*, scopes: Sequence[str]) -> DriveManager:
     Return: An initialized DriveManager object.
     """
     access_token = _get_current_token()
-    creds = build_drive_credentials(
-        access_token=access_token, scopes=scopes, validate=False
-    )
+    creds = build_drive_credentials(access_token=access_token, scopes=scopes)
     return DriveManager(creds)
 
 
@@ -349,31 +337,3 @@ def _get_current_token() -> Optional[str]:
     # Use native MCP access token which is extracted/validated by middleware
     token_obj = get_access_token()
     return token_obj.token if token_obj else None
-
-
-def _get_auth_url(scopes: Sequence[str]) -> str:
-    """
-    Constructs a Google authorization URL for user consent.
-    Args:
-        scopes: The OAuth scopes to request from the user.
-    Return: A formatted Google authorization URL.
-    """
-    client_id = DRIVE_AUTH_CONFIG.google_oauth_client_id
-    redirect_uri = DRIVE_AUTH_CONFIG.google_oauth_redirect_uri
-
-    if not (client_id and redirect_uri):
-        return ""
-
-    import urllib.parse
-
-    params = {
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": " ".join(scopes),
-        "access_type": "offline",
-        "prompt": "consent",
-    }
-    return (
-        f"{DRIVE_AUTH_CONFIG.google_oauth2_auth_url}?{urllib.parse.urlencode(params)}"
-    )
