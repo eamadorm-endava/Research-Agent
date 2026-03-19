@@ -9,26 +9,27 @@ from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCode
 from .config import GCPConfig, AgentConfig, MCPServersConfig
-from .utils.auxiliars import get_mcp_servers_tools
- 
+from .utils.security import get_id_token
+
 logging.getLogger().setLevel(logging.INFO)
- 
+
 gcp_config = GCPConfig()
 agent_config = AgentConfig()
 mcp_servers = MCPServersConfig()
- 
+
 # Variables
 project_id = gcp_config.PROJECT_ID
 region = gcp_config.REGION
 model_armor_template_id = f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
 full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOINT
+full_gcs_mcp_server_path = mcp_servers.GCS_URL + mcp_servers.GCS_ENDPOINT
 full_drive_mcp_server_path = mcp_servers.DRIVE_URL + mcp_servers.DRIVE_ENDPOINT
- 
+
 vertexai.Client(
     project=project_id,
     location=region,
 )
- 
+
 # Authentication Configuration for Google Drive (Authorization Code Flow)
 drive_oauth_scopes = {
     scope: "google drive access"
@@ -45,7 +46,7 @@ auth_scheme = OAuth2(
         )
     )
 )
- 
+
 auth_credential = AuthCredential(
     auth_type=AuthCredentialTypes.OAUTH2,
     oauth2=OAuth2Auth(
@@ -54,7 +55,7 @@ auth_credential = AuthCredential(
         redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
     ),
 )
- 
+
 agent_settings = GenerateContentConfig(
     temperature=agent_config.TEMPERATURE,
     top_p=agent_config.TOP_P,
@@ -66,7 +67,7 @@ agent_settings = GenerateContentConfig(
         response_template_name=model_armor_template_id,
     ),
 )
- 
+
 agent_retry_options = HttpRetryOptions(
     attempts=agent_config.RETRY_ATTEMPTS,
     initial_delay=agent_config.RETRY_INITIAL_DELAY,
@@ -75,7 +76,7 @@ agent_retry_options = HttpRetryOptions(
 )
 
 # MCP toolset construction is centralized in utils/auxiliars.py:get_mcp_servers_tools
-tools = get_mcp_servers_tools(mcp_servers)
+# tools = get_mcp_servers_tools(mcp_servers)
 
 root_agent = Agent(
     model=Gemini(
@@ -91,14 +92,34 @@ root_agent = Agent(
         "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
         "access in their browser before you can continue with Drive tasks."
     ),
-    tools = tools + [McpToolset(
+    tools=[
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_bq_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            header_provider=lambda ctx: {
+                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
+            },
+        ),
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_gcs_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            header_provider=lambda ctx: {
+                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.GCS_URL)}"
+            },
+        ),
+        McpToolset(
             connection_params=StreamableHTTPConnectionParams(
                 url=full_drive_mcp_server_path,
                 timeout=mcp_servers.GENERAL_TIMEOUT,
             ),
             auth_scheme=auth_scheme,
             auth_credential=auth_credential,
-        )]
+        ),
+    ],
 )
- 
+
 app = agent_engines.AdkApp(agent=root_agent)
