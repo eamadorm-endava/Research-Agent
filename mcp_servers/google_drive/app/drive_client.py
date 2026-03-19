@@ -351,7 +351,7 @@ def validate_access_token(
 
     try:
         response = requests.get(
-            "https://www.googleapis.com/oauth2/v3/tokeninfo",
+            DRIVE_AUTH_CONFIG.google_token_info_url_v3,
             params={"access_token": access_token},
             timeout=10,
         )

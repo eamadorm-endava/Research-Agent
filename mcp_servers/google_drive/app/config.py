@@ -144,6 +144,34 @@ class DriveAuthConfig(DriveMcpConfigBase):
         str,
         Field(default=".cache/drive_token.json", description="Default Drive token cache path."),
     ]
+    google_token_info_url_v3: Annotated[
+        str,
+        Field(
+            default="https://www.googleapis.com/oauth2/v3/tokeninfo",
+            description="Google OAuth2 v3 token info endpoint for validation.",
+        ),
+    ]
+    google_token_info_url: Annotated[
+        str,
+        Field(
+            default="https://oauth2.googleapis.com/tokeninfo",
+            description="Google OAuth2 token info endpoint.",
+        ),
+    ]
+    google_accounts_issuer_url: Annotated[
+        str,
+        Field(
+            default="https://accounts.google.com",
+            description="Google Accounts issuer URL.",
+        ),
+    ]
+    google_oauth2_auth_url: Annotated[
+        str,
+        Field(
+            default="https://accounts.google.com/o/oauth2/v2/auth",
+            description="Google OAuth2 authorization endpoint.",
+        ),
+    ]
 
 
 class DriveServerConfig(DriveMcpConfigBase):

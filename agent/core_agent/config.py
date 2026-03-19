@@ -124,6 +124,26 @@ class AgentConfig(BaseSettings):
             description="Maximum delay in seconds to retry the request in case of failure.",
         ),
     ]
+    AGENT_NAME: Annotated[
+        str,
+        Field(
+            default="research_agent",
+            description="Name of the agent",
+        ),
+    ]
+    AGENT_INSTRUCTION: Annotated[
+        str,
+        Field(
+            default=(
+                "You are a helpful research assistant with access to BigQuery data and Google Drive. "
+                "You can list, read, write, update, and upload files in the user's Google Drive. "
+                "IMPORTANT: If a Google Drive tool returns an error stating the user is not authenticated, "
+                "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
+                "access in their browser before you can continue with Drive tasks."
+            ),
+            description="Instructions for the agent",
+        ),
+    ]
  
  
 class MCPServersConfig(BaseSettings):
@@ -202,6 +222,20 @@ class MCPServersConfig(BaseSettings):
                 "https://www.googleapis.com/auth/documents"
             ),
             description="Space-separated OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
+        ),
+    ]
+    DRIVE_OAUTH_AUTH_URL: Annotated[
+        str,
+        Field(
+            default="https://accounts.google.com/o/oauth2/v2/auth",
+            description="OAuth 2.0 Authorization URL for Google Drive",
+        ),
+    ]
+    DRIVE_OAUTH_TOKEN_URL: Annotated[
+        str,
+        Field(
+            default="https://oauth2.googleapis.com/token",
+            description="OAuth 2.0 Token URL for Google Drive",
         ),
     ]
     GCS_URL: Annotated[

@@ -40,8 +40,8 @@ drive_oauth_scopes = {
 auth_scheme = OAuth2(
     flows=OAuthFlows(
         authorizationCode=OAuthFlowAuthorizationCode(
-            authorizationUrl="https://accounts.google.com/o/oauth2/v2/auth",
-            tokenUrl="https://oauth2.googleapis.com/token",
+            authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URL,
+            tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URL,
             scopes=drive_oauth_scopes,
         )
     )
@@ -83,15 +83,9 @@ root_agent = Agent(
         model_name=agent_config.MODEL_NAME,
         retry_options=agent_retry_options,
     ),
-    name="research_agent",
+    name=agent_config.AGENT_NAME,
     generate_content_config=agent_settings,
-    instruction=(
-        "You are a helpful research assistant with access to BigQuery data and Google Drive. "
-        "You can list, read, write, update, and upload files in the user's Google Drive. "
-        "IMPORTANT: If a Google Drive tool returns an error stating the user is not authenticated, "
-        "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
-        "access in their browser before you can continue with Drive tasks."
-    ),
+    instruction=agent_config.AGENT_INSTRUCTION,
     tools=[
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(

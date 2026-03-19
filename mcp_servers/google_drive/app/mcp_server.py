@@ -42,7 +42,7 @@ class GoogleDriveTokenVerifier(TokenVerifier):
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
+                    f"{DRIVE_AUTH_CONFIG.google_token_info_url}?access_token={token}"
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -64,7 +64,7 @@ mcp = FastMCP(
     port=str(DRIVE_SERVER_CONFIG.default_port),
     token_verifier=GoogleDriveTokenVerifier(),
     auth=AuthSettings(
-        issuer_url=AnyHttpUrl("https://accounts.google.com"),
+        issuer_url=AnyHttpUrl(DRIVE_AUTH_CONFIG.google_accounts_issuer_url),
         resource_server_url=AnyHttpUrl(
             f"http://{DRIVE_SERVER_CONFIG.default_host}:{DRIVE_SERVER_CONFIG.default_port}"
         ),
@@ -392,5 +392,5 @@ def _get_auth_url(scopes: list[str]) -> str:
         "prompt": "consent",
     }
     return (
-        f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+        f"{DRIVE_AUTH_CONFIG.google_oauth2_auth_url}?{urllib.parse.urlencode(params)}"
     )
