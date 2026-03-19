@@ -8,10 +8,6 @@ import google.oauth2.id_token
 from google.auth.transport.requests import Request
 
 
-def _truthy(value: str | None) -> bool:
-    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
 def get_id_token(audience: str) -> str | None:
     """
     Generate a valid ID token to call a GCP service such as Cloud Run.
