@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Optional, Sequence
 
 import httpx
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -30,9 +31,15 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleDriveTokenVerifier(TokenVerifier):
-    """Verifies a Google OAuth access token."""
+    """Verifies a Google OAuth access token against Google's tokeninfo endpoint."""
 
-    async def verify_token(self, token: str) -> AccessToken | None:
+    async def verify_token(self, token: str) -> Optional[AccessToken]:
+        """
+        Validates the token and returns an AccessToken object if valid.
+        Args:
+            token: The raw OAuth2 access token to verify.
+        Return: An AccessToken object or None if verification fails.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -69,6 +76,12 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def list_files(request: ListFilesRequest) -> ListFilesResponse:
+    """
+    Lists files in a Google Drive folder.
+    Args:
+        request: ListFilesRequest object containing filter and pagination details.
+    Return: ListFilesResponse object with the retrieved files and status.
+    """
     logger.info(
         "Tool call: list_files(max_results=%s, folder_id=%s)",
         request.max_results,
@@ -114,6 +127,12 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
 
 @mcp.tool()
 async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
+    """
+    Searches for files in Google Drive using text or raw queries.
+    Args:
+        request: SearchFilesRequest specifying search terms and filters.
+    Return: SearchFilesResponse containing the matching files.
+    """
     logger.info(
         "Tool call: search_files(search_text=%s, drive_query=%s)",
         request.search_text,
@@ -171,6 +190,12 @@ async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
 
 @mcp.tool()
 async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
+    """
+    Retrieves the plain text content of a Google Drive file.
+    Args:
+        request: GetFileTextRequest with the file ID and max characters.
+    Return: GetFileTextResponse including the extracted text.
+    """
     logger.info("Tool call: get_file_text(file_id=%s)", request.file_id)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
@@ -208,6 +233,12 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
 
 @mcp.tool()
 async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocResponse:
+    """
+    Creates a new Google Doc with the specified content.
+    Args:
+        request: CreateGoogleDocRequest with title, content, and optional folder.
+    Return: CreateGoogleDocResponse with the new file's metadata.
+    """
     logger.info("Tool call: create_google_doc(title=%s)", request.title)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.write_doc_scopes)
@@ -249,6 +280,12 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
 
 @mcp.tool()
 async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
+    """
+    Generates and uploads a PDF file from the provided text.
+    Args:
+        request: UploadPdfRequest with title, text content, and optional folder.
+    Return: UploadPdfResponse with the result of the upload.
+    """
     logger.info("Tool call: upload_pdf(title=%s)", request.title)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.write_pdf_scopes)
@@ -288,7 +325,13 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
         )
 
 
-def _make_drive_manager(*, scopes: list[str]) -> DriveManager:
+def _make_drive_manager(*, scopes: Sequence[str]) -> DriveManager:
+    """
+    Factory function to create a DriveManager instance for tools.
+    Args:
+        scopes: Sequence of OAuth scopes required for the requested operations.
+    Return: An initialized DriveManager object.
+    """
     access_token = _get_current_token()
     creds = build_drive_credentials(
         access_token=access_token, scopes=scopes, validate=False
@@ -296,14 +339,25 @@ def _make_drive_manager(*, scopes: list[str]) -> DriveManager:
     return DriveManager(creds)
 
 
-def _get_current_token() -> str | None:
+def _get_current_token() -> Optional[str]:
+    """
+    Retrieves the current OAuth access token from the MCP context.
+    Args:
+        None
+    Return: The raw access token string or None if not authenticated.
+    """
     # Use native MCP access token which is extracted/validated by middleware
     token_obj = get_access_token()
     return token_obj.token if token_obj else None
 
 
-def _get_auth_url(scopes: list[str]) -> str:
-    """Construct the Google Drive authorization URL if client info is available."""
+def _get_auth_url(scopes: Sequence[str]) -> str:
+    """
+    Constructs a Google authorization URL for user consent.
+    Args:
+        scopes: The OAuth scopes to request from the user.
+    Return: A formatted Google authorization URL.
+    """
     client_id = DRIVE_AUTH_CONFIG.google_oauth_client_id
     redirect_uri = DRIVE_AUTH_CONFIG.google_oauth_redirect_uri
 

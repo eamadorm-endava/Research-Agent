@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,6 +19,8 @@ class DriveMcpConfigBase(BaseSettings):
 
 
 class DriveApiConfig(DriveMcpConfigBase):
+    """Configuration for Google Drive API endpoints and MIME types."""
+
     google_doc: Annotated[
         str,
         Field(
@@ -104,6 +106,8 @@ class DriveApiConfig(DriveMcpConfigBase):
 
 
 class DriveAuthConfig(DriveMcpConfigBase):
+    """Configuration for Google OAuth authentication endpoints and client details."""
+
     google_token_info_url_v3: Annotated[
         str,
         Field(
@@ -133,24 +137,26 @@ class DriveAuthConfig(DriveMcpConfigBase):
         ),
     ]
     google_oauth_client_id: Annotated[
-        str | None,
+        Optional[str],
         Field(
             default=None,
             validation_alias="DRIVE_OAUTH_CLIENT_ID",
-            description="Google Drive OAuth client ID.",
+            description="Google OAuth2 Client ID for authentication.",
         ),
     ]
     google_oauth_redirect_uri: Annotated[
-        str | None,
+        Optional[str],
         Field(
             default=None,
             validation_alias="DRIVE_OAUTH_REDIRECT_URI",
-            description="Google Drive OAuth redirect URI.",
+            description="Google OAuth2 Redirect URI.",
         ),
     ]
 
 
 class DriveServerConfig(DriveMcpConfigBase):
+    """Configuration for the MCP server's network and operational settings."""
+
     server_name: Annotated[
         str,
         Field(

@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal, Optional, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -37,12 +35,12 @@ MAX_RESULTS = Annotated[
         le=1000,
     ),
 ]
-OPTIONAL_FOLDER_ID = Annotated[
-    str | None,
+FOLDER_ID = Annotated[
+    Optional[str],
     Field(default=None, description="Optional Drive folder ID to restrict results."),
 ]
-OPTIONAL_MIME_TYPES = Annotated[
-    list[str] | None,
+MIME_TYPES = Annotated[
+    Optional[list[str]],
     Field(
         default=None,
         description="Optional list of MIME types to include in search results.",
@@ -56,14 +54,14 @@ INCLUDE_FOLDERS = Annotated[
     ),
 ]
 SEARCH_TEXT = Annotated[
-    str | None,
+    Optional[str],
     Field(
         default=None,
         description="Plain-text search term used against name/fullText.",
     ),
 ]
 DRIVE_QUERY = Annotated[
-    str | None,
+    Optional[str],
     Field(
         default=None,
         description="Raw Drive query-language expression. If provided, this takes precedence.",
@@ -103,11 +101,11 @@ DRIVE_FILE_MIME_TYPE = Annotated[
     Field(description="Drive MIME type."),
 ]
 DRIVE_FILE_MODIFIED_TIME = Annotated[
-    str | None,
+    Optional[str],
     Field(default=None, description="Last modified time."),
 ]
 DRIVE_FILE_WEB_VIEW_LINK = Annotated[
-    str | None,
+    Optional[str],
     Field(default=None, description="Browser URL for the file."),
 ]
 DRIVE_DOCUMENT_TEXT = Annotated[
@@ -117,11 +115,15 @@ DRIVE_DOCUMENT_TEXT = Annotated[
 
 
 class BaseResponse(DriveSchemaModel):
+    """Common response fields for all tool executions."""
+
     execution_status: EXECUTION_STATUS
     execution_message: EXECUTION_MESSAGE
 
 
 class DriveFileModel(DriveSchemaModel):
+    """Metadata for a single Google Drive file."""
+
     id: DRIVE_FILE_ID
     name: DRIVE_FILE_NAME
     mimeType: DRIVE_FILE_MIME_TYPE
@@ -130,6 +132,8 @@ class DriveFileModel(DriveSchemaModel):
 
 
 class DriveDocumentModel(DriveFileModel):
+    """Extended file metadata including extracted text content."""
+
     text: DRIVE_DOCUMENT_TEXT
 
 
@@ -137,12 +141,12 @@ DRIVE_FILE_LIST = Annotated[
     list[DriveFileModel],
     Field(default_factory=list, description="List of file metadata objects."),
 ]
-OPTIONAL_DRIVE_FILE = Annotated[
-    DriveFileModel | None,
+DRIVE_FILE = Annotated[
+    Optional[DriveFileModel],
     Field(default=None, description="Drive file metadata returned by the operation."),
 ]
-OPTIONAL_DRIVE_DOCUMENT = Annotated[
-    DriveDocumentModel | None,
+DRIVE_DOCUMENT = Annotated[
+    Optional[DriveDocumentModel],
     Field(
         default=None,
         description="Drive document metadata plus extracted text.",
@@ -151,58 +155,79 @@ OPTIONAL_DRIVE_DOCUMENT = Annotated[
 
 
 class ListFilesRequest(DriveSchemaModel):
+    """Request schema for listing files in a folder."""
+
     max_results: MAX_RESULTS
-    folder_id: OPTIONAL_FOLDER_ID
+    folder_id: FOLDER_ID
     include_folders: INCLUDE_FOLDERS
 
 
 class ListFilesResponse(ListFilesRequest, BaseResponse):
+    """Response schema containing the list of files found."""
+
     files: DRIVE_FILE_LIST
 
 
 class SearchFilesRequest(DriveSchemaModel):
+    """Request schema for searching files across Drive."""
+
     search_text: SEARCH_TEXT
     drive_query: DRIVE_QUERY
     max_results: MAX_RESULTS
-    folder_id: OPTIONAL_FOLDER_ID
+    folder_id: FOLDER_ID
     include_folders: INCLUDE_FOLDERS
-    mime_types: OPTIONAL_MIME_TYPES
+    mime_types: MIME_TYPES
 
     @model_validator(mode="after")
     def validate_query(self) -> Self:
+        """Ensures that either search_text or drive_query is provided."""
         if not (self.search_text or self.drive_query):
             raise ValueError("Either search_text or drive_query must be provided.")
         return self
 
 
 class SearchFilesResponse(SearchFilesRequest, BaseResponse):
+    """Response schema containing search results."""
+
     files: DRIVE_FILE_LIST
 
 
 class GetFileTextRequest(DriveSchemaModel):
+    """Request schema for extracting text from a file."""
+
     file_id: DRIVE_FILE_ID
     max_chars: MAX_CHARS
 
 
 class GetFileTextResponse(GetFileTextRequest, BaseResponse):
-    document: OPTIONAL_DRIVE_DOCUMENT
+    """Response schema containing the extracted document text."""
+
+    document: DRIVE_DOCUMENT
 
 
 class CreateGoogleDocRequest(DriveSchemaModel):
+    """Request schema for creating a new Google Doc."""
+
     title: DOCUMENT_TITLE
     content: DOCUMENT_CONTENT
-    folder_id: OPTIONAL_FOLDER_ID
+    folder_id: FOLDER_ID
 
 
 class CreateGoogleDocResponse(CreateGoogleDocRequest, BaseResponse):
-    file: OPTIONAL_DRIVE_FILE
+    """Response schema for a created Google Doc."""
+
+    file: DRIVE_FILE
 
 
 class UploadPdfRequest(DriveSchemaModel):
+    """Request schema for creating a PDF from text."""
+
     title: DOCUMENT_TITLE
     text: PDF_TEXT_CONTENT
-    folder_id: OPTIONAL_FOLDER_ID
+    folder_id: FOLDER_ID
 
 
 class UploadPdfResponse(UploadPdfRequest, BaseResponse):
-    file: OPTIONAL_DRIVE_FILE
+    """Response schema for an uploaded PDF."""
+
+    file: DRIVE_FILE

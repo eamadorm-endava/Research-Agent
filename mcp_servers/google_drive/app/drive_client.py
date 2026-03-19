@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import io
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 import httpx
 from google.oauth2.credentials import Credentials
@@ -18,7 +18,13 @@ from .schemas import DriveFileModel as DriveFile
 class DriveManager:
     """Manager for Google Drive operations."""
 
-    def __init__(self, creds: Any):
+    def __init__(self, creds: Any) -> None:
+        """
+        Initializes the DriveManager with Google API credentials.
+        Args:
+            creds: Valid Google OAuth2 credentials.
+        Return: None
+        """
         self.creds = creds
         self.drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
@@ -26,9 +32,17 @@ class DriveManager:
         self,
         *,
         max_results: int = 10,
-        folder_id: str | None = None,
+        folder_id: Optional[str] = None,
         include_folders: bool = False,
     ) -> list[DriveFile]:
+        """
+        Lists files in a specific folder or the root directory.
+        Args:
+            max_results: Maximum number of files to return.
+            folder_id: Optional ID of the parent folder to list.
+            include_folders: Whether to include folders in the result list.
+        Return: A list of DriveFile objects.
+        """
         query_parts: list[str] = []
         if folder_id:
             query_parts.append(f"'{_escape_q(folder_id)}' in parents")
@@ -56,13 +70,24 @@ class DriveManager:
     def search_files(
         self,
         *,
-        search_text: str | None = None,
-        drive_query: str | None = None,
+        search_text: Optional[str] = None,
+        drive_query: Optional[str] = None,
         max_results: int = 10,
-        folder_id: str | None = None,
+        folder_id: Optional[str] = None,
         include_folders: bool = False,
-        mime_types: Sequence[str] | None = None,
+        mime_types: Optional[Sequence[str]] = None,
     ) -> list[DriveFile]:
+        """
+        Searches for files based on text or a raw Drive query.
+        Args:
+            search_text: Text to search for in file names and content.
+            drive_query: Raw Google Drive API query string.
+            max_results: Maximum number of results to return.
+            folder_id: Optional folder ID to restrict the search.
+            include_folders: Whether to include folders in the results.
+            mime_types: Optional list of MIME types to filter by.
+        Return: A list of DriveFile objects matching the criteria.
+        """
         query_parts: list[str] = []
 
         if drive_query:
@@ -107,6 +132,12 @@ class DriveManager:
         ]
 
     def get_file_text(self, file_id: str) -> DriveTextDocument:
+        """
+        Retrieves and extracts plain text from a Google Drive file.
+        Args:
+            file_id: The ID of the file to process.
+        Return: A DriveTextDocument containing metadata and extracted text.
+        """
         metadata = (
             self.drive.files()
             .get(
@@ -158,8 +189,16 @@ class DriveManager:
         *,
         title: str,
         content: str,
-        folder_id: str | None = None,
+        folder_id: Optional[str] = None,
     ) -> DriveFile:
+        """
+        Creates a new Google Doc and populates it with text.
+        Args:
+            title: The title of the new document.
+            content: The plain text content to insert.
+            folder_id: Optional folder ID where the doc will be created.
+        Return: A DriveFile object representing the new document.
+        """
         file_metadata: dict[str, Any] = {
             "name": title,
             "mimeType": DRIVE_API_CONFIG.google_doc,
@@ -194,8 +233,16 @@ class DriveManager:
         *,
         title: str,
         text: str,
-        folder_id: str | None = None,
+        folder_id: Optional[str] = None,
     ) -> DriveFile:
+        """
+        Generates a PDF from text and uploads it to Google Drive.
+        Args:
+            title: The title of the PDF file (excluding extension).
+            text: The plain text content for the PDF.
+            folder_id: Optional folder ID where the PDF will be uploaded.
+        Return: A DriveFile object representing the uploaded PDF.
+        """
         from reportlab.lib.pagesizes import letter
         from reportlab.pdfgen import canvas
 
@@ -238,6 +285,12 @@ class DriveManager:
         return DriveFile.model_validate(created)
 
     def _download_bytes(self, file_id: str) -> bytes:
+        """
+        Downloads the raw bytes of a file from Google Drive.
+        Args:
+            file_id: The ID of the file to download.
+        Return: The raw bytes of the file content.
+        """
         request = self.drive.files().get_media(fileId=file_id)
         file_handle = io.BytesIO()
         downloader = MediaIoBaseDownload(file_handle, request)
@@ -247,6 +300,13 @@ class DriveManager:
         return file_handle.getvalue()
 
     def _export_bytes(self, file_id: str, export_mime: str) -> bytes:
+        """
+        Exports a Google Workspace file (e.g., Doc, Sheet) to a specific format.
+        Args:
+            file_id: The ID of the file to export.
+            export_mime: The target MIME type for the export.
+        Return: The exported file content as bytes.
+        """
         data = self.drive.files().export(fileId=file_id, mimeType=export_mime).execute()
         return (
             data if isinstance(data, (bytes, bytearray)) else bytes(str(data), "utf-8")
@@ -255,25 +315,20 @@ class DriveManager:
 
 def build_drive_credentials(
     *,
-    access_token: str | None = None,
-    scopes: Sequence[str] | None = None,
+    access_token: Optional[str] = None,
+    scopes: Optional[Sequence[str]] = None,
     validate: bool = True,
 ) -> Any:
-    """Build Drive credentials.
-
-    Resolution order:
-    1) Delegated user access token passed by the agent.
-    2) ADC if DRIVE_USE_ADC / USE_ADC_FOR_DRIVE is enabled.
-    3) Local OAuth if DRIVE_ALLOW_LOCAL_OAUTH / ALLOW_LOCAL_OAUTH is enabled.
+    """
+    Builds Google OAuth2 credentials from a provided access token.
+    Args:
+        access_token: Optional OAuth2 access token.
+        scopes: Optional list of scopes requested for the credentials.
+        validate: Whether to validate the token against Google's API before building.
+    Return: A Google Credentials object.
     """
 
-    scopes = scopes or DRIVE_API_CONFIG.read_scopes_list()
-
-    if access_token:
-        if validate:
-            # Validate the token before using it
-            validate_access_token(access_token, scopes)
-        return Credentials(token=access_token, scopes=scopes)
+    scopes = scopes or DRIVE_API_CONFIG.read_scopes
 
     if access_token:
         if validate:
@@ -287,19 +342,14 @@ def build_drive_credentials(
 
 
 def validate_access_token(
-    access_token: str, required_scopes: Sequence[str] | None = None
+    access_token: str, required_scopes: Optional[Sequence[str]] = None
 ) -> dict[str, Any]:
-    """Validate the access token against Google's tokeninfo endpoint.
-
+    """
+    Validates the access token against Google's tokeninfo endpoint.
     Args:
         access_token: The OAuth2 access token to validate.
         required_scopes: Optional list of scopes that the token must have.
-
-    Returns:
-        The token info dictionary if valid.
-
-    Raises:
-        AuthenticationError: If the token is invalid or missing required scopes.
+    Return: The token info dictionary if valid.
     """
     try:
         with httpx.Client() as client:
@@ -332,6 +382,12 @@ def validate_access_token(
 
 
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
+    """
+    Extracts plain text from raw PDF bytes using pypdf.
+    Args:
+        pdf_bytes: The raw content of the PDF file.
+    Return: Extracted plain text or an error message if extraction fails.
+    """
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
         parts: list[str] = []
@@ -345,4 +401,10 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 
 def _escape_q(value: str) -> str:
+    """
+    Escapes single quotes for use in Google Drive API query strings.
+    Args:
+        value: The string value to escape.
+    Return: The escaped string.
+    """
     return (value or "").replace("'", "\\'")
