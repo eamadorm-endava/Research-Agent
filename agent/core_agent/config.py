@@ -224,18 +224,25 @@ class MCPServersConfig(BaseSettings):
             description="Space-separated OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
         ),
     ]
-    DRIVE_OAUTH_AUTH_URL: Annotated[
+    DRIVE_OAUTH_AUTH_URI: Annotated[
         str,
         Field(
             default="https://accounts.google.com/o/oauth2/v2/auth",
             description="OAuth 2.0 Authorization URL for Google Drive",
         ),
     ]
-    DRIVE_OAUTH_TOKEN_URL: Annotated[
+    DRIVE_OAUTH_TOKEN_URI: Annotated[
         str,
         Field(
             default="https://oauth2.googleapis.com/token",
             description="OAuth 2.0 Token URL for Google Drive",
+        ),
+    ]
+    DRIVE_DISABLE_ID_TOKEN_AUTH: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="Whether to disable adding the Cloud Run ID token for the Google Drive MCP server",
         ),
     ]
     GCS_URL: Annotated[

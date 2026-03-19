@@ -40,8 +40,8 @@ drive_oauth_scopes = {
 auth_scheme = OAuth2(
     flows=OAuthFlows(
         authorizationCode=OAuthFlowAuthorizationCode(
-            authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URL,
-            tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URL,
+            authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
+            tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
             scopes=drive_oauth_scopes,
         )
     )

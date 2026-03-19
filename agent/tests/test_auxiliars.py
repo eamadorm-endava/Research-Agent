@@ -12,6 +12,7 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
         "BIGQUERY_ENDPOINT": "/mcp",
         "GCS_URL": "https://gcs-server.example",
         "GCS_ENDPOINT": "/custom-mcp",
+        "DRIVE_URL": "",
     }
 
     with patch.dict(os.environ, mock_env, clear=True):
@@ -59,6 +60,7 @@ def test_get_mcp_servers_tools_skips_empty_url_values():
         "BIGQUERY_ENDPOINT": "/mcp",
         "GCS_URL": "",
         "GCS_ENDPOINT": "/mcp",
+        "DRIVE_URL": "",
     }
 
     with patch.dict(os.environ, mock_env, clear=True):
