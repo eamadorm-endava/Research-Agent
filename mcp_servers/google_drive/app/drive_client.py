@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import io
-import os
-from pathlib import Path
 from typing import Any, Sequence
 
+import httpx
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
@@ -257,7 +256,8 @@ class DriveManager:
 def build_drive_credentials(
     *,
     access_token: str | None = None,
-    scopes: list[str] | None = None,
+    scopes: Sequence[str] | None = None,
+    validate: bool = True,
 ) -> Any:
     """Build Drive credentials.
 
@@ -270,70 +270,24 @@ def build_drive_credentials(
     scopes = scopes or DRIVE_API_CONFIG.read_scopes_list()
 
     if access_token:
-        # Validate the token before using it
-        validate_access_token(access_token, scopes)
+        if validate:
+            # Validate the token before using it
+            validate_access_token(access_token, scopes)
         return Credentials(token=access_token, scopes=scopes)
 
-    if _truthy(_first_set_env(DRIVE_AUTH_CONFIG.use_adc_env_names)):
-        import google.auth
-
-        creds, _ = google.auth.default(scopes=scopes)
-        return creds
-
-    if _truthy(_first_set_env(DRIVE_AUTH_CONFIG.allow_local_oauth_env_names)):
-        from google.auth.transport.requests import Request
-        from google_auth_oauthlib.flow import InstalledAppFlow
-
-        client_secrets_path = Path(
-            _first_set_env(
-                DRIVE_AUTH_CONFIG.oauth_client_secret_env_names,
-                DRIVE_AUTH_CONFIG.default_client_secret_path,
-            )
-        )
-        token_cache_path = Path(
-            os.getenv(
-                DRIVE_AUTH_CONFIG.token_cache_env,
-                DRIVE_AUTH_CONFIG.default_token_cache_path,
-            )
-        )
-        token_cache_path.parent.mkdir(parents=True, exist_ok=True)
-
-        creds: Credentials | None = None
-        if token_cache_path.exists():
-            try:
-                creds = Credentials.from_authorized_user_file(
-                    str(token_cache_path), scopes=scopes
-                )
-            except Exception:
-                creds = None
-
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                if not client_secrets_path.exists():
-                    raise FileNotFoundError(
-                        f"OAuth client secrets not found at {client_secrets_path}. "
-                        "Set one of the configured Drive OAuth client-secret environment variables."
-                    )
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    str(client_secrets_path), scopes=scopes
-                )
-                creds = flow.run_local_server(port=0)
-            token_cache_path.write_text(creds.to_json(), encoding="utf-8")
-
-        if creds is None:
-            raise RuntimeError("Local OAuth flow did not return credentials.")
-        return creds
+    if access_token:
+        if validate:
+            # Validate the token before using it
+            validate_access_token(access_token, scopes)
+        return Credentials(token=access_token, scopes=scopes)
 
     raise RuntimeError(
-        "No Drive credentials available. Provide a delegated user access token header, "
-        "or enable one of the ADC flags, or enable one of the local OAuth flags."
+        "No Drive credentials available. Provide a delegated user access token header."
     )
 
 
 def validate_access_token(
-    access_token: str, required_scopes: list[str] | None = None
+    access_token: str, required_scopes: Sequence[str] | None = None
 ) -> dict[str, Any]:
     """Validate the access token against Google's tokeninfo endpoint.
 
@@ -347,14 +301,13 @@ def validate_access_token(
     Raises:
         AuthenticationError: If the token is invalid or missing required scopes.
     """
-    import requests
-
     try:
-        response = requests.get(
-            DRIVE_AUTH_CONFIG.google_token_info_url_v3,
-            params={"access_token": access_token},
-            timeout=10,
-        )
+        with httpx.Client() as client:
+            response = client.get(
+                DRIVE_AUTH_CONFIG.google_token_info_url_v3,
+                params={"access_token": access_token},
+                timeout=10,
+            )
     except Exception as exc:
         raise AuthenticationError(f"Failed to reach token validation endpoint: {exc}")
 
@@ -393,15 +346,3 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 def _escape_q(value: str) -> str:
     return (value or "").replace("'", "\\'")
-
-
-def _truthy(value: str | None) -> bool:
-    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def _first_set_env(env_names: Sequence[str], default: str | None = None) -> str | None:
-    for env_name in env_names:
-        value = os.getenv(env_name)
-        if value not in (None, ""):
-            return value
-    return default

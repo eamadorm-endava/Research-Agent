@@ -46,25 +46,23 @@ def test_drive_manager_list_files(mock_build):
 def test_build_drive_credentials_from_access_token(mock_credentials_cls, mock_validate):
     mock_credentials = MagicMock()
     mock_credentials_cls.return_value = mock_credentials
-    mock_validate.return_value = {
-        "scope": " ".join(DRIVE_API_CONFIG.read_scopes_list())
-    }
+    mock_validate.return_value = {"scope": " ".join(DRIVE_API_CONFIG.read_scopes)}
 
     creds = build_drive_credentials(
         access_token="abc123",
-        scopes=DRIVE_API_CONFIG.read_scopes_list(),
+        scopes=DRIVE_API_CONFIG.read_scopes,
     )
 
     assert creds is mock_credentials
-    mock_validate.assert_called_once_with("abc123", DRIVE_API_CONFIG.read_scopes_list())
+    mock_validate.assert_called_once_with("abc123", DRIVE_API_CONFIG.read_scopes)
     mock_credentials_cls.assert_called_once_with(
         token="abc123",
-        scopes=DRIVE_API_CONFIG.read_scopes_list(),
+        scopes=DRIVE_API_CONFIG.read_scopes,
     )
 
 
 def test_validate_access_token_success():
-    with patch("requests.get") as mock_get:
+    with patch("httpx.Client.get") as mock_get:
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {
             "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file"
@@ -77,7 +75,7 @@ def test_validate_access_token_success():
 
 
 def test_validate_access_token_invalid():
-    with patch("requests.get") as mock_get:
+    with patch("httpx.Client.get") as mock_get:
         mock_get.return_value.status_code = 401
         mock_get.return_value.json.return_value = {"error_description": "Invalid Value"}
 
@@ -89,7 +87,7 @@ def test_validate_access_token_invalid():
 
 
 def test_validate_access_token_missing_scopes():
-    with patch("requests.get") as mock_get:
+    with patch("httpx.Client.get") as mock_get:
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {
             "scope": "https://www.googleapis.com/auth/userinfo.email"

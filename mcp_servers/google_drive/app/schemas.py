@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -15,9 +15,6 @@ class DriveSchemaModel(BaseModel):
     """Shared schema base for the Google Drive MCP server."""
 
     model_config = ConfigDict(extra="forbid")
-
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(mode="python")
 
 
 EXECUTION_STATUS = Annotated[

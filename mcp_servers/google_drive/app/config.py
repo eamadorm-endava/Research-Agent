@@ -2,13 +2,20 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class DriveMcpConfigBase(BaseModel):
+class DriveMcpConfigBase(BaseSettings):
     """Shared immutable configuration base for the Drive MCP server."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = SettingsConfigDict(
+        extra="forbid",
+        frozen=True,
+        env_file_encoding="utf-8",
+        # Allow case-insensitive environment variable matching if needed
+        # case_sensitive=False,
+    )
 
 
 class DriveApiConfig(DriveMcpConfigBase):
@@ -95,76 +102,8 @@ class DriveApiConfig(DriveMcpConfigBase):
         ),
     ]
 
-    def read_scopes_list(self) -> list[str]:
-        return list(self.read_scopes)
-
-    def write_doc_scopes_list(self) -> list[str]:
-        return list(self.write_doc_scopes)
-
-    def write_pdf_scopes_list(self) -> list[str]:
-        return list(self.write_pdf_scopes)
-
 
 class DriveAuthConfig(DriveMcpConfigBase):
-    delegated_token_header_env: Annotated[
-        str,
-        Field(
-            default="DRIVE_DELEGATED_TOKEN_HEADER",
-            description="Environment variable that can override the delegated Drive token header name.",
-        ),
-    ]
-    delegated_token_header_default: Annotated[
-        str,
-        Field(
-            default="x-drive-access-token",
-            description="Default header name used to forward the delegated Drive user access token.",
-        ),
-    ]
-    use_adc_env_names: Annotated[
-        tuple[str, ...],
-        Field(
-            default=("DRIVE_USE_ADC", "USE_ADC_FOR_DRIVE"),
-            description="Environment variables that enable ADC-based credentials for the Drive MCP server.",
-        ),
-    ]
-    allow_local_oauth_env_names: Annotated[
-        tuple[str, ...],
-        Field(
-            default=("DRIVE_ALLOW_LOCAL_OAUTH", "ALLOW_LOCAL_OAUTH"),
-            description="Environment variables that enable local OAuth for the Drive MCP server.",
-        ),
-    ]
-    oauth_client_secret_env_names: Annotated[
-        tuple[str, ...],
-        Field(
-            default=(
-                "DRIVE_GOOGLE_OAUTH_CLIENT_SECRETS",
-                "GOOGLE_OAUTH_CLIENT_SECRETS",
-            ),
-            description="Environment variables checked for the local OAuth client-secret path.",
-        ),
-    ]
-    token_cache_env: Annotated[
-        str,
-        Field(
-            default="DRIVE_TOKEN_CACHE",
-            description="Environment variable that overrides the local OAuth token cache path.",
-        ),
-    ]
-    default_client_secret_path: Annotated[
-        str,
-        Field(
-            default="client_secret.json",
-            description="Default local OAuth client-secret path.",
-        ),
-    ]
-    default_token_cache_path: Annotated[
-        str,
-        Field(
-            default=".cache/drive_token.json",
-            description="Default Drive token cache path.",
-        ),
-    ]
     google_token_info_url_v3: Annotated[
         str,
         Field(
@@ -191,6 +130,22 @@ class DriveAuthConfig(DriveMcpConfigBase):
         Field(
             default="https://accounts.google.com/o/oauth2/v2/auth",
             description="Google OAuth2 authorization endpoint.",
+        ),
+    ]
+    google_oauth_client_id: Annotated[
+        str | None,
+        Field(
+            default=None,
+            validation_alias="DRIVE_OAUTH_CLIENT_ID",
+            description="Google Drive OAuth client ID.",
+        ),
+    ]
+    google_oauth_redirect_uri: Annotated[
+        str | None,
+        Field(
+            default=None,
+            validation_alias="DRIVE_OAUTH_REDIRECT_URI",
+            description="Google Drive OAuth redirect URI.",
         ),
     ]
 
@@ -224,17 +179,6 @@ class DriveServerConfig(DriveMcpConfigBase):
         Field(
             default="info",
             description="Default log level for the local Drive MCP server.",
-        ),
-    ]
-    route_path: Annotated[
-        str,
-        Field(default="/mcp", description="Mounted MCP route path."),
-    ]
-    header_context_key: Annotated[
-        str,
-        Field(
-            default="drive_mcp_headers",
-            description="Context variable key used to cache inbound HTTP headers.",
         ),
     ]
     stateless_http: Annotated[

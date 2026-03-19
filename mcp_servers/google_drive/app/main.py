@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import argparse
 
-import uvicorn
-
 from .config import DRIVE_SERVER_CONFIG
-from .mcp_server import create_app, mcp
+from .mcp_server import mcp
 
 
 if __name__ == "__main__":
@@ -34,5 +32,4 @@ if __name__ == "__main__":
     mcp.settings.port = args.port
     mcp.settings.log_level = args.log_level.upper()
 
-    app = create_app()
-    uvicorn.run(app, host=args.host, port=args.port, log_level=args.log_level)
+    mcp.run(transport="streamable-http")
