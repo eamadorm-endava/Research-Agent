@@ -165,8 +165,8 @@ else
 fi
 
 # 9. Create Cloud Build Triggers
-echo "Executing trigger setup (run_once.sh)..."
-bash "$SCRIPT_DIR/run_once.sh"
+echo "Executing trigger setup (cicd_triggers_creation.sh)..."
+bash "$SCRIPT_DIR/cicd_triggers_creation.sh"
 
 echo "Triggers created successfully!"
 echo "Bootstrap complete!"
