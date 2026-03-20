@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-# One-time Cloud Build trigger setup for MCP servers (BQ + GCS).
+# One-time Cloud Build trigger setup for MCP servers (BQ + GCS + Drive).
 # It is safe to re-run: existing triggers are detected and skipped.
 
 PROJECT_ID="${PROJECT_ID:-p-dev-gce-60pf}"
@@ -96,5 +96,9 @@ create_trigger "bq-mcp-server-services-apply" "push" "terraform/bq_mcp_server_re
 # GCS MCP triggers
 create_trigger "gcs-mcp-server-services-plan" "pr" "terraform/gcs_mcp_server_resources" "terraform/gcs_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/gcs/**"
 create_trigger "gcs-mcp-server-services-apply" "push" "terraform/gcs_mcp_server_resources" "terraform/gcs_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/gcs/**"
+
+# Drive MCP triggers
+create_trigger "drive-mcp-server-services-plan" "pr" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_drive/**"
+create_trigger "drive-mcp-server-services-apply" "push" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_drive/**"
 
 echo "Done. MCP triggers are created (or already existed)."
