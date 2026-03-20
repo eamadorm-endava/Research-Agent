@@ -1,0 +1,64 @@
+substitutions:
+  _LOCATION: us-central1
+  _REPO_NAME: mcp-servers
+  _SERVICE_NAME: drive-mcp-server
+
+steps:
+  # Step 1: Initialize Terraform with Dynamic Backend
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/drive_mcp_server_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/drive-mcp-server-resources"
+
+  # Step 2: Bootstrap required APIs before Docker push/apply
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-bootstrap'
+    args:
+      - 'apply'
+      - '-target=module.enable_apis'
+      - '-auto-approve'
+    dir: 'terraform/drive_mcp_server_resources'
+
+  # Step 3: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: [
+      'build',
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}',
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest',
+      '-f', 'mcp_servers/google_drive/Dockerfile',
+      '.'
+    ]
+
+  # Step 4: Docker Push
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest
+
+  # Step 5: Full Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args: ['plan', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
+    dir: 'terraform/drive_mcp_server_resources'
+
+  # Step 6: Full Terraform Apply
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply'
+    args: ['apply', '-auto-approve', 'tfplan']
+    dir: 'terraform/drive_mcp_server_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,62 @@
+steps:
+  # Step 1: Initialize Terraform with Dynamic Backend
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/drive_mcp_server_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/drive-mcp-server-resources"
+
+  # Step 2: Format Check (Terraform)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-fmt'
+    args: ['fmt', '-check']
+    dir: 'terraform/drive_mcp_server_resources'
+
+  # Step 3: Format Check (Python)
+  - name: 'python:3.12'
+    id: 'python-lint'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y make
+        pip install uv
+        make run-drive-precommit
+
+  # Step 4: Python Tests
+  - name: 'python:3.12'
+    id: 'python-test'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y make
+        pip install uv
+        make run-drive-tests
+
+  # Step 5: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: ['build', '-t', 'drive-mcp-test:ci', '-f', 'mcp_servers/google_drive/Dockerfile', '.']
+
+  # Step 6: Validate (Terraform)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/drive_mcp_server_resources'
+
+  # Step 7: Plan (Terraform)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args: ['plan', '-var=mcp_server_cloud_run_image_tag=ci', '-out=tfplan']
+    dir: 'terraform/drive_mcp_server_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
