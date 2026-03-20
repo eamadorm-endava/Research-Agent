@@ -30,7 +30,34 @@ Verify that you are currently impersonating the account:
 ```bash
 gcloud auth list
 ```
-Your local code (Python, Go, Node.js, etc.) will now use the Service Account's permissions automatically when using Google Cloud SDKs.
+Your local code will now use the Service Account's permissions automatically when using Google Cloud SDKs.
+
+## Testing the Deployed MCP Server
+You can test the deployed Cloud Run service without the Agent by using `curl` and your `gcloud` credentials.
+
+### 1. Authenticate with necessary scopes
+Ensure you have logged in with both the `cloud-platform` and `drive` scopes:
+
+```bash
+gcloud auth application-default login --scopes="https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/cloud-platform"
+```
+
+### 2. Send a test request (List Tools)
+Use the following command to verify the server is responding correctly. It sends an `Identity Token` for Cloud Run infrastructure and an `Access Token` for the application's Drive permissions:
+
+```bash
+curl -X POST "https://drive-mcp-server-753988132239.us-central1.run.app/mcp" \
+  -H "X-Serverless-Authorization: Bearer $(gcloud auth print-identity-token)" \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list",
+    "params": {}
+  }'
+  ```
 
 ## IAM Architecture
 The module implements a two-tier IAM structure to satisfy security requirements:
