@@ -161,7 +161,6 @@ mcp_server_cloud_run_name      = "drive-mcp-server"
 mcp_server_cloud_run_region    = "us-central1"
 mcp_server_cloud_run_image_tag = "latest"
 ```
-
 ## Variables
 
 | Name | Description | Type | Default | Required |
