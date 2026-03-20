@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from typing import Annotated
+from pydantic import Field, field_validator
+from enum import StrEnum
+from typing import Annotated, Union
 
 
 class GCPConfig(BaseSettings):
@@ -146,6 +147,17 @@ class AgentConfig(BaseSettings):
     ]
 
 
+class DriveScopes(StrEnum):
+    """
+    Enum for Google Drive OAuth scopes.
+    """
+
+    READONLY = "https://www.googleapis.com/auth/drive.readonly"
+    FILE = "https://www.googleapis.com/auth/drive.file"
+    DOCUMENTS = "https://www.googleapis.com/auth/documents"
+    DRIVE = "https://www.googleapis.com/auth/drive"
+
+
 class MCPServersConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -214,16 +226,26 @@ class MCPServersConfig(BaseSettings):
         ),
     ]
     DRIVE_OAUTH_SCOPES: Annotated[
-        str,
+        Union[dict[str, str], list[DriveScopes]],
         Field(
-            default=(
-                "https://www.googleapis.com/auth/drive.readonly "
-                "https://www.googleapis.com/auth/drive.file "
-                "https://www.googleapis.com/auth/documents"
-            ),
-            description="Space-separated OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
+            default=[
+                DriveScopes.READONLY,
+                DriveScopes.FILE,
+                DriveScopes.DOCUMENTS,
+            ],
+            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
         ),
     ]
+
+    @field_validator("DRIVE_OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_drive_oauth_scopes(
+        cls, v: Union[list[DriveScopes], dict[str, str]]
+    ) -> dict[str, str]:
+        if isinstance(v, dict):
+            return v
+        return {scope.value: "google drive access" for scope in v}
+
     DRIVE_OAUTH_AUTH_URI: Annotated[
         str,
         Field(
@@ -236,13 +258,6 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="https://oauth2.googleapis.com/token",
             description="OAuth 2.0 Token URL for Google Drive",
-        ),
-    ]
-    DRIVE_DISABLE_ID_TOKEN_AUTH: Annotated[
-        bool,
-        Field(
-            default=False,
-            description="Whether to disable adding the Cloud Run ID token for the Google Drive MCP server",
         ),
     ]
     GCS_URL: Annotated[

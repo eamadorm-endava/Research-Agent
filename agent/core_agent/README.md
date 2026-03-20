@@ -137,7 +137,6 @@ GEMINI_ENTERPRISE_AUTH_ID=drive-oauth
 DRIVE_URL=http://localhost:8081
 DRIVE_ENDPOINT=/mcp
 DRIVE_DELEGATED_TOKEN_HEADER=x-drive-access-token
-DRIVE_DISABLE_ID_TOKEN_AUTH=true
 
 # Optional authentication for the MCP service itself
 DRIVE_MCP_AUTH_MODE=none

@@ -6,6 +6,9 @@ from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+
+# from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
+# from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCode
 from .config import GCPConfig, AgentConfig, MCPServersConfig
 from .utils.security import get_id_token
 
@@ -31,18 +34,12 @@ vertexai.Client(
 # Authentication Configuration for Google Drive (Authorization Code Flow)
 # Uncomment this lines when Google Drive MCP server is deployed, this will avoid deploying the agent
 # and failing to start
-# drive_oauth_scopes = {
-#     scope: "google drive access"
-#     for scope in mcp_servers.DRIVE_OAUTH_SCOPES.split()
-#     if scope.strip()
-# }
-
 # auth_scheme = OAuth2(
 #     flows=OAuthFlows(
 #         authorizationCode=OAuthFlowAuthorizationCode(
 #             authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
 #             tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
-#             scopes=drive_oauth_scopes,
+#             scopes=mcp_servers.DRIVE_OAUTH_SCOPES,
 #         )
 #     )
 # )
