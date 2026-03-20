@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-# One-time Cloud Build trigger setup for MCP servers (BQ + GCS + Drive).
+# One-time Cloud Build trigger setup for AI Agent and MCP servers (BQ + GCS + Drive).
 # It is safe to re-run: existing triggers are detected and skipped.
 
 PROJECT_ID="${PROJECT_ID:-p-dev-gce-60pf}"
@@ -89,6 +89,13 @@ create_trigger() {
   fi
 }
 
+# --- AI Agent Triggers ---
+# CI (Plan) on Pull Request
+create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**"
+# CD (Apply) on Push/Merge
+create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
+
+# --- MCP Server Triggers ---
 # BigQuery MCP triggers
 create_trigger "bq-mcp-server-services-plan" "pr" "terraform/bq_mcp_server_resources" "terraform/bq_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/big_query/**"
 create_trigger "bq-mcp-server-services-apply" "push" "terraform/bq_mcp_server_resources" "terraform/bq_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
@@ -101,4 +108,4 @@ create_trigger "gcs-mcp-server-services-apply" "push" "terraform/gcs_mcp_server_
 create_trigger "drive-mcp-server-services-plan" "pr" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_drive/**"
 create_trigger "drive-mcp-server-services-apply" "push" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_drive/**"
 
-echo "Done. MCP triggers are created (or already existed)."
+echo "Done. All AI Agent and MCP triggers are created (or already existed)."
