@@ -15,6 +15,7 @@ verify-all-ci:
 	$(MAKE) verify-agent-ci
 	$(MAKE) verify-bq-ci
 	$(MAKE) verify-gcs-ci
+	$(MAKE) verify-drive-ci
 
 ### AI Agent Commands ###
 
@@ -85,6 +86,11 @@ run-drive-mcp-locally:
 
 build-drive-mcp-image:
 	docker build -t test-drive-mcp-server -f mcp_servers/google_drive/Dockerfile .
+
+verify-drive-ci:
+	$(MAKE) run-drive-precommit
+	$(MAKE) run-drive-tests
+	$(MAKE) build-drive-mcp-image
 ### GCS MCP Commands ###
 
 run-gcs-precommit:
@@ -111,11 +117,8 @@ verify-gcs-ci:
 test-gcs-terraform:
 	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
 
-run-once-mcp-triggers:
-	./terraform/scripts/run_once.sh
-
-run-once-terraform-triggers:
-	$(MAKE) run-once-mcp-triggers
+create-cloudbuild-triggers:
+	./terraform/scripts/cicd_triggers_creation.sh
 
 bootstrap:
 	./terraform/scripts/bootstrap.sh
