@@ -12,6 +12,7 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
         "BIGQUERY_ENDPOINT": "/mcp",
         "GCS_URL": "https://gcs-server.example",
         "GCS_ENDPOINT": "/custom-mcp",
+        "DRIVE_URL": "",
     }
 
     with patch.dict(os.environ, mock_env, clear=True):
@@ -49,7 +50,7 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
         for call, expected_url in zip(mock_toolset.call_args_list, expected_auth):
             header_provider = call.kwargs["header_provider"]
             assert header_provider(None) == {
-                 "X-Serverless-Authorization": f"Bearer token-for-{expected_url}"
+                "X-Serverless-Authorization": f"Bearer token-for-{expected_url}"
             }
 
 
@@ -59,6 +60,7 @@ def test_get_mcp_servers_tools_skips_empty_url_values():
         "BIGQUERY_ENDPOINT": "/mcp",
         "GCS_URL": "",
         "GCS_ENDPOINT": "/mcp",
+        "DRIVE_URL": "",
     }
 
     with patch.dict(os.environ, mock_env, clear=True):

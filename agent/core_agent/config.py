@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from typing import Annotated
+from pydantic import Field, field_validator
+from enum import StrEnum
+from typing import Annotated, Union
 
 
 class GCPConfig(BaseSettings):
@@ -124,6 +125,37 @@ class AgentConfig(BaseSettings):
             description="Maximum delay in seconds to retry the request in case of failure.",
         ),
     ]
+    AGENT_NAME: Annotated[
+        str,
+        Field(
+            default="research_agent",
+            description="Name of the agent",
+        ),
+    ]
+    AGENT_INSTRUCTION: Annotated[
+        str,
+        Field(
+            default=(
+                "You are a helpful research assistant with access to BigQuery data and Google Drive. "
+                "You can list, read, write, update, and upload files in the user's Google Drive. "
+                "IMPORTANT: If a Google Drive tool returns an error stating the user is not authenticated, "
+                "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
+                "access in their browser before you can continue with Drive tasks."
+            ),
+            description="Instructions for the agent",
+        ),
+    ]
+
+
+class DriveScopes(StrEnum):
+    """
+    Enum for Google Drive OAuth scopes.
+    """
+
+    READONLY = "https://www.googleapis.com/auth/drive.readonly"
+    FILE = "https://www.googleapis.com/auth/drive.file"
+    DOCUMENTS = "https://www.googleapis.com/auth/documents"
+    DRIVE = "https://www.googleapis.com/auth/drive"
 
 
 class MCPServersConfig(BaseSettings):
@@ -156,6 +188,76 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="/mcp",
             description="BigQuery MCP Server Endpoint",
+        ),
+    ]
+    DRIVE_URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8080",
+            description="Google Drive MCP Server URL, uses a streamable http connection",
+        ),
+    ]
+    DRIVE_ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="Google Drive MCP Server Endpoint",
+        ),
+    ]
+    DRIVE_OAUTH_CLIENT_ID: Annotated[
+        str,
+        Field(
+            default="",
+            description="OAuth 2.0 Client ID for Google Drive (provided to the Agent)",
+        ),
+    ]
+    DRIVE_OAUTH_CLIENT_SECRET: Annotated[
+        str,
+        Field(
+            default="",
+            description="OAuth 2.0 Client Secret for Google Drive (provided to the Agent)",
+        ),
+    ]
+    DRIVE_OAUTH_REDIRECT_URI: Annotated[
+        str,
+        Field(
+            default="http://localhost:8000/dev-ui",
+            description="OAuth 2.0 Redirect URI for Google Drive (provided to the Agent)",
+        ),
+    ]
+    DRIVE_OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[DriveScopes]],
+        Field(
+            default=[
+                DriveScopes.READONLY,
+                DriveScopes.FILE,
+                DriveScopes.DOCUMENTS,
+            ],
+            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
+        ),
+    ]
+
+    @field_validator("DRIVE_OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_drive_oauth_scopes(
+        cls, v: Union[list[DriveScopes], dict[str, str]]
+    ) -> dict[str, str]:
+        if isinstance(v, dict):
+            return v
+        return {scope.value: "google drive access" for scope in v}
+
+    DRIVE_OAUTH_AUTH_URI: Annotated[
+        str,
+        Field(
+            default="https://accounts.google.com/o/oauth2/v2/auth",
+            description="OAuth 2.0 Authorization URL for Google Drive",
+        ),
+    ]
+    DRIVE_OAUTH_TOKEN_URI: Annotated[
+        str,
+        Field(
+            default="https://oauth2.googleapis.com/token",
+            description="OAuth 2.0 Token URL for Google Drive",
         ),
     ]
     GCS_URL: Annotated[

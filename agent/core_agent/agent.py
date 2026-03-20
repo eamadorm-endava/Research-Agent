@@ -4,8 +4,13 @@ from vertexai import agent_engines
 from google.genai.types import GenerateContentConfig, ModelArmorConfig, HttpRetryOptions
 from google.adk.agents import Agent
 from google.adk.models import Gemini
+from google.adk.tools.mcp_tool import McpToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+
+# from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
+# from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCode
 from .config import GCPConfig, AgentConfig, MCPServersConfig
-from .utils.auxiliars import get_mcp_servers_tools
+from .utils.security import get_id_token
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -17,12 +22,36 @@ mcp_servers = MCPServersConfig()
 project_id = gcp_config.PROJECT_ID
 region = gcp_config.REGION
 model_armor_template_id = f"projects/{project_id}/locations/{region}/templates/{agent_config.MODEL_ARMOR_TEMPLATE_ID}"
+full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOINT
+full_gcs_mcp_server_path = mcp_servers.GCS_URL + mcp_servers.GCS_ENDPOINT
+full_drive_mcp_server_path = mcp_servers.DRIVE_URL + mcp_servers.DRIVE_ENDPOINT
 
 vertexai.Client(
     project=project_id,
     location=region,
 )
 
+# Authentication Configuration for Google Drive (Authorization Code Flow)
+# Uncomment this lines when Google Drive MCP server is deployed, this will avoid deploying the agent
+# and failing to start
+# auth_scheme = OAuth2(
+#     flows=OAuthFlows(
+#         authorizationCode=OAuthFlowAuthorizationCode(
+#             authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
+#             tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
+#             scopes=mcp_servers.DRIVE_OAUTH_SCOPES,
+#         )
+#     )
+# )
+
+# auth_credential = AuthCredential(
+#     auth_type=AuthCredentialTypes.OAUTH2,
+#     oauth2=OAuth2Auth(
+#         client_id=mcp_servers.DRIVE_OAUTH_CLIENT_ID,
+#         client_secret=mcp_servers.DRIVE_OAUTH_CLIENT_SECRET,
+#         redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
+#     ),
+# )
 
 agent_settings = GenerateContentConfig(
     temperature=agent_config.TEMPERATURE,
@@ -44,18 +73,46 @@ agent_retry_options = HttpRetryOptions(
 )
 
 # MCP toolset construction is centralized in utils/auxiliars.py:get_mcp_servers_tools
-tools = get_mcp_servers_tools(mcp_servers)
+# tools = get_mcp_servers_tools(mcp_servers)
 
 root_agent = Agent(
     model=Gemini(
         model_name=agent_config.MODEL_NAME,
         retry_options=agent_retry_options,
     ),
-    name="research_agent",
+    name=agent_config.AGENT_NAME,
     generate_content_config=agent_settings,
-    instruction="You are a helpful research assistant.",
-    tools=tools,
+    instruction=agent_config.AGENT_INSTRUCTION,
+    tools=[
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_bq_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            header_provider=lambda ctx: {
+                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
+            },
+        ),
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_gcs_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            header_provider=lambda ctx: {
+                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.GCS_URL)}"
+            },
+        ),
+        # Uncomment the following lines when Google Drive MCP server is deployed, this will avoid deploying the agent
+        # and failing to start
+        # McpToolset(
+        #     connection_params=StreamableHTTPConnectionParams(
+        #         url=full_drive_mcp_server_path,
+        #         timeout=mcp_servers.GENERAL_TIMEOUT,
+        #     ),
+        #     auth_scheme=auth_scheme,
+        #     auth_credential=auth_credential,
+        # ),
+    ],
 )
-
 
 app = agent_engines.AdkApp(agent=root_agent)

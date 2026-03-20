@@ -166,6 +166,14 @@ make run-gcs-mcp-locally
 
 For more detailed information about each component, refer to the following documentation:
 
+- **ADK Introduction** - See [docs/ADK-Intro.md](docs/ADK-Intro.md) for detailed information about the Agent Development Kit
+- **Model Armor** - See [notebooks/model_armor.ipynb](notebooks/model_armor.ipynb) for model safeguards exploration
+
+
+## MCP servers in this repo
+
+- `mcp_servers/big_query` - BigQuery MCP server
+- `mcp_servers/google_drive` - Google Drive MCP server
 ### Core AI Agent
 - [AI Agent Overview](agent/core_agent/README.md): Core logic, configuration, and model safeguards.
 

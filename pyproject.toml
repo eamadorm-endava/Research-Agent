@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    # Runtime config (used by agent/core_agent/config.py)
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+]
 
 [dependency-groups]
 ai-agent = [
@@ -31,6 +35,17 @@ mcp_bq = [
     "google-cloud-bigquery>=3.20.0",
     "mcp>=1.26.0",
     "pydantic>=2.5.3",
+]
+mcp_drive = [
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.0",
+    "mcp>=1.26.0",
+    "pydantic>=2.5.3",
+    "pypdf>=4.0.0",
+    "reportlab>=4.0.0",
+    "uvicorn>=0.27.0",
 ]
 
 [tool.pytest.ini_options]

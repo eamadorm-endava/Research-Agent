@@ -47,8 +47,16 @@ def test_mcp_servers_config():
     mock_env = {
         "GENERAL_TIMEOUT": "120",
         "BIGQUERY_ENDPOINT": "/custom-mcp",
+        "DRIVE_URL": "http://localhost:9090",
+        "DRIVE_OAUTH_SCOPES": '["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file"]',
     }
     with patch.dict(os.environ, mock_env, clear=True):
         config = MCPServersConfig()
         assert config.GENERAL_TIMEOUT == 120
         assert config.BIGQUERY_ENDPOINT == "/custom-mcp"
+        assert config.DRIVE_URL == "http://localhost:9090"
+        # Test that JSON list input in env var is converted to dict by the validator
+        assert config.DRIVE_OAUTH_SCOPES == {
+            "https://www.googleapis.com/auth/drive.readonly": "google drive access",
+            "https://www.googleapis.com/auth/drive.file": "google drive access",
+        }
