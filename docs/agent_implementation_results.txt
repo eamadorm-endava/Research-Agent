@@ -1,0 +1,40 @@
+Implemented the Drive OAuth feature end to end in the Research-Agent codebase.
+
+What changed
+
+Enabled the agent to register Google Drive as an OAuth-enabled McpToolset instead of leaving it commented out.
+Centralized MCP tool construction so BigQuery, GCS, and Drive are built consistently from config.
+Added a safe gate for Drive: if DRIVE_OAUTH_CLIENT_ID or DRIVE_OAUTH_CLIENT_SECRET is missing, the agent skips the Drive MCP tool instead of exposing a broken tool that cannot trigger OAuth.
+Preserved the dual-auth model for Drive:
+User OAuth token goes in Authorization: Bearer <access_token> via ADK/Gemini Enterprise.
+Cloud Run service auth still uses X-Serverless-Authorization when needed.
+Added a Gemini Enterprise runbook covering OAuth client setup, authorization resource creation, delete/re-register flow, validation, and troubleshooting.
+Key files
+
+Agent MCP wiring: agent/core_agent/utils/auxiliars.py
+Agent entrypoint now uses the centralized tool builder: agent/core_agent/agent.py
+Updated MCP builder tests: agent/tests/test_auxiliars.py
+Fixed auth architecture docs to match the real Authorization header flow: docs/Authentication/04-MCP-Tools-and-Auth-Process.md
+New Gemini Enterprise OAuth registration guide: docs/AI-Agent-Development/06-Gemini-Enterprise-OAuth-Registration.md
+Linked from the AI agent docs index: docs/AI-Agent-Development/README.md
+Updated Gemini Enterprise connection notes: docs/AI-Agent-Development/05-Gemini-Enterprise-Connection.md
+Updated core agent README to reflect the real OAuth model: agent/core_agent/README.md
+Important behavior change
+
+The delegated Drive token path is now documented and wired consistently as standard bearer auth.
+The earlier x-drive-access-token description in docs was incorrect for the current implementation and has been corrected.
+Validation
+
+Focused tests passed: 17 passed.
+I also installed the missing pypdf package into the active workspace Python environment so the Drive MCP tests could run in this environment.
+What you need to do next
+
+Re-deploy the agent with:
+DRIVE_URL
+DRIVE_ENDPOINT
+DRIVE_OAUTH_CLIENT_ID
+DRIVE_OAUTH_CLIENT_SECRET
+DRIVE_OAUTH_REDIRECT_URI=https://vertexaisearch.cloud.google.com/static/oauth/oauth.html
+Follow the registration and re-registration runbook in docs/AI-Agent-Development/06-Gemini-Enterprise-OAuth-Registration.md
+Delete the old Gemini Enterprise agent registration and register it again with the new authorization resource
+Validate the flow in Gemini Enterprise with a Drive read/write prompt

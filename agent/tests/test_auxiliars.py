@@ -10,9 +10,12 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
         "GENERAL_TIMEOUT": "45",
         "BIGQUERY_URL": "https://bq-server.example",
         "BIGQUERY_ENDPOINT": "/mcp",
+        "DRIVE_URL": "https://drive-server.example",
+        "DRIVE_ENDPOINT": "/mcp",
+        "DRIVE_OAUTH_CLIENT_ID": "drive-client-id.apps.googleusercontent.com",
+        "DRIVE_OAUTH_CLIENT_SECRET": "drive-client-secret",
         "GCS_URL": "https://gcs-server.example",
         "GCS_ENDPOINT": "/custom-mcp",
-        "DRIVE_URL": "",
     }
 
     with patch.dict(os.environ, mock_env, clear=True):
@@ -30,21 +33,23 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
     ):
         get_mcp_servers_tools(config)
 
-        assert mock_connection_params.call_count == 2
+        assert mock_connection_params.call_count == 3
         created_urls = [
             call.kwargs["url"] for call in mock_connection_params.call_args_list
         ]
         assert "https://bq-server.example/mcp" in created_urls
+        assert "https://drive-server.example/mcp" in created_urls
         assert "https://gcs-server.example/custom-mcp" in created_urls
 
         created_timeouts = [
             call.kwargs["timeout"] for call in mock_connection_params.call_args_list
         ]
-        assert created_timeouts == [45, 45]
+        assert created_timeouts == [45, 45, 45]
 
-        assert mock_toolset.call_count == 2
+        assert mock_toolset.call_count == 3
         expected_auth = [
             "https://bq-server.example",
+            "https://drive-server.example",
             "https://gcs-server.example",
         ]
         for call, expected_url in zip(mock_toolset.call_args_list, expected_auth):
@@ -53,6 +58,16 @@ def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
                 "X-Serverless-Authorization": f"Bearer token-for-{expected_url}"
             }
 
+        drive_tool_call = mock_toolset.call_args_list[1]
+        assert drive_tool_call.kwargs["auth_scheme"] is not None
+        assert drive_tool_call.kwargs["auth_credential"] is not None
+        assert (
+            drive_tool_call.kwargs["auth_credential"].model_extra[
+                "credential_key"
+            ]
+            == "google-drive-oauth"
+        )
+
 
 def test_get_mcp_servers_tools_skips_empty_url_values():
     mock_env = {
@@ -60,7 +75,7 @@ def test_get_mcp_servers_tools_skips_empty_url_values():
         "BIGQUERY_ENDPOINT": "/mcp",
         "GCS_URL": "",
         "GCS_ENDPOINT": "/mcp",
-        "DRIVE_URL": "",
+        "DRIVE_URL": "https://drive-server.example",
     }
 
     with patch.dict(os.environ, mock_env, clear=True):
@@ -84,3 +99,26 @@ def test_get_mcp_servers_tools_skips_empty_url_values():
         == "https://bq-server.example/mcp"
     )
     assert mock_toolset.call_count == 1
+
+
+def test_get_mcp_servers_tools_omits_cloud_run_header_when_id_token_missing():
+    mock_env = {
+        "BIGQUERY_URL": "https://bq-server.example",
+        "BIGQUERY_ENDPOINT": "/mcp",
+        "DRIVE_URL": "",
+        "GCS_URL": "",
+    }
+
+    with patch.dict(os.environ, mock_env, clear=True):
+        config = MCPServersConfig()
+
+    with (
+        patch(
+            "agent.core_agent.utils.auxiliars.StreamableHTTPConnectionParams"
+        ),
+        patch("agent.core_agent.utils.auxiliars.McpToolset") as mock_toolset,
+        patch("agent.core_agent.utils.auxiliars.get_id_token", return_value=None),
+    ):
+        get_mcp_servers_tools(config)
+        header_provider = mock_toolset.call_args.kwargs["header_provider"]
+        assert header_provider(None) == {}

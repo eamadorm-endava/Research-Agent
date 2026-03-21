@@ -1,0 +1,18 @@
+As a developer,
+I want to register an AI-Agent inside GE using the OAuth flow,
+so that final users can only retrieve data they have access to.
+
+Acceptance Criteria:
+The Agent is registered in GE and the OAuth flow works
+There is at least one md file related to the documentation of the process
+DoD:
+Delete the registered agent in Gemini Enterprise and register again with the OAuth permissions: Check this document
+Test the Oauth flow inside GE, and access resources that requires OAuth.
+Write a document inside docs/AI-Agent-Development/ with the flow to register the agent to GE, with troubleshooting info (just in case there was some steps that are not fully documented in the official documentation)
+
+Links that might be useful:
+
+How to register an Agent in GE - https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en
+ADK Oauth Authentication - https://google.github.io/adk-docs/tools-custom/authentication/#authenticating-with-tools
+MCPToolset class - https://github.com/google/adk-python/blob/b6185f742d235245abf7208f6a2a71a2b3ac64c6/src/google/adk/tools/mcp_tool/mcp_toolset.py#L66
+Current Project - Custom OAuth Flow - https://github.com/eamadorm-endava/Research-Agent/tree/oauth_integration/docs/Authentication

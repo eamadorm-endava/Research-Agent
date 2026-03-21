@@ -40,12 +40,15 @@ The AI Agent runs in Vertex AI. To securely send a request to the remote MCP Ser
 While Cloud Run proves *who the agent is*, it does not define *what the end-user is allowed to see*. The Google Drive MCP Server must impersonate the actual end-user interacting with Gemini Enterprise, fully respecting the user's workspace sharing restrictions.
 
 **How it works (`mcp_servers/google_drive/`):**
-1. **Delegated Token Flow**: Gemini Enterprise secures user consent (via OAuth 2.0 flow) and issues a delegated access token. The Agent retrieves this from its context (via `GEMINI_ENTERPRISE_AUTH_ID`) and forwards it downstream via the `x-drive-access-token` header.
+1. **Delegated Token Flow**: Gemini Enterprise secures user consent (via OAuth 2.0 flow) and issues a delegated access token. The ADK `McpToolset` attaches that token to the Drive MCP request using the standard header:
+   ```http
+   Authorization: Bearer <delegated-user-access-token>
+   ```
 2. **Authorized Redirect URIs**: Security is strictly enforced at the GCP level. Only redirect URIs explicitly allowed in the GCP console for the OAuth Client ID are able to successfully complete the authentication flow and obtain OAuth tokens for Drive connections.
 
-3. **Context Persistence (`mcp_server.py`)**: As the request enters the Drive MCP Server, a `HeaderCaptureMiddleware` captures the inbound HTTP headers directly into Python's `contextvars`. This allows FastMCP functions to transparently access the calling user's token outside of strict parameter definitions.
+3. **Request Validation (`mcp_server.py`)**: As the request enters the Drive MCP Server, FastMCP auth middleware validates the incoming bearer token and makes the resolved access token available through `get_access_token()`.
 4. **Validation & Credential Building (`drive_client.py`)**: 
-   * The server extracts the `x-drive-access-token`.
+   * The server extracts the validated bearer token from the MCP auth context.
    * The token is rigorously validated against Google's Token Info API (`https://www.googleapis.com/oauth2/v3/tokeninfo`) to ensure it corresponds to the correct client environment and has the essential scopes (e.g., `drive.readonly`).
    * A `google.oauth2.credentials.Credentials` object is constructed exclusively using this delegated access token.
 5. **API Execution**: All Google Drive API clients (v3 for Drive, v1 for Docs) are built using these User Credentials. If the user session lacks an active token or the needed scopes, an `AuthenticationError` is caught, returning an OAuth login prompt to the user interface.

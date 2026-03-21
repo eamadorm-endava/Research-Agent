@@ -132,12 +132,20 @@ class AgentConfig(BaseSettings):
             description="Name of the agent",
         ),
     ]
+    ENABLE_DEBUG_LOGGING: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="Enable verbose ADK debug logging for Gemini Enterprise troubleshooting.",
+        ),
+    ]
     AGENT_INSTRUCTION: Annotated[
         str,
         Field(
             default=(
                 "You are a helpful research assistant with access to BigQuery data and Google Drive. "
                 "You can list, read, write, update, and upload files in the user's Google Drive. "
+                "If authorization is completed for a tool, immediately resume the original user request and execute the required tool call without asking for extra confirmation. "
                 "IMPORTANT: If a Google Drive tool returns an error stating the user is not authenticated, "
                 "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
                 "access in their browser before you can continue with Drive tasks."
@@ -223,6 +231,16 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="http://localhost:8000/dev-ui",
             description="OAuth 2.0 Redirect URI for Google Drive (provided to the Agent)",
+        ),
+    ]
+    DRIVE_OAUTH_CREDENTIAL_KEY: Annotated[
+        str,
+        Field(
+            default="google-drive-oauth",
+            description=(
+                "Stable ADK credential key used for Drive OAuth credential lookup "
+                "and GE authorization mapping."
+            ),
         ),
     ]
     DRIVE_OAUTH_SCOPES: Annotated[

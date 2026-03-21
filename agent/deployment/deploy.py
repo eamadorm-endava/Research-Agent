@@ -10,6 +10,80 @@ import importlib
 import datetime
 import inspect
 import asyncio
+from pathlib import Path
+
+
+REQUIRED_RUNTIME_PACKAGES = (
+    "google-cloud-aiplatform",
+    "google-adk",
+)
+
+
+def _split_key_value_pairs(kv_string: str) -> list[str]:
+    """Split KEY=VALUE pairs on top-level commas only.
+
+    This preserves commas embedded inside quoted strings or JSON-style
+    collections such as lists and dicts.
+    """
+    pairs: list[str] = []
+    current: list[str] = []
+    in_quotes = False
+    quote_char = ""
+    escape_next = False
+    bracket_depth = 0
+    brace_depth = 0
+    paren_depth = 0
+
+    for char in kv_string:
+        if escape_next:
+            current.append(char)
+            escape_next = False
+            continue
+
+        if char == "\\":
+            current.append(char)
+            escape_next = True
+            continue
+
+        if in_quotes:
+            current.append(char)
+            if char == quote_char:
+                in_quotes = False
+                quote_char = ""
+            continue
+
+        if char in {'"', "'"}:
+            current.append(char)
+            in_quotes = True
+            quote_char = char
+            continue
+
+        if char == "[":
+            bracket_depth += 1
+        elif char == "]":
+            bracket_depth = max(0, bracket_depth - 1)
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth = max(0, brace_depth - 1)
+        elif char == "(":
+            paren_depth += 1
+        elif char == ")":
+            paren_depth = max(0, paren_depth - 1)
+
+        if char == "," and not any((bracket_depth, brace_depth, paren_depth)):
+            pair = "".join(current).strip()
+            if pair:
+                pairs.append(pair)
+            current = []
+            continue
+
+        current.append(char)
+
+    tail = "".join(current).strip()
+    if tail:
+        pairs.append(tail)
+    return pairs
 
 
 def generate_class_methods_from_agent(agent_instance: Any) -> list[dict[str, Any]]:
@@ -34,13 +108,46 @@ def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
     """Parse key-value pairs from a comma-separated KEY=VALUE string."""
     result = {}
     if kv_string:
-        for pair in kv_string.split(","):
+        for pair in _split_key_value_pairs(kv_string):
             if "=" in pair:
                 key, value = pair.split("=", 1)
                 result[key.strip()] = value.strip()
             else:
                 logging.warning(f"Skipping malformed key-value pair: {pair}")
     return result
+
+
+def validate_requirements_file(requirements_file: str) -> None:
+    """Fail fast when the deployment requirements file is missing or incomplete."""
+    requirements_path = Path(requirements_file)
+
+    if not requirements_path.exists():
+        raise click.ClickException(
+            "Requirements file not found: "
+            f"{requirements_file}. Generate it before deploying with: "
+            "uv export --group ai-agent --no-hashes --no-annotate "
+            f"-o {requirements_file}"
+        )
+
+    if not requirements_path.is_file():
+        raise click.ClickException(
+            f"Requirements path is not a file: {requirements_file}"
+        )
+
+    requirements_text = requirements_path.read_text(encoding="utf-8")
+    missing_packages = [
+        package
+        for package in REQUIRED_RUNTIME_PACKAGES
+        if package not in requirements_text
+    ]
+    if missing_packages:
+        missing_packages_display = ", ".join(missing_packages)
+        raise click.ClickException(
+            "Requirements file is missing required runtime packages for Agent "
+            f"Engine startup: {missing_packages_display}. Rebuild it with: "
+            "uv export --group ai-agent --no-hashes --no-annotate "
+            f"-o {requirements_file}"
+        )
 
 
 # Allow to run this script passing the next options
@@ -152,6 +259,8 @@ def deploy_agent_engine_app(
     Deploy the agent engine app to VertexAI
     """
     logging.basicConfig(level=logging.INFO)
+
+    validate_requirements_file(requirements_file)
 
     # Parse CLI env vars
     env_vars = parse_key_value_pairs(set_env_vars)
