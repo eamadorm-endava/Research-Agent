@@ -77,11 +77,6 @@ Because the MCP server is completely stateless regarding authentication, you do 
 
 Instead of configuring secrets directly on the MCP server, you must register an **Authorization Resource** in Gemini Enterprise. This tells the platform which OAuth client to use for user sessions.
 
-### Standard vs. Optimized Registration
-Depending on your deployment strategy, GE handles these credentials in two ways:
-*   **Interactive (Standard ADK)**: The agent pauses and requests credentials via events.
-*   **Project-Specific (GE-Optimized)**: The agent proactively retrieves the injected token from the context. **This is our recommended production approach.**
-
 For the complete 5-step production setup including GE-optimized registration, follow the **[OAuth inside Gemini Enterprise Guide](../AI-Agent-Development/06-OAuth-Inside-Gemini-Enterprise.md)**.
 
 ```bash
