@@ -26,3 +26,11 @@ vertex_ai_agent_iam_project_roles = {
     "roles/cloudtrace.agent"
   ]
 }
+
+discovery_engine_service_agent_iam_project_roles = {
+  "p-dev-gce-60pf" = [
+    "roles/aiplatform.user",
+    "roles/discoveryengine.user",
+    "roles/run.invoker"
+  ]
+}

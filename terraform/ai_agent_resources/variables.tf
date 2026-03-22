@@ -33,3 +33,10 @@ variable "vertex_ai_agent_iam_project_roles" {
   type        = map(list(string))
   default     = {}
 }
+
+#Discovery Engine service account and IAM roles
+variable "discovery_engine_service_agent_iam_project_roles" {
+  description = "Map of project IDs to a list of roles to be assigned to the Discovery Engine service agent."
+  type        = map(list(string))
+  default     = {}
+}
