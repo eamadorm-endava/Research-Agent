@@ -167,6 +167,8 @@ When integrated with Gemini Enterprise, the OAuth flow is managed by the GE plat
 ### Deleting Agent-Managed OAuth Flow
 > [!IMPORTANT]
 > To prevent "double authentication" prompts, ensure that any `OAuth2Auth` or `auth_credential` blocks in the agent's tool definitions are removed when deploying to Gemini Enterprise. Otherwise, the agent will attempt its own OAuth challenge via the ADK framework, even if GE has already provided a valid token. This second OAuth flow will fail because Agent Engine does not support the OAuth redirect flow.
+>
+> For more context on this requirement, see this [technical discussion](https://github.com/google/adk-docs/issues/1001#issuecomment-3894834825).
 
 ### List Authorization Resources
 ```bash
