@@ -12,7 +12,9 @@ AI Agents running in Gemini Enterprise (via the ADK framework) connect to custom
 Therefore, when the MCP server requests data from an underlying Google Cloud or Google Workspace API, it must securely propagate the identity of the user. We analyzed two predominant methods for achieving this identity propagation:
 
 1. **Domain-Wide Delegation (DWD)**: A Google Cloud Service Account is granted authority by a Workspace Super Admin to impersonate any user within the organization. The MCP assumes this service account identity and requests scoped credentials on behalf of the invoking user.
-2. **Per-User OAuth 2.0 (Individual Consent Flow)**: Each user individually authorizes the application via Google's OAuth 2.0 consent screen. The **ADK Agent (Client)** natively intercepts `adk_request_credential` events. When running inside **Gemini Enterprise**, the platform provides a native UX flow that prompts the user, securely stores the generated access/refresh tokens in a managed authorization resource, and actively handles the token refresh lifecycle. The Client then securely passes the active Access Token to the MCP Server as an `Authorization` header on every protocol request. The MCP Server acts as a stateless Resource Server, simply validating the token.
+2. **Per-User OAuth 2.0 (Individual Consent Flow)**: Each user individually authorizes the application via Google's OAuth 2.0 consent screen. The **ADK Agent (Client)** handles this in two ways:
+    *   **Standard Flow**: The agent natively intercepts `adk_request_credential` events, pauses execution, and waits for the frontend to exchange tokens.
+    *   **GE-Optimized Flow**: When running inside **Gemini Enterprise**, the platform provides a native UX flow and proactively injects the access token into the agent's context (`ctx.state`). The agent retrieves this via `get_ge_oauth_token()` and manually injects it into the MCP Tool headers. This bypasses the interactive framework events, leading to a faster and more stable execution.
 
 ## 2. Decision
 
@@ -72,6 +74,7 @@ This decision is based on the following drivers:
 
 *   **Stateless MCP Validation**: MCP Servers must NOT implement `/auth` endpoints or maintain local databases of user tokens. They strictly validate the `Authorization: Bearer <token>` header supplied by the ADK Client on each request cycle.
 *   **Gemini Enterprise Authorization Resource**: Administrators must set up Gemini Enterprise with the correct OAuth app credentials, ensuring the redirect URI points to the managed `vertexaisearch` endpoint.
+*   **GE-Optimized Header Injection**: For Gemini Enterprise deployments, the agent should proactively retrieve the token from the session context (keyed by `AUTH_ID`) and manually inject it into the `Authorization` header. This avoids redundant interactive challenges and ensures the framework does not attempt a secondary, failing handshake.
 *   **Consent Scopes**: Applications should request only the minimum necessary Google API scopes.
 *   **Revocation**: The ADK Client system must gracefully handle scenarios where users have manually revoked access via their Google Account, allowing the UI to prompt a re-authorization flow seamlessly.
 

@@ -17,7 +17,7 @@ The Agent Development Kit (ADK) sits at the core of the architecture. It orchest
 
 How the `adk_request_credential` event is handled depends entirely on the frontend client executing the ADK session.
 
-### A. Local UI Development (`make run-ui-agent`)
+### A. Local UI Development
 
 When developers test agents locally using the built-in React UI, the ADK UI backend serves as the client.
 
@@ -28,16 +28,36 @@ When developers test agents locally using the built-in React UI, the ADK UI back
 5. **Storage**: In local dev mode, these tokens are typically held securely in-memory for the duration of the server session or briefly cached in a local temp file strictly bound to the dev environment.
 6. **Resumption**: The UI backend resumes the ADK session, injecting the newly acquired tokens into the context.
 
-### B. Production Deployment (Gemini Enterprise)
+### B. Production Deployment (Gemini Enterprise - Optimized Flow)
 
-When deployed to Google Cloud, Vertex AI Agent Engine and Gemini Enterprise act as the client.
+In production, the agent is deployed to **Vertex AI Agent Engine** and integrated with **Gemini Enterprise**. 
 
-1. **Pre-configuration**: Administrators must first register an **Authorization Resource** in Gemini Enterprise. This configuration holds the production OAuth Client ID, Secret, and the pre-approved scopes for the agent.
-2. **Interception**: Agent Engine intercepts the `adk_request_credential` event.
-3. **Native UX**: Gemini Enterprise pauses the user's chat and presents a native, managed consent prompt.
-4. **Consent & Callback**: The user authorizes the application. The redirect goes to a secure, google-managed domain (e.g., `vertexaisearch.cloud.google.com/static/oauth/oauth.html`).
-5. **Storage & Management**: Gemini Enterprise securely stores the resulting Access Token and Refresh Token within its managed infrastructure, cryptographically tied to the user's identity. 
-6. **Lifecycle**: Gemini Enterprise completely obfuscates the token lifecycle. It handles refreshing expired access tokens transparently in the background using the stored refresh token.
+> [!WARNING]
+> **The ADK's standard interactive OAuth flow (using `auth_credential`) is incompatible with this deployment.** The ADK flow expects a client application to handle browser callbacks and return an exchanged code via a `FunctionResponse`. Agent Engine lacks a web server to receive these callbacks, causing the standard flow to fail or deadlock.
+
+To solve this architectural mismatch, our optimized implementation leverages Gemini Enterprise's native ability to manage user identities proactively and bypasses the ADK's internal auth circuit breaker.
+
+1.  **Platform-Managed Handshake**: Before the agent is even called, Gemini Enterprise handles the entire OAuth handshake (redirect, consent, token exchange). It securely stores the `access_token` and `refresh_token` in a managed **Authorization Resource**.
+2.  **Auth ID Mapping**: During deployment, the agent is linked to a specific `AUTH_ID`. This stable identifier allows GE to know exactly which credentials to provide for the session.
+3.  **Proactive Context Injection**: Each time GE invokes the agent, it automatically injects the active user's `access_token` into the session context (`ctx.state`), using the `AUTH_ID` as the lookup key.
+4.  **Agent-Side Retrieval**: Instead of pausing for framework events, the agent code immediately retrieves the token using the `get_ge_oauth_token` helper.
+5.  **Manual Header Injection**: The token is manually attached to the `Authorization` header of the outgoing MCP Tool request.
+6.  **Efficiency Gains**: This strategy completely eliminates the "pause-and-resume" cycle in production, resulting in lower latency, reduced complexity in the agent runtime, and a more robust user experience.
+
+**Example Implementation:**
+```python
+def get_ge_oauth_token(readonly_context: ReadonlyContext, auth_id: str) -> str | None:
+    # 1. Retrieve the token from the session state using the stable AUTH_ID
+    return readonly_context.state.get(auth_id)
+
+# 2. Configure the MCP Toolset to manually inject the header
+mcp_toolset = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(url="https://my-mcp-server"),
+    header_provider=lambda ctx: {
+        "Authorization": f"Bearer {get_ge_oauth_token(ctx, 'my_defined_auth_id')}"
+    }
+)
+```
 
 ## 3. The Execution Layer (Using the Token)
 
@@ -70,14 +90,20 @@ sequenceDiagram
     participant MCP as MCP Server
     participant Google as Google APIs
 
-    Note over Agent: ADK detects missing auth
-    Agent-->>App: Yield `adk_request_credential`
-    App->>User: Display Auth Prompt
-    User->>Google: Grant Consent
-    Google-->>App: Auth Code
-    Note over App: App manages Token Exchange & Storage
-    App->>App: Exchange code for Tokens
-    App->>Agent: Resume Agent with Tokens
+    alt Standard ADK Flow (Interactive)
+        Note over Agent: ADK detects missing auth
+        Agent-->>App: Yield `adk_request_credential`
+        App->>User: Display Auth Prompt
+        User->>Google: Grant Consent
+        Google-->>App: Auth Code
+        App->>App: Exchange code for Tokens
+        App->>Agent: Resume Agent with Tokens
+    else GE-Optimized Flow (Non-Interactive)
+        Note over App: App proactively injects Token into Context
+        App->>Agent: Call Agent + Token in Context
+        Agent->>Agent: Retrieve via get_ge_oauth_token()
+    end
+
     Agent->>MCP: Tool Call + 'Authorization: Bearer <Token>'
     Note over MCP: Stateless signature & scope validation
     MCP->>Google: GCP API Request with Token

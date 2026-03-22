@@ -164,11 +164,39 @@ When integrated with Gemini Enterprise, the OAuth flow is managed by the GE plat
 2.  **Token Availability**: The resulting access token is automatically injected into the agent's context (`ctx.state`) under the `AUTH_ID` key.
 3.  **Manual Injection**: Instead of defining an `auth_credential` in the tool configuration - MCPToolset (which would trigger the ADK's internal, redundant OAuth flow), it's required to use a helper like `get_ge_oauth_token` to retrieve the token from the context and inject it manually into the `Authorization` header of the tool calls.
 
-### Deleting Agent-Managed OAuth Flow
+**Implementation Example:**
+```python
+from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.tools.mcp_tool import McpToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+
+# Helper function to extract the token from Gemini Enterprise's context injection
+def get_ge_oauth_token(readonly_context: ReadonlyContext, auth_id: str) -> str | None:
+    return readonly_context.state.get(auth_id)
+
+my_mcp_toolset = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(url="https://remote-mcp-server.run.app"),
+    # Manually provide the Authorization header dynamically per-request
+    header_provider=lambda ctx: {
+        "Authorization": f"Bearer {get_ge_oauth_token(ctx, 'MY_AUTH_RESOURCE_ID')}"
+    }
+)
+```
+
+### Deleting Agent-Managed OAuth Flow (The Root Cause of Failure)
 > [!IMPORTANT]
-> To prevent "double authentication" prompts, ensure that any `OAuth2Auth` or `auth_credential` blocks in the agent's tool definitions are removed when deploying to Gemini Enterprise. Otherwise, the agent will attempt its own OAuth challenge via the ADK framework, even if GE has already provided a valid token. This second OAuth flow will fail because Agent Engine does not support the OAuth redirect flow.
->
-> For more context on this requirement, see this [technical discussion](https://github.com/google/adk-docs/issues/1001#issuecomment-3894834825).
+> **To prevent execution failures, you MUST remove any `auth_credential` blocks from your tool definitions when deploying to Gemini Enterprise.**
+
+**The Architectural Mismatch:**
+The standard ADK OAuth flow (configured via passing `auth_credential` to a toolset) relies on an interactive `adk_request_credential` event. As detailed in the [ADK Auth Docs](https://google.github.io/adk-docs/tools-custom/authentication/), this framework flow expects the client application to handle the browser redirect and then send an updated `FunctionResponse` containing the exchanged OAuth code back to the ADK session.
+
+**Why it fails in production:**
+1.  **Agent Engine Limitations**: Vertex AI Agent Engine hosts the agent logic, but it is not a web server. It lacks the routing capabilities to receive an OAuth callback directly.
+2.  **GE Context Injection**: Instead of fulfilling the ADK's expectation of a `FunctionResponse`, Gemini Enterprise intercepts the need for authorization natively, manages the token exchange internally, and forcefully injects the resulting access token into the agent's `ctx.state`.
+3.  **The Deadlock**: If you leave `auth_credential` configured, the ADK framework remains stuck waiting for its internal exchange process to complete, ignoring the token GE already injected into the context. This leads to a hanging execution or an authentication failure.
+
+**The Solution:**
+By removing `auth_credential` and instead using the `header_provider` injection with `get_ge_oauth_token()`, we bypass the ADK's internal OAuth circuit breaker entirely, allowing the agent to seamlessly utilize the token GE has already provided.
 
 ### List Authorization Resources
 ```bash
