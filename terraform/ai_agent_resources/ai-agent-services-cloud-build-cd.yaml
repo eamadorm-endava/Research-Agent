@@ -3,7 +3,6 @@ substitutions:
   _AGENT_DISPLAY_NAME: "Research Agent"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
-  _DRIVE_OAUTH_REDIRECT_URI: "https://vertexaisearch.cloud.google.com/static/oauth/oauth.html"
   _DRIVE_URL: "https://drive-mcp-server-753988132239.us-central1.run.app"
 
 steps:
@@ -49,14 +48,12 @@ steps:
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},DRIVE_OAUTH_CLIENT_ID=$$DRIVE_OAUTH_CLIENT_ID,DRIVE_OAUTH_CLIENT_SECRET=$$DRIVE_OAUTH_CLIENT_SECRET,DRIVE_OAUTH_REDIRECT_URI=${_DRIVE_OAUTH_REDIRECT_URI},DRIVE_URL=${_DRIVE_URL}"
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},DRIVE_URL=${_DRIVE_URL},GEMINI_DRIVE_AUTH_ID=$$DRIVE_AUTH_ID"
 
 availableSecrets:
   secretManager:
-    - versionName: projects/${PROJECT_ID}/secrets/client_id/versions/latest
-      env: 'DRIVE_OAUTH_CLIENT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/client_secret/versions/latest
-      env: 'DRIVE_OAUTH_CLIENT_SECRET'
+    - versionName: projects/${PROJECT_ID}/secrets/DRIVE_AUTH_ID/versions/latest
+      env: 'DRIVE_AUTH_ID'
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
