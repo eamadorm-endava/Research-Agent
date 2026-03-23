@@ -36,7 +36,9 @@ Setting up OAuth involves configuring the **Consent Screen** (the page users see
 3. Select **Web application** as the application type.
 4. If you see the message *"To create an OAuth client ID, you must first configure your consent screen"*:
     - Click **Configure Consent Screen**.
-    - Choose **User Type** (**Internal** for Workspace orgs, **External** for personal accounts).
+    - Choose **User Type** and carefully consider the implications:
+      - **Internal**: Best for tools restricted to your organization's Google Workspace users. This option bypasses Google's rigorous app verification process entirely, allowing immediate use of sensitive scopes (like Drive) without user caps.
+      - **External**: Required if users outside your organization (including standard `@gmail.com` users) need access. If requesting sensitive/restricted scopes, your app will be capped at 100 users and show an "unverified app" warning until it passes Google's official security and verification review.
     - Fill in the required fields (**App name**, **User support email**, **Developer contact email**).
     - Click **Save and Continue**.
 
