@@ -30,6 +30,7 @@ steps:
   - name: 'python:3.12'
     id: 'deploy-agent-engine'
     entrypoint: 'sh'
+    secretEnv: ['GEMINI_DRIVE_AUTH_ID']
     args:
       - '-c'
       - |
@@ -49,7 +50,6 @@ steps:
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
           --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},DRIVE_URL=${_DRIVE_URL},GEMINI_DRIVE_AUTH_ID=$$GEMINI_DRIVE_AUTH_ID"
-    secretEnv: ['GEMINI_DRIVE_AUTH_ID']
 
 availableSecrets:
   secretManager:
