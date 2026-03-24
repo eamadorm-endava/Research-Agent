@@ -15,12 +15,20 @@ from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG, DRIVE_SERVER_CONFIG
 from .drive_client import DriveManager, build_drive_credentials
 from .schemas import (
     AuthenticationError,
+    CreateFileRequest,
+    CreateFileResponse,
+    CreateFolderRequest,
+    CreateFolderResponse,
     CreateGoogleDocRequest,
     CreateGoogleDocResponse,
     GetFileTextRequest,
     GetFileTextResponse,
     ListFilesRequest,
     ListFilesResponse,
+    MoveFileRequest,
+    MoveFileResponse,
+    RenameFileRequest,
+    RenameFileResponse,
     SearchFilesRequest,
     SearchFilesResponse,
     UploadPdfRequest,
@@ -34,12 +42,6 @@ class GoogleDriveTokenVerifier(TokenVerifier):
     """Verifies a Google OAuth access token against Google's tokeninfo endpoint."""
 
     async def verify_token(self, token: str) -> Optional[AccessToken]:
-        """
-        Validates the token and returns an AccessToken object if valid.
-        Args:
-            token: The raw OAuth2 access token to verify.
-        Return: An AccessToken object or None if verification fails.
-        """
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -76,12 +78,6 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def list_files(request: ListFilesRequest) -> ListFilesResponse:
-    """
-    Lists files in a Google Drive folder.
-    Args:
-        request: ListFilesRequest object containing filter and pagination details.
-    Return: ListFilesResponse object with the retrieved files and status.
-    """
     logger.info(
         "Tool call: list_files(max_results=%s, folder_id=%s)",
         request.max_results,
@@ -125,12 +121,6 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
 
 @mcp.tool()
 async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
-    """
-    Searches for files in Google Drive using text or raw queries.
-    Args:
-        request: SearchFilesRequest specifying search terms and filters.
-    Return: SearchFilesResponse containing the matching files.
-    """
     logger.info(
         "Tool call: search_files(search_text=%s, drive_query=%s)",
         request.search_text,
@@ -186,12 +176,6 @@ async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
 
 @mcp.tool()
 async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
-    """
-    Retrieves the plain text content of a Google Drive file.
-    Args:
-        request: GetFileTextRequest with the file ID and max characters.
-    Return: GetFileTextResponse including the extracted text.
-    """
     logger.info("Tool call: get_file_text(file_id=%s)", request.file_id)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
@@ -227,12 +211,6 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
 
 @mcp.tool()
 async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocResponse:
-    """
-    Creates a new Google Doc with the specified content.
-    Args:
-        request: CreateGoogleDocRequest with title, content, and optional folder.
-    Return: CreateGoogleDocResponse with the new file's metadata.
-    """
     logger.info("Tool call: create_google_doc(title=%s)", request.title)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.write_doc_scopes)
@@ -272,12 +250,6 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
 
 @mcp.tool()
 async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
-    """
-    Generates and uploads a PDF file from the provided text.
-    Args:
-        request: UploadPdfRequest with title, text content, and optional folder.
-    Return: UploadPdfResponse with the result of the upload.
-    """
     logger.info("Tool call: upload_pdf(title=%s)", request.title)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.write_pdf_scopes)
@@ -315,25 +287,164 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
         )
 
 
+@mcp.tool()
+async def create_file(request: CreateFileRequest) -> CreateFileResponse:
+    logger.info("Tool call: create_file(name=%s, mime_type=%s)", request.name, request.mime_type)
+    try:
+        manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
+        file = await asyncio.to_thread(
+            manager.create_file,
+            name=request.name,
+            content=request.content,
+            mime_type=request.mime_type,
+            folder_id=request.folder_id,
+        )
+        return CreateFileResponse(
+            name=request.name,
+            content=request.content,
+            mime_type=request.mime_type,
+            folder_id=request.folder_id,
+            file=file,
+            execution_status="success",
+            execution_message=f"Created file '{file.name}'.",
+        )
+    except AuthenticationError as exc:
+        return CreateFileResponse(
+            name=request.name,
+            content=request.content,
+            mime_type=request.mime_type,
+            folder_id=request.folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}",
+        )
+    except Exception as exc:
+        return CreateFileResponse(
+            name=request.name,
+            content=request.content,
+            mime_type=request.mime_type,
+            folder_id=request.folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=str(exc),
+        )
+
+
+@mcp.tool()
+async def create_folder(request: CreateFolderRequest) -> CreateFolderResponse:
+    logger.info("Tool call: create_folder(name=%s)", request.name)
+    try:
+        manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
+        file = await asyncio.to_thread(
+            manager.create_folder,
+            name=request.name,
+            folder_id=request.folder_id,
+        )
+        return CreateFolderResponse(
+            name=request.name,
+            folder_id=request.folder_id,
+            file=file,
+            execution_status="success",
+            execution_message=f"Created folder '{request.name}'.",
+        )
+    except AuthenticationError as exc:
+        return CreateFolderResponse(
+            name=request.name,
+            folder_id=request.folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}",
+        )
+    except Exception as exc:
+        return CreateFolderResponse(
+            name=request.name,
+            folder_id=request.folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=str(exc),
+        )
+
+
+@mcp.tool()
+async def move_file(request: MoveFileRequest) -> MoveFileResponse:
+    logger.info(
+        "Tool call: move_file(file_id=%s, destination_folder_id=%s)",
+        request.file_id,
+        request.destination_folder_id,
+    )
+    try:
+        manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
+        file = await asyncio.to_thread(
+            manager.move_file,
+            file_id=request.file_id,
+            destination_folder_id=request.destination_folder_id,
+        )
+        return MoveFileResponse(
+            file_id=request.file_id,
+            destination_folder_id=request.destination_folder_id,
+            file=file,
+            execution_status="success",
+            execution_message=f"Moved item '{file.name}' into folder {request.destination_folder_id}.",
+        )
+    except AuthenticationError as exc:
+        return MoveFileResponse(
+            file_id=request.file_id,
+            destination_folder_id=request.destination_folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}",
+        )
+    except Exception as exc:
+        return MoveFileResponse(
+            file_id=request.file_id,
+            destination_folder_id=request.destination_folder_id,
+            file=None,
+            execution_status="error",
+            execution_message=str(exc),
+        )
+
+
+@mcp.tool()
+async def rename_file(request: RenameFileRequest) -> RenameFileResponse:
+    logger.info("Tool call: rename_file(file_id=%s, new_name=%s)", request.file_id, request.new_name)
+    try:
+        manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
+        file = await asyncio.to_thread(
+            manager.rename_file,
+            file_id=request.file_id,
+            new_name=request.new_name,
+        )
+        return RenameFileResponse(
+            file_id=request.file_id,
+            new_name=request.new_name,
+            file=file,
+            execution_status="success",
+            execution_message=f"Renamed item to '{request.new_name}'.",
+        )
+    except AuthenticationError as exc:
+        return RenameFileResponse(
+            file_id=request.file_id,
+            new_name=request.new_name,
+            file=None,
+            execution_status="error",
+            execution_message=f"Authentication Error: {exc}",
+        )
+    except Exception as exc:
+        return RenameFileResponse(
+            file_id=request.file_id,
+            new_name=request.new_name,
+            file=None,
+            execution_status="error",
+            execution_message=str(exc),
+        )
+
+
 def _make_drive_manager(*, scopes: Sequence[str]) -> DriveManager:
-    """
-    Factory function to create a DriveManager instance for tools.
-    Args:
-        scopes: Sequence of OAuth scopes required for the requested operations.
-    Return: An initialized DriveManager object.
-    """
     access_token = _get_current_token()
     creds = build_drive_credentials(access_token=access_token, scopes=scopes)
     return DriveManager(creds)
 
 
 def _get_current_token() -> Optional[str]:
-    """
-    Retrieves the current OAuth access token from the MCP context.
-    Args:
-        None
-    Return: The raw access token string or None if not authenticated.
-    """
-    # Use native MCP access token which is extracted/validated by middleware
     token_obj = get_access_token()
     return token_obj.token if token_obj else None

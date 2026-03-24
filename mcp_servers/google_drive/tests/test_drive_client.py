@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from mcp_servers.google_drive.app.config import DRIVE_API_CONFIG
 from mcp_servers.google_drive.app.drive_client import (
     DriveManager,
@@ -21,7 +23,12 @@ def test_drive_manager_list_files(mock_build):
                 "name": "Quarterly Report",
                 "mimeType": "application/pdf",
                 "modifiedTime": "2026-03-10T12:00:00Z",
+                "createdTime": "2026-03-01T12:00:00Z",
                 "webViewLink": "https://drive.google.com/file/d/file_1/view",
+                "parents": [],
+                "owners": [{"displayName": "Alice", "emailAddress": "alice@example.com"}],
+                "size": "42",
+                "version": "7",
             }
         ]
     }
@@ -35,10 +42,43 @@ def test_drive_manager_list_files(mock_build):
             name="Quarterly Report",
             mimeType="application/pdf",
             modifiedTime="2026-03-10T12:00:00Z",
+            createdTime="2026-03-01T12:00:00Z",
             webViewLink="https://drive.google.com/file/d/file_1/view",
+            parents=[],
+            owners=[{"displayName": "Alice", "emailAddress": "alice@example.com"}],
+            size=42,
+            version=7,
+            path="/Quarterly Report",
         )
     ]
     mock_drive.files.return_value.list.assert_called_once()
+
+
+@patch("mcp_servers.google_drive.app.drive_client.build")
+def test_drive_manager_resolves_nested_path(mock_build):
+    mock_drive = MagicMock()
+    mock_build.return_value = mock_drive
+
+    get_execute = mock_drive.files.return_value.get.return_value.execute
+    get_execute.side_effect = [
+        {"id": "parent_1", "name": "Projects", "parents": ["parent_0"]},
+        {"id": "parent_0", "name": "Documents", "parents": []},
+    ]
+    mock_drive.files.return_value.list.return_value.execute.return_value = {
+        "files": [
+            {
+                "id": "file_1",
+                "name": "notes.txt",
+                "mimeType": "text/plain",
+                "parents": ["parent_1"],
+            }
+        ]
+    }
+
+    manager = DriveManager(creds=MagicMock())
+    files = manager.list_files(max_results=1)
+
+    assert files[0].path == "/Documents/Projects/notes.txt"
 
 
 @patch("mcp_servers.google_drive.app.drive_client.validate_access_token")
@@ -65,21 +105,30 @@ def test_validate_access_token_success():
     with patch("httpx.Client.get") as mock_get:
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {
-            "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file"
+            "scope": DRIVE_API_CONFIG.drive_scope
         }
 
         token_info = validate_access_token(
-            "valid_token", ["https://www.googleapis.com/auth/drive.readonly"]
+            "valid_token", [DRIVE_API_CONFIG.drive_scope]
         )
         assert "scope" in token_info
+
+
+def test_validate_access_token_full_drive_scope_satisfies_documents_scope():
+    with patch("httpx.Client.get") as mock_get:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {"scope": DRIVE_API_CONFIG.drive_scope}
+
+        token_info = validate_access_token(
+            "valid_token", ["https://www.googleapis.com/auth/documents"]
+        )
+        assert token_info["scope"] == DRIVE_API_CONFIG.drive_scope
 
 
 def test_validate_access_token_invalid():
     with patch("httpx.Client.get") as mock_get:
         mock_get.return_value.status_code = 401
         mock_get.return_value.json.return_value = {"error_description": "Invalid Value"}
-
-        import pytest
 
         with pytest.raises(AuthenticationError) as excinfo:
             validate_access_token("invalid_token")
@@ -93,10 +142,6 @@ def test_validate_access_token_missing_scopes():
             "scope": "https://www.googleapis.com/auth/userinfo.email"
         }
 
-        import pytest
-
         with pytest.raises(AuthenticationError) as excinfo:
-            validate_access_token(
-                "valid_token", ["https://www.googleapis.com/auth/drive.readonly"]
-            )
+            validate_access_token("valid_token", [DRIVE_API_CONFIG.drive_scope])
         assert "Token is missing required scopes" in str(excinfo.value)

@@ -229,9 +229,10 @@ class MCPServersConfig(BaseSettings):
         Union[dict[str, str], list[DriveScopes]],
         Field(
             default=[
-                DriveScopes.READONLY,
-                DriveScopes.FILE,
-                DriveScopes.DOCUMENTS,
+                #DriveScopes.READONLY,
+                #DriveScopes.FILE,
+                #DriveScopes.DOCUMENTS,
+                DriveScopes.DRIVE,
             ],
             description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
         ),
