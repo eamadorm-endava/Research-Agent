@@ -30,6 +30,7 @@ steps:
   - name: 'python:3.12'
     id: 'deploy-agent-engine'
     entrypoint: 'sh'
+    secretEnv: ['GEMINI_DRIVE_AUTH_ID']
     args:
       - '-c'
       - |
