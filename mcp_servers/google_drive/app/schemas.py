@@ -37,7 +37,11 @@ MAX_RESULTS = Annotated[
 ]
 FOLDER_ID = Annotated[
     Optional[str],
-    Field(default=None, description="Optional Drive folder ID to restrict results."),
+    Field(default=None, description="Optional Drive folder ID to restrict results or place new items into."),
+]
+DESTINATION_FOLDER_ID = Annotated[
+    str,
+    Field(min_length=1, description="Destination Drive folder ID for a move operation."),
 ]
 MIME_TYPES = Annotated[
     Optional[list[str]],
@@ -69,7 +73,7 @@ DRIVE_QUERY = Annotated[
 ]
 DRIVE_FILE_ID = Annotated[
     str,
-    Field(min_length=1, description="Drive file ID."),
+    Field(min_length=1, description="Drive file or folder ID."),
 ]
 MAX_CHARS = Annotated[
     int,
@@ -92,9 +96,17 @@ PDF_TEXT_CONTENT = Annotated[
     str,
     Field(min_length=1, description="Text content to place into the PDF."),
 ]
+GENERIC_FILE_CONTENT = Annotated[
+    str,
+    Field(default="", description="UTF-8 text content to store in the created file."),
+]
+GENERIC_FILE_MIME_TYPE = Annotated[
+    str,
+    Field(default="text/plain", description="MIME type to use when creating a generic file."),
+]
 DRIVE_FILE_NAME = Annotated[
     str,
-    Field(description="Display name of the file."),
+    Field(description="Display name of the file or folder."),
 ]
 DRIVE_FILE_MIME_TYPE = Annotated[
     str,
@@ -102,11 +114,43 @@ DRIVE_FILE_MIME_TYPE = Annotated[
 ]
 DRIVE_FILE_MODIFIED_TIME = Annotated[
     Optional[str],
-    Field(default=None, description="Last modified time."),
+    Field(default=None, description="Last modified time in RFC 3339 format, when available."),
+]
+DRIVE_FILE_CREATED_TIME = Annotated[
+    Optional[str],
+    Field(default=None, description="Creation time in RFC 3339 format, when available."),
 ]
 DRIVE_FILE_WEB_VIEW_LINK = Annotated[
     Optional[str],
     Field(default=None, description="Browser URL for the file."),
+]
+DRIVE_FILE_SIZE = Annotated[
+    Optional[int],
+    Field(default=None, ge=0, description="File size in bytes, when available."),
+]
+DRIVE_FILE_PARENTS = Annotated[
+    list[str],
+    Field(default_factory=list, description="List of parent folder IDs for the file."),
+]
+DRIVE_FILE_VERSION = Annotated[
+    Optional[int],
+    Field(default=None, ge=0, description="Drive file version, when available."),
+]
+DRIVE_FILE_PATH = Annotated[
+    Optional[str],
+    Field(default=None, description="Synthetic absolute Drive path resolved from the parent chain, for example /Documents/Project/notes.txt."),
+]
+OWNER_DISPLAY_NAME = Annotated[
+    Optional[str],
+    Field(default=None, description="Display name of the file owner."),
+]
+OWNER_EMAIL_ADDRESS = Annotated[
+    Optional[str],
+    Field(default=None, description="Email address of the file owner."),
+]
+NEW_NAME = Annotated[
+    str,
+    Field(min_length=1, max_length=250, description="New display name for the file or folder."),
 ]
 DRIVE_DOCUMENT_TEXT = Annotated[
     str,
@@ -121,14 +165,33 @@ class BaseResponse(DriveSchemaModel):
     execution_message: EXECUTION_MESSAGE
 
 
+class DriveOwnerModel(DriveSchemaModel):
+    """Owner metadata included in Drive file responses."""
+
+    displayName: OWNER_DISPLAY_NAME
+    emailAddress: OWNER_EMAIL_ADDRESS
+
+
+DRIVE_FILE_OWNERS = Annotated[
+    list[DriveOwnerModel],
+    Field(default_factory=list, description="Owners of the file, when available."),
+]
+
+
 class DriveFileModel(DriveSchemaModel):
-    """Metadata for a single Google Drive file."""
+    """Metadata for a single Google Drive file or folder."""
 
     id: DRIVE_FILE_ID
     name: DRIVE_FILE_NAME
     mimeType: DRIVE_FILE_MIME_TYPE
     modifiedTime: DRIVE_FILE_MODIFIED_TIME
+    createdTime: DRIVE_FILE_CREATED_TIME
     webViewLink: DRIVE_FILE_WEB_VIEW_LINK
+    size: DRIVE_FILE_SIZE
+    parents: DRIVE_FILE_PARENTS
+    owners: DRIVE_FILE_OWNERS
+    version: DRIVE_FILE_VERSION
+    path: DRIVE_FILE_PATH
 
 
 class DriveDocumentModel(DriveFileModel):
@@ -229,5 +292,59 @@ class UploadPdfRequest(DriveSchemaModel):
 
 class UploadPdfResponse(UploadPdfRequest, BaseResponse):
     """Response schema for an uploaded PDF."""
+
+    file: DRIVE_FILE
+
+
+class CreateFileRequest(DriveSchemaModel):
+    """Request schema for creating a generic text-based file."""
+
+    name: DOCUMENT_TITLE
+    content: GENERIC_FILE_CONTENT
+    mime_type: GENERIC_FILE_MIME_TYPE
+    folder_id: FOLDER_ID
+
+
+class CreateFileResponse(CreateFileRequest, BaseResponse):
+    """Response schema for a created generic file."""
+
+    file: DRIVE_FILE
+
+
+class CreateFolderRequest(DriveSchemaModel):
+    """Request schema for creating a Google Drive folder."""
+
+    name: DOCUMENT_TITLE
+    folder_id: FOLDER_ID
+
+
+class CreateFolderResponse(CreateFolderRequest, BaseResponse):
+    """Response schema for a created folder."""
+
+    file: DRIVE_FILE
+
+
+class MoveFileRequest(DriveSchemaModel):
+    """Request schema for moving an existing file or folder."""
+
+    file_id: DRIVE_FILE_ID
+    destination_folder_id: DESTINATION_FOLDER_ID
+
+
+class MoveFileResponse(MoveFileRequest, BaseResponse):
+    """Response schema for a moved Drive item."""
+
+    file: DRIVE_FILE
+
+
+class RenameFileRequest(DriveSchemaModel):
+    """Request schema for renaming a file or folder."""
+
+    file_id: DRIVE_FILE_ID
+    new_name: NEW_NAME
+
+
+class RenameFileResponse(RenameFileRequest, BaseResponse):
+    """Response schema for a renamed Drive item."""
 
     file: DRIVE_FILE
