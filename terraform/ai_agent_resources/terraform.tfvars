@@ -30,6 +30,7 @@ vertex_ai_agent_iam_project_roles = {
 discovery_engine_service_agent_iam_project_roles = {
   "p-dev-gce-60pf" = [
     "roles/aiplatform.user",
+    "roles/modelarmor.user",
     "roles/discoveryengine.user",
     "roles/run.invoker"
   ]
