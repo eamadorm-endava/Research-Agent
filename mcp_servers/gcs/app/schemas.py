@@ -36,7 +36,25 @@ class BaseResponse(BaseModel):
     ]
 
 
-class CreateBucketRequest(BaseModel):
+class AuthenticationError(Exception):
+    """Raised when delegated OAuth authentication fails."""
+
+
+class BaseRequest(BaseModel):
+    user_identity_context: Annotated[
+        Optional[Dict[str, str]],
+        Field(
+            default=None,
+            description=(
+                "Optional opaque identity context supplied by the agent "
+                "(for example user principal, authorization resource ID, session ID). "
+                "Do not include raw bearer tokens in this payload field."
+            ),
+        ),
+    ]
+
+
+class CreateBucketRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     location: LOCATION
 
@@ -45,7 +63,7 @@ class CreateBucketResponse(CreateBucketRequest, BaseResponse):
     pass
 
 
-class UpdateBucketLabelsRequest(BaseModel):
+class UpdateBucketLabelsRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     labels: Annotated[
         Dict[str, str],
@@ -57,7 +75,7 @@ class UpdateBucketLabelsResponse(UpdateBucketLabelsRequest, BaseResponse):
     pass
 
 
-class UploadObjectRequest(BaseModel):
+class UploadObjectRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     object_name: OBJECT_NAME
     content: Annotated[
@@ -84,7 +102,7 @@ class UploadObjectResponse(UploadObjectRequest, BaseResponse):
     pass
 
 
-class ReadObjectRequest(BaseModel):
+class ReadObjectRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     object_name: OBJECT_NAME
 
@@ -104,7 +122,7 @@ class ReadObjectResponse(ReadObjectRequest, BaseResponse):
     ]
 
 
-class UpdateObjectMetadataRequest(BaseModel):
+class UpdateObjectMetadataRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     object_name: OBJECT_NAME
     metadata: Annotated[
@@ -120,7 +138,7 @@ class UpdateObjectMetadataResponse(UpdateObjectMetadataRequest, BaseResponse):
     ]
 
 
-class DeleteObjectRequest(BaseModel):
+class DeleteObjectRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     object_name: OBJECT_NAME
 
@@ -129,7 +147,7 @@ class DeleteObjectResponse(DeleteObjectRequest, BaseResponse):
     pass
 
 
-class ListObjectsRequest(BaseModel):
+class ListObjectsRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     prefix: Annotated[
         Optional[str],
@@ -144,7 +162,7 @@ class ListObjectsResponse(ListObjectsRequest, BaseResponse):
     ]
 
 
-class ListBucketsRequest(BaseModel):
+class ListBucketsRequest(BaseRequest):
     prefix: Annotated[
         Optional[str],
         Field(default=None, description="Optional bucket-name prefix filter."),
