@@ -7,6 +7,7 @@ substitutions:
   _GE_APP_ID: "newgeapp_1773239361913"
   _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
+  _DRIVE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
@@ -32,7 +33,7 @@ steps:
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-pre-deploy'
     entrypoint: 'bash'
-    secretEnv: ['GEMINI_DRIVE_AUTH_ID', 'DRIVE_OAUTH_CLIENT_ID', 'DRIVE_OAUTH_CLIENT_SECRET']
+    secretEnv: ['GEMINI_DRIVE_AUTH_ID', 'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET']
     args:
       - '-c'
       - |
@@ -52,18 +53,14 @@ steps:
           --ge-location ${_GE_REGION} \
           --auth-id "$$GEMINI_DRIVE_AUTH_ID"
 
-        _DRIVE_OAUTH_AUTH_URI="https://accounts.google.com/o/oauth2/v2/auth?client_id=$$DRIVE_OAUTH_CLIENT_ID&redirect_uri=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fstatic%2Foauth%2Foauth.html&scope=https://www.googleapis.com/auth/drive.readonly%20https://www.googleapis.com/auth/drive.file%20https://www.googleapis.com/auth/documents&include_granted_scopes=true&response_type=code&access_type=offline&prompt=consent"
-        _OAUTH_TOKEN_URI="https://oauth2.googleapis.com/token"
-
         echo "3. Creating Auth ID $$GEMINI_DRIVE_AUTH_ID..."
         ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-id \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
           --auth-id "$$GEMINI_DRIVE_AUTH_ID" \
-          --client-id "$$DRIVE_OAUTH_CLIENT_ID" \
-          --client-secret "$$DRIVE_OAUTH_CLIENT_SECRET" \
-          --auth-uri "${_DRIVE_OAUTH_AUTH_URI}" \
-          --token-uri "${_OAUTH_TOKEN_URI}"
+          --client-id "$$OAUTH_CLIENT_ID" \
+          --client-secret "$$OAUTH_CLIENT_SECRET" \
+          --scopes "${_DRIVE_OAUTH_SCOPES}"
 
   
   # Step 4: Deploy the AI-Agent to Agent Engine
@@ -126,10 +123,10 @@ availableSecrets:
   secretManager:
     - versionName: projects/${PROJECT_ID}/secrets/GEMINI_DRIVE_AUTH_ID/versions/latest
       env: 'GEMINI_DRIVE_AUTH_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/DRIVE_OAUTH_CLIENT_ID/versions/latest
-      env: 'DRIVE_OAUTH_CLIENT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/DRIVE_OAUTH_CLIENT_SECRET/versions/latest
-      env: 'DRIVE_OAUTH_CLIENT_SECRET'
+    - versionName: projects/${PROJECT_ID}/secrets/OAUTH_CLIENT_ID/versions/latest
+      env: 'OAUTH_CLIENT_ID'
+    - versionName: projects/${PROJECT_ID}/secrets/OAUTH_CLIENT_SECRET/versions/latest
+      env: 'OAUTH_CLIENT_SECRET'
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
