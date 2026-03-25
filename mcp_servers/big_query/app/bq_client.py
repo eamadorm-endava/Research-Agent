@@ -1,9 +1,14 @@
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 import logging
 import json
+import httpx
 from google.cloud import bigquery
 from google.cloud.bigquery.schema import SchemaField
 from google.cloud.exceptions import GoogleCloudError, NotFound
+from google.oauth2.credentials import Credentials
+
+from .config import BIGQUERY_AUTH_CONFIG
+from .schemas import AuthenticationError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,11 +21,11 @@ class BigQueryManager:
     Initializes a client using Application Default Credentials (ADC).
     """
 
-    def __init__(self):
+    def __init__(self, creds: Any, default_project: Optional[str] = None):
         try:
-            self.client = bigquery.Client()
+            self.client = bigquery.Client(credentials=creds, project=default_project)
             logger.info(
-                f"BigQuery Client initialized using ADC (Project: {self.client.project})."
+                f"BigQuery client initialized using delegated user credentials (Project: {self.client.project})."
             )
         except GoogleCloudError as e:
             logger.error(f"Failed to initialize BigQuery Client: {e}")
@@ -239,3 +244,53 @@ class BigQueryManager:
             return make_serializable(output)
         except Exception as e:
             raise ValueError(f"Error querying the data: {e}")
+
+
+def build_bq_credentials(
+    *,
+    access_token: Optional[str] = None,
+    validate: bool = True,
+) -> Credentials:
+    """
+    Builds Google OAuth2 credentials for BigQuery from a delegated access token.
+    Args:
+        access_token: Optional OAuth2 access token.
+        validate: Whether to validate token validity before creating credentials.
+    Return: A Google Credentials object.
+    """
+
+    if access_token:
+        if validate:
+            validate_access_token(access_token)
+        return Credentials(token=access_token)
+
+    raise RuntimeError(
+        "No BigQuery credentials available. Provide a delegated user access token header."
+    )
+
+
+def validate_access_token(access_token: str) -> dict[str, Any]:
+    """
+    Validates an OAuth access token against Google's tokeninfo endpoint.
+    Args:
+        access_token: The OAuth2 access token to validate.
+    Return: The token info payload when token is valid.
+    """
+    try:
+        with httpx.Client() as client:
+            response = client.get(
+                BIGQUERY_AUTH_CONFIG.google_token_info_url_v3,
+                params={"access_token": access_token},
+                timeout=10,
+            )
+    except Exception as exc:
+        raise AuthenticationError(f"Failed to reach token validation endpoint: {exc}")
+
+    if response.status_code != 200:
+        try:
+            error_detail = response.json().get("error_description", response.text)
+        except Exception:
+            error_detail = response.text
+        raise AuthenticationError(f"Invalid OAuth token: {error_detail}")
+
+    return response.json()

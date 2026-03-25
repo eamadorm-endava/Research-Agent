@@ -6,6 +6,8 @@ from mcp_servers.big_query.app.mcp_server import (
     create_table,
     get_table_schema,
     add_rows,
+    execute_query,
+    list_tables,
 )
 from mcp_servers.big_query.app.schemas import (
     CreateDatasetRequest,
@@ -13,6 +15,7 @@ from mcp_servers.big_query.app.schemas import (
     GetTableSchemaRequest,
     AddRowsRequest,
     ExecuteQueryRequest,
+    ListTablesRequest,
     AvailableProject,
 )
 
@@ -23,8 +26,12 @@ def mock_bq_manager():
     Fixture that provides a mocked BigQueryManager.
     Implementation: Uses unittest.mock.patch to intercept the bq_manager instance in the mcp_server module.
     """
-    with patch("mcp_servers.big_query.app.mcp_server.bq_manager") as mock:
-        yield mock
+    manager = MagicMock()
+    with patch(
+        "mcp_servers.big_query.app.mcp_server._make_bq_manager",
+        return_value=manager,
+    ):
+        yield manager
 
 
 @pytest.mark.asyncio
@@ -139,3 +146,39 @@ async def test_mcp_add_rows_success(mock_bq_manager):
     mock_bq_manager.insert_rows.assert_called_once_with(
         AvailableProject.DEV, "ds", "table", [{"id": 1}]
     )
+
+
+@pytest.mark.asyncio
+async def test_mcp_execute_query_authorized_user_success(mock_bq_manager):
+    """
+    Simulates an authorized user successfully querying their allowed dataset.
+    """
+    mock_bq_manager.execute_query.return_value = [{"id": 1, "name": "allowed"}]
+    req = ExecuteQueryRequest(
+        project_id=AvailableProject.DEV,
+        query="SELECT id, name FROM `p-dev-gce-60pf.ds.allowed_table` LIMIT 10",
+    )
+
+    result = await execute_query(req)
+
+    assert result.execution_status == "success"
+    assert result.results == [{"id": 1, "name": "allowed"}]
+
+
+@pytest.mark.asyncio
+async def test_mcp_list_tables_unauthorized_user_permission_denied(mock_bq_manager):
+    """
+    Simulates an unauthorized user getting a normalized permission denied error.
+    """
+    mock_bq_manager.list_tables.side_effect = Exception(
+        "403 Access Denied: User does not have bigquery.tables.list permission"
+    )
+    req = ListTablesRequest(
+        project_id=AvailableProject.DEV,
+        dataset_id="restricted_ds",
+    )
+
+    result = await list_tables(req)
+
+    assert result.execution_status == "error"
+    assert "Permission Denied" in result.execution_message
