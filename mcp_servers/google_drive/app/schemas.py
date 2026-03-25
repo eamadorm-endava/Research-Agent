@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated, Literal, Optional, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -15,6 +16,37 @@ class DriveSchemaModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class DriveMimeType(StrEnum):
+    """Common Drive-compatible MIME types exposed to the agent."""
+
+    GOOGLE_DOC = "application/vnd.google-apps.document"
+    GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet"
+    GOOGLE_SLIDE = "application/vnd.google-apps.presentation"
+    GOOGLE_FOLDER = "application/vnd.google-apps.folder"
+    PDF = "application/pdf"
+    PLAIN_TEXT = "text/plain"
+    WORD_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    EXCEL_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    POWERPOINT_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    PNG_IMAGE = "image/png"
+
+
+class SortDirection(StrEnum):
+    """Supported sort directions for list operations."""
+
+    ASC = "asc"
+    DESC = "desc"
+
+
+class ListFilesSortField(StrEnum):
+    """Supported sortable fields for Drive listing operations."""
+
+    FOLDER_NAME = "folder_name"
+    FILE_NAME = "file_name"
+    CREATION_TIME = "creation_time"
+    LAST_UPDATE = "last_update"
+
+
 EXECUTION_STATUS = Annotated[
     Literal["success", "error"],
     Field(description="Whether the tool completed successfully."),
@@ -30,7 +62,7 @@ MAX_RESULTS = Annotated[
     int,
     Field(
         default=10,
-        description="Maximum number of files to return.",
+        description="Maximum number of items to return.",
         ge=1,
         le=1000,
     ),
@@ -156,6 +188,40 @@ DRIVE_DOCUMENT_TEXT = Annotated[
     str,
     Field(default="", description="Extracted text content."),
 ]
+FOLDER_PATH_FILTER = Annotated[
+    Optional[str],
+    Field(
+        default=None,
+        pattern=r"^(?:[\w-]+(?:/[\w-]+)*)/?$",
+        description="Folder path filter using slash-separated folder names, for example Documents/Project/.",
+    ),
+]
+FILE_NAME_FILTER = Annotated[
+    Optional[str],
+    Field(default=None, description="Case-insensitive file name filter. Partial matches are allowed."),
+]
+LIST_MIME_TYPE_FILTER = Annotated[
+    Optional[DriveMimeType],
+    Field(default=None, description="Optional MIME type filter for the listed items."),
+]
+DATE_FILTER = Annotated[
+    Optional[str],
+    Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$", description='Date filter in the format "YYYY-MM-DD".'),
+]
+LIST_ORDER_BY = Annotated[
+    dict[ListFilesSortField, SortDirection],
+    Field(
+        default_factory=dict,
+        description="Sort directives, for example {\"file_name\": \"asc\", \"last_update\": \"desc\"}.",
+    ),
+]
+TOTAL_FILES = Annotated[int, Field(default=0, ge=0, description="Total number of non-folder items that matched the filter set.")]
+TOTAL_FOLDERS = Annotated[int, Field(default=0, ge=0, description="Total number of folders that matched the filter set.")]
+FOLDER_PATH = Annotated[str, Field(default="/", description="Resolved folder path that contains the file or folder.")]
+FILE_IDENTIFIER = Annotated[str, Field(description="Drive file identifier.")]
+CREATED_AT = Annotated[Optional[str], Field(default=None, description="Creation timestamp in RFC 3339 format.")]
+LAST_UPDATE_AT = Annotated[Optional[str], Field(default=None, description="Last update timestamp in RFC 3339 format.")]
+MIME_TYPE_OUTPUT = Annotated[str, Field(description="MIME type of the file or folder.")]
 
 
 class BaseResponse(DriveSchemaModel):
@@ -200,9 +266,32 @@ class DriveDocumentModel(DriveFileModel):
     text: DRIVE_DOCUMENT_TEXT
 
 
+class FileCreatorModel(DriveSchemaModel):
+    """Normalized creator information for list results."""
+
+    name: Annotated[Optional[str], Field(default=None, description="Display name of the creator/owner.")]
+    email: Annotated[Optional[str], Field(default=None, description="Email of the creator/owner.")]
+
+
+class DriveFileMetadata(DriveSchemaModel):
+    """Compact Drive metadata tailored for list_files responses."""
+
+    creation_at: CREATED_AT
+    last_update_at: LAST_UPDATE_AT
+    folder_path: FOLDER_PATH
+    file_name: DRIVE_FILE_NAME
+    file_id: FILE_IDENTIFIER
+    created_by: FileCreatorModel
+    mime_type: MIME_TYPE_OUTPUT
+
+
 DRIVE_FILE_LIST = Annotated[
     list[DriveFileModel],
     Field(default_factory=list, description="List of file metadata objects."),
+]
+LIST_FILE_METADATA = Annotated[
+    list[DriveFileMetadata],
+    Field(default_factory=list, description="List of filtered Drive file metadata results."),
 ]
 DRIVE_FILE = Annotated[
     Optional[DriveFileModel],
@@ -218,17 +307,23 @@ DRIVE_DOCUMENT = Annotated[
 
 
 class ListFilesRequest(DriveSchemaModel):
-    """Request schema for listing files in a folder."""
+    """Request schema for listing files with rich Drive filters."""
 
+    folder_name: FOLDER_PATH_FILTER
+    file_name: FILE_NAME_FILTER
+    mime_type: LIST_MIME_TYPE_FILTER
+    creation_time: DATE_FILTER
+    last_update: DATE_FILTER
+    order_by: LIST_ORDER_BY
     max_results: MAX_RESULTS
-    folder_id: FOLDER_ID
-    include_folders: INCLUDE_FOLDERS
 
 
 class ListFilesResponse(ListFilesRequest, BaseResponse):
-    """Response schema containing the list of files found."""
+    """Response schema containing filtered Drive listing results."""
 
-    files: DRIVE_FILE_LIST
+    total_files: TOTAL_FILES
+    total_folders: TOTAL_FOLDERS
+    files: LIST_FILE_METADATA
 
 
 class SearchFilesRequest(DriveSchemaModel):

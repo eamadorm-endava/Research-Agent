@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from mcp_servers.google_drive.app.config import DRIVE_API_CONFIG
 from mcp_servers.google_drive.app.mcp_server import (
     create_file,
     create_folder,
@@ -18,12 +19,16 @@ from mcp_servers.google_drive.app.schemas import (
     CreateFolderRequest,
     CreateGoogleDocRequest,
     DriveDocumentModel,
+    DriveFileMetadata,
     DriveFileModel,
+    FileCreatorModel,
     GetFileTextRequest,
     ListFilesRequest,
+    ListFilesSortField,
     MoveFileRequest,
     RenameFileRequest,
     SearchFilesRequest,
+    SortDirection,
     UploadPdfRequest,
 )
 
@@ -38,15 +43,34 @@ def mock_drive_manager():
 async def test_list_files_success(mock_drive_manager):
     manager = MagicMock()
     manager.list_files.return_value = [
-        DriveFileModel(id="1", name="Doc", mimeType="application/pdf", path="/Doc")
+        DriveFileMetadata(
+            creation_at="2026-03-01T00:00:00Z",
+            last_update_at="2026-03-02T00:00:00Z",
+            folder_path="/Documents",
+            file_name="Doc",
+            file_id="1",
+            created_by=FileCreatorModel(name="Alice", email="alice@example.com"),
+            mime_type="application/pdf",
+        ),
+        DriveFileMetadata(
+            creation_at="2026-03-01T00:00:00Z",
+            last_update_at="2026-03-02T00:00:00Z",
+            folder_path="/Documents",
+            file_name="Folder",
+            file_id="2",
+            created_by=FileCreatorModel(name=None, email=None),
+            mime_type=DRIVE_API_CONFIG.google_folder,
+        ),
     ]
     mock_drive_manager.return_value = manager
 
     result = await list_files(ListFilesRequest(max_results=5))
 
     assert result.execution_status == "success"
-    assert len(result.files) == 1
-    assert result.files[0].path == "/Doc"
+    assert len(result.files) == 2
+    assert result.total_files == 1
+    assert result.total_folders == 1
+    assert result.files[0].folder_path == "/Documents"
 
 
 @pytest.mark.asyncio

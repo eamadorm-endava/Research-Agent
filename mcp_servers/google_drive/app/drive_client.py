@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from pathlib import PurePosixPath
+from datetime import datetime, timedelta
 from typing import Any, Mapping, Optional, Sequence
 from xml.sax.saxutils import escape as xml_escape
 
@@ -17,7 +18,10 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG, DRIVE_PDF_CONFIG
 from .schemas import AuthenticationError
 from .schemas import DriveDocumentModel as DriveTextDocument
+from .schemas import DriveFileMetadata
 from .schemas import DriveFileModel as DriveFile
+from .schemas import DriveMimeType
+from .schemas import ListFilesSortField, SortDirection
 
 
 class DriveManager:
@@ -30,30 +34,54 @@ class DriveManager:
     def list_files(
         self,
         *,
+        folder_name: Optional[str] = None,
+        file_name: Optional[str] = None,
+        mime_type: Optional[DriveMimeType] = None,
+        creation_time: Optional[str] = None,
+        last_update: Optional[str] = None,
+        order_by: Optional[dict[ListFilesSortField, SortDirection]] = None,
         max_results: int = 10,
-        folder_id: Optional[str] = None,
-        include_folders: bool = False,
-    ) -> list[DriveFile]:
+    ) -> list[DriveFileMetadata]:
+        folder_id = self._resolve_folder_id_by_path(folder_name) if folder_name else None
+        if folder_name and not folder_id:
+            return []
+
         query_parts: list[str] = []
         if folder_id:
             query_parts.append(f"'{_escape_q(folder_id)}' in parents")
-        if not include_folders:
-            query_parts.append(f"mimeType != '{DRIVE_API_CONFIG.google_folder}'")
-        query = " and ".join(query_parts) if query_parts else None
+        if file_name:
+            query_parts.append(f"name contains '{_escape_q(file_name.strip())}'")
+        if mime_type:
+            query_parts.append(f"mimeType = '{_escape_q(mime_type.value)}'")
+        if creation_time:
+            start_of_day = f"{creation_time}T00:00:00"
+            end_of_day = (datetime.strptime(creation_time, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+            query_parts.append(f"createdTime >= '{start_of_day}'")
+            query_parts.append(f"createdTime < '{end_of_day}'")
+        if last_update:
+            start_of_day = f"{last_update}T00:00:00"
+            end_of_day = (datetime.strptime(last_update, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+            query_parts.append(f"modifiedTime >= '{start_of_day}'")
+            query_parts.append(f"modifiedTime < '{end_of_day}'")
 
+        query = " and ".join(part for part in query_parts if part) or None
+        candidate_size = min(max(max_results * 10, 100), 1000)
         response = (
             self.drive.files()
             .list(
                 q=query,
-                pageSize=max_results,
+                pageSize=candidate_size,
                 fields=DRIVE_API_CONFIG.file_list_fields,
-                orderBy=DRIVE_API_CONFIG.order_by,
+                orderBy=self._build_drive_order_by(order_by),
                 supportsAllDrives=True,
                 includeItemsFromAllDrives=True,
             )
             .execute()
         )
-        return self._build_drive_files(response.get("files", []))
+        files = self._build_drive_files(response.get("files", []))
+        metadata_items = [self._to_list_file_metadata(item) for item in files]
+        metadata_items = self._sort_list_file_metadata(metadata_items, order_by or {})
+        return metadata_items[:max_results]
 
     def search_files(
         self,
@@ -320,6 +348,100 @@ class DriveManager:
         metadata = self._get_file_metadata_payload(file_id)
         normalized = self._normalize_file_payload(metadata, path_cache={})
         return DriveFile.model_validate(normalized)
+
+    def _to_list_file_metadata(self, file_payload: DriveFile) -> DriveFileMetadata:
+        owner = file_payload.owners[0] if file_payload.owners else None
+        full_path = file_payload.path or f"/{file_payload.name}"
+        folder_path = str(PurePosixPath(full_path).parent)
+        if folder_path == ".":
+            folder_path = "/"
+        return DriveFileMetadata.model_validate(
+            {
+                "creation_at": file_payload.createdTime,
+                "last_update_at": file_payload.modifiedTime,
+                "folder_path": folder_path,
+                "file_name": file_payload.name,
+                "file_id": file_payload.id,
+                "created_by": {
+                    "name": getattr(owner, "displayName", None) if owner else None,
+                    "email": getattr(owner, "emailAddress", None) if owner else None,
+                },
+                "mime_type": file_payload.mimeType,
+            }
+        )
+
+    def _sort_list_file_metadata(
+        self,
+        items: list[DriveFileMetadata],
+        order_by: dict[ListFilesSortField, SortDirection],
+    ) -> list[DriveFileMetadata]:
+        if not order_by:
+            return items
+
+        sort_key_map = {
+            ListFilesSortField.FOLDER_NAME: lambda item: (item.folder_path or "").lower(),
+            ListFilesSortField.FILE_NAME: lambda item: (item.file_name or "").lower(),
+            ListFilesSortField.CREATION_TIME: lambda item: item.creation_at or "",
+            ListFilesSortField.LAST_UPDATE: lambda item: item.last_update_at or "",
+        }
+
+        sorted_items = list(items)
+        for field, direction in reversed(list(order_by.items())):
+            reverse = direction == SortDirection.DESC
+            sorted_items.sort(key=sort_key_map[field], reverse=reverse)
+        return sorted_items
+
+    def _build_drive_order_by(
+        self,
+        order_by: Optional[dict[ListFilesSortField, SortDirection]],
+    ) -> str:
+        if not order_by:
+            return DRIVE_API_CONFIG.order_by
+
+        drive_order_map = {
+            ListFilesSortField.FILE_NAME: "name_natural",
+            ListFilesSortField.CREATION_TIME: "createdTime",
+            ListFilesSortField.LAST_UPDATE: "modifiedTime",
+        }
+        order_parts = []
+        for field, direction in order_by.items():
+            mapped = drive_order_map.get(field)
+            if not mapped:
+                continue
+            order_parts.append(f"{mapped} {direction.value}")
+        return ", ".join(order_parts) or DRIVE_API_CONFIG.order_by
+
+    def _resolve_folder_id_by_path(self, folder_path: str) -> Optional[str]:
+        normalized_path = folder_path.strip().strip("/")
+        if not normalized_path:
+            return None
+
+        current_parent_id: Optional[str] = None
+        for segment in [part for part in normalized_path.split("/") if part]:
+            query_parts = [
+                f"name = '{_escape_q(segment)}'",
+                f"mimeType = '{DRIVE_API_CONFIG.google_folder}'",
+                "trashed = false",
+            ]
+            if current_parent_id:
+                query_parts.append(f"'{_escape_q(current_parent_id)}' in parents")
+            query = " and ".join(query_parts)
+            response = (
+                self.drive.files()
+                .list(
+                    q=query,
+                    pageSize=1,
+                    fields="files(id,name,parents)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
+                )
+                .execute()
+            )
+            matches = response.get("files", [])
+            if not matches:
+                return None
+            current_parent_id = matches[0]["id"]
+        return current_parent_id
 
     def _build_drive_files(self, files_payload: Sequence[Mapping[str, Any]]) -> list[DriveFile]:
         path_cache: dict[str, dict[str, Any]] = {}
