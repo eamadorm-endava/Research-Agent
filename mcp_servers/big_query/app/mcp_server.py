@@ -417,7 +417,9 @@ def _format_execution_error(exc: Exception) -> str:
 def _sanitize_sensitive_text(value: str) -> str:
     """Redacts common credential fragments from error messages before returning them."""
     sanitized = value or ""
-    sanitized = re.sub(r"Bearer\s+[A-Za-z0-9._\-~+/]+=*", "Bearer [REDACTED]", sanitized)
+    sanitized = re.sub(
+        r"Bearer\s+[A-Za-z0-9._\-~+/]+=*", "Bearer [REDACTED]", sanitized
+    )
     sanitized = re.sub(r"ya29\.[A-Za-z0-9._\-~+/]+=*", "ya29.[REDACTED]", sanitized)
     sanitized = re.sub(r"access_token=[^&\s]+", "access_token=[REDACTED]", sanitized)
     return sanitized
