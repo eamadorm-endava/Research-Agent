@@ -13,7 +13,6 @@ from pydantic import AnyHttpUrl
 from .config import GCS_AUTH_CONFIG, GCS_SERVER_CONFIG
 from .gcs_client import GCSManager, build_gcs_credentials
 from .schemas import (
-    AuthenticationError,
     CreateBucketRequest,
     CreateBucketResponse,
     UpdateBucketLabelsRequest,
