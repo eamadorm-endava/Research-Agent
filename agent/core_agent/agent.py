@@ -7,10 +7,8 @@ from google.adk.models import Gemini
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 
-# from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
-# from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCode
 from .config import GCPConfig, AgentConfig, MCPServersConfig
-from .utils.security import get_id_token
+from .utils.security import get_id_token, get_ge_oauth_token
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -30,28 +28,6 @@ vertexai.Client(
     project=project_id,
     location=region,
 )
-
-# Authentication Configuration for Google Drive (Authorization Code Flow)
-# Uncomment this lines when Google Drive MCP server is deployed, this will avoid deploying the agent
-# and failing to start
-# auth_scheme = OAuth2(
-#     flows=OAuthFlows(
-#         authorizationCode=OAuthFlowAuthorizationCode(
-#             authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
-#             tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
-#             scopes=mcp_servers.DRIVE_OAUTH_SCOPES,
-#         )
-#     )
-# )
-
-# auth_credential = AuthCredential(
-#     auth_type=AuthCredentialTypes.OAUTH2,
-#     oauth2=OAuth2Auth(
-#         client_id=mcp_servers.DRIVE_OAUTH_CLIENT_ID,
-#         client_secret=mcp_servers.DRIVE_OAUTH_CLIENT_SECRET,
-#         redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
-#     ),
-# )
 
 agent_settings = GenerateContentConfig(
     temperature=agent_config.TEMPERATURE,
@@ -104,14 +80,16 @@ root_agent = Agent(
         ),
         # Uncomment the following lines when Google Drive MCP server is deployed, this will avoid deploying the agent
         # and failing to start
-        # McpToolset(
-        #     connection_params=StreamableHTTPConnectionParams(
-        #         url=full_drive_mcp_server_path,
-        #         timeout=mcp_servers.GENERAL_TIMEOUT,
-        #     ),
-        #     auth_scheme=auth_scheme,
-        #     auth_credential=auth_credential,
-        # ),
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_drive_mcp_server_path,
+                timeout=mcp_servers.GENERAL_TIMEOUT,
+            ),
+            header_provider=lambda ctx: {
+                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.DRIVE_URL)}",
+                "Authorization": f"Bearer {get_ge_oauth_token(ctx, mcp_servers.GEMINI_DRIVE_AUTH_ID)}",
+            },
+        ),
     ],
 )
 

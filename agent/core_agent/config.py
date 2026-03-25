@@ -274,3 +274,11 @@ class MCPServersConfig(BaseSettings):
             description="GCS MCP Server Endpoint",
         ),
     ]
+    GEMINI_DRIVE_AUTH_ID: Annotated[
+        str,
+        Field(
+            default="mock-ge-auth-id",
+            description="The ID of the authorization resource registered in Gemini Enterprise."
+            " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
+        ),
+    ]

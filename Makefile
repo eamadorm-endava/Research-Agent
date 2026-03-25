@@ -1,5 +1,7 @@
 PROJECT_ID=p-dev-gce-60pf
 REGION=us-central1
+DRIVE_URL=mock-drive-url
+DRIVE_AUTH_ID=mock-GE-drive-auth-resource-id
 
 ### General Commands ###
 
@@ -49,13 +51,13 @@ deploy-agent:
 	uv run --group ai-agent --group dev python -m agent.deployment.deploy \
 		--project ${PROJECT_ID} \
 		--location ${REGION} \
-		--display-name "Production Research Agent" \
+		--display-name "test-ai-agent" \
 		--source-packages=./agent \
 		--entrypoint-module=agent.core_agent.agent \
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@p-dev-gce-60pf.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,DRIVE_URL=${DRIVE_URL},GEMINI_DRIVE_AUTH_ID=${DRIVE_AUTH_ID}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:

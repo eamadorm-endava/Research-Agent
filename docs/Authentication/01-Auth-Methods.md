@@ -115,7 +115,7 @@ During each tool call to the MCP server, the framework simply attaches the activ
 ```mermaid
 sequenceDiagram
     actor User
-    participant Frontend as ADK UI / Gemini Enterprise
+    participant Frontend as ADK UI
     participant Agent as ADK Agent Logic
     participant Google as Google OAuth
     participant MCP as Service MCP (Stateless)
@@ -149,13 +149,61 @@ sequenceDiagram
 
 > *The refresh token only expires if: the user manually revokes access, the OAuth app is in **Testing** mode, or the token goes unused for a long period.
 
-### Inside Gemini Enterprise
 
-A one-time setup is needed per user on the frontend. Administrators must configure an Authorization resource on Gemini Enterprise mapping to an OAuth Client ID/Secret. Gemini Enterprise detects when a user's credentials are required via the `adk_request_credential` event, handles the UX flow natively, and performs the token injection into MCP requests transparently.
+---
+
+## Method 2 inside Gemini Enterprise (Optimized Flow)
+
+When deploying an ADK Agent to **Gemini Enterprise (GE)**, Method 2 (OAuth) evolves into a highly optimized, non-interactive flow for the agent itself.
+
+### The Shift in Responsibility
+In a standard ADK flow, the agent detects missing credentials and pauses to emit an `adk_request_credential` event. **Inside Gemini Enterprise, this is bypassed:**
+
+1.  **GE Platform Management**: Gemini Enterprise acts as the primary OAuth Client. It handles the browser redirect, token exchange, and persistent storage of refresh tokens across user sessions.
+2.  **Auth ID Linking**: By linking your agent to an **Authorization Resource** (via a stable `AUTH_ID`), GE knows exactly which OAuth credentials to use.
+3.  **Token Injection (Context)**: When GE calls your agent, it automatically injects the active user access token into the ADK's `readonly_context.state` (keyed by your `AUTH_ID`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant GE as Gemini Enterprise (OAuth Client)
+    participant Google as Google OAuth
+    participant Agent as ADK Agent Logic
+    participant MCP as Service MCP (Stateless)
+    participant Target as GCP API
+
+    Note over User,Google: One-time authentication (Managed by GE)
+    GE->>User: Renders native OAuth prompt
+    User->>Google: Approve access
+    Google-->>GE: Authorization Code
+    GE->>Google: Exchange code for tokens
+    Google-->>GE: access_token + refresh_token
+    GE->>GE: Store tokens securely in Resource ID
+
+    Note over GE,Target: Sequential requests (Agent is passive)
+    GE->>Agent: Call Agent + Inject access_token in ctx.state[AUTH_ID]
+    Agent->>Agent: Retrieve token via get_ge_oauth_token()
+    Agent->>MCP: Tool call + header: 'Authorization: Bearer <access_token>'
+    Note over MCP: Validates Token
+    MCP->>Target: API call with access_token
+    Target-->>MCP: Data
+    MCP-->>Agent: Tool Response
+    Agent-->>GE: Final Response
+```
+
+### Implementation Strategy
+To leverage this optimized flow, the agent's code must:
+*   **Use `get_ge_oauth_token`**: Retrieve the token directly from the session context using the designated `AUTH_ID`.
+*   **Manual Header Injection**: Manually add the token to the `Authorization` bearer header of the target MCP server call.
+*   **Bypass Internal Flow**: Ensure that the tool definitions *do not* include interactive `OAuth2Auth` configurations, as these would cause a redundant (and failing) secondary authentication challenge.
+
+For step-by-step setup instructions for this optimized GE flow, see the **[OAuth Flow for Gemini Enterprise Guide](../AI-Agent-Development/06-OAuth-Inside-Gemini-Enterprise.md)**.
+
 
 ### Outside Gemini Enterprise (local dev)
 
-During local development, the **ADK UI** (`make run-ui-agent`) provides a native interface to handle this. It will safely display the authorization prompt directly in the chat interface, exchange the code, and cache the credentials for the developer. 
+During local development, the **ADK UI** provides a native interface to handle this. It will safely display the authorization prompt directly in the chat interface, exchange the code, and cache the credentials for the developer. 
 
 If running in pure CLI/headless mode, the `adk_request_credential` event will pause execution and print the OAuth URL to stdout, requiring the developer to click it and manually paste back the authorization code.
 

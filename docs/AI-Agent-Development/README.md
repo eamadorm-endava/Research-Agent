@@ -11,3 +11,4 @@ We recommend reviewing these documents logically as they walk through building, 
 3. **[03-Engines.md](03-Engines.md)**: Overview of underlying Reasoning Engines and model configurations.
 4. **[04-Agent-Engine-Deployment.md](04-Agent-Engine-Deployment.md)**: Guide to building, testing, and deploying the Agent Engine.
 5. **[05-Gemini-Enterprise-Connection.md](05-Gemini-Enterprise-Connection.md)**: Connecting the deployed agent to Gemini Enterprise.
+6. **[06-OAuth-Inside-Gemini-Enterprise.md](06-OAuth-Inside-Gemini-Enterprise.md)**: Detailed 5-step flow for secure OAuth integration in Gemini Enterprise.

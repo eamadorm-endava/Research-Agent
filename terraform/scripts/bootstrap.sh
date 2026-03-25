@@ -52,6 +52,7 @@ ROLES=(
     "roles/run.admin"
     "roles/iam.serviceAccountUser"
     "roles/aiplatform.admin"
+    "roles/secretmanager.secretAccessor"
 )
 
 for ROLE in "${ROLES[@]}"; do
