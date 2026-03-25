@@ -124,7 +124,7 @@ steps:
         apt-get update && apt-get install -y jq curl
         ADK_RESOURCE_ID=$(cat /workspace/adk_resource.txt)
 
-        if [ -z "$ADK_RESOURCE_ID" ]; then
+        if [ -z "$$ADK_RESOURCE_ID" ]; then
             echo "Failed to capture ADK_RESOURCE_ID"
             exit 1
         fi
