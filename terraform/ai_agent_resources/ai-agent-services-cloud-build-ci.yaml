@@ -137,7 +137,7 @@ steps:
           --agent-display-name "${_AGENT_DISPLAY_NAME}" \
           --agent-description "${_GE_AGENT_DESCRIPTION}" \
           --agent-engine-location ${_REGION} \
-          --agent-engine-agent-id "${ADK_RESOURCE_ID}" \
+          --agent-engine-agent-id "$${ADK_RESOURCE_ID}" \
           --auth-ids "$$GEMINI_DRIVE_AUTH_ID"
 
 availableSecrets:
