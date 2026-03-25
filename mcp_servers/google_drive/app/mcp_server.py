@@ -79,40 +79,65 @@ mcp = FastMCP(
 @mcp.tool()
 async def list_files(request: ListFilesRequest) -> ListFilesResponse:
     logger.info(
-        "Tool call: list_files(max_results=%s, folder_id=%s)",
-        request.max_results,
-        request.folder_id,
+        "Tool call: list_files(folder_name=%s, file_name=%s, mime_type=%s)",
+        request.folder_name,
+        request.file_name,
+        request.mime_type,
     )
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
         files = await asyncio.to_thread(
             manager.list_files,
+            folder_name=request.folder_name,
+            file_name=request.file_name,
+            mime_type=request.mime_type,
+            creation_time=request.creation_time,
+            last_update=request.last_update,
+            order_by=request.order_by,
             max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
         )
+        total_folders = sum(1 for item in files if item.mime_type == DRIVE_API_CONFIG.google_folder)
+        total_files = len(files) - total_folders
         return ListFilesResponse(
+            folder_name=request.folder_name,
+            file_name=request.file_name,
+            mime_type=request.mime_type,
+            creation_time=request.creation_time,
+            last_update=request.last_update,
+            order_by=request.order_by,
             max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
+            total_files=total_files,
+            total_folders=total_folders,
             files=files,
             execution_status="success",
-            execution_message=f"Found {len(files)} files.",
+            execution_message=f"Retrieved {len(files)} Drive items.",
         )
     except AuthenticationError as exc:
         return ListFilesResponse(
+            folder_name=request.folder_name,
+            file_name=request.file_name,
+            mime_type=request.mime_type,
+            creation_time=request.creation_time,
+            last_update=request.last_update,
+            order_by=request.order_by,
             max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
+            total_files=0,
+            total_folders=0,
             files=[],
             execution_status="error",
             execution_message=f"Authentication Error: {exc}",
         )
     except Exception as exc:
         return ListFilesResponse(
+            folder_name=request.folder_name,
+            file_name=request.file_name,
+            mime_type=request.mime_type,
+            creation_time=request.creation_time,
+            last_update=request.last_update,
+            order_by=request.order_by,
             max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
+            total_files=0,
+            total_folders=0,
             files=[],
             execution_status="error",
             execution_message=str(exc),

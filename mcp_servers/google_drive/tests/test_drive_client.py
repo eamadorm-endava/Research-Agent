@@ -5,11 +5,10 @@ import pytest
 from mcp_servers.google_drive.app.config import DRIVE_API_CONFIG
 from mcp_servers.google_drive.app.drive_client import (
     DriveManager,
-    DriveFile,
     build_drive_credentials,
     validate_access_token,
 )
-from mcp_servers.google_drive.app.schemas import AuthenticationError
+from mcp_servers.google_drive.app.schemas import AuthenticationError, DriveMimeType, ListFilesSortField, SortDirection
 
 
 @patch("mcp_servers.google_drive.app.drive_client.build")
@@ -36,21 +35,11 @@ def test_drive_manager_list_files(mock_build):
     manager = DriveManager(creds=MagicMock())
     files = manager.list_files(max_results=5)
 
-    assert files == [
-        DriveFile(
-            id="file_1",
-            name="Quarterly Report",
-            mimeType="application/pdf",
-            modifiedTime="2026-03-10T12:00:00Z",
-            createdTime="2026-03-01T12:00:00Z",
-            webViewLink="https://drive.google.com/file/d/file_1/view",
-            parents=[],
-            owners=[{"displayName": "Alice", "emailAddress": "alice@example.com"}],
-            size=42,
-            version=7,
-            path="/Quarterly Report",
-        )
-    ]
+    assert files[0].file_name == "Quarterly Report"
+    assert files[0].file_id == "file_1"
+    assert files[0].folder_path == "/"
+    assert files[0].mime_type == "application/pdf"
+    assert files[0].created_by.name == "Alice"
     mock_drive.files.return_value.list.assert_called_once()
 
 
@@ -78,7 +67,53 @@ def test_drive_manager_resolves_nested_path(mock_build):
     manager = DriveManager(creds=MagicMock())
     files = manager.list_files(max_results=1)
 
-    assert files[0].path == "/Documents/Projects/notes.txt"
+    assert files[0].folder_path == "/Documents/Projects"
+
+
+@patch("mcp_servers.google_drive.app.drive_client.build")
+def test_drive_manager_list_files_with_folder_path_and_sort(mock_build):
+    mock_drive = MagicMock()
+    mock_build.return_value = mock_drive
+    mock_drive.files.return_value.list.return_value.execute.side_effect = [
+        {"files": [{"id": "folder_1", "name": "Projects", "parents": []}]},
+        {
+            "files": [
+                {
+                    "id": "file_2",
+                    "name": "b.txt",
+                    "mimeType": DriveMimeType.PLAIN_TEXT.value,
+                    "createdTime": "2026-03-02T00:00:00Z",
+                    "modifiedTime": "2026-03-03T00:00:00Z",
+                    "parents": ["folder_1"],
+                    "owners": [],
+                },
+                {
+                    "id": "file_1",
+                    "name": "a.txt",
+                    "mimeType": DriveMimeType.PLAIN_TEXT.value,
+                    "createdTime": "2026-03-01T00:00:00Z",
+                    "modifiedTime": "2026-03-04T00:00:00Z",
+                    "parents": ["folder_1"],
+                    "owners": [],
+                },
+            ]
+        },
+    ]
+    mock_drive.files.return_value.get.return_value.execute.return_value = {
+        "id": "folder_1",
+        "name": "Projects",
+        "parents": [],
+    }
+
+    manager = DriveManager(creds=MagicMock())
+    files = manager.list_files(
+        folder_name="Projects/",
+        mime_type=DriveMimeType.PLAIN_TEXT,
+        order_by={ListFilesSortField.FILE_NAME: SortDirection.ASC},
+        max_results=10,
+    )
+
+    assert [item.file_name for item in files] == ["a.txt", "b.txt"]
 
 
 @patch("mcp_servers.google_drive.app.drive_client.validate_access_token")
