@@ -29,9 +29,43 @@ steps:
     args: ['apply', '-auto-approve']
     dir: 'terraform/ai_agent_resources'
   
-  # Step 3: GE Pre-Deployment Steps (Cleanup Agent, Cleanup Auth, Create Auth)
+  # Step 3: Unregister the agent from GE
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    id: 'ge-pre-deploy'
+    id: 'ge-unregister-agent'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+        
+        echo "Checking and deleting existing agent in GE..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --app-id ${_GE_APP_ID} \
+          --agent-display-name "${_AGENT_DISPLAY_NAME}"
+
+  # Step 4: Delete all auth resources
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-delete-auth-resources'
+    entrypoint: 'bash'
+    secretEnv: ['GEMINI_DRIVE_AUTH_ID']
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+
+        echo "Deleting GE Auth IDs $$GEMINI_DRIVE_AUTH_ID..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-auth-ids \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --auth-ids "$$GEMINI_DRIVE_AUTH_ID"
+
+  # Step 5: Create new auth resources
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-create-auth-resources'
     entrypoint: 'bash'
     secretEnv: ['GEMINI_DRIVE_AUTH_ID', 'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET']
     args:
@@ -39,31 +73,18 @@ steps:
       - |
         apt-get update && apt-get install -y jq curl
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
-        
-        echo "1. Checking and deleting existing agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
-          --display-name "${_AGENT_DISPLAY_NAME}"
 
-        echo "2. Deleting Auth ID in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-auth-id \
+        echo "Creating GE Auth IDs $$GEMINI_DRIVE_AUTH_ID..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --auth-id "$$GEMINI_DRIVE_AUTH_ID"
-
-        echo "3. Creating Auth ID $$GEMINI_DRIVE_AUTH_ID..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-id \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --auth-id "$$GEMINI_DRIVE_AUTH_ID" \
+          --auth-ids "$$GEMINI_DRIVE_AUTH_ID" \
           --client-id "$$OAUTH_CLIENT_ID" \
           --client-secret "$$OAUTH_CLIENT_SECRET" \
           --scopes "${_DRIVE_OAUTH_SCOPES}"
 
   
-  # Step 4: Deploy the AI-Agent to Agent Engine
+  # Step 6: Deploy the AI-Agent to Agent Engine
   - name: 'python:3.12'
     id: 'deploy-agent-engine'
     entrypoint: 'sh'
@@ -92,7 +113,7 @@ steps:
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
 
 
-  # Step 5: Register the Agent in GE
+  # Step 7: Register the Agent in GE
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-register-agent'
     entrypoint: 'bash'
@@ -113,11 +134,11 @@ steps:
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
           --app-id ${_GE_APP_ID} \
-          --display-name "${_AGENT_DISPLAY_NAME}" \
-          --description "${_GE_AGENT_DESCRIPTION}" \
+          --agent-display-name "${_AGENT_DISPLAY_NAME}" \
+          --agent-description "${_GE_AGENT_DESCRIPTION}" \
           --agent-engine-location ${_REGION} \
-          --adk-resource-id "${ADK_RESOURCE_ID}" \
-          --auth-id "$$GEMINI_DRIVE_AUTH_ID"
+          --agent-engine-agent-id "${ADK_RESOURCE_ID}" \
+          --auth-ids "$$GEMINI_DRIVE_AUTH_ID"
 
 availableSecrets:
   secretManager:
