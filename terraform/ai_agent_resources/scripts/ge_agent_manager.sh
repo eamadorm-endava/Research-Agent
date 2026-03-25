@@ -18,8 +18,7 @@ while [[ "$#" -gt 0 ]]; do
         --auth-id) AUTH_ID="$2"; shift ;;
         --client-id) CLIENT_ID="$2"; shift ;;
         --client-secret) CLIENT_SECRET="$2"; shift ;;
-        --auth-uri) AUTH_URI="$2"; shift ;;
-        --token-uri) TOKEN_URI="$2"; shift ;;
+        --scopes) OAUTH_SCOPES="$2"; shift ;;
         --adk-resource-id) ADK_RESOURCE_ID="$2"; shift ;;
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
         --description) GE_AGENT_DESCRIPTION="$2"; shift ;;
@@ -93,10 +92,15 @@ case "$COMMAND" in
         ;;
 
     create-auth-id)
-        if [ -z "$AUTH_ID" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$AUTH_URI" ] || [ -z "$TOKEN_URI" ]; then
+        if [ -z "$AUTH_ID" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$OAUTH_SCOPES" ]; then
             echo "Error: Missing required parameters for create-auth-id."
             exit 1
         fi
+        
+        ENCODED_SCOPES="${OAUTH_SCOPES// /%20}"
+        AUTH_URI="https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fstatic%2Foauth%2Foauth.html&scope=${ENCODED_SCOPES}&include_granted_scopes=true&response_type=code&access_type=offline&prompt=consent"
+        TOKEN_URI="https://oauth2.googleapis.com/token" # This value doesn't change for Google OAuth
+
         CREATE_AUTH_URL="${BASE_URL}/authorizations?authorizationId=${AUTH_ID}"
         echo "Creating Auth ID ${AUTH_ID}..."
         
