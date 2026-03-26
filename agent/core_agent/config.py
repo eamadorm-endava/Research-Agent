@@ -30,6 +30,13 @@ class GCPConfig(BaseSettings):
             description="GCP Region where most of the services will be deployed",
         ),
     ]
+    IS_DEPLOYED: Annotated[
+        bool,
+        Field(
+            default=True,
+            description="Flag to determine if the agent is running in a deployed environment. Defaults to True, override in local .env to False.",
+        ),
+    ]
 
 
 class AgentConfig(BaseSettings):
