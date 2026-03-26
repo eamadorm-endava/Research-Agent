@@ -45,14 +45,15 @@ fi
 # 2. Assign Project-Level Roles to the SA
 echo "Assigning infrastructure roles to $SA_NAME..."
 ROLES=(
-    "roles/serviceusage.serviceUsageAdmin"
-    "roles/iam.serviceAccountAdmin"
-    "roles/resourcemanager.projectIamAdmin"
-    "roles/artifactregistry.admin"
-    "roles/run.admin"
-    "roles/iam.serviceAccountUser"
-    "roles/aiplatform.admin"
-    "roles/secretmanager.secretAccessor"
+    "roles/serviceusage.serviceUsageAdmin" # To enable APIs
+    "roles/iam.serviceAccountAdmin" # To create and manage service accounts
+    "roles/resourcemanager.projectIamAdmin" # To manage IAM policies
+    "roles/artifactregistry.admin" # To manage Artifact Registry
+    "roles/run.admin" # To deploy services to Cloud Run
+    "roles/iam.serviceAccountUser" # To allow the SA to act as itself
+    "roles/aiplatform.admin" # To deploy the agent to Agent Engine
+    "roles/secretmanager.secretAccessor" # To access secrets in Secret Manager
+    "roles/discoveryengine.admin" # To create Auth resources and register agents in Gemini Enterprise
 )
 
 for ROLE in "${ROLES[@]}"; do
