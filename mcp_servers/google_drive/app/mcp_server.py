@@ -86,24 +86,10 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
         files = await asyncio.to_thread(
             manager.list_files,
-            folder_name=request.folder_name,
-            file_name=request.file_name,
-            mime_type=request.mime_type,
-            creation_time=request.creation_time,
-            last_update=request.last_update,
-            order_by=request.order_by,
-            max_results=request.max_results,
         )
         total_folders = sum(1 for item in files if item.mime_type == DRIVE_API_CONFIG.google_folder)
         total_files = len(files) - total_folders
         return ListFilesResponse(
-            folder_name=request.folder_name,
-            file_name=request.file_name,
-            mime_type=request.mime_type,
-            creation_time=request.creation_time,
-            last_update=request.last_update,
-            order_by=request.order_by,
-            max_results=request.max_results,
             total_files=total_files,
             total_folders=total_folders,
             files=files,
@@ -112,13 +98,6 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
         )
     except AuthenticationError as exc:
         return ListFilesResponse(
-            folder_name=request.folder_name,
-            file_name=request.file_name,
-            mime_type=request.mime_type,
-            creation_time=request.creation_time,
-            last_update=request.last_update,
-            order_by=request.order_by,
-            max_results=request.max_results,
             total_files=0,
             total_folders=0,
             files=[],
@@ -127,13 +106,6 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
         )
     except Exception as exc:
         return ListFilesResponse(
-            folder_name=request.folder_name,
-            file_name=request.file_name,
-            mime_type=request.mime_type,
-            creation_time=request.creation_time,
-            last_update=request.last_update,
-            order_by=request.order_by,
-            max_results=request.max_results,
             total_files=0,
             total_folders=0,
             files=[],

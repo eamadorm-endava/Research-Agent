@@ -290,7 +290,7 @@ class ListFilesRequest(DriveSchemaModel):
     max_results: MAX_RESULTS
 
 
-class ListFilesResponse(ListFilesRequest, BaseResponse):
+class ListFilesResponse(BaseResponse):
     """Response schema containing filtered Drive listing results."""
 
     total_files: TOTAL_FILES
