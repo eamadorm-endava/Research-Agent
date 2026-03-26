@@ -157,6 +157,13 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
         files = await asyncio.to_thread(
             manager.list_files,
+            request.folder_name,
+            request.file_name,    
+            request.mime_type,
+            request.creation_time,
+            request.last_update,
+            request.order_by,
+            request.max_results,
         )
         total_folders = sum(1 for item in files if item.mime_type == DRIVE_API_CONFIG.google_folder)
         total_files = len(files) - total_folders
