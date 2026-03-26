@@ -37,38 +37,29 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleDriveTokenVerifier(TokenVerifier):
-    """Validate Google OAuth access tokens for MCP requests.
+    """
+    Validates Google OAuth access tokens for authenticated MCP requests.
 
-    The FastMCP server uses this verifier during authenticated requests. The
-    verifier calls Google's token info endpoint and, when the token is valid,
-    converts the response into an ``AccessToken`` object understood by the MCP
-    authentication layer.
+        Args:
+            None: This verifier uses the bearer token supplied by the current MCP
+                request and validates it against Google's token information endpoint.
 
-    Notes
-    -----
-    - This verifier validates token shape, audience, and granted scopes based on
-      the information exposed by Google's token info endpoint.
-    - Tool-specific authorization is still enforced separately in the Drive
-      client, where required scopes are checked again before Drive operations
-      are executed.
-    - Invalid or unreachable token validation returns ``None`` instead of
-      raising, allowing the MCP framework to reject the request cleanly.
+        Returns:
+            None: This class provides token-verification behavior for the MCP server
+                and does not return a value when instantiated.
     """
 
     async def verify_token(self, token: str) -> Optional[AccessToken]:
-        """Verify a bearer token and convert it to an MCP ``AccessToken``.
+        """
+        Verifies a Google OAuth bearer token and converts it into an MCP access token.
 
-        Parameters
-        ----------
-        token:
-            Google OAuth 2.0 access token sent by the agent when calling the
-            Drive MCP endpoint.
+            Args:
+                token (str): The Google OAuth access token provided by the client for
+                    the current authenticated request.
 
-        Returns
-        -------
-        Optional[AccessToken]
-            A validated MCP access token if Google accepts the token; otherwise
-            ``None``.
+            Returns:
+                Optional[AccessToken]: A validated MCP access token containing the
+                    client identifier and granted scopes, or None when validation fails.
         """
         try:
             async with httpx.AsyncClient() as client:
@@ -106,46 +97,16 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def list_files(request: ListFilesRequest) -> ListFilesResponse:
-    """List Google Drive files and folders using connector-side filtering.
+    """
+    Retrieves file and folder metadata from Google Drive that matches specific filter criteria.
 
-    This tool is the primary discovery entry point for the Drive connector. It
-    returns a normalized, agent-friendly list of Drive items together with
-    aggregate counts and enriched metadata such as folder paths, creator
-    information, creation timestamps, and update timestamps.
+        Args:
+            request (ListFilesRequest): Search filters including folder names, file names,
+                MIME types, date ranges, and sorting instructions.
 
-    The tool currently delegates retrieval to ``DriveManager.list_files`` and
-    applies response shaping in the MCP layer. The request model supports
-    listing-oriented filters and ordering options so the agent can express
-    discovery intent using a single tool instead of separate list and search
-    operations.
-
-    Authorization
-    -------------
-    Requires read-capable Drive scopes as defined by
-    ``DRIVE_API_CONFIG.read_scopes``. The incoming OAuth token is validated
-    before Drive API calls are made.
-
-    Parameters
-    ----------
-    request:
-        ``ListFilesRequest`` payload containing listing filters such as folder
-        path, file name, MIME type, creation date, last update date, sort
-        instructions, and maximum result count.
-
-    Returns
-    -------
-    ListFilesResponse
-        Response containing:
-        - ``total_files``: number of returned non-folder items
-        - ``total_folders``: number of returned folder items
-        - ``files``: list of ``DriveFileMetadata`` records
-        - execution status and message fields for MCP clients
-
-    Error Handling
-    --------------
-    - Authentication problems are converted into a structured error response.
-    - Unexpected runtime failures are returned as structured MCP errors in the
-      response payload instead of raising uncaught exceptions to the caller.
+        Returns:
+            ListFilesResponse: A structured collection of matched item metadata,
+                aggregate counts, and execution status.
     """
     logger.info(
         "Tool call: list_files(folder_name=%s, file_name=%s, mime_type=%s)",
@@ -194,40 +155,16 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
 
 @mcp.tool()
 async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
-    """Read and normalize textual content from a Google Drive file.
+    """
+    Extracts readable text content from a Google Drive file identified by its file ID.
 
-    This tool retrieves a single file by Drive ID and extracts text in a format
-    that is useful for downstream LLM processing. Depending on the Drive item
-    type, the underlying Drive client may export Google-native documents,
-    download binary files, and perform best-effort text extraction for formats
-    such as PDFs or plain text files.
+        Args:
+            request (GetFileTextRequest): The target file identifier and the maximum
+                number of characters to return in the extracted text payload.
 
-    To protect agent context size, the returned text is truncated to the
-    ``max_chars`` limit defined in the request. When truncation occurs, a
-    marker is appended so the caller can detect that the content is incomplete.
-
-    Authorization
-    -------------
-    Requires read-capable Drive scopes as defined by
-    ``DRIVE_API_CONFIG.read_scopes``.
-
-    Parameters
-    ----------
-    request:
-        ``GetFileTextRequest`` containing the target ``file_id`` and the maximum
-        number of characters to return.
-
-    Returns
-    -------
-    GetFileTextResponse
-        Structured response including the extracted document metadata and text,
-        plus execution status fields.
-
-    Error Handling
-    --------------
-    - Authentication failures return a structured error response.
-    - Unexpected processing or extraction failures are returned in the
-      ``execution_message`` field.
+        Returns:
+            GetFileTextResponse: The retrieved document content, related metadata,
+                and execution status for the text extraction request.
     """
     logger.info("Tool call: get_file_text(file_id=%s)", request.file_id)
     try:
@@ -264,37 +201,16 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
 
 @mcp.tool()
 async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocResponse:
-    """Create a Google Doc and populate it with textual content.
+    """
+    Creates a Google Docs document in Drive using the provided title, content, and folder.
 
-    This tool creates a new Google-native document in the requested folder and
-    writes the provided content into it. It is intended for agent workflows that
-    generate summaries, reports, notes, or other text-first artifacts directly
-    in the user's Drive.
+        Args:
+            request (CreateGoogleDocRequest): The document title, body text, and
+                optional destination folder for the new Google Doc.
 
-    The actual Drive file creation and Docs content insertion are delegated to
-    ``DriveManager.create_google_doc_from_text``.
-
-    Authorization
-    -------------
-    Requires document write scopes as defined by
-    ``DRIVE_API_CONFIG.write_doc_scopes``.
-
-    Parameters
-    ----------
-    request:
-        ``CreateGoogleDocRequest`` containing the document title, body content,
-        and optional destination folder identifier.
-
-    Returns
-    -------
-    CreateGoogleDocResponse
-        Structured response containing the created Drive file metadata together
-        with execution status information.
-
-    Error Handling
-    --------------
-    Authentication and runtime failures are converted into structured response
-    objects so callers always receive a valid MCP response schema.
+        Returns:
+            CreateGoogleDocResponse: The created document metadata and the execution
+                result for the document creation operation.
     """
     logger.info("Tool call: create_google_doc(title=%s)", request.title)
     try:
@@ -335,36 +251,16 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
 
 @mcp.tool()
 async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
-    """Generate a PDF from text and upload it to Google Drive.
+    """
+    Generates a PDF from text content and uploads the resulting file to Google Drive.
 
-    This tool converts the provided text into a PDF document and uploads the
-    generated file to Drive, optionally under a target folder. It is suitable
-    for workflows where the agent must publish an output artifact in a portable,
-    non-editable format.
+        Args:
+            request (UploadPdfRequest): The PDF title, source text to render, and
+                optional destination folder for the uploaded file.
 
-    The PDF layout and page formatting logic live in the Drive client layer so
-    the MCP server remains focused on request validation and response shaping.
-
-    Authorization
-    -------------
-    Requires PDF or binary upload scopes as defined by
-    ``DRIVE_API_CONFIG.write_pdf_scopes``.
-
-    Parameters
-    ----------
-    request:
-        ``UploadPdfRequest`` containing the desired title, the text to render
-        into the PDF, and an optional folder destination.
-
-    Returns
-    -------
-    UploadPdfResponse
-        Structured response containing Drive metadata for the uploaded PDF and
-        execution status fields.
-
-    Error Handling
-    --------------
-    Returns structured error responses for authentication and runtime failures.
+        Returns:
+            UploadPdfResponse: The uploaded PDF metadata and the execution result
+                for the upload request.
     """
     logger.info("Tool call: upload_pdf(title=%s)", request.title)
     try:
@@ -405,36 +301,16 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
 
 @mcp.tool()
 async def create_file(request: CreateFileRequest) -> CreateFileResponse:
-    """Create a generic file in Google Drive.
+    """
+    Creates a standard file in Google Drive with the supplied content and MIME type.
 
-    This tool supports creation of plain-text files and other generic MIME types
-    supported by the connector implementation. It is intended for file-centric
-    workflows where the agent must materialize generated content in Drive
-    without using a Google-native document type.
+        Args:
+            request (CreateFileRequest): The file name, file content, MIME type,
+                and optional parent folder where the file should be created.
 
-    The tool delegates actual file creation to ``DriveManager.create_file``.
-
-    Authorization
-    -------------
-    Requires management scopes as defined by
-    ``DRIVE_API_CONFIG.management_scopes``.
-
-    Parameters
-    ----------
-    request:
-        ``CreateFileRequest`` containing the file name, MIME type, content, and
-        optional destination folder identifier.
-
-    Returns
-    -------
-    CreateFileResponse
-        Structured response including the created file metadata and execution
-        status fields.
-
-    Error Handling
-    --------------
-    Authentication and runtime failures are returned as structured response
-    payloads.
+        Returns:
+            CreateFileResponse: The created file metadata and the execution result
+                for the file creation request.
     """
     logger.info("Tool call: create_file(name=%s, mime_type=%s)", request.name, request.mime_type)
     try:
@@ -479,33 +355,16 @@ async def create_file(request: CreateFileRequest) -> CreateFileResponse:
 
 @mcp.tool()
 async def create_folder(request: CreateFolderRequest) -> CreateFolderResponse:
-    """Create a folder in Google Drive.
+    """
+    Creates a new folder in Google Drive, optionally inside an existing parent folder.
 
-    This tool creates a new Drive folder, optionally under an existing parent
-    folder, and returns normalized metadata for the created directory. It is
-    useful for workspace organization workflows where the agent must prepare
-    folder structures before placing or moving files.
+        Args:
+            request (CreateFolderRequest): The folder name and optional parent
+                folder identifier for the folder creation request.
 
-    Authorization
-    -------------
-    Requires management scopes as defined by
-    ``DRIVE_API_CONFIG.management_scopes``.
-
-    Parameters
-    ----------
-    request:
-        ``CreateFolderRequest`` containing the new folder name and optional
-        parent folder identifier.
-
-    Returns
-    -------
-    CreateFolderResponse
-        Structured response containing metadata for the created folder and
-        execution status fields.
-
-    Error Handling
-    --------------
-    Returns structured error responses for authentication and runtime failures.
+        Returns:
+            CreateFolderResponse: The created folder metadata and the execution
+                result for the folder creation operation.
     """
     logger.info("Tool call: create_folder(name=%s)", request.name)
     try:
@@ -542,32 +401,16 @@ async def create_folder(request: CreateFolderRequest) -> CreateFolderResponse:
 
 @mcp.tool()
 async def move_file(request: MoveFileRequest) -> MoveFileResponse:
-    """Move a file or folder to a new parent folder.
+    """
+    Moves an existing Google Drive item into a different destination folder.
 
-    This tool updates the Drive parents relationship for an existing item so it
-    appears under a different destination folder. It supports both files and
-    folders, subject to the constraints enforced by the Google Drive API.
+        Args:
+            request (MoveFileRequest): The file or folder identifier to move and
+                the destination folder identifier that will become its new parent.
 
-    Authorization
-    -------------
-    Requires management scopes as defined by
-    ``DRIVE_API_CONFIG.management_scopes``.
-
-    Parameters
-    ----------
-    request:
-        ``MoveFileRequest`` containing the target item identifier and the
-        destination folder identifier.
-
-    Returns
-    -------
-    MoveFileResponse
-        Structured response containing metadata for the moved item and
-        execution status fields.
-
-    Error Handling
-    --------------
-    Returns structured error responses for authentication and runtime failures.
+        Returns:
+            MoveFileResponse: The updated item metadata and the execution result
+                for the move operation.
     """
     logger.info(
         "Tool call: move_file(file_id=%s, destination_folder_id=%s)",
@@ -608,32 +451,16 @@ async def move_file(request: MoveFileRequest) -> MoveFileResponse:
 
 @mcp.tool()
 async def rename_file(request: RenameFileRequest) -> RenameFileResponse:
-    """Rename an existing Google Drive file or folder.
+    """
+    Renames an existing file or folder in Google Drive without changing its location.
 
-    This tool updates the display name of an existing Drive item while
-    preserving its identifier, location, and content. It can be used for both
-    files and folders as part of workspace cleanup and organization workflows.
+        Args:
+            request (RenameFileRequest): The target item identifier and the new
+                display name that should be assigned to the Drive item.
 
-    Authorization
-    -------------
-    Requires management scopes as defined by
-    ``DRIVE_API_CONFIG.management_scopes``.
-
-    Parameters
-    ----------
-    request:
-        ``RenameFileRequest`` containing the target item identifier and the new
-        name to assign.
-
-    Returns
-    -------
-    RenameFileResponse
-        Structured response containing metadata for the renamed item and
-        execution status fields.
-
-    Error Handling
-    --------------
-    Returns structured error responses for authentication and runtime failures.
+        Returns:
+            RenameFileResponse: The renamed item metadata and the execution result
+                for the rename operation.
     """
     logger.info("Tool call: rename_file(file_id=%s, new_name=%s)", request.file_id, request.new_name)
     try:
@@ -669,24 +496,16 @@ async def rename_file(request: RenameFileRequest) -> RenameFileResponse:
 
 
 def _make_drive_manager(*, scopes: Sequence[str]) -> DriveManager:
-    """Build a Drive manager for the current authenticated MCP request.
+    """
+    Builds a Drive manager instance using credentials derived from the current MCP token.
 
-    This helper extracts the current access token from the MCP auth context,
-    converts it into Google credentials for the requested scope set, and
-    instantiates ``DriveManager``. Centralizing this logic ensures all tool
-    handlers use the same credential construction path.
+        Args:
+            scopes (Sequence[str]): The Google OAuth scopes required for the
+                upcoming Drive API operation.
 
-    Parameters
-    ----------
-    scopes:
-        Sequence of Google OAuth scopes required for the pending Drive
-        operation.
-
-    Returns
-    -------
-    DriveManager
-        Ready-to-use Drive manager configured with credentials derived from the
-        current MCP request token.
+        Returns:
+            DriveManager: A Drive manager configured with authenticated credentials
+                for the requested scope set.
     """
     access_token = _get_current_token()
     creds = build_drive_credentials(access_token=access_token, scopes=scopes)
@@ -694,18 +513,16 @@ def _make_drive_manager(*, scopes: Sequence[str]) -> DriveManager:
 
 
 def _get_current_token() -> Optional[str]:
-    """Return the bearer access token associated with the current MCP request.
+    """
+    Retrieves the access token associated with the current authenticated MCP request.
 
-    The MCP framework stores the authenticated request context, including the
-    validated access token, in thread-local or context-local state. This helper
-    provides a single place to retrieve the raw token so it can be converted
-    into Google credentials for downstream API calls.
+        Args:
+            None: This helper reads the token from the active MCP authentication
+                context and does not accept explicit parameters.
 
-    Returns
-    -------
-    Optional[str]
-        The current access token if the request is authenticated; otherwise
-        ``None``.
+        Returns:
+            Optional[str]: The bearer access token for the current request, or None
+                when no authenticated token is available.
     """
     token_obj = get_access_token()
     return token_obj.token if token_obj else None
