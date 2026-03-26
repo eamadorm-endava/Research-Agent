@@ -1,4 +1,3 @@
-import os
 import logging
 import vertexai
 from vertexai import agent_engines
@@ -27,10 +26,7 @@ full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOI
 full_gcs_mcp_server_path = mcp_servers.GCS_URL + mcp_servers.GCS_ENDPOINT
 full_drive_mcp_server_path = mcp_servers.DRIVE_URL + mcp_servers.DRIVE_ENDPOINT
 
-is_deployed = (
-    os.environ.get("K_SERVICE") is not None
-    or os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY") == "true"
-)
+is_deployed = gcp_config.IS_DEPLOYED
 
 vertexai.Client(
     project=project_id,
