@@ -6,7 +6,6 @@ It mirrors the structure of the existing `mcp_servers/big_query` service, but it
 ## Exposed tools
 
 - `list_files`
-- `search_files`
 - `get_file_text`
 - `create_google_doc`
 - `upload_pdf`

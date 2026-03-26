@@ -63,7 +63,6 @@ This scope is the recommended scope for:
 
 **Tools that can rely on it**
 - `list_files`
-- `search_files`
 - `get_file_text`
 - `create_file`
 - `create_folder`
@@ -99,7 +98,6 @@ This scope is useful if the connector is intentionally restricted to discovery a
 
 **Tools that use or conceptually map to it**
 - `list_files`
-- `search_files`
 - `get_file_text`
 
 **Note**  
@@ -163,7 +161,6 @@ The table below documents the intended relationship between scopes and MCP tools
 | Tool | Purpose | Minimum Practical Scope | Recommended Scope for Current Connector | Notes |
 |---|---|---|---|---|
 | `list_files` | List files and folders with metadata and path context | `drive.readonly` | `drive` | `drive` is recommended because the connector is evolving toward full workspace management and richer metadata access. |
-| `search_files` | Search files and folders by filters and metadata | `drive.readonly` | `drive` | Read-only is enough for basic discovery, but `drive` keeps the token model consistent with management features. |
 | `get_file_text` | Read, export, and download file contents | `drive.readonly` | `drive` | Needed for Google Docs export, Sheets export, Slides export, PDFs, and text files. |
 | `create_file` | Create plain text or generic files | `drive.file` | `drive` | `drive.file` works for application-created files only; `drive` is better for broader lifecycle management. |
 | `create_folder` | Create folders anywhere in Drive | `drive.file` or `drive` depending on access pattern | `drive` | Full Drive management is the intended target. |

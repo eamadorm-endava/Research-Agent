@@ -75,34 +75,6 @@ DESTINATION_FOLDER_ID = Annotated[
     str,
     Field(min_length=1, description="Destination Drive folder ID for a move operation."),
 ]
-MIME_TYPES = Annotated[
-    Optional[list[str]],
-    Field(
-        default=None,
-        description="Optional list of MIME types to include in search results.",
-    ),
-]
-INCLUDE_FOLDERS = Annotated[
-    bool,
-    Field(
-        default=False,
-        description="Whether folders should be included in the result set.",
-    ),
-]
-SEARCH_TEXT = Annotated[
-    Optional[str],
-    Field(
-        default=None,
-        description="Plain-text search term used against name/fullText.",
-    ),
-]
-DRIVE_QUERY = Annotated[
-    Optional[str],
-    Field(
-        default=None,
-        description="Raw Drive query-language expression. If provided, this takes precedence.",
-    ),
-]
 DRIVE_FILE_ID = Annotated[
     str,
     Field(min_length=1, description="Drive file or folder ID."),
@@ -324,30 +296,6 @@ class ListFilesResponse(ListFilesRequest, BaseResponse):
     total_files: TOTAL_FILES
     total_folders: TOTAL_FOLDERS
     files: LIST_FILE_METADATA
-
-
-class SearchFilesRequest(DriveSchemaModel):
-    """Request schema for searching files across Drive."""
-
-    search_text: SEARCH_TEXT
-    drive_query: DRIVE_QUERY
-    max_results: MAX_RESULTS
-    folder_id: FOLDER_ID
-    include_folders: INCLUDE_FOLDERS
-    mime_types: MIME_TYPES
-
-    @model_validator(mode="after")
-    def validate_query(self) -> Self:
-        """Ensures that either search_text or drive_query is provided."""
-        if not (self.search_text or self.drive_query):
-            raise ValueError("Either search_text or drive_query must be provided.")
-        return self
-
-
-class SearchFilesResponse(SearchFilesRequest, BaseResponse):
-    """Response schema containing search results."""
-
-    files: DRIVE_FILE_LIST
 
 
 class GetFileTextRequest(DriveSchemaModel):

@@ -29,8 +29,6 @@ from .schemas import (
     MoveFileResponse,
     RenameFileRequest,
     RenameFileResponse,
-    SearchFilesRequest,
-    SearchFilesResponse,
     UploadPdfRequest,
     UploadPdfResponse,
 )
@@ -143,60 +141,6 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
             execution_message=str(exc),
         )
 
-
-@mcp.tool()
-async def search_files(request: SearchFilesRequest) -> SearchFilesResponse:
-    logger.info(
-        "Tool call: search_files(search_text=%s, drive_query=%s)",
-        request.search_text,
-        request.drive_query,
-    )
-    try:
-        manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
-        files = await asyncio.to_thread(
-            manager.search_files,
-            search_text=request.search_text,
-            drive_query=request.drive_query,
-            max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
-            mime_types=request.mime_types,
-        )
-        return SearchFilesResponse(
-            search_text=request.search_text,
-            drive_query=request.drive_query,
-            max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
-            mime_types=request.mime_types,
-            files=files,
-            execution_status="success",
-            execution_message=f"Found {len(files)} matching files.",
-        )
-    except AuthenticationError as exc:
-        return SearchFilesResponse(
-            search_text=request.search_text,
-            drive_query=request.drive_query,
-            max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
-            mime_types=request.mime_types,
-            files=[],
-            execution_status="error",
-            execution_message=f"Authentication Error: {exc}",
-        )
-    except Exception as exc:
-        return SearchFilesResponse(
-            search_text=request.search_text,
-            drive_query=request.drive_query,
-            max_results=request.max_results,
-            folder_id=request.folder_id,
-            include_folders=request.include_folders,
-            mime_types=request.mime_types,
-            files=[],
-            execution_status="error",
-            execution_message=str(exc),
-        )
 
 
 @mcp.tool()

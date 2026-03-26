@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 from pathlib import PurePosixPath
 from datetime import datetime, timedelta
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional
 from xml.sax.saxutils import escape as xml_escape
 
 import httpx
@@ -83,55 +83,6 @@ class DriveManager:
         metadata_items = self._sort_list_file_metadata(metadata_items, order_by or {})
         return metadata_items[:max_results]
 
-    def search_files(
-        self,
-        *,
-        search_text: Optional[str] = None,
-        drive_query: Optional[str] = None,
-        max_results: int = 10,
-        folder_id: Optional[str] = None,
-        include_folders: bool = False,
-        mime_types: Optional[Sequence[str]] = None,
-    ) -> list[DriveFile]:
-        query_parts: list[str] = []
-
-        if drive_query:
-            query_parts.append(drive_query)
-        else:
-            normalized_search_text = (search_text or "").strip()
-            if normalized_search_text:
-                escaped_search_text = _escape_q(normalized_search_text)
-                query_parts.append(
-                    f"(name contains '{escaped_search_text}' or fullText contains '{escaped_search_text}')"
-                )
-
-        if folder_id:
-            query_parts.append(f"'{_escape_q(folder_id)}' in parents")
-
-        if mime_types:
-            mime_filters = " or ".join(
-                [f"mimeType = '{_escape_q(mime_type)}'" for mime_type in mime_types]
-            )
-            query_parts.append(f"({mime_filters})")
-
-        if not include_folders:
-            query_parts.append(f"mimeType != '{DRIVE_API_CONFIG.google_folder}'")
-
-        query = " and ".join([part for part in query_parts if part]) or None
-
-        response = (
-            self.drive.files()
-            .list(
-                q=query,
-                pageSize=max_results,
-                fields=DRIVE_API_CONFIG.file_list_fields,
-                orderBy=DRIVE_API_CONFIG.order_by,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
-            )
-            .execute()
-        )
-        return self._build_drive_files(response.get("files", []))
 
     def get_file_text(self, file_id: str) -> DriveTextDocument:
         metadata = self._get_file_metadata_payload(file_id)

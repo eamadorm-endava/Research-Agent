@@ -11,7 +11,6 @@ from mcp_servers.google_drive.app.mcp_server import (
     list_files,
     move_file,
     rename_file,
-    search_files,
     upload_pdf,
 )
 from mcp_servers.google_drive.app.schemas import (
@@ -27,7 +26,6 @@ from mcp_servers.google_drive.app.schemas import (
     ListFilesSortField,
     MoveFileRequest,
     RenameFileRequest,
-    SearchFilesRequest,
     SortDirection,
     UploadPdfRequest,
 )
@@ -72,15 +70,6 @@ async def test_list_files_success(mock_drive_manager):
     assert result.total_folders == 1
     assert result.files[0].folder_path == "/Documents"
 
-
-@pytest.mark.asyncio
-async def test_search_files_error(mock_drive_manager):
-    mock_drive_manager.side_effect = RuntimeError("missing credentials")
-
-    result = await search_files(SearchFilesRequest(search_text="budget"))
-
-    assert result.execution_status == "error"
-    assert "missing credentials" in result.execution_message
 
 
 @pytest.mark.asyncio
