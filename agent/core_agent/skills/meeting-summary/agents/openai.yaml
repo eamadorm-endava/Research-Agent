@@ -1,0 +1,3 @@
+interface:
+  display_name: "Meeting Summary"
+  short_description: "Summarize a specific meeting from Drive evidence and save a standard DOCX into Drive."

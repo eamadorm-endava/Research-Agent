@@ -10,6 +10,8 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from .config import GCPConfig, AgentConfig, MCPServersConfig
 from .utils.security import get_id_token, get_ge_oauth_token
 
+from pathlib import Path
+
 logging.getLogger().setLevel(logging.INFO)
 
 gcp_config = GCPConfig()
@@ -51,6 +53,50 @@ agent_retry_options = HttpRetryOptions(
 # MCP toolset construction is centralized in utils/auxiliars.py:get_mcp_servers_tools
 # tools = get_mcp_servers_tools(mcp_servers)
 
+
+# Skills
+def load_skill_file(relative_path: str) -> str:
+    base_path = Path(__file__).parent
+    skill_path = base_path / relative_path
+
+    if not skill_path.exists():
+        raise FileNotFoundError(f"Skill file not found: {skill_path}")
+
+    return skill_path.read_text(encoding="utf-8")
+
+
+meeting_summary_skill = load_skill_file("skills/meeting-summary/SKILL.md")
+
+full_instruction = "\n\n".join(
+    [
+        agent_config.AGENT_INSTRUCTION,
+        """
+    --- MEETING SUMMARY SKILL ROUTING ---
+
+    Use the meeting-summary skill when the user asks for:
+    - meeting summary
+    - meeting recap
+    - meeting notes
+    - follow-up document for a meeting
+
+    The request MUST refer to a specific meeting.
+    Meeting files may exist in personal drives or shared drives.
+    Search both contexts through MCP Drive Server when possible.
+
+    When triggered:
+    - Use MCP Drive Server to find transcripts and related documents
+    - Prefer transcripts over notes when both exist
+    - If the meeting is a follow-up, search for prior related summaries or supporting files
+    - Generate a structured summary document
+    - Save it to the user's Drive in '{agent_config.MEETING_SUMMARY_FOLDER}'
+    - Use the filename pattern '{agent_config.MEETING_SUMMARY_FILENAME_PATTERN}'
+    - If no transcript exists, use reliable notes if available
+    - If no reliable source exists, do not invent content; tell the user how to enable transcripts for future meetings
+    """,
+        meeting_summary_skill,
+    ]
+)
+
 root_agent = Agent(
     model=Gemini(
         model_name=agent_config.MODEL_NAME,
@@ -58,7 +104,7 @@ root_agent = Agent(
     ),
     name=agent_config.AGENT_NAME,
     generate_content_config=agent_settings,
-    instruction=agent_config.AGENT_INSTRUCTION,
+    instruction=full_instruction,
     tools=[
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
