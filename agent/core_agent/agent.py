@@ -176,7 +176,7 @@ root_agent = Agent(
     ),
     name=agent_config.AGENT_NAME,
     generate_content_config=agent_settings,
-    instruction=agent_config.AGENT_INSTRUCTION,
+    instruction=full_instruction,
     tools=agent_tools,
 )
 

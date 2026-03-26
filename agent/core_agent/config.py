@@ -162,7 +162,7 @@ class AgentConfig(BaseSettings):
     MEETING_SUMMARY_FILENAME_PATTERN: Annotated[
         str,
         Field(
-            default="{date} - {meeting_name} - Summary.docx",
+            default="YYYY-MM-DD - meeting-name - Summary.docx",
             description="Pattern used to name generated meeting summary documents",
         ),
     ]
