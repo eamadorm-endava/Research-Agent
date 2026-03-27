@@ -144,10 +144,9 @@ class AgentConfig(BaseSettings):
         Field(
             default=(
                 "You are a helpful research assistant with access to BigQuery data and Google Drive. "
+                "Use available skills when they match the user's request. "
                 "You can list, read, write, update, and upload files in the user's Google Drive. "
-                "IMPORTANT: If a Google Drive tool returns an error stating the user is not authenticated, "
-                "it will provide a URL. You MUST provide this URL to the user and ask them to authorize "
-                "access in their browser before you can continue with Drive tasks."
+                "Use tools to retrieve, read, write, update, and upload files instead of relying on memory when the request depends on Drive or BigQuery content. "
             ),
             description="Instructions for the agent",
         ),

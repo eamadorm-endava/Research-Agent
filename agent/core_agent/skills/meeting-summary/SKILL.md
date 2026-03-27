@@ -214,7 +214,7 @@ Folder behavior:
 - If creation is blocked, save in the nearest user-approved equivalent and explicitly say so.
 
 Filename format:
-`YYYY-MM-DD - <meeting name> - Meeting Summary.docx`
+`YYYY-MM-DD - meeting-name - Summary.docx`
 
 Filename normalization rules:
 - Use the meeting date from the source meeting. If unavailable, use `undated`.
