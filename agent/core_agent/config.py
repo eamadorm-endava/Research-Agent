@@ -139,6 +139,20 @@ class AgentConfig(BaseSettings):
             description="Name of the agent",
         ),
     ]
+    INCLUDE_THOUGHTS: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="Whether to include thoughts in the response",
+        ),
+    ]
+    THINKING_BUDGET: Annotated[
+        int,
+        Field(
+            default=1024,
+            description="Maximum number of tokens to use for thinking process",
+        ),
+    ]
     AGENT_INSTRUCTION: Annotated[
         str,
         Field(
