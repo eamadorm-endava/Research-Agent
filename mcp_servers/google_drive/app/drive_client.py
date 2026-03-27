@@ -1,153 +1,99 @@
 from __future__ import annotations
 
 import io
-from typing import Any, Optional, Sequence
+from pathlib import PurePosixPath
+from datetime import datetime, timedelta
+from typing import Any, Mapping, Optional, Sequence
+from xml.sax.saxutils import escape as xml_escape
 
 import httpx
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from pypdf import PdfReader
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
-from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG
-from .schemas import AuthenticationError
-from .schemas import DriveDocumentModel as DriveTextDocument
-from .schemas import DriveFileModel as DriveFile
+from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG, DRIVE_PDF_CONFIG
+from .schemas import (
+    AuthenticationError,
+    DriveDocumentModel as DriveTextDocument,
+    DriveFileMetadata,
+    DriveFileModel as DriveFile,
+    DriveMimeType,
+    ListFilesSortField,
+    SortDirection,
+)
 
 
 class DriveManager:
     """Manager for Google Drive operations."""
 
     def __init__(self, creds: Any) -> None:
-        """
-        Initializes the DriveManager with Google API credentials.
-        Args:
-            creds: Valid Google OAuth2 credentials.
-        Return: None
-        """
         self.creds = creds
         self.drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
     def list_files(
         self,
         *,
+        folder_name: Optional[str] = None,
+        file_name: Optional[str] = None,
+        mime_type: Optional[DriveMimeType] = None,
+        creation_time: Optional[str] = None,
+        last_update: Optional[str] = None,
+        order_by: Optional[dict[ListFilesSortField, SortDirection]] = None,
         max_results: int = 10,
-        folder_id: Optional[str] = None,
-        include_folders: bool = False,
-    ) -> list[DriveFile]:
-        """
-        Lists files in a specific folder or the root directory.
-        Args:
-            max_results: Maximum number of files to return.
-            folder_id: Optional ID of the parent folder to list.
-            include_folders: Whether to include folders in the result list.
-        Return: A list of DriveFile objects.
-        """
+    ) -> list[DriveFileMetadata]:
+        folder_id = (
+            self._resolve_folder_id_by_path(folder_name) if folder_name else None
+        )
+        if folder_name and not folder_id:
+            return []
+
         query_parts: list[str] = []
         if folder_id:
             query_parts.append(f"'{_escape_q(folder_id)}' in parents")
-        if not include_folders:
-            query_parts.append(f"mimeType != '{DRIVE_API_CONFIG.google_folder}'")
-        query = " and ".join(query_parts) if query_parts else None
+        if file_name:
+            query_parts.append(f"name contains '{_escape_q(file_name.strip())}'")
+        if mime_type:
+            query_parts.append(f"mimeType = '{_escape_q(mime_type.value)}'")
+        if creation_time:
+            start_of_day = f"{creation_time}T00:00:00"
+            end_of_day = (
+                datetime.strptime(creation_time, "%Y-%m-%d") + timedelta(days=1)
+            ).strftime("%Y-%m-%dT00:00:00")
+            query_parts.append(f"createdTime >= '{start_of_day}'")
+            query_parts.append(f"createdTime < '{end_of_day}'")
+        if last_update:
+            start_of_day = f"{last_update}T00:00:00"
+            end_of_day = (
+                datetime.strptime(last_update, "%Y-%m-%d") + timedelta(days=1)
+            ).strftime("%Y-%m-%dT00:00:00")
+            query_parts.append(f"modifiedTime >= '{start_of_day}'")
+            query_parts.append(f"modifiedTime < '{end_of_day}'")
 
+        query = " and ".join(part for part in query_parts if part) or None
+        candidate_size = min(max(max_results * 10, 100), 1000)
         response = (
             self.drive.files()
             .list(
                 q=query,
-                pageSize=max_results,
+                pageSize=candidate_size,
                 fields=DRIVE_API_CONFIG.file_list_fields,
-                orderBy=DRIVE_API_CONFIG.order_by,
+                orderBy=self._build_drive_order_by(order_by),
                 supportsAllDrives=True,
                 includeItemsFromAllDrives=True,
             )
             .execute()
         )
-        return [
-            DriveFile.model_validate(file_payload)
-            for file_payload in response.get("files", [])
-        ]
-
-    def search_files(
-        self,
-        *,
-        search_text: Optional[str] = None,
-        drive_query: Optional[str] = None,
-        max_results: int = 10,
-        folder_id: Optional[str] = None,
-        include_folders: bool = False,
-        mime_types: Optional[Sequence[str]] = None,
-    ) -> list[DriveFile]:
-        """
-        Searches for files based on text or a raw Drive query.
-        Args:
-            search_text: Text to search for in file names and content.
-            drive_query: Raw Google Drive API query string.
-            max_results: Maximum number of results to return.
-            folder_id: Optional folder ID to restrict the search.
-            include_folders: Whether to include folders in the results.
-            mime_types: Optional list of MIME types to filter by.
-        Return: A list of DriveFile objects matching the criteria.
-        """
-        query_parts: list[str] = []
-
-        if drive_query:
-            query_parts.append(drive_query)
-        else:
-            normalized_search_text = (search_text or "").strip()
-            if normalized_search_text:
-                escaped_search_text = _escape_q(normalized_search_text)
-                query_parts.append(
-                    f"(name contains '{escaped_search_text}' or fullText contains '{escaped_search_text}')"
-                )
-
-        if folder_id:
-            query_parts.append(f"'{_escape_q(folder_id)}' in parents")
-
-        if mime_types:
-            mime_filters = " or ".join(
-                [f"mimeType = '{_escape_q(mime_type)}'" for mime_type in mime_types]
-            )
-            query_parts.append(f"({mime_filters})")
-
-        if not include_folders:
-            query_parts.append(f"mimeType != '{DRIVE_API_CONFIG.google_folder}'")
-
-        query = " and ".join([part for part in query_parts if part]) or None
-
-        response = (
-            self.drive.files()
-            .list(
-                q=query,
-                pageSize=max_results,
-                fields=DRIVE_API_CONFIG.file_list_fields,
-                orderBy=DRIVE_API_CONFIG.order_by,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
-            )
-            .execute()
-        )
-        return [
-            DriveFile.model_validate(file_payload)
-            for file_payload in response.get("files", [])
-        ]
+        files = self._build_drive_files(response.get("files", []))
+        metadata_items = [self._to_list_file_metadata(item) for item in files]
+        metadata_items = self._sort_list_file_metadata(metadata_items, order_by or {})
+        return metadata_items[:max_results]
 
     def get_file_text(self, file_id: str) -> DriveTextDocument:
-        """
-        Retrieves and extracts plain text from a Google Drive file.
-        Args:
-            file_id: The ID of the file to process.
-        Return: A DriveTextDocument containing metadata and extracted text.
-        """
-        metadata = (
-            self.drive.files()
-            .get(
-                fileId=file_id,
-                fields=DRIVE_API_CONFIG.file_metadata_fields,
-                supportsAllDrives=True,
-            )
-            .execute()
-        )
-
+        metadata = self._get_file_metadata_payload(file_id)
         mime_type = metadata.get("mimeType", "")
         file_name = metadata.get("name", "")
         extracted_text = ""
@@ -175,11 +121,10 @@ class DriveManager:
             else:
                 extracted_text = raw_bytes.decode("utf-8", errors="ignore")
 
+        enriched_metadata = self._normalize_file_payload(metadata, path_cache={})
         return DriveTextDocument.model_validate(
             {
-                **metadata,
-                "mimeType": mime_type,
-                "name": file_name,
+                **enriched_metadata,
                 "text": extracted_text,
             }
         )
@@ -191,14 +136,6 @@ class DriveManager:
         content: str,
         folder_id: Optional[str] = None,
     ) -> DriveFile:
-        """
-        Creates a new Google Doc and populates it with text.
-        Args:
-            title: The title of the new document.
-            content: The plain text content to insert.
-            folder_id: Optional folder ID where the doc will be created.
-        Return: A DriveFile object representing the new document.
-        """
         file_metadata: dict[str, Any] = {
             "name": title,
             "mimeType": DRIVE_API_CONFIG.google_doc,
@@ -226,7 +163,7 @@ class DriveManager:
             },
         ).execute()
 
-        return DriveFile.model_validate(created)
+        return self.get_file(created["id"])
 
     def upload_pdf_from_text(
         self,
@@ -235,30 +172,7 @@ class DriveManager:
         text: str,
         folder_id: Optional[str] = None,
     ) -> DriveFile:
-        """
-        Generates a PDF from text and uploads it to Google Drive.
-        Args:
-            title: The title of the PDF file (excluding extension).
-            text: The plain text content for the PDF.
-            folder_id: Optional folder ID where the PDF will be uploaded.
-        Return: A DriveFile object representing the uploaded PDF.
-        """
-        from reportlab.lib.pagesizes import letter
-        from reportlab.pdfgen import canvas
-
-        pdf_io = io.BytesIO()
-        canvas_obj = canvas.Canvas(pdf_io, pagesize=letter)
-        _, height = letter
-
-        y = height - 72
-        for line in (text or "").splitlines():
-            canvas_obj.drawString(72, y, line[:1200])
-            y -= 14
-            if y < 72:
-                canvas_obj.showPage()
-                y = height - 72
-        canvas_obj.save()
-        pdf_io.seek(0)
+        pdf_io = _build_pdf_bytes_from_text(text)
 
         file_metadata: dict[str, Any] = {
             "name": f"{title}.pdf",
@@ -282,15 +196,292 @@ class DriveManager:
             )
             .execute()
         )
-        return DriveFile.model_validate(created)
+        return self.get_file(created["id"])
+
+    def create_file(
+        self,
+        *,
+        name: str,
+        content: str = "",
+        mime_type: str = DRIVE_API_CONFIG.plain_text,
+        folder_id: Optional[str] = None,
+    ) -> DriveFile:
+        normalized_name = name.strip()
+        if (
+            mime_type == DRIVE_API_CONFIG.plain_text
+            and "." not in PurePosixPath(normalized_name).name
+        ):
+            normalized_name = f"{normalized_name}.txt"
+
+        file_metadata: dict[str, Any] = {
+            "name": normalized_name,
+            "mimeType": mime_type or DRIVE_API_CONFIG.plain_text,
+        }
+        if folder_id:
+            file_metadata["parents"] = [folder_id]
+
+        media_body = None
+        if content:
+            media_body = MediaIoBaseUpload(
+                io.BytesIO(content.encode("utf-8")),
+                mimetype=file_metadata["mimeType"],
+                resumable=False,
+            )
+
+        created = (
+            self.drive.files()
+            .create(
+                body=file_metadata,
+                media_body=media_body,
+                fields=DRIVE_API_CONFIG.file_metadata_fields,
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+        return self.get_file(created["id"])
+
+    def create_folder(
+        self,
+        *,
+        name: str,
+        folder_id: Optional[str] = None,
+    ) -> DriveFile:
+        file_metadata: dict[str, Any] = {
+            "name": name,
+            "mimeType": DRIVE_API_CONFIG.google_folder,
+        }
+        if folder_id:
+            file_metadata["parents"] = [folder_id]
+
+        created = (
+            self.drive.files()
+            .create(
+                body=file_metadata,
+                fields=DRIVE_API_CONFIG.file_metadata_fields,
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+        return self.get_file(created["id"])
+
+    def move_file(
+        self,
+        *,
+        file_id: str,
+        destination_folder_id: str,
+    ) -> DriveFile:
+        current = (
+            self.drive.files()
+            .get(
+                fileId=file_id,
+                fields="id,parents",
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+        previous_parents = ",".join(current.get("parents", []))
+        update_kwargs: dict[str, Any] = {
+            "fileId": file_id,
+            "addParents": destination_folder_id,
+            "fields": DRIVE_API_CONFIG.file_metadata_fields,
+            "supportsAllDrives": True,
+        }
+        if previous_parents:
+            update_kwargs["removeParents"] = previous_parents
+
+        self.drive.files().update(**update_kwargs).execute()
+        return self.get_file(file_id)
+
+    def rename_file(
+        self,
+        *,
+        file_id: str,
+        new_name: str,
+    ) -> DriveFile:
+        self.drive.files().update(
+            fileId=file_id,
+            body={"name": new_name},
+            fields=DRIVE_API_CONFIG.file_metadata_fields,
+            supportsAllDrives=True,
+        ).execute()
+        return self.get_file(file_id)
+
+    def get_file(self, file_id: str) -> DriveFile:
+        metadata = self._get_file_metadata_payload(file_id)
+        normalized = self._normalize_file_payload(metadata, path_cache={})
+        return DriveFile.model_validate(normalized)
+
+    def _to_list_file_metadata(self, file_payload: DriveFile) -> DriveFileMetadata:
+        owner = file_payload.owners[0] if file_payload.owners else None
+        full_path = file_payload.path or f"/{file_payload.name}"
+        folder_path = str(PurePosixPath(full_path).parent)
+        if folder_path == ".":
+            folder_path = "/"
+        return DriveFileMetadata.model_validate(
+            {
+                "creation_at": file_payload.createdTime,
+                "last_update_at": file_payload.modifiedTime,
+                "folder_path": folder_path,
+                "file_name": file_payload.name,
+                "file_id": file_payload.id,
+                "created_by": {
+                    "name": getattr(owner, "displayName", None) if owner else None,
+                    "email": getattr(owner, "emailAddress", None) if owner else None,
+                },
+                "mime_type": file_payload.mimeType,
+            }
+        )
+
+    def _sort_list_file_metadata(
+        self,
+        items: list[DriveFileMetadata],
+        order_by: dict[ListFilesSortField, SortDirection],
+    ) -> list[DriveFileMetadata]:
+        if not order_by:
+            return items
+
+        sort_key_map = {
+            ListFilesSortField.FOLDER_NAME: lambda item: (
+                item.folder_path or ""
+            ).lower(),
+            ListFilesSortField.FILE_NAME: lambda item: (item.file_name or "").lower(),
+            ListFilesSortField.CREATION_TIME: lambda item: item.creation_at or "",
+            ListFilesSortField.LAST_UPDATE: lambda item: item.last_update_at or "",
+        }
+
+        sorted_items = list(items)
+        for field, direction in reversed(list(order_by.items())):
+            reverse = direction == SortDirection.DESC
+            sorted_items.sort(key=sort_key_map[field], reverse=reverse)
+        return sorted_items
+
+    def _build_drive_order_by(
+        self,
+        order_by: Optional[dict[ListFilesSortField, SortDirection]],
+    ) -> str:
+        if not order_by:
+            return DRIVE_API_CONFIG.order_by
+
+        drive_order_map = {
+            ListFilesSortField.FILE_NAME: "name_natural",
+            ListFilesSortField.CREATION_TIME: "createdTime",
+            ListFilesSortField.LAST_UPDATE: "modifiedTime",
+        }
+        order_parts = []
+        for field, direction in order_by.items():
+            mapped = drive_order_map.get(field)
+            if not mapped:
+                continue
+            order_parts.append(f"{mapped} {direction.value}")
+        return ", ".join(order_parts) or DRIVE_API_CONFIG.order_by
+
+    def _resolve_folder_id_by_path(self, folder_path: str) -> Optional[str]:
+        normalized_path = folder_path.strip().strip("/")
+        if not normalized_path:
+            return None
+
+        current_parent_id: Optional[str] = None
+        for segment in [part for part in normalized_path.split("/") if part]:
+            query_parts = [
+                f"name = '{_escape_q(segment)}'",
+                f"mimeType = '{DRIVE_API_CONFIG.google_folder}'",
+                "trashed = false",
+            ]
+            if current_parent_id:
+                query_parts.append(f"'{_escape_q(current_parent_id)}' in parents")
+            query = " and ".join(query_parts)
+            response = (
+                self.drive.files()
+                .list(
+                    q=query,
+                    pageSize=1,
+                    fields="files(id,name,parents)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
+                )
+                .execute()
+            )
+            matches = response.get("files", [])
+            if not matches:
+                return None
+            current_parent_id = matches[0]["id"]
+        return current_parent_id
+
+    def _build_drive_files(
+        self, files_payload: Sequence[Mapping[str, Any]]
+    ) -> list[DriveFile]:
+        path_cache: dict[str, dict[str, Any]] = {}
+        return [
+            DriveFile.model_validate(
+                self._normalize_file_payload(file_payload, path_cache=path_cache)
+            )
+            for file_payload in files_payload
+        ]
+
+    def _normalize_file_payload(
+        self,
+        file_payload: Mapping[str, Any],
+        *,
+        path_cache: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        normalized = dict(file_payload)
+        normalized["parents"] = list(normalized.get("parents") or [])
+        normalized["owners"] = list(normalized.get("owners") or [])
+        if normalized.get("size") not in (None, ""):
+            normalized["size"] = int(normalized["size"])
+        if normalized.get("version") not in (None, ""):
+            normalized["version"] = int(normalized["version"])
+        normalized["path"] = self._resolve_path(normalized, path_cache=path_cache)
+        return normalized
+
+    def _resolve_path(
+        self,
+        file_payload: Mapping[str, Any],
+        *,
+        path_cache: dict[str, dict[str, Any]],
+    ) -> str:
+        names = [str(file_payload.get("name") or "").strip()]
+        current_parent = next(iter(file_payload.get("parents") or []), None)
+        visited = {str(file_payload.get("id") or "")}
+
+        while current_parent and current_parent not in visited:
+            visited.add(current_parent)
+            parent_payload = path_cache.get(current_parent)
+            if parent_payload is None:
+                parent_payload = (
+                    self.drive.files()
+                    .get(
+                        fileId=current_parent,
+                        fields=DRIVE_API_CONFIG.path_resolution_fields,
+                        supportsAllDrives=True,
+                    )
+                    .execute()
+                )
+                path_cache[current_parent] = {
+                    "id": parent_payload.get("id"),
+                    "name": parent_payload.get("name"),
+                    "parents": list(parent_payload.get("parents") or []),
+                }
+            parent_name = str(parent_payload.get("name") or "").strip()
+            if parent_name:
+                names.append(parent_name)
+            current_parent = next(iter(parent_payload.get("parents") or []), None)
+
+        parts = [part for part in reversed(names) if part]
+        return "/" + "/".join(parts) if parts else "/"
+
+    def _get_file_metadata_payload(self, file_id: str) -> dict[str, Any]:
+        return (
+            self.drive.files()
+            .get(
+                fileId=file_id,
+                fields=DRIVE_API_CONFIG.file_metadata_fields,
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
 
     def _download_bytes(self, file_id: str) -> bytes:
-        """
-        Downloads the raw bytes of a file from Google Drive.
-        Args:
-            file_id: The ID of the file to download.
-        Return: The raw bytes of the file content.
-        """
         request = self.drive.files().get_media(fileId=file_id)
         file_handle = io.BytesIO()
         downloader = MediaIoBaseDownload(file_handle, request)
@@ -300,13 +491,6 @@ class DriveManager:
         return file_handle.getvalue()
 
     def _export_bytes(self, file_id: str, export_mime: str) -> bytes:
-        """
-        Exports a Google Workspace file (e.g., Doc, Sheet) to a specific format.
-        Args:
-            file_id: The ID of the file to export.
-            export_mime: The target MIME type for the export.
-        Return: The exported file content as bytes.
-        """
         data = self.drive.files().export(fileId=file_id, mimeType=export_mime).execute()
         return (
             data if isinstance(data, (bytes, bytearray)) else bytes(str(data), "utf-8")
@@ -319,20 +503,10 @@ def build_drive_credentials(
     scopes: Optional[Sequence[str]] = None,
     validate: bool = True,
 ) -> Credentials:
-    """
-    Builds Google OAuth2 credentials from a provided access token.
-    Args:
-        access_token: Optional OAuth2 access token.
-        scopes: Optional list of scopes requested for the credentials.
-        validate: Whether to validate the token against Google's API before building.
-    Return: A Google Credentials object.
-    """
-
     scopes = scopes or DRIVE_API_CONFIG.read_scopes
 
     if access_token:
         if validate:
-            # Validate the token before using it
             validate_access_token(access_token, scopes)
         return Credentials(token=access_token, scopes=scopes)
 
@@ -344,13 +518,6 @@ def build_drive_credentials(
 def validate_access_token(
     access_token: str, required_scopes: Optional[Sequence[str]] = None
 ) -> dict[str, Any]:
-    """
-    Validates the access token against Google's tokeninfo endpoint.
-    Args:
-        access_token: The OAuth2 access token to validate.
-        required_scopes: Optional list of scopes that the token must have.
-    Return: The token info dictionary if valid.
-    """
     try:
         with httpx.Client() as client:
             response = client.get(
@@ -371,8 +538,17 @@ def validate_access_token(
     token_info = response.json()
 
     if required_scopes:
-        token_scopes = token_info.get("scope", "").split()
-        missing = [s for s in required_scopes if s not in token_scopes]
+        token_scopes = set(token_info.get("scope", "").split())
+        if DRIVE_API_CONFIG.drive_scope in token_scopes:
+            token_scopes.update(
+                {
+                    DRIVE_API_CONFIG.drive_scope,
+                    "https://www.googleapis.com/auth/drive.readonly",
+                    "https://www.googleapis.com/auth/drive.file",
+                    "https://www.googleapis.com/auth/documents",
+                }
+            )
+        missing = [scope for scope in required_scopes if scope not in token_scopes]
         if missing:
             raise AuthenticationError(
                 f"Token is missing required scopes: {', '.join(missing)}"
@@ -381,13 +557,40 @@ def validate_access_token(
     return token_info
 
 
+def _build_pdf_bytes_from_text(text: str) -> io.BytesIO:
+    pdf_io = io.BytesIO()
+    document = SimpleDocTemplate(
+        pdf_io,
+        pagesize=letter,
+        leftMargin=DRIVE_PDF_CONFIG.left_margin,
+        rightMargin=DRIVE_PDF_CONFIG.right_margin,
+        topMargin=DRIVE_PDF_CONFIG.top_margin,
+        bottomMargin=DRIVE_PDF_CONFIG.bottom_margin,
+    )
+    styles = getSampleStyleSheet()
+    body_style = ParagraphStyle(
+        name="DriveGeneratedBody",
+        parent=styles["BodyText"],
+        fontName=DRIVE_PDF_CONFIG.font_name,
+        fontSize=DRIVE_PDF_CONFIG.font_size,
+        leading=DRIVE_PDF_CONFIG.leading,
+        spaceAfter=DRIVE_PDF_CONFIG.paragraph_spacing,
+    )
+
+    normalized_text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    blocks = normalized_text.split("\n\n") if normalized_text else [""]
+    story = []
+    for block in blocks:
+        lines = [xml_escape(line) for line in block.splitlines()] or [""]
+        story.append(Paragraph("<br/>".join(lines), body_style))
+        story.append(Spacer(1, DRIVE_PDF_CONFIG.paragraph_spacing))
+
+    document.build(story)
+    pdf_io.seek(0)
+    return pdf_io
+
+
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """
-    Extracts plain text from raw PDF bytes using pypdf.
-    Args:
-        pdf_bytes: The raw content of the PDF file.
-    Return: Extracted plain text or an error message if extraction fails.
-    """
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
         parts: list[str] = []
@@ -401,10 +604,4 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 
 def _escape_q(value: str) -> str:
-    """
-    Escapes single quotes for use in Google Drive API query strings.
-    Args:
-        value: The string value to escape.
-    Return: The escaped string.
-    """
     return (value or "").replace("'", "\\'")

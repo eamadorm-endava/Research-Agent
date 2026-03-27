@@ -69,7 +69,7 @@ agent_skills = load_skill_from_dir(skills_dir)
 meeting_summary_toolset = SkillToolset(skills=[agent_skills])
 
 agent_tools = [
-    # meeting_summary_toolset,
+    meeting_summary_toolset,
     McpToolset(
         connection_params=StreamableHTTPConnectionParams(
             url=full_bq_mcp_server_path,

@@ -16,7 +16,7 @@ When triggered, the agent should:
 1. use MCP Drive Server to search for the matching meeting transcript, notes, agenda, and related documents
 2. extract the meeting date, name, participants, main purpose, conclusions, next steps, future session date, and useful related documents
 3. for follow-up meetings, search Drive for earlier related summaries or supporting documents to recover context when needed
-4. generate a `.docx` summary from the skill template in `assets/meeting-summary-template.docx`
+4. generate a document summary from the skill template in `assets/meeting-summary-template.md`
 5. save the file into the user's Drive folder `AI Meetings Summaries`, creating the folder if needed
 6. tell the user which meeting was summarized, what files were used, where the document was saved, and whether any required fields were missing
 7. if no transcript is available, fall back to strong notes if possible and tell the user how to enable transcripts for future meetings

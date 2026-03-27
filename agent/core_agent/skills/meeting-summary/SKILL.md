@@ -36,8 +36,8 @@ Create a standardized meeting summary document for one specific meeting and save
 2. Gather meeting evidence from MCP Drive Server first.
 3. If available, gather extra context for follow-up meetings from related Drive files.
 4. Extract the summary fields.
-5. Generate the summary document from the template in `assets/meeting-summary-template.docx`.
-6. Save the file into `AI Meetings Summaries` or the closest equivalent folder in the user's Drive.
+5. Generate the summary document from the template in `assets/meeting-summary-template.md`.
+6. Save the file into `AI Meetings Summaries` or the closest equivalent folder in the user's Drive, if folder already exist don't create a new folder with the same name.
 7. Report back with the document name, save location, and any missing data.
 
 ## 1) Identify the target meeting
@@ -110,7 +110,7 @@ Extraction rules:
 
 ## 5) Generate the document from the template
 
-Use the template file in `assets/meeting-summary-template.docx`.
+Use the template file in `assets/meeting-summary-template.md`.
 
 Populate the placeholders and preserve this section order:
 1. Date of the meeting
@@ -124,7 +124,7 @@ Populate the placeholders and preserve this section order:
 
 ## Document generation rule
 
-After extracting the fields, populate the template document with those exact sections and save the `.docx` file.
+After extracting the fields, populate the template document with those exact sections and save the document file.
 
 Do not consider the task complete unless:
 1. the fields have been mapped to the template placeholders
