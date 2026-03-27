@@ -205,7 +205,8 @@ class AgentConfig(BaseSettings):
             ### FINAL OUTPUT FORMAT
             Be brief and consice if the user ask for a simple answer. Always answer in the same language the user is asking.
             If the user ask for a summary of an specific topic, your final response to the user must be structured 
-            using the following Markdown format:
+            using the following Markdown format. **IMPORTANT: Translate the headers (## Executive Summary, 
+            ## Key Points, etc.) to the same language the user is using.**
 
             ## Executive Summary: [Search Topic]
             [A brief 1-2 paragraph context about the findings, if necessary to understand the information].
