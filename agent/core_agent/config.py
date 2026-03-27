@@ -200,7 +200,7 @@ class MCPServersConfig(BaseSettings):
     DRIVE_URL: Annotated[
         str,
         Field(
-            default="http://localhost:8080",
+            default="http://localhost:8081",
             description="Google Drive MCP Server URL, uses a streamable http connection",
         ),
     ]
@@ -236,9 +236,9 @@ class MCPServersConfig(BaseSettings):
         Union[dict[str, str], list[DriveScopes]],
         Field(
             default=[
-                #DriveScopes.READONLY,
-                #DriveScopes.FILE,
-                #DriveScopes.DOCUMENTS,
+                # DriveScopes.READONLY,
+                # DriveScopes.FILE,
+                # DriveScopes.DOCUMENTS,
                 DriveScopes.DRIVE,
             ],
             description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
