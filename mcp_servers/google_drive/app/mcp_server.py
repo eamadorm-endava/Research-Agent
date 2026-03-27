@@ -118,15 +118,17 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
         files = await asyncio.to_thread(
             manager.list_files,
-            request.folder_name,
-            request.file_name,    
-            request.mime_type,
-            request.creation_time,
-            request.last_update,
-            request.order_by,
-            request.max_results,
+            folder_name=request.folder_name,
+            file_name=request.file_name,
+            mime_type=request.mime_type,
+            creation_time=request.creation_time,
+            last_update=request.last_update,
+            order_by=request.order_by,
+            max_results=request.max_results,
         )
-        total_folders = sum(1 for item in files if item.mime_type == DRIVE_API_CONFIG.google_folder)
+        total_folders = sum(
+            1 for item in files if item.mime_type == DRIVE_API_CONFIG.google_folder
+        )
         total_files = len(files) - total_folders
         return ListFilesResponse(
             total_files=total_files,
@@ -169,7 +171,9 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
     logger.info("Tool call: get_file_text(file_id=%s)", request.file_id)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
-        document = await asyncio.to_thread(manager.get_file_text, request.file_id)
+        document = await asyncio.to_thread(
+            manager.get_file_text, file_id=request.file_id
+        )
         if len(document.text or "") > request.max_chars:
             document = document.model_copy(
                 update={"text": document.text[: request.max_chars] + "\n\n[TRUNCATED]"}
@@ -312,7 +316,9 @@ async def create_file(request: CreateFileRequest) -> CreateFileResponse:
             CreateFileResponse: The created file metadata and the execution result
                 for the file creation request.
     """
-    logger.info("Tool call: create_file(name=%s, mime_type=%s)", request.name, request.mime_type)
+    logger.info(
+        "Tool call: create_file(name=%s, mime_type=%s)", request.name, request.mime_type
+    )
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
         file = await asyncio.to_thread(
@@ -462,7 +468,11 @@ async def rename_file(request: RenameFileRequest) -> RenameFileResponse:
             RenameFileResponse: The renamed item metadata and the execution result
                 for the rename operation.
     """
-    logger.info("Tool call: rename_file(file_id=%s, new_name=%s)", request.file_id, request.new_name)
+    logger.info(
+        "Tool call: rename_file(file_id=%s, new_name=%s)",
+        request.file_id,
+        request.new_name,
+    )
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
         file = await asyncio.to_thread(
