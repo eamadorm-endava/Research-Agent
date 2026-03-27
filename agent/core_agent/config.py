@@ -233,6 +233,20 @@ class AgentConfig(BaseSettings):
             description="Agent's System Prompt",
         ),
     ]
+    MEETING_SUMMARY_FOLDER: Annotated[
+        str,
+        Field(
+            default="AI Meetings Summaries",
+            description="Folder where meeting summaries are stored in Drive",
+        ),
+    ]
+    MEETING_SUMMARY_FILENAME_PATTERN: Annotated[
+        str,
+        Field(
+            default="YYYY-MM-DD - meeting-name - Summary.docx",
+            description="Pattern used to name generated meeting summary documents",
+        ),
+    ]
 
 
 class DriveScopes(StrEnum):

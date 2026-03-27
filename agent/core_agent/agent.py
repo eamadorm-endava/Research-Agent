@@ -18,6 +18,12 @@ from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCod
 from .config import GCPConfig, AgentConfig, MCPServersConfig
 from .utils.security import get_id_token, get_ge_oauth_token
 
+from pathlib import Path
+
+
+from google.adk.skills import load_skill_from_dir
+from google.adk.tools.skill_toolset import SkillToolset
+
 logging.getLogger().setLevel(logging.INFO)
 
 gcp_config = GCPConfig()
@@ -61,7 +67,15 @@ agent_retry_options = HttpRetryOptions(
 # MCP toolset construction is centralized in utils/auxiliars.py:get_mcp_servers_tools
 # tools = get_mcp_servers_tools(mcp_servers)
 
+
+# Skills
+# Load ADK Skill from directory
+skills_dir = Path(__file__).parent / "skills" / "meeting-summary"
+agent_skills = load_skill_from_dir(skills_dir)
+meeting_summary_toolset = SkillToolset(skills=[agent_skills])
+
 agent_tools = [
+    meeting_summary_toolset,
     McpToolset(
         connection_params=StreamableHTTPConnectionParams(
             url=full_bq_mcp_server_path,
