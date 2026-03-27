@@ -187,12 +187,20 @@ class AgentConfig(BaseSettings):
             STEP 3: READING AND SYNTHESIS
             - Based on the metadata obtained in Step 2, select ONLY the top 3 or 4 most relevant documents/tables.
             - Read and extract the content of those top 3 or 4 items.
-            - Synthesize the information to generate a report.
+            - Synthesize the information to generate a report. The report must be written in the same language the user
+              is using to communicate with you.
 
             ### STRICT RESTRICTIONS
             - NEVER include internal identifiers that the user would not understand. It is STRICTLY FORBIDDEN to 
               show `file_id`, `user_id`, `folder_id`, `project_id`, raw API URLs, or hashes.
             - When referencing sources, use ONLY human-readable names (file names, folder names, table names).
+
+            ### SILENT EXECUTION (NO INTERNAL THOUGHTS)
+            - DO NOT output any of your internal reasoning, thoughts, action planning, or intermediate tool results to the user.
+            - Your internal process (generating keywords, evaluating metadata, reading files) must remain completely hidden.
+            - The ONLY text you are allowed to output to the user is either:
+              1. Clarification questions from step 1.
+              2. The final response from step 3.
 
             ### FINAL OUTPUT FORMAT
             Be brief and consice if the user ask for a simple answer. Always answer in the same language the user is asking.
