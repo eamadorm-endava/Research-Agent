@@ -1,7 +1,13 @@
 import logging
 import vertexai
 from vertexai import agent_engines
-from google.genai.types import GenerateContentConfig, ModelArmorConfig, HttpRetryOptions
+from google.adk.planners import BuiltInPlanner
+from google.genai.types import (
+    GenerateContentConfig,
+    ModelArmorConfig,
+    HttpRetryOptions,
+    ThinkingConfig,
+)
 from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.adk.tools.mcp_tool import McpToolset
@@ -146,6 +152,12 @@ root_agent = Agent(
     generate_content_config=agent_settings,
     instruction=agent_config.AGENT_INSTRUCTION,
     tools=agent_tools,
+    planner=BuiltInPlanner(
+        thinking_config=ThinkingConfig(
+            thinking_budget=agent_config.THINKING_BUDGET,
+            include_thoughts=agent_config.INCLUDE_THOUGHTS,
+        )
+    ),
 )
 
 app = agent_engines.AdkApp(agent=root_agent)
