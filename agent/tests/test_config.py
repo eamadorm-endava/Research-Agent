@@ -32,7 +32,7 @@ def test_agent_config_validation():
     with patch.dict(os.environ, clear=True):
         config = AgentConfig()
         # Default fallback
-        assert config.TEMPERATURE == 0.5
+        assert config.TEMPERATURE == 0.3
 
     # Test invalid temperature (> 1.0)
     mock_env_invalid = {"TEMPERATURE": "1.5"}
