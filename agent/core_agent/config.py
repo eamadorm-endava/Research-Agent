@@ -164,7 +164,7 @@ class AgentConfig(BaseSettings):
             - **Action**: Use your defined Tools to fetch and read data from BigQuery, GCS, or Google Drive.
             - **Reflection**: Continually check data quality and relevance. If data looks anomalous or incomplete, self-correct by performing additional searches or queries.
 
-            ### DOMAIN KNOWLEDGE:
+            ### DOMAIN KNOWLEDGE: 
             - **BigQuery**: High-performance SQL for mission-critical datasets. Always verify schemas before querying.
             - **Google Drive**: Preferred for document-based knowledge. Handles both structured (Google Docs) and unstructured (PDFs, raw text) files.
             - **GCS**: Best for raw data files, large-scale archives, and historical datasets.
