@@ -8,7 +8,12 @@ from mcp_servers.google_drive.app.drive_client import (
     build_drive_credentials,
     validate_access_token,
 )
-from mcp_servers.google_drive.app.schemas import AuthenticationError, DriveMimeType, ListFilesSortField, SortDirection
+from mcp_servers.google_drive.app.schemas import (
+    AuthenticationError,
+    DriveMimeType,
+    ListFilesSortField,
+    SortDirection,
+)
 
 
 @patch("mcp_servers.google_drive.app.drive_client.build")
@@ -25,7 +30,9 @@ def test_drive_manager_list_files(mock_build):
                 "createdTime": "2026-03-01T12:00:00Z",
                 "webViewLink": "https://drive.google.com/file/d/file_1/view",
                 "parents": [],
-                "owners": [{"displayName": "Alice", "emailAddress": "alice@example.com"}],
+                "owners": [
+                    {"displayName": "Alice", "emailAddress": "alice@example.com"}
+                ],
                 "size": "42",
                 "version": "7",
             }
@@ -152,7 +159,9 @@ def test_validate_access_token_success():
 def test_validate_access_token_full_drive_scope_satisfies_documents_scope():
     with patch("httpx.Client.get") as mock_get:
         mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = {"scope": DRIVE_API_CONFIG.drive_scope}
+        mock_get.return_value.json.return_value = {
+            "scope": DRIVE_API_CONFIG.drive_scope
+        }
 
         token_info = validate_access_token(
             "valid_token", ["https://www.googleapis.com/auth/documents"]

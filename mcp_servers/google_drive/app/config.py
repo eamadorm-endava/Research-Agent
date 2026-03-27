@@ -40,24 +40,91 @@ class DriveMcpConfigBase(BaseSettings):
 class DriveApiConfig(DriveMcpConfigBase):
     """Configuration for Google Drive API endpoints, MIME types, and scopes."""
 
-    google_doc: Annotated[str, Field(default=GOOGLE_DOC_MIME, description="Google Docs MIME type.")]
-    google_sheet: Annotated[str, Field(default=GOOGLE_SHEET_MIME, description="Google Sheets MIME type.")]
-    google_slide: Annotated[str, Field(default=GOOGLE_SLIDE_MIME, description="Google Slides MIME type.")]
-    google_folder: Annotated[str, Field(default=GOOGLE_FOLDER_MIME, description="Google Drive folder MIME type.")]
+    google_doc: Annotated[
+        str, Field(default=GOOGLE_DOC_MIME, description="Google Docs MIME type.")
+    ]
+    google_sheet: Annotated[
+        str, Field(default=GOOGLE_SHEET_MIME, description="Google Sheets MIME type.")
+    ]
+    google_slide: Annotated[
+        str, Field(default=GOOGLE_SLIDE_MIME, description="Google Slides MIME type.")
+    ]
+    google_folder: Annotated[
+        str,
+        Field(default=GOOGLE_FOLDER_MIME, description="Google Drive folder MIME type."),
+    ]
     pdf: Annotated[str, Field(default=PDF_MIME, description="PDF MIME type.")]
-    plain_text: Annotated[str, Field(default=PLAIN_TEXT_MIME, description="Plain-text MIME type.")]
-    octet_stream: Annotated[str, Field(default=OCTET_STREAM_MIME, description="Generic binary MIME type.")]
-    export_text_plain: Annotated[str, Field(default=PLAIN_TEXT_MIME, description="Plain-text export MIME type.")]
-    export_csv: Annotated[str, Field(default=CSV_MIME, description="CSV export MIME type.")]
-    file_list_fields: Annotated[str, Field(default=FILE_LIST_FIELDS, description="Drive API fields selector used when listing/searching files.")]
-    file_metadata_fields: Annotated[str, Field(default=FILE_METADATA_FIELDS, description="Drive API fields selector used when reading a single file metadata record.")]
-    path_resolution_fields: Annotated[str, Field(default=PATH_RESOLUTION_FIELDS, description="Drive API fields selector used to resolve synthetic folder paths.")]
-    order_by: Annotated[str, Field(default="modifiedTime desc", description="Default Drive sort order.")]
-    drive_scope: Annotated[str, Field(default=FULL_DRIVE_SCOPE, description="Full Drive scope used for file and folder management operations.")]
-    read_scopes: Annotated[tuple[str, ...], Field(default=(FULL_DRIVE_SCOPE,), description="Scopes used for Drive read/list/search operations.")]
-    write_doc_scopes: Annotated[tuple[str, ...], Field(default=(FULL_DRIVE_SCOPE,), description="Scopes used when creating Google Docs and inserting text.")]
-    write_pdf_scopes: Annotated[tuple[str, ...], Field(default=(FULL_DRIVE_SCOPE,), description="Scopes used when uploading generated PDFs.")]
-    management_scopes: Annotated[tuple[str, ...], Field(default=(FULL_DRIVE_SCOPE,), description="Scopes used for create/move/rename folder and file management operations.")]
+    plain_text: Annotated[
+        str, Field(default=PLAIN_TEXT_MIME, description="Plain-text MIME type.")
+    ]
+    octet_stream: Annotated[
+        str, Field(default=OCTET_STREAM_MIME, description="Generic binary MIME type.")
+    ]
+    export_text_plain: Annotated[
+        str, Field(default=PLAIN_TEXT_MIME, description="Plain-text export MIME type.")
+    ]
+    export_csv: Annotated[
+        str, Field(default=CSV_MIME, description="CSV export MIME type.")
+    ]
+    file_list_fields: Annotated[
+        str,
+        Field(
+            default=FILE_LIST_FIELDS,
+            description="Drive API fields selector used when listing/searching files.",
+        ),
+    ]
+    file_metadata_fields: Annotated[
+        str,
+        Field(
+            default=FILE_METADATA_FIELDS,
+            description="Drive API fields selector used when reading a single file metadata record.",
+        ),
+    ]
+    path_resolution_fields: Annotated[
+        str,
+        Field(
+            default=PATH_RESOLUTION_FIELDS,
+            description="Drive API fields selector used to resolve synthetic folder paths.",
+        ),
+    ]
+    order_by: Annotated[
+        str, Field(default="modifiedTime desc", description="Default Drive sort order.")
+    ]
+    drive_scope: Annotated[
+        str,
+        Field(
+            default=FULL_DRIVE_SCOPE,
+            description="Full Drive scope used for file and folder management operations.",
+        ),
+    ]
+    read_scopes: Annotated[
+        tuple[str, ...],
+        Field(
+            default=(FULL_DRIVE_SCOPE,),
+            description="Scopes used for Drive read/list/search operations.",
+        ),
+    ]
+    write_doc_scopes: Annotated[
+        tuple[str, ...],
+        Field(
+            default=(FULL_DRIVE_SCOPE,),
+            description="Scopes used when creating Google Docs and inserting text.",
+        ),
+    ]
+    write_pdf_scopes: Annotated[
+        tuple[str, ...],
+        Field(
+            default=(FULL_DRIVE_SCOPE,),
+            description="Scopes used when uploading generated PDFs.",
+        ),
+    ]
+    management_scopes: Annotated[
+        tuple[str, ...],
+        Field(
+            default=(FULL_DRIVE_SCOPE,),
+            description="Scopes used for create/move/rename folder and file management operations.",
+        ),
+    ]
 
 
 class DriveAuthConfig(DriveMcpConfigBase):
@@ -89,14 +156,40 @@ class DriveAuthConfig(DriveMcpConfigBase):
 class DrivePdfConfig(DriveMcpConfigBase):
     """Configuration for PDF generation from text."""
 
-    left_margin: Annotated[int, Field(default=72, ge=0, description="Left PDF margin in points.")]
-    right_margin: Annotated[int, Field(default=72, ge=0, description="Right PDF margin in points.")]
-    top_margin: Annotated[int, Field(default=72, ge=0, description="Top PDF margin in points.")]
-    bottom_margin: Annotated[int, Field(default=72, ge=0, description="Bottom PDF margin in points.")]
-    font_name: Annotated[str, Field(default="Helvetica", description="Font used when generating PDFs.")]
-    font_size: Annotated[int, Field(default=11, ge=6, le=24, description="Body font size for generated PDFs.")]
-    leading: Annotated[int, Field(default=14, ge=8, le=40, description="Line spacing in generated PDFs.")]
-    paragraph_spacing: Annotated[int, Field(default=8, ge=0, le=40, description="Space after each paragraph in generated PDFs.")]
+    left_margin: Annotated[
+        int, Field(default=72, ge=0, description="Left PDF margin in points.")
+    ]
+    right_margin: Annotated[
+        int, Field(default=72, ge=0, description="Right PDF margin in points.")
+    ]
+    top_margin: Annotated[
+        int, Field(default=72, ge=0, description="Top PDF margin in points.")
+    ]
+    bottom_margin: Annotated[
+        int, Field(default=72, ge=0, description="Bottom PDF margin in points.")
+    ]
+    font_name: Annotated[
+        str, Field(default="Helvetica", description="Font used when generating PDFs.")
+    ]
+    font_size: Annotated[
+        int,
+        Field(
+            default=11, ge=6, le=24, description="Body font size for generated PDFs."
+        ),
+    ]
+    leading: Annotated[
+        int,
+        Field(default=14, ge=8, le=40, description="Line spacing in generated PDFs."),
+    ]
+    paragraph_spacing: Annotated[
+        int,
+        Field(
+            default=8,
+            ge=0,
+            le=40,
+            description="Space after each paragraph in generated PDFs.",
+        ),
+    ]
 
 
 class DriveServerConfig(DriveMcpConfigBase):

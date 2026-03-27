@@ -1,7 +1,7 @@
 from enum import StrEnum
-from typing import Annotated, Literal, Optional, Self
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthenticationError(Exception):
@@ -25,9 +25,13 @@ class DriveMimeType(StrEnum):
     GOOGLE_FOLDER = "application/vnd.google-apps.folder"
     PDF = "application/pdf"
     PLAIN_TEXT = "text/plain"
-    WORD_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    WORD_DOCX = (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
     EXCEL_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    POWERPOINT_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    POWERPOINT_PPTX = (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
     PNG_IMAGE = "image/png"
 
 
@@ -69,11 +73,16 @@ MAX_RESULTS = Annotated[
 ]
 FOLDER_ID = Annotated[
     Optional[str],
-    Field(default=None, description="Optional Drive folder ID to restrict results or place new items into."),
+    Field(
+        default=None,
+        description="Optional Drive folder ID to restrict results or place new items into.",
+    ),
 ]
 DESTINATION_FOLDER_ID = Annotated[
     str,
-    Field(min_length=1, description="Destination Drive folder ID for a move operation."),
+    Field(
+        min_length=1, description="Destination Drive folder ID for a move operation."
+    ),
 ]
 DRIVE_FILE_ID = Annotated[
     str,
@@ -106,7 +115,10 @@ GENERIC_FILE_CONTENT = Annotated[
 ]
 GENERIC_FILE_MIME_TYPE = Annotated[
     str,
-    Field(default="text/plain", description="MIME type to use when creating a generic file."),
+    Field(
+        default="text/plain",
+        description="MIME type to use when creating a generic file.",
+    ),
 ]
 DRIVE_FILE_NAME = Annotated[
     str,
@@ -118,11 +130,16 @@ DRIVE_FILE_MIME_TYPE = Annotated[
 ]
 DRIVE_FILE_MODIFIED_TIME = Annotated[
     Optional[str],
-    Field(default=None, description="Last modified time in RFC 3339 format, when available."),
+    Field(
+        default=None,
+        description="Last modified time in RFC 3339 format, when available.",
+    ),
 ]
 DRIVE_FILE_CREATED_TIME = Annotated[
     Optional[str],
-    Field(default=None, description="Creation time in RFC 3339 format, when available."),
+    Field(
+        default=None, description="Creation time in RFC 3339 format, when available."
+    ),
 ]
 DRIVE_FILE_WEB_VIEW_LINK = Annotated[
     Optional[str],
@@ -142,7 +159,10 @@ DRIVE_FILE_VERSION = Annotated[
 ]
 DRIVE_FILE_PATH = Annotated[
     Optional[str],
-    Field(default=None, description="Synthetic absolute Drive path resolved from the parent chain, for example /Documents/Project/notes.txt."),
+    Field(
+        default=None,
+        description="Synthetic absolute Drive path resolved from the parent chain, for example /Documents/Project/notes.txt.",
+    ),
 ]
 OWNER_DISPLAY_NAME = Annotated[
     Optional[str],
@@ -154,7 +174,11 @@ OWNER_EMAIL_ADDRESS = Annotated[
 ]
 NEW_NAME = Annotated[
     str,
-    Field(min_length=1, max_length=250, description="New display name for the file or folder."),
+    Field(
+        min_length=1,
+        max_length=250,
+        description="New display name for the file or folder.",
+    ),
 ]
 DRIVE_DOCUMENT_TEXT = Annotated[
     str,
@@ -170,7 +194,10 @@ FOLDER_PATH_FILTER = Annotated[
 ]
 FILE_NAME_FILTER = Annotated[
     Optional[str],
-    Field(default=None, description="Case-insensitive file name filter. Partial matches are allowed."),
+    Field(
+        default=None,
+        description="Case-insensitive file name filter. Partial matches are allowed.",
+    ),
 ]
 LIST_MIME_TYPE_FILTER = Annotated[
     Optional[DriveMimeType],
@@ -178,21 +205,51 @@ LIST_MIME_TYPE_FILTER = Annotated[
 ]
 DATE_FILTER = Annotated[
     Optional[str],
-    Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$", description='Date filter in the format "YYYY-MM-DD".'),
+    Field(
+        default=None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description='Date filter in the format "YYYY-MM-DD".',
+    ),
 ]
 LIST_ORDER_BY = Annotated[
     dict[ListFilesSortField, SortDirection],
     Field(
         default_factory=dict,
-        description="Sort directives, for example {\"file_name\": \"asc\", \"last_update\": \"desc\"}.",
+        description='Sort directives, for example {"file_name": "asc", "last_update": "desc"}.',
     ),
 ]
-TOTAL_FILES = Annotated[int, Field(default=0, ge=0, description="Total number of non-folder items that matched the filter set.")]
-TOTAL_FOLDERS = Annotated[int, Field(default=0, ge=0, description="Total number of folders that matched the filter set.")]
-FOLDER_PATH = Annotated[str, Field(default="/", description="Resolved folder path that contains the file or folder.")]
+TOTAL_FILES = Annotated[
+    int,
+    Field(
+        default=0,
+        ge=0,
+        description="Total number of non-folder items that matched the filter set.",
+    ),
+]
+TOTAL_FOLDERS = Annotated[
+    int,
+    Field(
+        default=0,
+        ge=0,
+        description="Total number of folders that matched the filter set.",
+    ),
+]
+FOLDER_PATH = Annotated[
+    str,
+    Field(
+        default="/",
+        description="Resolved folder path that contains the file or folder.",
+    ),
+]
 FILE_IDENTIFIER = Annotated[str, Field(description="Drive file identifier.")]
-CREATED_AT = Annotated[Optional[str], Field(default=None, description="Creation timestamp in RFC 3339 format.")]
-LAST_UPDATE_AT = Annotated[Optional[str], Field(default=None, description="Last update timestamp in RFC 3339 format.")]
+CREATED_AT = Annotated[
+    Optional[str],
+    Field(default=None, description="Creation timestamp in RFC 3339 format."),
+]
+LAST_UPDATE_AT = Annotated[
+    Optional[str],
+    Field(default=None, description="Last update timestamp in RFC 3339 format."),
+]
 MIME_TYPE_OUTPUT = Annotated[str, Field(description="MIME type of the file or folder.")]
 
 
@@ -241,8 +298,13 @@ class DriveDocumentModel(DriveFileModel):
 class FileCreatorModel(DriveSchemaModel):
     """Normalized creator information for list results."""
 
-    name: Annotated[Optional[str], Field(default=None, description="Display name of the creator/owner.")]
-    email: Annotated[Optional[str], Field(default=None, description="Email of the creator/owner.")]
+    name: Annotated[
+        Optional[str],
+        Field(default=None, description="Display name of the creator/owner."),
+    ]
+    email: Annotated[
+        Optional[str], Field(default=None, description="Email of the creator/owner.")
+    ]
 
 
 class DriveFileMetadata(DriveSchemaModel):
@@ -263,7 +325,10 @@ DRIVE_FILE_LIST = Annotated[
 ]
 LIST_FILE_METADATA = Annotated[
     list[DriveFileMetadata],
-    Field(default_factory=list, description="List of filtered Drive file metadata results."),
+    Field(
+        default_factory=list,
+        description="List of filtered Drive file metadata results.",
+    ),
 ]
 DRIVE_FILE = Annotated[
     Optional[DriveFileModel],

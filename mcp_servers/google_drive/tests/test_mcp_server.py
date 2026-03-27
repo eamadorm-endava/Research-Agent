@@ -23,10 +23,8 @@ from mcp_servers.google_drive.app.schemas import (
     FileCreatorModel,
     GetFileTextRequest,
     ListFilesRequest,
-    ListFilesSortField,
     MoveFileRequest,
     RenameFileRequest,
-    SortDirection,
     UploadPdfRequest,
 )
 
@@ -69,7 +67,6 @@ async def test_list_files_success(mock_drive_manager):
     assert result.total_files == 1
     assert result.total_folders == 1
     assert result.files[0].folder_path == "/Documents"
-
 
 
 @pytest.mark.asyncio
@@ -176,7 +173,9 @@ async def test_move_file_success(mock_drive_manager):
     )
     mock_drive_manager.return_value = manager
 
-    result = await move_file(MoveFileRequest(file_id="file1", destination_folder_id="folder2"))
+    result = await move_file(
+        MoveFileRequest(file_id="file1", destination_folder_id="folder2")
+    )
 
     assert result.execution_status == "success"
     assert result.file is not None
@@ -194,7 +193,9 @@ async def test_rename_file_success(mock_drive_manager):
     )
     mock_drive_manager.return_value = manager
 
-    result = await rename_file(RenameFileRequest(file_id="file1", new_name="renamed.txt"))
+    result = await rename_file(
+        RenameFileRequest(file_id="file1", new_name="renamed.txt")
+    )
 
     assert result.execution_status == "success"
     assert result.file is not None

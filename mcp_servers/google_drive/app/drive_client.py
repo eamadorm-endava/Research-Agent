@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 from pathlib import PurePosixPath
 from datetime import datetime, timedelta
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 from xml.sax.saxutils import escape as xml_escape
 
 import httpx
@@ -16,12 +16,15 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from .config import DRIVE_API_CONFIG, DRIVE_AUTH_CONFIG, DRIVE_PDF_CONFIG
-from .schemas import AuthenticationError
-from .schemas import DriveDocumentModel as DriveTextDocument
-from .schemas import DriveFileMetadata
-from .schemas import DriveFileModel as DriveFile
-from .schemas import DriveMimeType
-from .schemas import ListFilesSortField, SortDirection
+from .schemas import (
+    AuthenticationError,
+    DriveDocumentModel as DriveTextDocument,
+    DriveFileMetadata,
+    DriveFileModel as DriveFile,
+    DriveMimeType,
+    ListFilesSortField,
+    SortDirection,
+)
 
 
 class DriveManager:
@@ -42,7 +45,9 @@ class DriveManager:
         order_by: Optional[dict[ListFilesSortField, SortDirection]] = None,
         max_results: int = 10,
     ) -> list[DriveFileMetadata]:
-        folder_id = self._resolve_folder_id_by_path(folder_name) if folder_name else None
+        folder_id = (
+            self._resolve_folder_id_by_path(folder_name) if folder_name else None
+        )
         if folder_name and not folder_id:
             return []
 
@@ -55,12 +60,16 @@ class DriveManager:
             query_parts.append(f"mimeType = '{_escape_q(mime_type.value)}'")
         if creation_time:
             start_of_day = f"{creation_time}T00:00:00"
-            end_of_day = (datetime.strptime(creation_time, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+            end_of_day = (
+                datetime.strptime(creation_time, "%Y-%m-%d") + timedelta(days=1)
+            ).strftime("%Y-%m-%dT00:00:00")
             query_parts.append(f"createdTime >= '{start_of_day}'")
             query_parts.append(f"createdTime < '{end_of_day}'")
         if last_update:
             start_of_day = f"{last_update}T00:00:00"
-            end_of_day = (datetime.strptime(last_update, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+            end_of_day = (
+                datetime.strptime(last_update, "%Y-%m-%d") + timedelta(days=1)
+            ).strftime("%Y-%m-%dT00:00:00")
             query_parts.append(f"modifiedTime >= '{start_of_day}'")
             query_parts.append(f"modifiedTime < '{end_of_day}'")
 
@@ -82,7 +91,6 @@ class DriveManager:
         metadata_items = [self._to_list_file_metadata(item) for item in files]
         metadata_items = self._sort_list_file_metadata(metadata_items, order_by or {})
         return metadata_items[:max_results]
-
 
     def get_file_text(self, file_id: str) -> DriveTextDocument:
         metadata = self._get_file_metadata_payload(file_id)
@@ -199,7 +207,10 @@ class DriveManager:
         folder_id: Optional[str] = None,
     ) -> DriveFile:
         normalized_name = name.strip()
-        if mime_type == DRIVE_API_CONFIG.plain_text and "." not in PurePosixPath(normalized_name).name:
+        if (
+            mime_type == DRIVE_API_CONFIG.plain_text
+            and "." not in PurePosixPath(normalized_name).name
+        ):
             normalized_name = f"{normalized_name}.txt"
 
         file_metadata: dict[str, Any] = {
@@ -330,7 +341,9 @@ class DriveManager:
             return items
 
         sort_key_map = {
-            ListFilesSortField.FOLDER_NAME: lambda item: (item.folder_path or "").lower(),
+            ListFilesSortField.FOLDER_NAME: lambda item: (
+                item.folder_path or ""
+            ).lower(),
             ListFilesSortField.FILE_NAME: lambda item: (item.file_name or "").lower(),
             ListFilesSortField.CREATION_TIME: lambda item: item.creation_at or "",
             ListFilesSortField.LAST_UPDATE: lambda item: item.last_update_at or "",
@@ -394,10 +407,14 @@ class DriveManager:
             current_parent_id = matches[0]["id"]
         return current_parent_id
 
-    def _build_drive_files(self, files_payload: Sequence[Mapping[str, Any]]) -> list[DriveFile]:
+    def _build_drive_files(
+        self, files_payload: Sequence[Mapping[str, Any]]
+    ) -> list[DriveFile]:
         path_cache: dict[str, dict[str, Any]] = {}
         return [
-            DriveFile.model_validate(self._normalize_file_payload(file_payload, path_cache=path_cache))
+            DriveFile.model_validate(
+                self._normalize_file_payload(file_payload, path_cache=path_cache)
+            )
             for file_payload in files_payload
         ]
 
@@ -475,7 +492,9 @@ class DriveManager:
 
     def _export_bytes(self, file_id: str, export_mime: str) -> bytes:
         data = self.drive.files().export(fileId=file_id, mimeType=export_mime).execute()
-        return data if isinstance(data, (bytes, bytearray)) else bytes(str(data), "utf-8")
+        return (
+            data if isinstance(data, (bytes, bytearray)) else bytes(str(data), "utf-8")
+        )
 
 
 def build_drive_credentials(
