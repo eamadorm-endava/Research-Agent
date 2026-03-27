@@ -143,14 +143,14 @@ class AgentConfig(BaseSettings):
         bool,
         Field(
             default=False,
-            description="Whether to include thoughts in the response",
+            description="Indicates whether to include thoughts in the response. If true, thoughts are returned only if the model supports thought and thoughts are available.",
         ),
     ]
     THINKING_BUDGET: Annotated[
         int,
         Field(
-            default=1024,
-            description="Maximum number of tokens to use for thinking process",
+            default=-1,
+            description="Indicates the thinking budget in tokens. 0 is DISABLED. -1 is AUTOMATIC. The default values and allowed ranges are model dependent.",
         ),
     ]
     AGENT_INSTRUCTION: Annotated[
