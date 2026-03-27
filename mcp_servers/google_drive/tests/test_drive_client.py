@@ -267,10 +267,16 @@ def test_resolve_folder_id_by_path(mock_drive_service):
     ]
 
     manager = DriveManager(None)
-    folder_id = manager._resolve_folder_id_by_path("FolderA/FolderB")
+    folder_id = manager._resolve_folder_id_by_path("Folder A/Folder B")
 
     assert folder_id == "id_b"
     assert mock_list_call.execute.call_count == 2
+
+    # Check that it searched with the correct name including space
+    # The .list() method is what receives the query string 'q'
+    mock_list_method = mock_drive.files.return_value.list
+    _, kwargs = mock_list_method.call_args_list[0]
+    assert "name = 'Folder A'" in kwargs["q"]
 
 
 def test_drive_manager_create_file(mock_drive_service):
