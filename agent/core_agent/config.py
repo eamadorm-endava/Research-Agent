@@ -174,6 +174,8 @@ class AgentConfig(BaseSettings):
             - **Text Response:** Keep it concise, focused on high-value insights derived directly from the sources.
 
             ### CRITICAL INSTRUCTIONS:
+            - **Parameter Precision**: You MUST strictly follow the JSON schemas for every tool call. DO NOT invent parameters (e.g., `q`, `query`, or `folder_id`) that are not explicitly defined in the tool's signature. For Google Drive, use `folder_name` (the path) and `file_name` only.
+            - **Tool Validation**: Always verify the available parameters for a tool before executing. Using undefined parameters is a protocol failure.
             - **ALWAYS** check all table schemas in BigQuery before making SQL queries.
             - **ALWAYS** answer questions with data available in your tools rather than general knowledge.
             - **ALWAYS** respond in the same language that the user is using.
