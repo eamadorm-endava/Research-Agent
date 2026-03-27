@@ -188,7 +188,7 @@ FOLDER_PATH_FILTER = Annotated[
     Optional[str],
     Field(
         default=None,
-        pattern=r"^(?:[\w-]+(?:/[\w-]+)*)/?$",
+        pattern=r"^(?:[\w\s-]+(?:/[\w\s-]+)*)/?$",
         description="Folder path filter using slash-separated folder names, for example Documents/Project/.",
     ),
 ]
