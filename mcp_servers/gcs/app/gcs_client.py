@@ -1,9 +1,14 @@
-from typing import Union, Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 import logging
 import mimetypes
 import os
+import httpx
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
+from google.oauth2.credentials import Credentials
+
+from .config import GCS_AUTH_CONFIG
+from .schemas import AuthenticationError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,11 +22,12 @@ class GCSManager:
     and provides methods for bucket and object management as per Issue #5.
     """
 
-    def __init__(self):
+    def __init__(self, creds: Any, default_project: Optional[str] = None):
         try:
-            # Initializes client using Google Application Default Credentials (ADC)
-            self.client = storage.Client()
-            logger.info("GCS Client initialized successfully using ADC.")
+            self.client = storage.Client(credentials=creds, project=default_project)
+            logger.info(
+                "GCS client initialized successfully using delegated user credentials."
+            )
         except GoogleCloudError as e:
             logger.error(f"Failed to initialize GCS Client: {e}")
             raise
@@ -265,3 +271,53 @@ class GCSManager:
         except GoogleCloudError as e:
             logger.error(f"Error listing buckets with prefix '{prefix or ''}': {e}")
             raise
+
+
+def build_gcs_credentials(
+    *,
+    access_token: Optional[str] = None,
+    validate: bool = True,
+) -> Credentials:
+    """
+    Builds Google OAuth2 credentials for GCS from a delegated access token.
+    Args:
+        access_token: Optional OAuth2 access token.
+        validate: Whether to validate token validity before creating credentials.
+    Return: A Google Credentials object.
+    """
+
+    if access_token:
+        if validate:
+            validate_access_token(access_token)
+        return Credentials(token=access_token)
+
+    raise RuntimeError(
+        "No GCS credentials available. Provide a delegated user access token header."
+    )
+
+
+def validate_access_token(access_token: str) -> dict[str, Any]:
+    """
+    Validates an OAuth access token against Google's tokeninfo endpoint.
+    Args:
+        access_token: The OAuth2 access token to validate.
+    Return: The token info payload when token is valid.
+    """
+    try:
+        with httpx.Client() as client:
+            response = client.get(
+                GCS_AUTH_CONFIG.google_token_info_url_v3,
+                params={"access_token": access_token},
+                timeout=10,
+            )
+    except Exception as exc:
+        raise AuthenticationError(f"Failed to reach token validation endpoint: {exc}")
+
+    if response.status_code != 200:
+        try:
+            error_detail = response.json().get("error_description", response.text)
+        except Exception:
+            error_detail = response.text
+        raise AuthenticationError(f"Invalid OAuth token: {error_detail}")
+
+    return response.json()

@@ -30,35 +30,47 @@ Because this server uses MCP, your agent auto-discovers tools and schemas after 
     *   **Local Testing**: `http://localhost:8080/mcp`
     *   **Production (Cloud Run)**: `https://[CLOUD_RUN_SERVICE_URL]/mcp`
 3.  **Authentication**:
-    *   **Locally**: None required. Relies on the host's `gcloud auth application-default login`.
-    *   **Production**: If Cloud Run is secured via IAM natively, the agent making the HTTP request must attach an `Authorization: Bearer <Google_ID_Token>` header to the `/sse` request.
+    *   **MCP OAuth**: The server expects `Authorization: Bearer <delegated-user-oauth-access-token>` and validates it through MCP auth middleware.
+    *   **Cloud Run IAM**: If service ingress is protected, the caller also needs `X-Serverless-Authorization: Bearer <google-id-token>` for Cloud Run invocation.
 
-## 🔐 Security & Authentication (Keyless Architecture)
+## 🔐 Security & Authentication (Delegated User Access)
 
-This MCP server relies entirely on **Google Application Default Credentials (ADC)**. We strictly avoid long-lived JSON key files to adhere to zero-trust security best practices.
+This MCP server relies on a **delegated end-user OAuth access token** propagated by ADK/Gemini Enterprise through the MCP `Authorization` header. No JSON key files are required.
+
+### ADR Alignment
+- This implementation follows the repository authentication strategy ADR for delegated per-user OAuth token propagation and stateless MCP token validation.
+- The GCS server uses MCP middleware token verification, then builds the downstream `google-cloud-storage` client dynamically per request with delegated user credentials.
+
+### Key Benefits
+- **Least-Privilege Data Access**: Bucket and object operations run with the requesting user's GCS IAM permissions, not a broad backend identity.
+- **Safer Failure Mode**: Unauthorized attempts return `execution_status="error"` with `Permission Denied` or `Object not found` instead of object data or bucket mapping leakage.
+- **Reduced Credential Exposure Risk**: Tokens are handled through MCP auth context and are not logged by the tool handlers.
 
 Here is how you control and restrict the server's access:
 
 ### 1. In Production (Cloud Run)
-When deploying to Cloud Run, you use an **Attached Service Account**:
+When deploying to Cloud Run, you use an **Attached Service Account** for service invocation/runtime only:
 -   Create a target Service Account in GCP: `gcs-mcp-sa@your-project.iam.gserviceaccount.com`.
--   Grant this specific SA the exact roles it needs (e.g., `roles/storage.objectAdmin` on a *specific* bucket via IAM conditions).
+-   Grant this specific SA only the roles needed to run the server or call downstream platform services. Bucket/object authorization should come from the delegated user token.
 -   Deploy the Cloud Run service specifying this Service Account flag:
     ```bash
     gcloud run deploy gcs-mcp-server --image XYZ --service-account="gcs-mcp-sa@your-project.iam.gserviceaccount.com"
     ```
--   The MCP server automatically inherits these restricted permissions natively via the GCP metadata server. No keys required.
+-   The agent also needs `roles/run.invoker` permission if Cloud Run ingress is protected.
 
-### 2. Local Development (Impersonation)
-To test restricted permissions locally without downloading a JSON key, developers can **impersonate** the target Service Account using short-lived tokens:
+### 2. Local Development
+For end-to-end auth parity with Gemini Enterprise, send a valid user OAuth access token as `Authorization: Bearer <token>` when invoking `/mcp`.
 
-1.  Ask your GCP admin to grant your personal user account the `roles/iam.serviceAccountTokenCreator` role on the target Service Account.
-2.  Configure your local `gcloud` to impersonate it:
-    ```bash
-    gcloud config set auth/impersonate_service_account gcs-mcp-sa@your-project.iam.gserviceaccount.com
-    gcloud auth application-default login
-    ```
-3.  When you run the MCP server locally, it will automatically request short-lived tokens on behalf of `gcs-mcp-sa`, strictly mirroring production permissions.
+If you are only validating Cloud Run ingress, also include an ID token in `X-Serverless-Authorization`.
+
+### 3. Two-Profile E2E Validation (Required)
+Validate with two distinct user profiles to confirm IAM boundaries:
+- **Profile A (authorized)**: user has `roles/storage.objectViewer` (or stronger) on target bucket.
+- **Profile B (unauthorized)**: user does not have read/list access on same bucket.
+
+Expected outcomes:
+- Profile A: `list_objects`/`read_object` return `execution_status="success"`.
+- Profile B: requests return `execution_status="error"` and include `Permission Denied` or `Object not found`.
 
 ---
 
@@ -108,7 +120,7 @@ This project uses `uv` for dependency management with a unified `pyproject.toml`
     ```bash
     uv sync --group mcp_gcs
     ```
-2.  **Authentication**: Run `gcloud auth application-default login` to use your local credentials (or configure impersonation as described above).
+2.  **Authentication**: Use a delegated user OAuth access token for end-to-end testing of authorization behavior.
 3.  **Run Server**: Start the MCP server locally from the repository root:
     ```bash
     uv run --group mcp_gcs python -m mcp_servers.gcs.app.main --host localhost --port 8080

@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from mcp_servers.gcs.app.gcs_client import GCSManager
+from mcp_servers.gcs.app.gcs_client import GCSManager, build_gcs_credentials
 from google.cloud.exceptions import GoogleCloudError
 
 
@@ -8,7 +8,7 @@ class TestGCSManager(unittest.TestCase):
     @patch("google.cloud.storage.Client")
     def setUp(self, mock_client):
         self.mock_client_instance = mock_client.return_value
-        self.gcs_manager = GCSManager()
+        self.gcs_manager = GCSManager(creds=MagicMock())
 
     def test_create_bucket_success(self):
         self.mock_client_instance.create_bucket.return_value.name = "test-bucket"
@@ -146,3 +146,14 @@ class TestGCSManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@patch("mcp_servers.gcs.app.gcs_client.validate_access_token")
+@patch("mcp_servers.gcs.app.gcs_client.Credentials")
+def test_build_gcs_credentials_from_access_token(mock_credentials, mock_validate):
+    access_token = "ya29.mock-token"
+
+    build_gcs_credentials(access_token=access_token)
+
+    mock_validate.assert_called_once_with(access_token)
+    mock_credentials.assert_called_once_with(token=access_token)
