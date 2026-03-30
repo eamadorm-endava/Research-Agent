@@ -84,4 +84,61 @@ class GoogleAPIsConfig(MeetMcpConfigBase):
     ]
 
 
+class SearchConfig(MeetMcpConfigBase):
+    """Configuration for Calendar-based search and filtering."""
+
+    calendar_id: Annotated[
+        str,
+        Field(
+            default="primary",
+            description="The calendar ID to search for meetings.",
+        ),
+    ]
+    max_calendar_search_results: Annotated[
+        int,
+        Field(
+            default=100,
+            ge=1,
+            le=250,
+            description="Maximum number of Calendar events to search through.",
+        ),
+    ]
+    default_start_time: Annotated[
+        str,
+        Field(
+            default="00:00:00Z",
+            description="Default start time if only date is provided.",
+        ),
+    ]
+    default_end_time: Annotated[
+        str,
+        Field(
+            default="23:59:59Z",
+            description="Default end time if only date is provided.",
+        ),
+    ]
+    meet_url_prefix: Annotated[
+        str,
+        Field(
+            default="meet.google.com/",
+            description="Prefix used to identify Meet URLs in Calendar events.",
+        ),
+    ]
+    space_name_prefix: Annotated[
+        str,
+        Field(
+            default="spaces/",
+            description="Prefix used for Google Meet space resource names.",
+        ),
+    ]
+    video_entry_point: Annotated[
+        str,
+        Field(
+            default="video",
+            description="Entry point type to look for in Calendar conference data.",
+        ),
+    ]
+
+
 GOOGLE_APIS_CONFIG = GoogleAPIsConfig()
+SEARCH_CONFIG = SearchConfig()
