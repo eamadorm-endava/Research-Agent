@@ -50,6 +50,20 @@ class GoogleAPIsConfig(MeetMcpConfigBase):
             description="Google Drive API version used to resolve recording files.",
         ),
     ]
+    calendar_api_service_name: Annotated[
+        str,
+        Field(
+            default="calendar",
+            description="Google API discovery service name for Calendar.",
+        ),
+    ]
+    calendar_api_version: Annotated[
+        str,
+        Field(
+            default="v3",
+            description="Google Calendar API version used to resolve event titles.",
+        ),
+    ]
     default_page_size: Annotated[
         int,
         Field(
