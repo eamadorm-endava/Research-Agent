@@ -19,23 +19,9 @@ class MeetMcpConfigBase(BaseSettings):
     )
 
 
-class GoogleAPIsConfig(MeetMcpConfigBase):
-    """Configuration for Google Meet API defaults and pagination."""
+class DriveConfig(MeetMcpConfigBase):
+    """Configuration for Google Drive API."""
 
-    meet_api_service_name: Annotated[
-        str,
-        Field(
-            default="meet",
-            description="Google API discovery service name for Meet.",
-        ),
-    ]
-    meet_api_version: Annotated[
-        str,
-        Field(
-            default="v2",
-            description="Google Meet API version.",
-        ),
-    ]
     drive_api_service_name: Annotated[
         str,
         Field(
@@ -50,18 +36,23 @@ class GoogleAPIsConfig(MeetMcpConfigBase):
             description="Google Drive API version used to resolve recording files.",
         ),
     ]
-    calendar_api_service_name: Annotated[
+
+
+class MeetConfig(MeetMcpConfigBase):
+    """Configuration for Google Meet API and defaults."""
+
+    meet_api_service_name: Annotated[
         str,
         Field(
-            default="calendar",
-            description="Google API discovery service name for Calendar.",
+            default="meet",
+            description="Google API discovery service name for Meet.",
         ),
     ]
-    calendar_api_version: Annotated[
+    meet_api_version: Annotated[
         str,
         Field(
-            default="v3",
-            description="Google Calendar API version used to resolve event titles.",
+            default="v2",
+            description="Google Meet API version.",
         ),
     ]
     default_page_size: Annotated[
@@ -82,11 +73,32 @@ class GoogleAPIsConfig(MeetMcpConfigBase):
             description="Maximum allowed page size for list operations.",
         ),
     ]
+    space_name_prefix: Annotated[
+        str,
+        Field(
+            default="spaces/",
+            description="Prefix used for Google Meet space resource names.",
+        ),
+    ]
 
 
-class SearchConfig(MeetMcpConfigBase):
-    """Configuration for Calendar-based search and filtering."""
+class CalendarConfig(MeetMcpConfigBase):
+    """Configuration for Google Calendar API and search settings."""
 
+    calendar_api_service_name: Annotated[
+        str,
+        Field(
+            default="calendar",
+            description="Google API discovery service name for Calendar.",
+        ),
+    ]
+    calendar_api_version: Annotated[
+        str,
+        Field(
+            default="v3",
+            description="Google Calendar API version used to resolve event titles.",
+        ),
+    ]
     calendar_id: Annotated[
         str,
         Field(
@@ -124,13 +136,6 @@ class SearchConfig(MeetMcpConfigBase):
             description="Prefix used to identify Meet URLs in Calendar events.",
         ),
     ]
-    space_name_prefix: Annotated[
-        str,
-        Field(
-            default="spaces/",
-            description="Prefix used for Google Meet space resource names.",
-        ),
-    ]
     video_entry_point: Annotated[
         str,
         Field(
@@ -140,5 +145,6 @@ class SearchConfig(MeetMcpConfigBase):
     ]
 
 
-GOOGLE_APIS_CONFIG = GoogleAPIsConfig()
-SEARCH_CONFIG = SearchConfig()
+DRIVE_CONFIG = DriveConfig()
+MEET_CONFIG = MeetConfig()
+CALENDAR_CONFIG = CalendarConfig()
