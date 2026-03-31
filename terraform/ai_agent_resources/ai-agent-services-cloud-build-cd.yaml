@@ -4,10 +4,13 @@ substitutions:
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
   _DRIVE_URL: "https://drive-mcp-server-753988132239.us-central1.run.app"
+  _GE_APP_ID: "newgeapp_1773239361913"
+  _GE_REGION: "global"
+  _GE_AGENT_DESCRIPTION: "Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
+  _DRIVE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
-  # This must match the CI prefix exactly to use the same state
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
@@ -20,13 +23,68 @@ steps:
     dir: 'terraform/ai_agent_resources'
 
   # Step 2: Run Terraform Apply
-  # -auto-approve is critical here to prevent the build from hanging/failing
+  # Creates the required permissions and service accounts to run the agent
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
     args: ['apply', '-auto-approve']
     dir: 'terraform/ai_agent_resources'
   
-  # Step 3: Deploy the AI-Agent to Agent Engine
+  # Step 3: Unregister the agent from GE
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-unregister-agent'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+        
+        echo "Checking and deleting existing agent in GE..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --app-id ${_GE_APP_ID} \
+          --agent-display-name "${_AGENT_DISPLAY_NAME}"
+
+  # Step 4: Delete all auth resources
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-delete-auth-resources'
+    entrypoint: 'bash'
+    secretEnv: ['GEMINI_DRIVE_AUTH_ID']
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+
+        echo "Deleting GE Auth IDs $$GEMINI_DRIVE_AUTH_ID..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-auth-ids \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --auth-ids "$$GEMINI_DRIVE_AUTH_ID"
+
+  # Step 5: Create new auth resources
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-create-auth-resources'
+    entrypoint: 'bash'
+    secretEnv: ['GEMINI_DRIVE_AUTH_ID', 'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET']
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+
+        echo "Creating GE Auth IDs $$GEMINI_DRIVE_AUTH_ID..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --auth-ids "$$GEMINI_DRIVE_AUTH_ID" \
+          --client-id "$$OAUTH_CLIENT_ID" \
+          --client-secret "$$OAUTH_CLIENT_SECRET" \
+          --scopes "${_DRIVE_OAUTH_SCOPES}"
+
+  
+  # Step 6: Deploy the AI-Agent to Agent Engine
   - name: 'python:3.12'
     id: 'deploy-agent-engine'
     entrypoint: 'sh'
@@ -49,12 +107,47 @@ steps:
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},DRIVE_URL=${_DRIVE_URL},GEMINI_DRIVE_AUTH_ID=$$GEMINI_DRIVE_AUTH_ID"
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},DRIVE_URL=${_DRIVE_URL},GEMINI_DRIVE_AUTH_ID=$$GEMINI_DRIVE_AUTH_ID" 2>&1 | tee deploy_output.txt
+        
+        grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
+        echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
+
+
+  # Step 7: Register the Agent in GE
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-register-agent'
+    entrypoint: 'bash'
+    secretEnv: ['GEMINI_DRIVE_AUTH_ID']
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        ADK_RESOURCE_ID=$(cat /workspace/adk_resource.txt)
+
+        if [ -z "$$ADK_RESOURCE_ID" ]; then
+            echo "Failed to capture ADK_RESOURCE_ID"
+            exit 1
+        fi
+
+        echo "Registering Agent in GE..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh register-agent \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --app-id ${_GE_APP_ID} \
+          --agent-display-name "${_AGENT_DISPLAY_NAME}" \
+          --agent-description "${_GE_AGENT_DESCRIPTION}" \
+          --agent-engine-location ${_REGION} \
+          --agent-engine-agent-id "$${ADK_RESOURCE_ID}" \
+          --auth-ids "$$GEMINI_DRIVE_AUTH_ID"
 
 availableSecrets:
   secretManager:
     - versionName: projects/${PROJECT_ID}/secrets/GEMINI_DRIVE_AUTH_ID/versions/latest
       env: 'GEMINI_DRIVE_AUTH_ID'
+    - versionName: projects/${PROJECT_ID}/secrets/OAUTH_CLIENT_ID/versions/latest
+      env: 'OAUTH_CLIENT_ID'
+    - versionName: projects/${PROJECT_ID}/secrets/OAUTH_CLIENT_SECRET/versions/latest
+      env: 'OAUTH_CLIENT_SECRET'
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'

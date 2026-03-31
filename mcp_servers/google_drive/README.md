@@ -1,15 +1,31 @@
 # Google Drive MCP Server
 
-This MCP server exposes Google Drive read and write operations through a remote Streamable HTTP MCP endpoint.
+This MCP server exposes Google Drive read, write, and workspace-organization operations through a remote Streamable HTTP MCP endpoint.
 It mirrors the structure of the existing `mcp_servers/big_query` service, but it supports delegated user access to Google Drive.
 
 ## Exposed tools
 
 - `list_files`
-- `search_files`
 - `get_file_text`
 - `create_google_doc`
 - `upload_pdf`
+- `create_file`
+- `create_folder`
+- `move_file`
+- `rename_file`
+
+## Metadata returned by list/search operations
+
+List and search results now return enriched metadata, including:
+
+- `size`
+- `parents`
+- `owners`
+- `version`
+- `createdTime`
+- synthetic `path`
+
+The synthetic `path` is resolved by traversing the Drive parent chain and is intended to give the agent clearer spatial context, for example `/Documents/Project/notes.txt`.
 
 ## Authentication model
 
@@ -19,9 +35,10 @@ This service relies on native MCP authentication middleware. The agent handles t
 - **Token Usage**: Each tool retrieves the access token from the MCP context and uses it to call the Google Drive API.
 
 ### Downstream Drive Credentials
-This server uses a **delegated user access token header** (recommended for Gemini Enterprise).
-- Header name defaults to `Authorization: Bearer <token>`.
-- The MCP middleware automatically extracts and validates this token.
+This server uses the delegated user access token provided by the MCP auth layer.
+
+- Default scope requirement is `https://www.googleapis.com/auth/drive`.
+- This allows the server to manage files and folders beyond those created by the MCP application itself.
 
 ## Local run
 
@@ -31,7 +48,5 @@ uv run --group mcp_drive python -m mcp_servers.google_drive.app.main --host loca
 
 ## Cloud Run / Gemini Enterprise
 
-In production, the agent calls this server with:
-- `Authorization: Bearer <delegated-user-oauth-access-token>` (or another token handled by the MCP auth layer).
-
-The delegated access token comes from Gemini Enterprise authorization configured on the agent registration. The ADK framework handles the token propagation.
+In production, the agent calls this server with a delegated user access token obtained through Gemini Enterprise authorization.
+The MCP middleware validates the token and exposes it to tools through the request context.

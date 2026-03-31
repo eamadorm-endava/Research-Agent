@@ -110,6 +110,19 @@ This project uses Google Cloud Build for automated deployments:
 3. **Merge to Main:** Merging the PR triggers `terraform apply`.
    - Ensure the plan was reviewed before merging.
 
+## Agent Deployment & Registration
+
+Along with the Terraform infrastructure apply, the Continuous Deployment (CD) pipeline also manages the active lifecycle of the Gemini Enterprise Agent. 
+
+The deployment operates in the following sequential steps during the `main` branch build:
+1. **Unregister Existing Agent:** The pipeline removes any existing agent in Gemini Enterprise matching the configured display name to prepare for an idempotent redeployment.
+2. **Cleanup Auth Resources (`delete-auth-ids`):** Existing Google Auth credentials (OAuth2) previously bound to the agent are wiped. The script accepts a comma-separated list of Auth IDs to purge.
+3. **Provision Auth Resources (`create-auth-ids`):** The pipeline recreates the necessary Auth IDs dynamically. It iterates over a provided comma-separated list of Auth IDs, constructing the OAuth verification URIs inside Gemini Enterprise using securely injected secrets (Client ID, Client Secret, and Scopes).
+4. **Deploy Agent to Agent Engine:** The underlying runtime code is packaged and deployed to Vertex AI Agent Engine. A unique Reasoning Engine Resource ID is extracted from the deployment logs.
+5. **Register Agent to Gemini Enterprise (`register-agent`):** Finally, using the extracted Reasoning Engine ID and the created Auth IDs, the agent is officially registered into the Gemini Enterprise application. Data source bindings for the Agent are fully attached.
+
+This ensures a highly reproducible deployment loop integrating the entire agent scope into Gemini Enterprise reliably.
+
 ## Usage
 
 To enable services, define the `apis_to_enable` variable in your `terraform.tfvars` file. The module will automatically iterate through each project and enable the listed services.
