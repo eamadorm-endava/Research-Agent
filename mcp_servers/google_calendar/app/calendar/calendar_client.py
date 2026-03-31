@@ -181,9 +181,9 @@ class CalendarClient:
         Args:
             max_events (int): The maximum number of events to return.
             date_min (str | None): Optional lower bound date filter (YYYY-MM-DD).
-            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ).
+            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "12:30:00-06:00").
             date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
-            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ).
+            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "17:00:00-06:00").
             query (str | None): Optional free-text search terms. Searches across title, description, location and other event fields.
 
         Return:
@@ -236,9 +236,9 @@ class CalendarClient:
         Args:
             max_events (int): The maximum number of events to return.
             date_min (str | None): Optional lower bound date filter (YYYY-MM-DD).
-            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ).
+            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "12:30:00-06:00").
             date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
-            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ).
+            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "17:00:00-06:00").
             query (str | None): Optional free-text search terms. Searches across title, description, location and other event fields.
 
         Return:
