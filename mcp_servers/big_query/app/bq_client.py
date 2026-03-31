@@ -7,7 +7,7 @@ from google.cloud.bigquery.schema import SchemaField
 from google.cloud.exceptions import GoogleCloudError, NotFound
 from google.oauth2.credentials import Credentials
 
-from .config import BIGQUERY_AUTH_CONFIG
+from .config import BIGQUERY_API_CONFIG, BIGQUERY_AUTH_CONFIG
 from .schemas import AuthenticationError
 
 # Configure logging
@@ -249,6 +249,7 @@ class BigQueryManager:
 def build_bq_credentials(
     *,
     access_token: Optional[str] = None,
+    scopes: Optional[List[str]] = None,
     validate: bool = True,
 ) -> Credentials:
     """
@@ -259,17 +260,21 @@ def build_bq_credentials(
     Return: A Google Credentials object.
     """
 
+    scopes = scopes or list(BIGQUERY_API_CONFIG.read_write_scopes)
+
     if access_token:
         if validate:
-            validate_access_token(access_token)
-        return Credentials(token=access_token)
+            validate_access_token(access_token, scopes)
+        return Credentials(token=access_token, scopes=scopes)
 
     raise RuntimeError(
         "No BigQuery credentials available. Provide a delegated user access token header."
     )
 
 
-def validate_access_token(access_token: str) -> dict[str, Any]:
+def validate_access_token(
+    access_token: str, required_scopes: Optional[List[str]] = None
+) -> dict[str, Any]:
     """
     Validates an OAuth access token against Google's tokeninfo endpoint.
     Args:
@@ -293,4 +298,14 @@ def validate_access_token(access_token: str) -> dict[str, Any]:
             error_detail = response.text
         raise AuthenticationError(f"Invalid OAuth token: {error_detail}")
 
-    return response.json()
+    token_info = response.json()
+
+    if required_scopes:
+        token_scopes = set(token_info.get("scope", "").split())
+        missing = [scope for scope in required_scopes if scope not in token_scopes]
+        if missing:
+            raise AuthenticationError(
+                f"Token is missing required scopes: {', '.join(missing)}"
+            )
+
+    return token_info

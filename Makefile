@@ -1,5 +1,6 @@
 PROJECT_ID=p-dev-gce-60pf
 REGION=us-central1
+BIGQUERY_URL=mock-bigquery-url
 DRIVE_URL=mock-drive-url
 DRIVE_AUTH_ID=mock-GE-drive-auth-resource-id
 
@@ -57,7 +58,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@p-dev-gce-60pf.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,DRIVE_URL=${DRIVE_URL},GEMINI_DRIVE_AUTH_ID=${DRIVE_AUTH_ID}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_URL},DRIVE_URL=${DRIVE_URL},GEMINI_DRIVE_AUTH_ID=${DRIVE_AUTH_ID}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:

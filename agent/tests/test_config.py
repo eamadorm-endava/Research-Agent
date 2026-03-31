@@ -49,6 +49,7 @@ def test_mcp_servers_config():
         "BIGQUERY_ENDPOINT": "/custom-mcp",
         "DRIVE_URL": "http://localhost:9090",
         "DRIVE_OAUTH_SCOPES": '["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file"]',
+        "BIGQUERY_OAUTH_SCOPES": '["https://www.googleapis.com/auth/bigquery"]',
     }
     with patch.dict(os.environ, mock_env, clear=True):
         config = MCPServersConfig()
@@ -59,4 +60,7 @@ def test_mcp_servers_config():
         assert config.DRIVE_OAUTH_SCOPES == {
             "https://www.googleapis.com/auth/drive.readonly": "google drive access",
             "https://www.googleapis.com/auth/drive.file": "google drive access",
+        }
+        assert config.BIGQUERY_OAUTH_SCOPES == {
+            "https://www.googleapis.com/auth/bigquery": "google bigquery access",
         }

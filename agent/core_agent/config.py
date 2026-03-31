@@ -260,6 +260,14 @@ class DriveScopes(StrEnum):
     DRIVE = "https://www.googleapis.com/auth/drive"
 
 
+class BigQueryScopes(StrEnum):
+    """
+    Enum for Google BigQuery OAuth scopes.
+    """
+
+    BIGQUERY = "https://www.googleapis.com/auth/bigquery"
+
+
 class MCPServersConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -363,6 +371,23 @@ class MCPServersConfig(BaseSettings):
             description="OAuth 2.0 Token URL for Google Drive",
         ),
     ]
+    BIGQUERY_OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[BigQueryScopes]],
+        Field(
+            default=[BigQueryScopes.BIGQUERY],
+            description="OAuth scopes requested by the agent when authenticating to the BigQuery MCP server.",
+        ),
+    ]
+
+    @field_validator("BIGQUERY_OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_bigquery_oauth_scopes(
+        cls, v: Union[list[BigQueryScopes], dict[str, str]]
+    ) -> dict[str, str]:
+        if isinstance(v, dict):
+            return v
+        return {scope.value: "google bigquery access" for scope in v}
+
     GCS_URL: Annotated[
         str,
         Field(
@@ -381,7 +406,7 @@ class MCPServersConfig(BaseSettings):
         str,
         Field(
             default="mock-ge-auth-id",
-            description="The ID of the authorization resource registered in Gemini Enterprise."
+            description="The ID of the delegated Google OAuth authorization resource registered in Gemini Enterprise and reused for Drive and BigQuery tool calls."
             " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
         ),
     ]

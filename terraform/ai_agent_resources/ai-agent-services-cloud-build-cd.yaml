@@ -3,11 +3,12 @@ substitutions:
   _AGENT_DISPLAY_NAME: "Research Agent"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
+  _BIGQUERY_URL: "https://bigquery-mcp-server-753988132239.us-central1.run.app"
   _DRIVE_URL: "https://drive-mcp-server-753988132239.us-central1.run.app"
   _GE_APP_ID: "newgeapp_1773239361913"
   _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
-  _DRIVE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents"
+  _GOOGLE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/bigquery"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
@@ -81,7 +82,7 @@ steps:
           --auth-ids "$$GEMINI_DRIVE_AUTH_ID" \
           --client-id "$$OAUTH_CLIENT_ID" \
           --client-secret "$$OAUTH_CLIENT_SECRET" \
-          --scopes "${_DRIVE_OAUTH_SCOPES}"
+          --scopes "${_GOOGLE_OAUTH_SCOPES}"
 
   
   # Step 6: Deploy the AI-Agent to Agent Engine
@@ -107,7 +108,7 @@ steps:
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},DRIVE_URL=${_DRIVE_URL},GEMINI_DRIVE_AUTH_ID=$$GEMINI_DRIVE_AUTH_ID" 2>&1 | tee deploy_output.txt
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GEMINI_DRIVE_AUTH_ID=$$GEMINI_DRIVE_AUTH_ID" 2>&1 | tee deploy_output.txt
         
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
