@@ -126,6 +126,13 @@ class CalendarClient:
     ) -> dict[str, Optional[str]]:
         """Formats dates and times into RFC3339 strings for the API.
 
+        Logic:
+            The Google Calendar API (events.list) filters events that overlap with the range (timeMin, timeMax):
+            - timeMin: Lower bound (exclusive) for an event's end time. Events ending before this are excluded.
+            - timeMax: Upper bound (exclusive) for an event's start time. Events starting after this are excluded.
+            This method ensures that both filters are valid RFC3339 strings by synchronizing missing date components
+            from the available min/max parameters to avoid 400 Bad Request errors.
+
         Args:
             date_min (str | None): Start date (YYYY-MM-DD).
             time_min (str | None): Start time (HH:MM:SSZ).
@@ -135,32 +142,38 @@ class CalendarClient:
         Returns:
             dict[str, str | None]: A dictionary with 'formatted_time_min' and 'formatted_time_max' keys.
         """
-        # Identify base dates with pro-active synchronization
-        base_date_min = date_min
-        if not base_date_min and time_min and date_max:
-            # Fallback to date_max for time_min if date_min is missing
-            base_date_min = date_max
+        formatted_min = None
+        formatted_max = None
 
-        base_date_max = date_max
-        if not base_date_max and time_max and date_min:
-            # Fallback to date_min for time_max if date_max is missing
-            base_date_max = date_min
+        # 1. Global Search: If all date/time parameters are None
+        if not any([date_min, time_min, date_max, time_max]):
+            logger.debug("No time filters provided. Performing a global search.")
+            return {
+                "formatted_time_min": formatted_min,
+                "formatted_time_max": formatted_max,
+            }
 
-        # Process Lower Bound (Min)
-        if base_date_min:
-            formatted_min = (
-                f"{base_date_min}T{time_min or CALENDAR_CONFIG.default_start_time}"
+        # 2. Time without Date: Raise error if times are provided but dates are missing
+        if (time_min or time_max) and (not date_min or not date_max):
+            error_msg = (
+                "Dates (date_min and date_max) are required when using time filters."
             )
-        else:
-            formatted_min = time_min
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
-        # Process Upper Bound (Max)
-        if base_date_max:
-            formatted_max = (
-                f"{base_date_max}T{time_max or CALENDAR_CONFIG.default_end_time}"
-            )
-        else:
-            formatted_max = time_max
+        # 3. Mandatory Date Pair: Raise error if only one date filter is provided
+        if (date_min and not date_max) or (date_max and not date_min):
+            error_msg = "Both date_min and date_max are required for a valid date-time search range."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        # 4. Final Construction: If we reached here, we have both dates (if any temporal param was used)
+        formatted_min = f"{date_min}T{time_min or '00:00:00Z'}"
+        formatted_max = f"{date_max}T{time_max or '23:59:59Z'}"
+
+        logger.debug(
+            f"Final filters constructed: timeMin='{formatted_min}', timeMax='{formatted_max}'"
+        )
 
         return {
             "formatted_time_min": formatted_min,
@@ -214,10 +227,17 @@ class CalendarClient:
             kwargs["timeMax"] = formatted_times["formatted_time_max"]
 
         try:
-            logger.debug(f"Executing Calendar API request with kwargs: {kwargs}")
+            logger.debug(f"Executing Calendar API request with parameters: {kwargs}")
             events_result = self.calendar.events().list(**kwargs).execute()
         except Exception as exc:
-            logger.exception(f"Failed to fetch events from Google Calendar API: {exc}")
+            error_msg = str(exc)
+            if "400" in error_msg:
+                logger.error(
+                    "Google Calendar API returned a 400 Bad Request. "
+                    "This is typically caused by invalid RFC3339 date/time formats. "
+                    f"Check filters: timeMin={kwargs.get('timeMin')}, timeMax={kwargs.get('timeMax')}"
+                )
+            logger.exception(f"Detailed API Execution Error: {exc}")
             return []
 
         return events_result.get("items", [])
@@ -239,7 +259,7 @@ class CalendarClient:
             time_min (str | None): Optional lower bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "12:30:00-06:00").
             date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
             time_max (str | None): Optional upper bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "17:00:00-06:00").
-            query (str | None): Optional free-text search terms. Searches across title, description, location and other event fields.
+            query (str | None): Optional natural language query. Searches across title, description, location and other event fields.
 
         Return:
             list[CalendarEvent]: A list of parsed CalendarEvent objects.
