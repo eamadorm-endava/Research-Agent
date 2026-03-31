@@ -304,3 +304,82 @@ class ParticipantModel(MeetSchemaModel):
             description="Signed-in user identity (display name and People API ref).",
         ),
     ]
+
+
+class AttendeeModel(MeetSchemaModel):
+    """Metadata for an individual attendee in a calendar event."""
+
+    email: Annotated[
+        Optional[str],
+        Field(default=None, description="Email address of the attendee."),
+    ]
+    displayName: Annotated[
+        Optional[str],
+        Field(default=None, description="Display name of the attendee."),
+    ]
+    responseStatus: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Response status, e.g. 'accepted', 'declined', 'tentative', 'needsAction'.",
+        ),
+    ]
+
+
+class CalendarEventModel(MeetSchemaModel):
+    """Represents a calendar event, potentially enriched with Meet artifacts."""
+
+    event_id: Annotated[
+        str,
+        Field(description="The unique calendar event ID."),
+    ]
+    title: Annotated[
+        Optional[str],
+        Field(default=None, description="Title of the calendar event."),
+    ]
+    description: Annotated[
+        Optional[str],
+        Field(default=None, description="Description of the calendar event."),
+    ]
+    start_time: Annotated[
+        Optional[str],
+        Field(default=None, description="Start time of the event in RFC 3339 format."),
+    ]
+    end_time: Annotated[
+        Optional[str],
+        Field(default=None, description="End time of the event in RFC 3339 format."),
+    ]
+    status: Annotated[
+        Optional[str],
+        Field(default=None, description="Event status, e.g. 'confirmed', 'cancelled'."),
+    ]
+    meeting_code: Annotated[
+        Optional[str],
+        Field(
+            default=None, description="Google Meet 10-letter meeting code if attached."
+        ),
+    ]
+    has_recording: Annotated[
+        bool,
+        Field(
+            default=False, description="Whether this event has associated recordings."
+        ),
+    ]
+    has_transcript: Annotated[
+        bool,
+        Field(
+            default=False, description="Whether this event has associated transcripts."
+        ),
+    ]
+    attendees: Annotated[
+        Optional[list[AttendeeModel]],
+        Field(default=None, description="List of invited attendees."),
+    ]
+    recordings: Annotated[
+        Optional[list[RecordingModel]],
+        Field(default=None, description="List of Meet recording artifacts, if any."),
+    ]
+    transcripts: Annotated[
+        Optional[list[TranscriptModel]],
+        Field(default=None, description="List of Meet transcript artifacts, if any."),
+    ]
