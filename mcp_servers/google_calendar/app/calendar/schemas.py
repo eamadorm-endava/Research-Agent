@@ -92,6 +92,10 @@ class CalendarEvent(BaseModel):
         Optional[EventStatus],
         Field(default=None, description="The status of the event."),
     ]
+    location: Annotated[
+        Optional[str],
+        Field(default=None, description="The location where the event takes place."),
+    ]
 
     start_time: Annotated[
         datetime,

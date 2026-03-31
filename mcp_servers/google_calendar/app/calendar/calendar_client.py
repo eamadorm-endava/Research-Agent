@@ -135,20 +135,26 @@ class CalendarClient:
         Returns:
             dict[str, str | None]: A dictionary with 'formatted_time_min' and 'formatted_time_max' keys.
         """
-        formatted_min = None
-        formatted_max = None
+        # Identify base dates with pro-active synchronization
+        base_date_min = date_min
+        if not base_date_min and time_min and date_max:
+            # Fallback to date_max for time_min if date_min is missing
+            base_date_min = date_max
+
+        base_date_max = date_max
+        if not base_date_max and time_max and date_min:
+            # Fallback to date_min for time_max if date_max is missing
+            base_date_max = date_min
 
         # Process Lower Bound (Min)
-        if date_min:
+        if base_date_min:
             formatted_min = (
-                f"{date_min}T{time_min or CALENDAR_CONFIG.default_start_time}"
+                f"{base_date_min}T{time_min or CALENDAR_CONFIG.default_start_time}"
             )
         else:
             formatted_min = time_min
 
         # Process Upper Bound (Max)
-        # Reuse date_min if date_max is missing for same-day intervals
-        base_date_max = date_max or date_min
         if base_date_max:
             formatted_max = (
                 f"{base_date_max}T{time_max or CALENDAR_CONFIG.default_end_time}"
@@ -168,7 +174,7 @@ class CalendarClient:
         time_min: Optional[str] = None,
         date_max: Optional[str] = None,
         time_max: Optional[str] = None,
-        title: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> list[dict]:
         """Queries Google Calendar API to fetch raw event data.
 
@@ -178,7 +184,7 @@ class CalendarClient:
             time_min (str | None): Optional lower bound time filter (HH:MM:SSZ).
             date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
             time_max (str | None): Optional upper bound time filter (HH:MM:SSZ).
-            title (str | None): Optional title text search.
+            query (str | None): Optional free-text search terms. Searches across title, description, location and other event fields.
 
         Return:
             list[dict]: A list of raw event items from the API.
@@ -191,8 +197,8 @@ class CalendarClient:
             "orderBy": "startTime",
         }
 
-        if title:
-            kwargs["q"] = title
+        if query:
+            kwargs["q"] = query
 
         # Format datetimes delegation
         formatted_times = self._format_time_filters(
@@ -223,7 +229,7 @@ class CalendarClient:
         time_min: Optional[str] = None,
         date_max: Optional[str] = None,
         time_max: Optional[str] = None,
-        title: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> list[CalendarEvent]:
         """Fetch and parse calendar events into structured models.
 
@@ -233,7 +239,7 @@ class CalendarClient:
             time_min (str | None): Optional lower bound time filter (HH:MM:SSZ).
             date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
             time_max (str | None): Optional upper bound time filter (HH:MM:SSZ).
-            title (str | None): Optional title text search.
+            query (str | None): Optional free-text search terms. Searches across title, description, location and other event fields.
 
         Return:
             list[CalendarEvent]: A list of parsed CalendarEvent objects.
@@ -244,7 +250,7 @@ class CalendarClient:
         logger.debug(f"Time min: {time_min}")
         logger.debug(f"Date max: {date_max}")
         logger.debug(f"Time max: {time_max}")
-        logger.debug(f"Title: {title}")
+        logger.debug(f"Query: {query}")
 
         raw_items = self._fetch_calendar_events(
             max_events=max_events,
@@ -252,7 +258,7 @@ class CalendarClient:
             time_min=time_min,
             date_max=date_max,
             time_max=time_max,
-            title=title,
+            query=query,
         )
 
         logger.info(f"Parsing {len(raw_items)} events into CalendarEvent models")
@@ -284,6 +290,7 @@ class CalendarClient:
                     title=event.get("summary"),
                     description=event.get("description"),
                     event_status=event.get("status"),
+                    location=event.get("location"),
                     start_time=start_dt,
                     end_time=end_dt,
                     attendees=attendees,
