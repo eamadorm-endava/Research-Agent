@@ -7,8 +7,6 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from .calendar_client import CalendarClient
-from .drive_client import DriveClient
 from .config import MEET_CONFIG, CALENDAR_CONFIG
 from .schemas import (
     AuthenticationError,
@@ -39,8 +37,6 @@ class MeetClient:
             credentials=creds,
             cache_discovery=False,
         )
-        self.calendar_client = CalendarClient(creds)
-        self.drive_client = DriveClient(creds)
         logger.info(
             f"Initialized MeetClient with Meet ({MEET_CONFIG.meet_api_version})"
         )
@@ -82,55 +78,29 @@ class MeetClient:
         logger.debug(f"Generated filter string: {filter_str}")
         return filter_str
 
-    def list_meetings(
+    def get_conference_records_by_meeting_code(
         self,
-        max_results: int = MEET_CONFIG.default_page_size,
-        conference_name: Optional[str] = None,
-        event_status: Optional[str] = None,
+        meeting_code: str,
         start_date: Optional[str] = None,
         start_time: Optional[str] = None,
         end_date: Optional[str] = None,
         end_time: Optional[str] = None,
     ) -> list[ConferenceRecordModel]:
-        """List past and active conference records visible to the caller.
-
-        Records are automatically enriched with titles and descriptions from linked Google
-        Calendar events where possible.
+        """Fetch conference records associated with a specific meeting code.
 
         Args:
-            max_results (int): Maximum number of records to return.
-            conference_name (str | None): A flexible search for the meeting title.
-            event_status (str | None): Filter by the caller's response status.
+            meeting_code (str): The 10-letter Google Meet code.
             start_date (str | None): Starting date (YYYY-MM-DD).
             start_time (str | None): Starting time (HH:MM:SSZ).
             end_date (str | None): Ending date (YYYY-MM-DD).
             end_time (str | None): Ending time (HH:MM:SSZ).
 
         Returns:
-            list[ConferenceRecordModel]: A list of enriched conference records.
-
-        Raises:
-            AuthenticationError: If the API returns 401 or 403.
-            MeetApiQuotaError: If the API returns 429.
+            list[ConferenceRecordModel]: A list of matching conference records.
         """
-        logger.info(
-            f"Listing meetings (max_results={max_results}, name_filter={conference_name}, status_filter={event_status})"
-        )
-        filter_parts: list[str] = []
+        logger.info(f"Fetching conference records for meeting code: {meeting_code}")
+        filter_parts: list[str] = [f"space.meeting_code='{meeting_code}'"]
 
-        # 1. Calendar search for meeting codes if name or status is provided
-        if conference_name or event_status:
-            codes = self.calendar_client.find_meeting_ids(
-                conference_name=conference_name, event_status=event_status
-            )
-            if codes:
-                code_filters = [f"space.meeting_code='{c}'" for c in codes]
-                filter_parts.append(f"({' OR '.join(code_filters)})")
-            else:
-                logger.info("No matching meetings found in Calendar search.")
-                return []
-
-        # 2. Build time-range filters
         range_filter = self._build_conference_filter(
             start_date=start_date,
             start_time=start_time,
@@ -140,13 +110,8 @@ class MeetClient:
         if range_filter:
             filter_parts.append(range_filter)
 
-        kwargs: dict[str, Any] = {
-            "pageSize": min(max_results, MEET_CONFIG.max_page_size)
-        }
-        if filter_parts:
-            kwargs["filter"] = " AND ".join(filter_parts)
-
-        logger.debug(f"Calling Meet API list_meetings with kwargs: {kwargs}")
+        kwargs: dict[str, Any] = {"filter": " AND ".join(filter_parts)}
+        logger.debug(f"Calling Meet API conferenceRecords.list with kwargs: {kwargs}")
 
         try:
             response = self.meet.conferenceRecords().list(**kwargs).execute()
@@ -155,29 +120,7 @@ class MeetClient:
 
         records = response.get("conferenceRecords", [])
         models = [ConferenceRecordModel.model_validate(r) for r in records]
-        logger.info(f"Found {len(models)} conference records in Meet API")
-
-        # 3. Enrich records with Calendar titles and descriptions
-        for model in models:
-            if model.space and model.startTime:
-                meeting_code = model.space.replace(MEET_CONFIG.space_name_prefix, "")
-
-                # Fetch the actual Space resource to find the canonical meeting code
-                try:
-                    space_details = self.meet.spaces().get(name=model.space).execute()
-                    meeting_uri = space_details.get("meetingUri", "")
-                    if meeting_uri:
-                        meeting_code = meeting_uri.split("/")[-1]
-                except HttpError:
-                    logger.debug(f"Could not retrieve space details for {model.space}")
-
-                # Fetch event details using CalendarClient
-                details = self.calendar_client.get_event_details_by_meeting_code(
-                    meeting_code=meeting_code, start_time_iso=model.startTime
-                )
-                if details:
-                    model.title = details.get("title")
-                    model.description = details.get("description")
+        logger.info(f"Found {len(models)} conference records for {meeting_code}")
 
         return models
 
@@ -248,7 +191,7 @@ class MeetClient:
     def list_transcript_entries(
         self,
         transcript_name: str,
-        page_size: int = MEET_CONFIG.default_page_size,
+        page_size: int = CALENDAR_CONFIG.default_page_size,
     ) -> list[TranscriptEntryModel]:
         """
         List entries (dialogue) for a specific transcript.
@@ -271,7 +214,7 @@ class MeetClient:
                 .entries()
                 .list(
                     parent=transcript_name,
-                    pageSize=min(page_size, MEET_CONFIG.max_page_size),
+                    pageSize=min(page_size, CALENDAR_CONFIG.max_page_size),
                 )
                 .execute()
             )
