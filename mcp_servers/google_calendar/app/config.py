@@ -9,8 +9,8 @@ DEFAULT_PAGE_SIZE = 25
 MAX_PAGE_SIZE = 100
 
 
-class MeetMcpConfigBase(BaseSettings):
-    """Shared immutable configuration base for the Meet MCP server."""
+class RootConfig(BaseSettings):
+    """Shared immutable configuration base for the Calendar MCP server."""
 
     model_config = SettingsConfigDict(
         extra="forbid",
@@ -19,7 +19,7 @@ class MeetMcpConfigBase(BaseSettings):
     )
 
 
-class DriveConfig(MeetMcpConfigBase):
+class DriveConfig(RootConfig):
     """Configuration for Google Drive API."""
 
     drive_api_service_name: Annotated[
@@ -38,7 +38,7 @@ class DriveConfig(MeetMcpConfigBase):
     ]
 
 
-class MeetConfig(MeetMcpConfigBase):
+class MeetConfig(RootConfig):
     """Configuration for Google Meet API and defaults."""
 
     meet_api_service_name: Annotated[
@@ -55,24 +55,6 @@ class MeetConfig(MeetMcpConfigBase):
             description="Google Meet API version.",
         ),
     ]
-    default_page_size: Annotated[
-        int,
-        Field(
-            default=DEFAULT_PAGE_SIZE,
-            ge=1,
-            le=MAX_PAGE_SIZE,
-            description="Default number of items returned per page.",
-        ),
-    ]
-    max_page_size: Annotated[
-        int,
-        Field(
-            default=MAX_PAGE_SIZE,
-            ge=1,
-            le=1000,
-            description="Maximum allowed page size for list operations.",
-        ),
-    ]
     space_name_prefix: Annotated[
         str,
         Field(
@@ -82,7 +64,7 @@ class MeetConfig(MeetMcpConfigBase):
     ]
 
 
-class CalendarConfig(MeetMcpConfigBase):
+class CalendarConfig(RootConfig):
     """Configuration for Google Calendar API and search settings."""
 
     calendar_api_service_name: Annotated[
@@ -113,6 +95,24 @@ class CalendarConfig(MeetMcpConfigBase):
             ge=1,
             le=250,
             description="Maximum number of Calendar events to search through.",
+        ),
+    ]
+    default_page_size: Annotated[
+        int,
+        Field(
+            default=DEFAULT_PAGE_SIZE,
+            ge=1,
+            le=MAX_PAGE_SIZE,
+            description="Default number of items returned per page.",
+        ),
+    ]
+    max_page_size: Annotated[
+        int,
+        Field(
+            default=MAX_PAGE_SIZE,
+            ge=1,
+            le=1000,
+            description="Maximum allowed page size for list operations.",
         ),
     ]
     default_start_time: Annotated[
