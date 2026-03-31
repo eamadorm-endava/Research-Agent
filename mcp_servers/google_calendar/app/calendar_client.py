@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 from .config import CALENDAR_CONFIG
+from .meet_client import MeetClient
+from .drive_client import DriveClient
+from .schemas import CalendarEventModel, AttendeeModel
 
 logger = logging.getLogger(__name__)
 
 
 class CalendarClient:
-    """Stateless connector for Google Calendar API.
+    """Primary connector for Google Calendar API.
 
-    This client is used to find associated meeting codes and retrieve
-    event titles and descriptions to enrich Meet records.
+    This client coordinates the fetching of Calendar Events and delegates
+    fetching recording/transcript artifacts to MeetClient and DriveClient.
     """
 
     def __init__(self, creds: Credentials) -> None:
@@ -27,149 +29,193 @@ class CalendarClient:
             credentials=creds,
             cache_discovery=False,
         )
+        self.meet_client = MeetClient(creds)
+        self.drive_client = DriveClient(creds)
         logger.info(
             f"Initialized CalendarClient with Calendar ({CALENDAR_CONFIG.calendar_api_version})"
         )
 
-    def find_meeting_ids(
+    def list_events(
         self,
-        conference_name: Optional[str] = None,
+        start_date: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_date: Optional[str] = None,
+        end_time: Optional[str] = None,
+        event_name: Optional[str] = None,
+        has_meeting_recording: bool = False,
+        has_transcript_file: bool = False,
         event_status: Optional[str] = None,
-    ) -> set[str]:
-        """Search Google Calendar for events matching various criteria.
+        max_results: int = CALENDAR_CONFIG.default_page_size,
+    ) -> list[CalendarEventModel]:
+        """Fetch Calendar Events, optionally enriched with Meet recordings and transcripts.
 
         Args:
-            conference_name (str | None): The search query (title contains).
-            event_status (str | None): Filter by current user's attendee status.
+            start_date (str | None): Starting date in YYYY-MM-DD format.
+            start_time (str | None): Starting time in HH:MM:SSZ format.
+            end_date (str | None): Ending date in YYYY-MM-DD format.
+            end_time (str | None): Ending time in HH:MM:SSZ format.
+            event_name (str | None): Text to search in event title.
+            has_meeting_recording (bool): Filter to only events with Meet recordings.
+            has_transcript_file (bool): Filter to only events with Meet transcripts.
+            event_status (str | None): Current caller's response status (e.g. 'accepted').
+            max_results (int): Exact number of calendar items to return.
 
         Returns:
-            set[str]: A set of unique meeting codes/IDs.
+            list[CalendarEventModel]: Enriched calendar events.
         """
-        logger.info("Initiating Google Calendar search")
-        logger.debug(f"Parameters: {conference_name=}, {event_status=}")
-        meeting_codes: set[str] = set()
+        logger.info("Listing calendar events with given criteria.")
+
+        # Build timeMin and timeMax
+        time_min = None
+        if start_date:
+            full_start = (
+                f"{start_date}T{start_time or CALENDAR_CONFIG.default_start_time}"
+            )
+            time_min = full_start
+
+        time_max = None
+        if end_date:
+            full_end = f"{end_date}T{end_time or CALENDAR_CONFIG.default_end_time}"
+            time_max = full_end
+
+        # If filtering by media presence, fetch an internal chunk to ensure we hit quota
+        fetch_limit = (
+            min(max_results * 5, CALENDAR_CONFIG.max_calendar_search_results)
+            if (has_meeting_recording or has_transcript_file)
+            else min(max_results, CALENDAR_CONFIG.max_calendar_search_results)
+        )
+
+        kwargs: dict[str, Any] = {
+            "calendarId": CALENDAR_CONFIG.calendar_id,
+            "singleEvents": True,
+            "maxResults": fetch_limit,
+            "orderBy": "startTime",
+        }
+        if time_min:
+            kwargs["timeMin"] = time_min
+        if time_max:
+            kwargs["timeMax"] = time_max
+        if event_name:
+            kwargs["q"] = event_name
 
         try:
-            kwargs = {
-                "calendarId": CALENDAR_CONFIG.calendar_id,
-                "singleEvents": True,
-                "maxResults": CALENDAR_CONFIG.max_calendar_search_results,
-            }
-            if conference_name:
-                kwargs["q"] = conference_name
-
             events_result = self.calendar.events().list(**kwargs).execute()
-            events = events_result.get("items", [])
-            logger.debug(f"Found {len(events)} initial events in Calendar")
+        except Exception as exc:
+            logger.error(f"Failed to query Calendar API: {exc}", exc_info=True)
+            return []
 
-            for event in events:
-                # Filter by status
-                if event_status:
-                    attendees = event.get("attendees", [])
-                    self_attendee = next((a for a in attendees if a.get("self")), None)
-                    actual_status = (
-                        self_attendee.get("responseStatus") if self_attendee else None
+        raw_events = events_result.get("items", [])
+        final_events = []
+
+        for event in raw_events:
+            if len(final_events) >= max_results:
+                break
+
+            # Filter by status
+            if event_status:
+                attendees = event.get("attendees", [])
+                self_attendee = next((a for a in attendees if a.get("self")), None)
+                actual_status = (
+                    self_attendee.get("responseStatus") if self_attendee else None
+                )
+
+                if not actual_status and event.get("organizer", {}).get("self"):
+                    actual_status = "accepted"
+
+                if not actual_status:
+                    actual_status = "needsAction"
+
+                if (
+                    actual_status != event_status.lower()
+                    and event_status.lower() != "any"
+                ):
+                    continue
+
+            # Parse attendees
+            parsed_attendees = []
+            for a in event.get("attendees", []):
+                parsed_attendees.append(
+                    AttendeeModel(
+                        email=a.get("email"),
+                        displayName=a.get("displayName"),
+                        responseStatus=a.get("responseStatus"),
                     )
+                )
 
-                    if not actual_status and event.get("organizer", {}).get("self"):
-                        actual_status = "accepted"
+            # Find meeting code
+            conf_data = event.get("conferenceData", {})
+            entry_points = conf_data.get("entryPoints", [])
 
-                    if actual_status != event_status.lower():
-                        logger.debug(
-                            f"Skipping event {event.get('id')}: status {actual_status} != {event_status}"
-                        )
-                        continue
-
-                # Extract meeting codes from conferenceData
-                conf_data = event.get("conferenceData", {})
-                entry_points = conf_data.get("entryPoints", [])
-
-                discovered_in_event = 0
+            meeting_code = conf_data.get("conferenceId")
+            if not meeting_code:
                 for entry in entry_points:
                     if entry.get("entryPointType") == CALENDAR_CONFIG.video_entry_point:
                         uri = entry.get("uri", "")
                         if CALENDAR_CONFIG.meet_url_prefix in uri:
-                            code = uri.split("/")[-1]
-                            meeting_codes.add(code)
-                            discovered_in_event += 1
-
-                conf_id = conf_data.get("conferenceId")
-                if conf_id:
-                    meeting_codes.add(conf_id)
-                    discovered_in_event += 1
-
-                if discovered_in_event:
-                    logger.debug(f"Extracted codes from event {event.get('id')}")
-
-        except Exception as exc:
-            logger.warning(f"Calendar search failed: {str(exc)}", exc_info=True)
-
-        logger.info(f"Final discovered meeting codes: {len(meeting_codes)}")
-        logger.debug(f"Codes: {meeting_codes}")
-        return meeting_codes
-
-    def get_event_details_by_meeting_code(
-        self,
-        meeting_code: str,
-        start_time_iso: str,
-    ) -> dict[str, str | None] | None:
-        """Fetch title and description for an event containing a meeting code.
-
-        Args:
-            meeting_code (str): The meeting URI or code.
-            start_time_iso (str): The ISO format start time to bound the search.
-
-        Returns:
-            dict | None: Dictionary containing 'title' and 'description' if found.
-        """
-        logger.info(f"Looking up event details for meeting code: {meeting_code}")
-        try:
-            start_str = start_time_iso
-            if start_str.endswith("Z"):
-                start_str = start_str[:-1] + "+00:00"
-            start_dt = datetime.fromisoformat(start_str)
-
-            time_min = (start_dt - timedelta(hours=1)).isoformat()
-            time_max = (start_dt + timedelta(hours=12)).isoformat()
-
-            events_result = (
-                self.calendar.events()
-                .list(
-                    calendarId=CALENDAR_CONFIG.calendar_id,
-                    timeMin=time_min,
-                    timeMax=time_max,
-                    singleEvents=True,
-                    orderBy="startTime",
-                )
-                .execute()
-            )
-
-            events = events_result.get("items", [])
-            for ev in events:
-                conf_data = ev.get("conferenceData", {})
-                is_match = False
-
-                if conf_data.get("conferenceId") == meeting_code:
-                    is_match = True
-                else:
-                    for ep in conf_data.get("entryPoints", []):
-                        if meeting_code in ep.get("uri", ""):
-                            is_match = True
+                            meeting_code = uri.split("/")[-1]
                             break
 
-                if is_match:
-                    logger.info(f"Successfully matched event for {meeting_code}")
-                    return {
-                        "title": ev.get("summary"),
-                        "description": ev.get("description"),
-                    }
+            # Metadata properties
+            event_has_recording = False
+            event_has_transcript = False
+            recordings_list = []
+            transcripts_list = []
 
-            logger.debug(f"No matching Calendar details found for {meeting_code}")
-            return None
+            if meeting_code:
+                # Ask MeetClient for artifacts
+                try:
+                    conf_records = (
+                        self.meet_client.get_conference_records_by_meeting_code(
+                            meeting_code=meeting_code,
+                            start_date=start_date,
+                            end_date=end_date,
+                        )
+                    )
 
-        except Exception as exc:
-            logger.warning(
-                f"Calendar enrichment failed for {meeting_code}: {str(exc)}",
-                exc_info=True,
+                    for record in conf_records:
+                        recs = self.meet_client.list_recordings(record.name)
+                        if recs:
+                            event_has_recording = True
+                            recordings_list.extend(recs)
+
+                        transc = self.meet_client.list_transcripts(record.name)
+                        if transc:
+                            event_has_transcript = True
+                            transcripts_list.extend(transc)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to fetch Meet artifacts for code {meeting_code}: {exc}"
+                    )
+
+            if has_meeting_recording and not event_has_recording:
+                continue
+
+            if has_transcript_file and not event_has_transcript:
+                continue
+
+            # In some recurring events without overriding times, events may lack start/end if they are day events
+            start_dt = event.get("start", {}).get("dateTime") or event.get(
+                "start", {}
+            ).get("date")
+            end_dt = event.get("end", {}).get("dateTime") or event.get("end", {}).get(
+                "date"
             )
-            return None
+
+            event_model = CalendarEventModel(
+                event_id=event.get("id"),
+                title=event.get("summary"),
+                description=event.get("description"),
+                start_time=start_dt,
+                end_time=end_dt,
+                status=event.get("status"),
+                meeting_code=meeting_code,
+                has_recording=event_has_recording,
+                has_transcript=event_has_transcript,
+                attendees=parsed_attendees,
+                recordings=recordings_list if recordings_list else None,
+                transcripts=transcripts_list if transcripts_list else None,
+            )
+            final_events.append(event_model)
+
+        logger.info(f"Returning {len(final_events)} fully parsed calendar events.")
+        return final_events
