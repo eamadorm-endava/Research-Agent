@@ -80,25 +80,32 @@ class CalendarClient:
             )
         return attendees
 
-    def _parse_conference_data(self, conf_data_dict: dict) -> list[ConferenceData]:
-        """Parses conference data into ConferenceData objects.
+    def _parse_conference_data(self, conf_data_dict: dict) -> Optional[ConferenceData]:
+        """Parses conference data into a single ConferenceData object.
 
         Args:
             conf_data_dict (dict): The conference data from the API.
 
         Return:
-            list[ConferenceData]: A list of ConferenceData objects.
+            Optional[ConferenceData]: A ConferenceData object or None.
         """
-        conference_info = []
         conf_id = conf_data_dict.get("conferenceId")
-        if conf_id:
-            for entry_point in conf_data_dict.get("entryPoints", []):
+        if not conf_id:
+            return None
+
+        # Prioritize the video joining URL (Meet link)
+        for entry_point in conf_data_dict.get("entryPoints", []):
+            if entry_point.get("entryPointType") == "video":
                 uri = entry_point.get("uri")
                 if uri:
-                    conference_info.append(
-                        ConferenceData(joining_url=uri, conference_id=conf_id)
-                    )
-        return conference_info
+                    return ConferenceData(joining_url=uri, conference_id=conf_id)
+
+        for entry_point in conf_data_dict.get("entryPoints", []):
+            uri = entry_point.get("uri")
+            if uri:
+                return ConferenceData(joining_url=uri, conference_id=conf_id)
+
+        return None
 
     def _parse_attachments(self, raw_attachments: list) -> list[EventAttachment]:
         """Parses raw attachments into EventAttachment objects.

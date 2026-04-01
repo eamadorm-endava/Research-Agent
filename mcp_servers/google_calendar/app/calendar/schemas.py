@@ -146,10 +146,10 @@ class CalendarEvent(BaseModel):
         ),
     ]
     conference_info: Annotated[
-        list[ConferenceData],
+        Optional[ConferenceData],
         Field(
-            default_factory=list,
-            description="List of conference data associated with the event.",
+            default=None,
+            description="Conference data associated with the event (e.g. Google Meet). 1:1 relationship between an event and a conference.",
         ),
     ]
     attachments: Annotated[

@@ -118,15 +118,17 @@ def test_parse_conference_data_unrecognized_entry(calendar_client):
         "entryPoints": [{"type": "other"}],  # Missing uri
     }
     result = calendar_client._parse_conference_data(conf_data)
-    assert result == []
+    assert result is None
 
 
 def test_parse_conference_data_success(calendar_client):
     conf_data = {
         "conferenceId": "abc-123",
-        "entryPoints": [{"uri": "https://meet.google.com/abc-123", "type": "video"}],
+        "entryPoints": [
+            {"uri": "https://meet.google.com/abc-123", "entryPointType": "video"}
+        ],
     }
     result = calendar_client._parse_conference_data(conf_data)
-    assert len(result) == 1
-    assert result[0].joining_url == "https://meet.google.com/abc-123"
-    assert result[0].conference_id == "abc-123"
+    assert result is not None
+    assert result.joining_url == "https://meet.google.com/abc-123"
+    assert result.conference_id == "abc-123"
