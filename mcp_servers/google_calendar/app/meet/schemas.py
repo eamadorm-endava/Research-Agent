@@ -91,7 +91,7 @@ class ConferenceAttendee(MeetRootSchema):
 
     @computed_field
     @property
-    def duration(self) -> str:
+    def time_in_meeting(self) -> str:
         """Calculate the duration of the participant's presence in Xh Ym Zs format.
 
         Return:
