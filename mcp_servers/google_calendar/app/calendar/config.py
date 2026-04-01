@@ -95,6 +95,20 @@ class CalendarConfig(RootConfig):
             description="Entry point type to look for in Calendar conference data.",
         ),
     ]
+    order_by: Annotated[
+        str,
+        Field(
+            default="startTime",
+            description="Determines if events are sorted by 'startTime' or 'updated' time.",
+        ),
+    ]
+    duration_format: Annotated[
+        str,
+        Field(
+            default="{hours}h {minutes}m {seconds}s",
+            description="Format string for displaying event durations.",
+        ),
+    ]
 
 
 CALENDAR_CONFIG = CalendarConfig()

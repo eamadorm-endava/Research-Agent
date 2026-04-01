@@ -209,7 +209,7 @@ class CalendarClient:
             "calendarId": CALENDAR_CONFIG.calendar_id,
             "singleEvents": True,
             "maxResults": max_events,
-            "orderBy": "startTime",
+            "orderBy": CALENDAR_CONFIG.order_by,
         }
 
         if query:
