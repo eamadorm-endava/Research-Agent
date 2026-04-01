@@ -406,7 +406,13 @@ class MCPServersConfig(BaseSettings):
         str,
         Field(
             default="mock-ge-auth-id",
-            description="The ID of the delegated Google OAuth authorization resource registered in Gemini Enterprise and reused for Drive and BigQuery tool calls."
-            " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
+            description="The ID of the delegated Google OAuth authorization resource registered in Gemini Enterprise and reused for Drive tool calls.",
+        ),
+    ]
+    GEMINI_BIGQUERY_AUTH_ID: Annotated[
+        str,
+        Field(
+            default="mock-ge-bq-auth-id",
+            description="The ID of the delegated Google OAuth authorization resource registered in Gemini Enterprise and reused for BigQuery tool calls.",
         ),
     ]
