@@ -14,14 +14,16 @@ The `MeetClient` is an advanced connector for the **Google Meet REST API v2**. I
 
 ### 1. The Meeting Hierarchy
 
-The Meet v2 API is hierarchical. A user's "Meeting code" is actually an **Alias**.
-1. **Space**: The persistent "Room" (`spaces/abcdefg`).
-2. **Conference Record**: A specific instance or "Session" of a meeting within a space (`conferenceRecords/xyz-123`).
-3. **Artifacts/Participants**: The findings *inside* a specific session.
+The Google Meet API v2 uses a tiered structure for historical data:
 
-> [!NOTE]
-> **Resolution Flow**
-> `MeetClient` resolved the code to a Space -> Lists all Conference Records for that Space -> Enrichment of each session with Participant counts and Artifact IDs.
+1.  **Space (The Room)**: The persistent "location" with a 10-letter code (e.g., `abc-defg-hij`).
+2.  **Conference Record (The Session)**: A specific, timed instance of a meeting within a Space. 
+    *   **Trigger**: A new Session is created **every time** a user opens the meeting link, even if they do not successfully join or only stay for a few seconds.
+3.  **Artifacts & Participants**: Recordings, transcripts, and attendee logs linked to a specific Session.
+
+> [!IMPORTANT]
+> **Active Session Filtering**
+> To reduce noise, the `MeetClient` automatically **filters out empty sessions**. Only conference records with at least one confirmed participant (`total_participants > 0`) are returned by the `list_conference_sessions` method.
 
 ### 2. Processing Lag
 

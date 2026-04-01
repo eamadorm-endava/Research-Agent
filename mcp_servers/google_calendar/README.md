@@ -55,6 +55,13 @@ uv run pytest mcp_servers/google_calendar/tests/
 
 ---
 
+## Technical Glossary
+
+### Spaces vs. Sessions
+- **Space**: The persistent "meeting room" with a fixed code (`abc-defg-hij`).
+- **Session (Conference Record)**: A single timed instance of a meeting. A new session is created every time the meeting link is opened, even if the user does not fully join.
+- **Active Session Filtering**: The `MeetClient` automatically **ignores empty sessions**. Only records where at least one participant actually joined are processed and returned.
+
 ## Technical Gotchas
 
 - **RFC3339 Strictness**: Both APIs are extremely sensitive to date/time formatting. Always include the timezone offset (e.g., `Z` or `-05:00`).

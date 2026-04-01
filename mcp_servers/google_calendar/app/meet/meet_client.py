@@ -49,6 +49,8 @@ class MeetClient:
         Resolves the conference ID to a canonical space name and fetches all historical
         conference records. Each session is enriched with recording and transcript metadata.
 
+        Conference sessions are registered each time a user joins a meeting room (even if he do not enter the session).
+
         Args:
             conference_id (str): The 10-letter Google Meet code (e.g., 'abc-defg-hij').
 
@@ -69,10 +71,17 @@ class MeetClient:
             record_name = raw_record.get("name")
             logger.debug(f"Enriching session summary for record: {record_name}")
 
-            # Fetch summary counts and IDs for nested metadata
+            # Fetch participants for all sessions
+            participants = self._fetch_participants(record_name)
+
+            # Skip empty sessions where no participants ever joined
+            if not participants:
+                logger.debug(f"Skipping empty session record: {record_name}")
+                continue
+
+            # Fetch recordings and transcripts for only non-empty sessions
             recordings = self._fetch_recordings(record_name)
             transcripts = self._fetch_transcripts(record_name)
-            participants = self._fetch_participants(record_name)
 
             session = ConferenceSession(
                 conference_session_id=record_name,
