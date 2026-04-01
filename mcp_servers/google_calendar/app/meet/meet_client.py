@@ -7,12 +7,12 @@ from googleapiclient.errors import HttpError
 from .config import MEET_CONFIG
 from .schemas import (
     ArtifactStatus,
-    ConferenceAttendee,
-    ConferenceSession,
-    Recording,
-    RecordingsMetadata,
-    Transcript,
-    TranscriptsMetadata,
+    MeetParticipant,
+    MeetSession,
+    MeetRecording,
+    RecordingsSummary,
+    MeetTranscript,
+    TranscriptsSummary,
     UserType,
 )
 
@@ -43,7 +43,7 @@ class MeetClient:
 
     # --- Public Methods (Tiered API) ---
 
-    def list_conference_sessions(self, conference_id: str) -> list[ConferenceSession]:
+    def list_conference_sessions(self, conference_id: str) -> list[MeetSession]:
         """Lists and summarizes all conference sessions associated with a specific conference ID.
 
         Resolves the conference ID to a canonical space name and fetches all historical
@@ -55,7 +55,7 @@ class MeetClient:
             conference_id (str): The 10-letter Google Meet code (e.g., 'abc-defg-hij').
 
         Returns:
-            list[ConferenceSession]: A list of objects summarizing each session found.
+            list[MeetSession]: A list of objects summarizing each session found.
         """
         logger.info(f"Listing sessions for conference ID: {conference_id}")
 
@@ -83,16 +83,16 @@ class MeetClient:
             recordings = self._fetch_recordings(record_name)
             transcripts = self._fetch_transcripts(record_name)
 
-            session = ConferenceSession(
-                conference_session_id=record_name,
+            session = MeetSession(
+                session_id=record_name,
                 start_time=raw_record.get("startTime"),
                 end_time=raw_record.get("endTime"),
                 total_participants=len(participants),
-                recordings=RecordingsMetadata(
+                recordings=RecordingsSummary(
                     total_recordings=len(recordings),
                     recording_ids=[r.get("name") for r in recordings],
                 ),
-                transcripts=TranscriptsMetadata(
+                transcripts=TranscriptsSummary(
                     total_transcripts=len(transcripts),
                     transcript_ids=[t.get("name") for t in transcripts],
                 ),
@@ -102,34 +102,29 @@ class MeetClient:
         logger.info(f"Retrieved {len(sessions)} sessions for {conference_id}")
         return sessions
 
-    def get_participants_info(
-        self, conference_session_id: str
-    ) -> list[ConferenceAttendee]:
+    def get_participants_info(self, session_id: str) -> list[MeetParticipant]:
         """Retrieves and maps detailed atomic participant data for a specific conference session.
 
         Queries the Meet API for all participants associated with the given session ID.
         It handles different user types (signed-in, anonymous, phone) and maps them to models.
 
         Args:
-            conference_session_id (str): Canonical resource ID (e.g., 'conferenceRecords/abc-123').
+            session_id (str): Canonical resource ID (e.g., 'conferenceRecords/abc-123').
 
         Returns:
-            list[ConferenceAttendee]: A list of attendees with their join/leave times and metadata.
+            list[MeetParticipant]: A list of attendees with their join/leave times and metadata.
         """
-        logger.info(
-            f"Fetching detailed participants for session: {conference_session_id}"
-        )
-        raw_participants = self._fetch_participants(conference_session_id)
+        logger.info(f"Fetching detailed participants for session: {session_id}")
+        raw_participants = self._fetch_participants(session_id)
 
         attendees = [
-            self._map_attendee(raw_participant) for raw_participant in raw_participants
+            self._map_participant(raw_participant)
+            for raw_participant in raw_participants
         ]
-        logger.debug(
-            f"Mapped {len(attendees)} participants for {conference_session_id}"
-        )
+        logger.debug(f"Mapped {len(attendees)} participants for {session_id}")
         return attendees
 
-    def get_recording_info(self, recording_id: str) -> Recording:
+    def get_recording_info(self, recording_id: str) -> MeetRecording:
         """Retrieves detailed atomic metadata for a specific Google Meet recording artifact.
 
         Fetches the recording resource directly from the Meet API using its unique ID.
@@ -139,7 +134,7 @@ class MeetClient:
             recording_id (str): The resource ID (e.g., 'conferenceRecords/abc/recordings/xyz').
 
         Returns:
-            Recording: A model containing the recording metadata, URL, and duration.
+            MeetRecording: A model containing the recording metadata, URL, and duration.
         """
         logger.info(f"Fetching detailed recording metadata for: {recording_id}")
         try:
@@ -154,7 +149,7 @@ class MeetClient:
             logger.error(f"Failed to fetch recording {recording_id}: {exc}")
             raise
 
-    def get_transcript_info(self, transcript_id: str) -> Transcript:
+    def get_transcript_info(self, transcript_id: str) -> MeetTranscript:
         """Retrieves detailed atomic metadata for a specific Google Meet transcript artifact.
 
         Fetces the transcript resource from the API, providing access to the Docs ID.
@@ -164,7 +159,7 @@ class MeetClient:
             transcript_id (str): The canonical resource ID of the transcript.
 
         Returns:
-            Transcript: A model containing transcript status and the Google Docs link.
+            MeetTranscript: A model containing transcript status and the Google Docs link.
         """
         logger.info(f"Fetching detailed transcript metadata for: {transcript_id}")
         try:
@@ -295,8 +290,8 @@ class MeetClient:
 
     # --- Private Methods (Mapping) ---
 
-    def _map_attendee(self, raw_participant_data: dict[str, Any]) -> ConferenceAttendee:
-        """Transforms raw API participant data into a structured ConferenceAttendee model.
+    def _map_participant(self, raw_participant_data: dict[str, Any]) -> MeetParticipant:
+        """Transforms raw API participant data into a structured MeetParticipant model.
 
         Identifies the user type (Signed-in, Anonymous, or Phone) and extracts
         the display name and join/leave times while ignoring internal API fields.
@@ -305,7 +300,7 @@ class MeetClient:
             raw_participant_data (dict[str, Any]): The raw dictionary from the participants.list API call.
 
         Returns:
-            ConferenceAttendee: An initialized attendee model with descriptive attributes.
+            MeetParticipant: An initialized attendee model with descriptive attributes.
         """
         user_type = UserType.ANONYMOUS
         user_id = None
@@ -329,7 +324,7 @@ class MeetClient:
                 "displayName", "Phone caller"
             )
 
-        return ConferenceAttendee(
+        return MeetParticipant(
             user_id=user_id or "ANONYMOUS",
             email=None,  # Not provided directly by Meet V2
             display_name=display_name,
@@ -338,8 +333,8 @@ class MeetClient:
             user_type=user_type,
         )
 
-    def _map_recording(self, raw_recording_data: dict[str, Any]) -> Recording:
-        """Converts raw recording artifact metadata into a structured Recording model.
+    def _map_recording(self, raw_recording_data: dict[str, Any]) -> MeetRecording:
+        """Converts raw recording artifact metadata into a structured MeetRecording model.
 
         Extracts the Drive destination ID and ensures the status is mapped correctly
         to our internal ArtifactStatus enumeration for consistency.
@@ -348,10 +343,10 @@ class MeetClient:
             raw_recording_data (dict[str, Any]): The raw dictionary from the recording API.
 
         Returns:
-            Recording: A structured model containing the recording's life cycle details.
+            MeetRecording: A structured model containing the recording's life cycle details.
         """
         drive_id = raw_recording_data.get("driveDestination", {}).get("file")
-        return Recording(
+        return MeetRecording(
             recording_id=raw_recording_data.get("name"),
             state=ArtifactStatus(raw_recording_data.get("state", "STATE_UNSPECIFIED")),
             drive_file_id=drive_id,
@@ -359,8 +354,8 @@ class MeetClient:
             end_time=raw_recording_data.get("endTime"),
         )
 
-    def _map_transcript(self, raw_transcript_data: dict[str, Any]) -> Transcript:
-        """Transforms raw transcript metadata into a structured Transcript model instance.
+    def _map_transcript(self, raw_transcript_data: dict[str, Any]) -> MeetTranscript:
+        """Transforms raw transcript metadata into a structured MeetTranscript model instance.
 
         Identifies the Google Docs destination for the generated transcript files
         and ensures technical start/end times are correctly mapped to model fields.
@@ -369,10 +364,10 @@ class MeetClient:
             raw_transcript_data (dict[str, Any]): The raw dictionary from the transcript API.
 
         Returns:
-            Transcript: A validated model summarizing the transcript artifact.
+            MeetTranscript: A validated model summarizing the transcript artifact.
         """
         docs_id = raw_transcript_data.get("docsDestination", {}).get("document")
-        return Transcript(
+        return MeetTranscript(
             name=raw_transcript_data.get("name"),
             state=ArtifactStatus(raw_transcript_data.get("state", "STATE_UNSPECIFIED")),
             docs_document_id=docs_id,

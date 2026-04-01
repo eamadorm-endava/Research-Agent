@@ -73,10 +73,10 @@ def test_get_participants_info_delegation(events_client):
     """Verify get_participants_info correctly delegates to the MeetClient."""
     events_client._meet.get_participants_info = MagicMock(return_value=[])
 
-    events_client.get_participants_info(conference_session_id="conf/123")
+    events_client.get_participants_info(session_id="conf/123")
 
     events_client._meet.get_participants_info.assert_called_once_with(
-        conference_session_id="conf/123"
+        session_id="conf/123"
     )
 
 

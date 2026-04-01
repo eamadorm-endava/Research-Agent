@@ -79,7 +79,7 @@ def test_list_conference_sessions_success(meet_client, mock_build):
     sessions = meet_client.list_conference_sessions("abc-123")
 
     assert len(sessions) == 1
-    assert sessions[0].conference_session_id == "conferenceRecords/session-1"
+    assert sessions[0].session_id == "conferenceRecords/session-1"
     assert sessions[0].total_participants == 1
 
 
@@ -137,7 +137,7 @@ def test_map_attendee_unknown_structure(meet_client):
         "earliestStartTime": "2026-03-30T10:00:00Z",
         "latestEndTime": "2026-03-30T11:00:00Z",
     }
-    attendee = meet_client._map_attendee(raw_data)
+    attendee = meet_client._map_participant(raw_data)
 
     assert attendee.display_name == "Unknown Participant"
     assert attendee.user_id == "ANONYMOUS"
@@ -150,7 +150,7 @@ def test_map_attendee_signed_in(meet_client):
         "earliestStartTime": "2026-03-30T10:00:00Z",
         "latestEndTime": "2026-03-30T11:00:00Z",
     }
-    attendee = meet_client._map_attendee(raw_data)
+    attendee = meet_client._map_participant(raw_data)
     assert attendee.display_name == "Alice"
     assert attendee.user_id == "users/123"
     assert attendee.user_type == UserType.SIGNED_IN

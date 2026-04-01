@@ -7,7 +7,7 @@ from dateutil import parser
 from ..utils import calculate_duration
 
 
-class MeetRootSchema(BaseModel):
+class MeetBase(BaseModel):
     """Shared schema base for the Google Meet module."""
 
     model_config = ConfigDict(
@@ -35,7 +35,7 @@ class ArtifactStatus(StrEnum):
 # --- Atomic Details (Low-Level) ---
 
 
-class ConferenceAttendee(MeetRootSchema):
+class MeetParticipant(MeetBase):
     """Detailed metadata for a participant in a conference session."""
 
     user_id: Annotated[
@@ -100,7 +100,7 @@ class ConferenceAttendee(MeetRootSchema):
         return calculate_duration(self.first_join_time, self.last_leave_time)
 
 
-class Recording(MeetRootSchema):
+class MeetRecording(MeetBase):
     """Detailed metadata for a media recording artifact."""
 
     recording_id: Annotated[
@@ -169,7 +169,7 @@ class Recording(MeetRootSchema):
         return calculate_duration(self.start_time, self.end_time)
 
 
-class Transcript(MeetRootSchema):
+class MeetTranscript(MeetBase):
     """Detailed metadata for a transcript artifact."""
 
     name: Annotated[
@@ -241,7 +241,7 @@ class Transcript(MeetRootSchema):
 # --- Metadata Summaries ---
 
 
-class RecordingsMetadata(MeetRootSchema):
+class RecordingsSummary(MeetBase):
     """High-level summary of recordings in a session."""
 
     total_recordings: Annotated[
@@ -254,7 +254,7 @@ class RecordingsMetadata(MeetRootSchema):
     ]
 
 
-class TranscriptsMetadata(MeetRootSchema):
+class TranscriptsSummary(MeetBase):
     """High-level summary of transcripts in a session."""
 
     total_transcripts: Annotated[
@@ -270,10 +270,10 @@ class TranscriptsMetadata(MeetRootSchema):
 # --- Top-Level View ---
 
 
-class ConferenceSession(MeetRootSchema):
+class MeetSession(MeetBase):
     """Summary of a single Google Meet session (ConferenceRecord)."""
 
-    conference_session_id: Annotated[
+    session_id: Annotated[
         str,
         Field(description="Unique resource name of the session."),
     ]
@@ -290,11 +290,11 @@ class ConferenceSession(MeetRootSchema):
         Field(description="Total number of unique participants."),
     ]
     recordings: Annotated[
-        RecordingsMetadata,
+        RecordingsSummary,
         Field(description="Summary of recordings."),
     ]
     transcripts: Annotated[
-        TranscriptsMetadata,
+        TranscriptsSummary,
         Field(description="Summary of transcripts."),
     ]
 
