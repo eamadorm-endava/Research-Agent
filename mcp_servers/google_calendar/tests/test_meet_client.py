@@ -71,14 +71,16 @@ def test_list_conference_sessions_success(meet_client, mock_build):
         "transcripts": []
     }
     mock_meet.conferenceRecords.return_value.participants.return_value.list.return_value.execute.return_value = {
-        "participants": []
+        "participants": [
+            {"name": "p1", "signedinUser": {"user": "u1", "displayName": "User 1"}}
+        ]
     }
 
     sessions = meet_client.list_conference_sessions("abc-123")
 
     assert len(sessions) == 1
     assert sessions[0].conference_session_id == "conferenceRecords/session-1"
-    assert sessions[0].total_participants == 0
+    assert sessions[0].total_participants == 1
 
 
 def test_list_conference_sessions_no_space(meet_client, mock_build):
@@ -108,6 +110,7 @@ def test_get_recording_info_success(meet_client, mock_build):
     }
 
     recording = meet_client.get_recording_info("rec-1")
+    assert recording.recording_id == "rec-1"
     assert recording.drive_file_id == "file-123"
     assert recording.state == ArtifactStatus.FILE_GENERATED
 

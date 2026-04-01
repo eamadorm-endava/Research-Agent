@@ -352,7 +352,7 @@ class MeetClient:
         """
         drive_id = raw_recording_data.get("driveDestination", {}).get("file")
         return Recording(
-            name=raw_recording_data.get("name"),
+            recording_id=raw_recording_data.get("name"),
             state=ArtifactStatus(raw_recording_data.get("state", "STATE_UNSPECIFIED")),
             drive_file_id=drive_id,
             start_time=raw_recording_data.get("startTime"),

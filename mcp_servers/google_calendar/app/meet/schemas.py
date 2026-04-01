@@ -103,7 +103,7 @@ class ConferenceAttendee(MeetRootSchema):
 class Recording(MeetRootSchema):
     """Detailed metadata for a media recording artifact."""
 
-    name: Annotated[
+    recording_id: Annotated[
         str,
         Field(description="Unique resource name of the recording."),
     ]
