@@ -138,16 +138,16 @@ class CalendarEvent(BaseModel):
     @computed_field
     @property
     def duration(self) -> str:
-        """Calculate the duration between start_time and end_time in Hh Mm format.
+        """Calculate the duration between start_time and end_time in Xh Ym Zs format.
 
         Return:
-            A string formatted as "Xh Ym".
+            A string formatted as "Xh Ym Zs".
         """
         delta = self.end_time - self.start_time
-        seconds = int(delta.total_seconds())
-        hours, remainder = divmod(seconds, 3600)
-        minutes = remainder // 60
-        return f"{hours}h {minutes}m"
+        total_seconds = int(delta.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours}h {minutes}m {seconds}s"
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
