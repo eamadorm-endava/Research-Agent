@@ -28,16 +28,18 @@ class ResponseStatus(StrEnum):
     ACCEPTED = "accepted"
 
 
-class ConferenceData(BaseModel):
-    """Information regarding a conference associated with an event."""
+class MeetSessionData(BaseModel):
+    """Information regarding a Meet session associated with an event."""
 
     joining_url: Annotated[
         str,
-        Field(description="URL to join the conference."),
+        Field(description="URL to join the Meet session."),
     ]
-    conference_id: Annotated[
+    meeting_code: Annotated[
         str,
-        Field(description="Unique ID of the conference."),
+        Field(
+            description="The 10-letter meeting code (e.g., abc-defg-hij) of the Meet session."
+        ),
     ]
 
 
@@ -145,11 +147,11 @@ class CalendarEvent(BaseModel):
             description="List of attendees invited to the event.",
         ),
     ]
-    conference_info: Annotated[
-        Optional[ConferenceData],
+    meet_session: Annotated[
+        Optional[MeetSessionData],
         Field(
             default=None,
-            description="Conference data associated with the event (e.g. Google Meet). 1:1 relationship between an event and a conference.",
+            description="Meet session data associated with the event. 1:1 relationship between an event and its Meet joining information.",
         ),
     ]
     attachments: Annotated[

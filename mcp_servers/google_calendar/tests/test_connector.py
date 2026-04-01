@@ -58,45 +58,51 @@ def test_list_events_delegation(events_client):
     )
 
 
-def test_list_conference_sessions_delegation(events_client):
-    """Verify list_conference_sessions correctly delegates to the MeetClient."""
-    events_client._meet.list_conference_sessions = MagicMock(return_value=[])
+def test_list_meet_sessions_delegation(events_client):
+    """Verify list_meet_sessions correctly delegates to the MeetClient."""
+    events_client._meet.list_meet_sessions = MagicMock(return_value=[])
 
-    events_client.list_conference_sessions(conference_id="abc-defg-hij")
+    events_client.list_meet_sessions(meeting_code="abc-defg-hij")
 
-    events_client._meet.list_conference_sessions.assert_called_once_with(
-        conference_id="abc-defg-hij"
+    events_client._meet.list_meet_sessions.assert_called_once_with(
+        meeting_code="abc-defg-hij"
     )
 
 
-def test_get_participants_info_delegation(events_client):
-    """Verify get_participants_info correctly delegates to the MeetClient."""
-    events_client._meet.get_participants_info = MagicMock(return_value=[])
+def test_list_meet_participants_delegation(events_client):
+    """Verify list_meet_participants correctly delegates to the MeetClient."""
+    events_client._meet.list_meet_participants = MagicMock(return_value=[])
 
-    events_client.get_participants_info(session_id="conf/123")
+    events_client.list_meet_participants(
+        meet_session_id="conferenceRecords/session-123"
+    )
 
-    events_client._meet.get_participants_info.assert_called_once_with(
-        session_id="conf/123"
+    events_client._meet.list_meet_participants.assert_called_once_with(
+        meet_session_id="conferenceRecords/session-123"
     )
 
 
-def test_get_recording_info_delegation(events_client):
-    """Verify get_recording_info correctly delegates to the MeetClient."""
-    events_client._meet.get_recording_info = MagicMock()
+def test_get_meet_recording_delegation(events_client):
+    """Verify get_meet_recording correctly delegates to the MeetClient."""
+    events_client._meet.get_meet_recording = MagicMock()
 
-    events_client.get_recording_info(recording_id="rec/123")
+    events_client.get_meet_recording(
+        recording_id="conferenceRecords/abc/recordings/xyz-123"
+    )
 
-    events_client._meet.get_recording_info.assert_called_once_with(
-        recording_id="rec/123"
+    events_client._meet.get_meet_recording.assert_called_once_with(
+        recording_id="conferenceRecords/abc/recordings/xyz-123"
     )
 
 
-def test_get_transcript_info_delegation(events_client):
-    """Verify get_transcript_info correctly delegates to the MeetClient."""
-    events_client._meet.get_transcript_info = MagicMock()
+def test_get_meet_transcript_delegation(events_client):
+    """Verify get_meet_transcript correctly delegates to the MeetClient."""
+    events_client._meet.get_meet_transcript = MagicMock()
 
-    events_client.get_transcript_info(transcript_id="trans/123")
+    events_client.get_meet_transcript(
+        transcript_id="conferenceRecords/abc/transcripts/xyz-123"
+    )
 
-    events_client._meet.get_transcript_info.assert_called_once_with(
-        transcript_id="trans/123"
+    events_client._meet.get_meet_transcript.assert_called_once_with(
+        transcript_id="conferenceRecords/abc/transcripts/xyz-123"
     )

@@ -5,7 +5,7 @@ The `CalendarClient` is responsible for all communication with the **Google Cale
 ## Purpose
 
 - **Primary**: Query the user's schedule to find past, current, or future events.
-- **Secondary**: Extract `conferenceData` (Meet codes) from calendar events to feed into the `MeetClient`.
+- **Secondary**: Extract `MeetSessionData` (meeting codes) from calendar events to feed into the `MeetClient`.
 - **Tertiary**: Map diverse attendee types (including organizers) into a unified model.
 
 ---

@@ -10,9 +10,9 @@ from .schemas import (
     MeetParticipant,
     MeetSession,
     MeetRecording,
-    RecordingsSummary,
+    MeetRecordingsSummary,
     MeetTranscript,
-    TranscriptsSummary,
+    MeetTranscriptsSummary,
     UserType,
 )
 
@@ -20,13 +20,13 @@ from .schemas import (
 class MeetClient:
     """Specialized client for Google Meet API v2 interactions.
 
-    Provides tiered access to conference records, participants, and artifacts.
+    Provides tiered access to Meet sessions, participants, and artifacts (recordings/transcripts).
     """
 
     def __init__(self, creds: Credentials) -> None:
         """Initializes the MeetClient with Google API credentials for V2 access.
 
-        Sets up the underlying Google API discovery service for Meet conference records.
+        Sets up the underlying Google API discovery service for Meet sessions.
         This client provides high-level abstractions for managing sessions and artifacts.
 
         Args:
@@ -43,98 +43,102 @@ class MeetClient:
 
     # --- Public Methods (Tiered API) ---
 
-    def list_conference_sessions(self, conference_id: str) -> list[MeetSession]:
-        """Lists and summarizes all conference sessions associated with a specific conference ID.
+    def list_meet_sessions(self, meeting_code: str) -> list[MeetSession]:
+        """Lists and summarizes all Meet sessions associated with a specific meeting code.
 
-        Resolves the conference ID to a canonical space name and fetches all historical
-        conference records. Each session is enriched with recording and transcript metadata.
+        Resolves the meeting code (10-letter ID) to a canonical space name and fetches
+        all historical session records. Each session is enriched with recording and
+        transcript summaries.
 
-        Conference sessions are registered each time a user joins a meeting room (even if he do not enter the session).
+        Note: Meet sessions are registered whenever a user joins a meeting space,
+        even if they do not stay for the full duration.
 
         Args:
-            conference_id (str): The 10-letter Google Meet code (e.g., 'abc-defg-hij').
+            meeting_code (str): The 10-letter Google Meet code (e.g., 'abc-defg-hij').
 
         Returns:
-            list[MeetSession]: A list of objects summarizing each session found.
+            list[MeetSession]: A list of structured models summarizing each meeting session.
         """
-        logger.info(f"Listing sessions for conference ID: {conference_id}")
+        logger.info(f"Listing sessions for meeting code: {meeting_code}")
 
-        space_name = self._resolve_space_name(conference_id)
+        space_name = self._resolve_space_name(meeting_code)
         if not space_name:
-            logger.warning(f"Could not resolve space for ID: {conference_id}")
+            logger.warning(f"Could not resolve space for meeting code: {meeting_code}")
             return []
 
-        raw_records = self._fetch_conference_records(space_name)
+        raw_records = self._fetch_meet_sessions(space_name)
         sessions = []
 
         for raw_record in raw_records:
-            record_name = raw_record.get("name")
-            logger.debug(f"Enriching session summary for record: {record_name}")
+            meet_session_id = raw_record.get("name")
+            logger.debug(f"Enriching session summary for record: {meet_session_id}")
 
             # Fetch participants for all sessions
-            participants = self._fetch_participants(record_name)
+            participants = self._fetch_participants(meet_session_id)
 
             # Skip empty sessions where no participants ever joined
             if not participants:
-                logger.debug(f"Skipping empty session record: {record_name}")
+                logger.debug(f"Skipping empty session record: {meet_session_id}")
                 continue
 
             # Fetch recordings and transcripts for only non-empty sessions
-            recordings = self._fetch_recordings(record_name)
-            transcripts = self._fetch_transcripts(record_name)
+            recordings = self._fetch_recordings(meet_session_id)
+            transcripts = self._fetch_transcripts(meet_session_id)
 
             session = MeetSession(
-                session_id=record_name,
+                meeting_code=meeting_code,
+                session_id=meet_session_id,
                 start_time=raw_record.get("startTime"),
                 end_time=raw_record.get("endTime"),
                 total_participants=len(participants),
-                recordings=RecordingsSummary(
+                recordings=MeetRecordingsSummary(
                     total_recordings=len(recordings),
                     recording_ids=[r.get("name") for r in recordings],
                 ),
-                transcripts=TranscriptsSummary(
+                transcripts=MeetTranscriptsSummary(
                     total_transcripts=len(transcripts),
                     transcript_ids=[t.get("name") for t in transcripts],
                 ),
             )
             sessions.append(session)
 
-        logger.info(f"Retrieved {len(sessions)} sessions for {conference_id}")
+        logger.info(
+            f"Retrieved {len(sessions)} sessions for meeting code {meeting_code}"
+        )
         return sessions
 
-    def get_participants_info(self, session_id: str) -> list[MeetParticipant]:
-        """Retrieves and maps detailed atomic participant data for a specific conference session.
+    def list_meet_participants(self, meet_session_id: str) -> list[MeetParticipant]:
+        """Retrieves and maps detailed participant data for a specific Meet session.
 
         Queries the Meet API for all participants associated with the given session ID.
-        It handles different user types (signed-in, anonymous, phone) and maps them to models.
+        Identifies user types (Signed-in, Anonymous, Phone) and maps them to structured models.
 
         Args:
-            session_id (str): Canonical resource ID (e.g., 'conferenceRecords/abc-123').
+            meet_session_id (str): The unique Meet session ID (e.g., 'conferenceRecords/abc-123-xyz').
 
         Returns:
-            list[MeetParticipant]: A list of attendees with their join/leave times and metadata.
+            list[MeetParticipant]: A list of participants with join/leave times and identity metadata.
         """
-        logger.info(f"Fetching detailed participants for session: {session_id}")
-        raw_participants = self._fetch_participants(session_id)
+        logger.info(f"Fetching detailed participants for session: {meet_session_id}")
+        raw_participants = self._fetch_participants(meet_session_id)
 
         attendees = [
             self._map_participant(raw_participant)
             for raw_participant in raw_participants
         ]
-        logger.debug(f"Mapped {len(attendees)} participants for {session_id}")
+        logger.debug(f"Mapped {len(attendees)} participants for {meet_session_id}")
         return attendees
 
-    def get_recording_info(self, recording_id: str) -> MeetRecording:
-        """Retrieves detailed atomic metadata for a specific Google Meet recording artifact.
+    def get_meet_recording(self, recording_id: str) -> MeetRecording:
+        """Retrieves detailed metadata for a specific Google Meet recording.
 
-        Fetches the recording resource directly from the Meet API using its unique ID.
-        This includes the Drive file ID and state of the media generation.
+        Fetches recording status, start/end times, and the associated Google Drive ID.
 
         Args:
-            recording_id (str): The resource ID (e.g., 'conferenceRecords/abc/recordings/xyz').
+            recording_id (str): The unique recording ID (e.g., 'conferenceRecords/abc/recordings/xyz').
 
         Returns:
-            MeetRecording: A model containing the recording metadata, URL, and duration.
+            MeetRecording: A structured model containing the recording metadata.
         """
         logger.info(f"Fetching detailed recording metadata for: {recording_id}")
         try:
@@ -149,17 +153,16 @@ class MeetClient:
             logger.error(f"Failed to fetch recording {recording_id}: {exc}")
             raise
 
-    def get_transcript_info(self, transcript_id: str) -> MeetTranscript:
-        """Retrieves detailed atomic metadata for a specific Google Meet transcript artifact.
+    def get_meet_transcript(self, transcript_id: str) -> MeetTranscript:
+        """Retrieves detailed metadata for a specific Google Meet transcript.
 
-        Fetces the transcript resource from the API, providing access to the Docs ID.
-        Transcripts represent a structured log of the meeting conversation.
+        Fetches transcript status and the associated Google Docs ID.
 
         Args:
             transcript_id (str): The canonical resource ID of the transcript.
 
         Returns:
-            MeetTranscript: A model containing transcript status and the Google Docs link.
+            MeetTranscript: A model containing transcript metadata and status.
         """
         logger.info(f"Fetching detailed transcript metadata for: {transcript_id}")
         try:
@@ -176,38 +179,40 @@ class MeetClient:
 
     # --- Private Methods (Fetching) ---
 
-    def _resolve_space_name(self, conference_id: str) -> str:
-        """Resolves a human-readable 10-letter conference ID to its canonical space name.
+    def _resolve_space_name(self, meeting_code: str) -> str:
+        """Resolves a human-readable 10-letter meeting code to its canonical space name.
 
         Uses the spaces.get endpoint to verify the existsnce of the meeting and
         retrieve its official internal identifier used for record lookup.
 
         Args:
-            conference_id (str): The ID of the meeting (e.g., 'abc-defg-hij').
+            meeting_code (str): The 10-letter meeting code (e.g., 'abc-defg-hij').
 
         Returns:
             str: The resolved space name (e.g., 'spaces/abcdefg') or an empty string.
         """
-        alias = f"spaces/{conference_id}"
+        alias = f"spaces/{meeting_code}"
         try:
-            logger.debug(f"Resolving space for conference ID: {conference_id}")
+            logger.debug(f"Resolving space for meeting code: {meeting_code}")
             space = self.meet.spaces().get(name=alias).execute()
             return space.get("name")
         except HttpError as exc:
-            logger.warning(f"Could not resolve space {conference_id}: {exc}")
+            logger.warning(
+                f"Could not resolve space for meeting code {meeting_code}: {exc}"
+            )
             return ""
 
-    def _fetch_conference_records(self, space_name: str) -> list[dict[str, Any]]:
+    def _fetch_meet_sessions(self, space_name: str) -> list[dict[str, Any]]:
         """Queries the Google Meet API for all historical records associated with a space.
 
-        Retrieves conference sessions using a filter string to target specific spaces.
+        Retrieves Meet sessions using a filter string to target specific spaces.
         This identifies individual session instances of a recurring or single meeting.
 
         Args:
             space_name (str): The canonical name of the space to filter records for.
 
         Returns:
-            list[dict[str, Any]]: A list of raw conferenceRecord dictionaries from the API.
+            list[dict[str, Any]]: A list of raw session record dictionaries from the API.
         """
         try:
             logger.debug(f"Fetching sessions for space: {space_name}")
@@ -216,17 +221,17 @@ class MeetClient:
             response = self.meet.conferenceRecords().list(filter=filter_str).execute()
             return response.get("conferenceRecords", [])
         except HttpError as exc:
-            logger.error(f"Error listing conference records: {exc}")
+            logger.error(f"Error listing Meet sessions: {exc}")
             return []
 
-    def _fetch_recordings(self, record_name: str) -> list[dict[str, Any]]:
-        """Fetches the raw list of all recording artifacts associated with a session name.
+    def _fetch_recordings(self, meet_session_id: str) -> list[dict[str, Any]]:
+        """Fetches the raw list of all recording artifacts associated with a session ID.
 
-        Iterates through the recordings child collection of a specific conference record.
+        Iterates through the recordings child collection of a specific Meet session.
         Recordings may take time to generate and might appear empty shortly after a session.
 
         Args:
-            record_name (str): The resource name of the parent session.
+            meet_session_id (str): The unique ID of the parent session.
 
         Returns:
             list[dict[str, Any]]: A list of raw recording dictionaries from the API.
@@ -235,21 +240,21 @@ class MeetClient:
             response = (
                 self.meet.conferenceRecords()
                 .recordings()
-                .list(parent=record_name)
+                .list(parent=meet_session_id)
                 .execute()
             )
             return response.get("recordings", [])
         except HttpError:
             return []
 
-    def _fetch_transcripts(self, record_name: str) -> list[dict[str, Any]]:
-        """Fetches the raw list of transcript artifacts generated during a conference session.
+    def _fetch_transcripts(self, meet_session_id: str) -> list[dict[str, Any]]:
+        """Fetches the raw list of transcript artifacts generated during a Meet session.
 
-        Looks up available transcripts within the specified conference record name.
+        Looks up available transcripts within the specified session ID.
         Each transcript typically points to a unique Google Docs document.
 
         Args:
-            record_name (str): The resource name of the parent session.
+            meet_session_id (str): The unique ID of the parent session.
 
         Returns:
             list[dict[str, Any]]: A list of raw transcript dictionaries from the API.
@@ -258,21 +263,21 @@ class MeetClient:
             response = (
                 self.meet.conferenceRecords()
                 .transcripts()
-                .list(parent=record_name)
+                .list(parent=meet_session_id)
                 .execute()
             )
             return response.get("transcripts", [])
         except HttpError:
             return []
 
-    def _fetch_participants(self, record_name: str) -> list[dict[str, Any]]:
+    def _fetch_participants(self, meet_session_id: str) -> list[dict[str, Any]]:
         """Retrieves raw participant metadata for everyone who joined a specific session.
 
-        Fetches all participant resources for the given record name. This contains
+        Fetches all participant resources for the given session ID. This contains
         atomic join/leave timestamps and user identity information.
 
         Args:
-            record_name (str): The resource name of the parent session.
+            meet_session_id (str): The unique ID of the parent session.
 
         Returns:
             list[dict[str, Any]]: A list of raw participant dictionaries from the API.
@@ -281,7 +286,7 @@ class MeetClient:
             response = (
                 self.meet.conferenceRecords()
                 .participants()
-                .list(parent=record_name)
+                .list(parent=meet_session_id)
                 .execute()
             )
             return response.get("participants", [])
@@ -368,7 +373,7 @@ class MeetClient:
         """
         docs_id = raw_transcript_data.get("docsDestination", {}).get("document")
         return MeetTranscript(
-            name=raw_transcript_data.get("name"),
+            transcript_id=raw_transcript_data.get("name"),
             state=ArtifactStatus(raw_transcript_data.get("state", "STATE_UNSPECIFIED")),
             docs_document_id=docs_id,
             start_time=raw_transcript_data.get("startTime"),

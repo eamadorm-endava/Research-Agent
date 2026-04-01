@@ -36,7 +36,7 @@ class ArtifactStatus(StrEnum):
 
 
 class MeetParticipant(MeetBase):
-    """Detailed metadata for a participant in a conference session."""
+    """Detailed metadata for a participant in a Meet session."""
 
     user_id: Annotated[
         str,
@@ -172,7 +172,7 @@ class MeetRecording(MeetBase):
 class MeetTranscript(MeetBase):
     """Detailed metadata for a transcript artifact."""
 
-    name: Annotated[
+    transcript_id: Annotated[
         str,
         Field(description="Unique resource name of the transcript."),
     ]
@@ -241,7 +241,7 @@ class MeetTranscript(MeetBase):
 # --- Metadata Summaries ---
 
 
-class RecordingsSummary(MeetBase):
+class MeetRecordingsSummary(MeetBase):
     """High-level summary of recordings in a session."""
 
     total_recordings: Annotated[
@@ -254,7 +254,7 @@ class RecordingsSummary(MeetBase):
     ]
 
 
-class TranscriptsSummary(MeetBase):
+class MeetTranscriptsSummary(MeetBase):
     """High-level summary of transcripts in a session."""
 
     total_transcripts: Annotated[
@@ -271,11 +271,17 @@ class TranscriptsSummary(MeetBase):
 
 
 class MeetSession(MeetBase):
-    """Summary of a single Google Meet session (ConferenceRecord)."""
+    """Summary of a single Google Meet session (Meet session record)."""
 
+    meeting_code: Annotated[
+        str,
+        Field(
+            description="The 10-letter meeting code (e.g., abc-defg-hij) used to access the session."
+        ),
+    ]
     session_id: Annotated[
         str,
-        Field(description="Unique resource name of the session."),
+        Field(description="Unique resource name of the specific timed occurrence."),
     ]
     start_time: Annotated[
         datetime,
@@ -290,11 +296,11 @@ class MeetSession(MeetBase):
         Field(description="Total number of unique participants."),
     ]
     recordings: Annotated[
-        RecordingsSummary,
+        MeetRecordingsSummary,
         Field(description="Summary of recordings."),
     ]
     transcripts: Annotated[
-        TranscriptsSummary,
+        MeetTranscriptsSummary,
         Field(description="Summary of transcripts."),
     ]
 

@@ -112,23 +112,23 @@ def test_parse_attendees_incomplete_data(calendar_client):
     assert attendees[0].display_name is None
 
 
-def test_parse_conference_data_unrecognized_entry(calendar_client):
-    conf_data = {
+def test_parse_meet_session_data_unrecognized_entry(calendar_client):
+    meet_data = {
         "conferenceId": "abc-123",
         "entryPoints": [{"type": "other"}],  # Missing uri
     }
-    result = calendar_client._parse_conference_data(conf_data)
+    result = calendar_client._parse_meet_session_data(meet_data)
     assert result is None
 
 
-def test_parse_conference_data_success(calendar_client):
-    conf_data = {
+def test_parse_meet_session_data_success(calendar_client):
+    meet_data = {
         "conferenceId": "abc-123",
         "entryPoints": [
             {"uri": "https://meet.google.com/abc-123", "entryPointType": "video"}
         ],
     }
-    result = calendar_client._parse_conference_data(conf_data)
+    result = calendar_client._parse_meet_session_data(meet_data)
     assert result is not None
     assert result.joining_url == "https://meet.google.com/abc-123"
-    assert result.conference_id == "abc-123"
+    assert result.meeting_code == "abc-123"

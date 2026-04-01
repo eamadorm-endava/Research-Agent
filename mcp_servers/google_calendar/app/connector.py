@@ -61,46 +61,46 @@ class EventsClient:
 
     # --- Meet Client Delegation ---
 
-    def list_conference_sessions(self, conference_id: str) -> list[MeetSession]:
-        """Lists and summarizes all conference sessions for a specific meeting code.
+    def list_meet_sessions(self, meeting_code: str) -> list[MeetSession]:
+        """Lists and summarizes all Meet sessions for a specific meeting code.
 
         Args:
-            conference_id (str): The 10-letter Google Meet code (e.g., 'abc-defg-hij').
+            meeting_code (str): The 10-letter Google Meet code (e.g., 'abc-defg-hij').
 
         Returns:
-            list[MeetSession]: A list of objects summarizing each session found.
+            list[MeetSession]: A list of objects summarizing each meeting session.
         """
-        return self._meet.list_conference_sessions(conference_id=conference_id)
+        return self._meet.list_meet_sessions(meeting_code=meeting_code)
 
-    def get_participants_info(self, session_id: str) -> list[MeetParticipant]:
-        """Retrieves detailed atomic participant data for a specific session ID.
+    def list_meet_participants(self, meet_session_id: str) -> list[MeetParticipant]:
+        """Retrieves detailed participant data for a specific Meet session.
 
         Args:
-            session_id (str): Canonical resource ID (e.g., 'conferenceRecords/abc-123').
+            meet_session_id (str): Unique Meet session ID (e.g., 'conferenceRecords/abc-123-xyz').
 
         Returns:
-            list[MeetParticipant]: A list of attendees with their join/leave metadata.
+            list[MeetParticipant]: A list of participants with join/leave metadata.
         """
-        return self._meet.get_participants_info(session_id=session_id)
+        return self._meet.list_meet_participants(meet_session_id=meet_session_id)
 
-    def get_recording_info(self, recording_id: str) -> MeetRecording:
-        """Retrieves detailed atomic metadata for a specific Google Meet recording.
+    def get_meet_recording(self, recording_id: str) -> MeetRecording:
+        """Retrieves detailed metadata for a specific Google Meet recording.
 
         Args:
-            recording_id (str): The resource ID (e.g., 'conferenceRecords/abc/recordings/xyz').
+            recording_id (str): The unique recording ID (e.g., 'conferenceRecords/abc/recordings/xyz').
 
         Returns:
             MeetRecording: A model containing the recording metadata.
         """
-        return self._meet.get_recording_info(recording_id=recording_id)
+        return self._meet.get_meet_recording(recording_id=recording_id)
 
-    def get_transcript_info(self, transcript_id: str) -> MeetTranscript:
-        """Retrieves detailed atomic metadata for a specific Google Meet transcript.
+    def get_meet_transcript(self, transcript_id: str) -> MeetTranscript:
+        """Retrieves detailed metadata for a specific Google Meet transcript.
 
         Args:
             transcript_id (str): The canonical resource ID of the transcript.
 
         Returns:
-            MeetTranscript: A model containing transcript status and the Google Docs link.
+            MeetTranscript: A model containing transcript metadata.
         """
-        return self._meet.get_transcript_info(transcript_id=transcript_id)
+        return self._meet.get_meet_transcript(transcript_id=transcript_id)

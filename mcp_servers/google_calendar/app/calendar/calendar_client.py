@@ -7,7 +7,7 @@ from .config import CALENDAR_CONFIG
 from .schemas import (
     CalendarEvent,
     Attendee,
-    ConferenceData,
+    MeetSessionData,
     ResponseStatus,
     EventAttachment,
 )
@@ -80,30 +80,32 @@ class CalendarClient:
             )
         return attendees
 
-    def _parse_conference_data(self, conf_data_dict: dict) -> Optional[ConferenceData]:
-        """Parses conference data into a single ConferenceData object.
+    def _parse_meet_session_data(
+        self, meet_data_dict: dict
+    ) -> Optional[MeetSessionData]:
+        """Parses Meet session data into a structured MeetSessionData object.
 
         Args:
-            conf_data_dict (dict): The conference data from the API.
+            meet_data_dict (dict): The Meet session data from the Google Calendar API.
 
         Return:
-            Optional[ConferenceData]: A ConferenceData object or None.
+            Optional[MeetSessionData]: A MeetSessionData object or None if no Meet link is found.
         """
-        conf_id = conf_data_dict.get("conferenceId")
-        if not conf_id:
+        meeting_code = meet_data_dict.get("conferenceId")
+        if not meeting_code:
             return None
 
         # Prioritize the video joining URL (Meet link)
-        for entry_point in conf_data_dict.get("entryPoints", []):
+        for entry_point in meet_data_dict.get("entryPoints", []):
             if entry_point.get("entryPointType") == "video":
                 uri = entry_point.get("uri")
                 if uri:
-                    return ConferenceData(joining_url=uri, conference_id=conf_id)
+                    return MeetSessionData(joining_url=uri, meeting_code=meeting_code)
 
-        for entry_point in conf_data_dict.get("entryPoints", []):
+        for entry_point in meet_data_dict.get("entryPoints", []):
             uri = entry_point.get("uri")
             if uri:
-                return ConferenceData(joining_url=uri, conference_id=conf_id)
+                return MeetSessionData(joining_url=uri, meeting_code=meeting_code)
 
         return None
 
@@ -300,7 +302,7 @@ class CalendarClient:
                 raw_attendees=event.get("attendees", []),
                 organizer_dict=event.get("organizer", {}),
             )
-            conference_info = self._parse_conference_data(
+            meet_session = self._parse_meet_session_data(
                 event.get("conferenceData", {})
             )
             attachments = self._parse_attachments(event.get("attachments", []))
@@ -325,7 +327,7 @@ class CalendarClient:
                     start_time=start_dt,
                     end_time=end_dt,
                     attendees=attendees,
-                    conference_info=conference_info,
+                    meet_session=meet_session,
                     attachments=attachments,
                 )
             )

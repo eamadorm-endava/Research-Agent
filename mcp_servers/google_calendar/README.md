@@ -6,7 +6,7 @@ This MCP server provides a dual-interface connector for the **Google Calendar AP
 
 Modern productivity workflows require context and content to be unified:
 - **Google Calendar (The Context)**: Tells you the participants, the duration, and the official meeting code (`abc-defg-hij`).
-- **Google Meet (The Content)**: Provides the historical conference records, the actual join/leave times of attendees, and links to the generated artifacts (MP4 recordings, Google Docs transcripts).
+- **Google Meet (The Content)**: Provides the historical Meet sessions, the actual join/leave times of attendees, and links to the generated artifacts (MP4 recordings, Google Docs transcripts).
 
 By combining these, an agent can perform complex queries like: *"Find the transcript from yesterday's 10 AM standup and summarize the action items."*
 
@@ -59,7 +59,7 @@ uv run pytest mcp_servers/google_calendar/tests/
 
 ### Spaces vs. Sessions
 - **Space**: The persistent "meeting room" with a fixed code (`abc-defg-hij`).
-- **Session (Conference Record)**: A single timed instance of a meeting. A new session is created every time the meeting link is opened, even if the user does not fully join.
+- **Session (Meet Session Record)**: A single timed instance of a meeting. A new session is created every time the meeting link is opened, even if the user does not fully join.
 - **Active Session Filtering**: The `MeetClient` automatically **ignores empty sessions**. Only records where at least one participant actually joined are processed and returned.
 
 ## Technical Gotchas
