@@ -1,7 +1,9 @@
+from loguru import logger
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Optional
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from typing import Annotated, Any, Optional
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from dateutil import parser
 from ..utils import calculate_duration
 
 
@@ -61,6 +63,32 @@ class ConferenceAttendee(MeetRootSchema):
         Field(description="Type of user (SIGNED_IN, ANONYMOUS, PHONE)."),
     ]
 
+    @field_validator("first_join_time", "last_leave_time", mode="before")
+    @classmethod
+    def parse_datetime(cls, value: Any) -> Optional[datetime]:
+        """Convert a string representation of time to a datetime object.
+
+        Args:
+            value (Any): The string or datetime value to parse.
+
+        Return:
+            A datetime object or None if parsing fails.
+        """
+        if isinstance(value, str):
+            try:
+                return parser.isoparse(value)
+            except ValueError as e:
+                logger.error(f"Failed to parse datetime string '{value}': {e}")
+                return None
+
+        if value is None or isinstance(value, datetime):
+            return value
+
+        logger.warning(
+            f"Unexpected type for datetime field: {type(value)}. Expected string or datetime."
+        )
+        return None
+
     @computed_field
     @property
     def duration(self) -> str:
@@ -95,6 +123,32 @@ class Recording(MeetRootSchema):
         datetime,
         Field(description="Actual end time of the recording."),
     ]
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_datetime(cls, value: Any) -> Optional[datetime]:
+        """Convert a string representation of time to a datetime object.
+
+        Args:
+            value (Any): The string or datetime value to parse.
+
+        Return:
+            A datetime object or None if parsing fails.
+        """
+        if isinstance(value, str):
+            try:
+                return parser.isoparse(value)
+            except ValueError as e:
+                logger.error(f"Failed to parse datetime string '{value}': {e}")
+                return None
+
+        if value is None or isinstance(value, datetime):
+            return value
+
+        logger.warning(
+            f"Unexpected type for datetime field: {type(value)}. Expected string or datetime."
+        )
+        return None
 
     @computed_field
     @property
@@ -138,6 +192,32 @@ class Transcript(MeetRootSchema):
         datetime,
         Field(description="Actual end time of the transcript."),
     ]
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_datetime(cls, value: Any) -> Optional[datetime]:
+        """Convert a string representation of time to a datetime object.
+
+        Args:
+            value (Any): The string or datetime value to parse.
+
+        Return:
+            A datetime object or None if parsing fails.
+        """
+        if isinstance(value, str):
+            try:
+                return parser.isoparse(value)
+            except ValueError as e:
+                logger.error(f"Failed to parse datetime string '{value}': {e}")
+                return None
+
+        if value is None or isinstance(value, datetime):
+            return value
+
+        logger.warning(
+            f"Unexpected type for datetime field: {type(value)}. Expected string or datetime."
+        )
+        return None
 
     @computed_field
     @property
@@ -217,6 +297,32 @@ class ConferenceSession(MeetRootSchema):
         TranscriptsMetadata,
         Field(description="Summary of transcripts."),
     ]
+
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_datetime(cls, value: Any) -> Optional[datetime]:
+        """Convert a string representation of time to a datetime object.
+
+        Args:
+            value (Any): The string or datetime value to parse.
+
+        Return:
+            A datetime object or None if parsing fails.
+        """
+        if isinstance(value, str):
+            try:
+                return parser.isoparse(value)
+            except ValueError as e:
+                logger.error(f"Failed to parse datetime string '{value}': {e}")
+                return None
+
+        if value is None or isinstance(value, datetime):
+            return value
+
+        logger.warning(
+            f"Unexpected type for datetime field: {type(value)}. Expected string or datetime."
+        )
+        return None
 
     @computed_field
     @property
