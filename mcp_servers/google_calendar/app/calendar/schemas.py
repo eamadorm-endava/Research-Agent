@@ -31,8 +31,14 @@ class ResponseStatus(StrEnum):
 class ConferenceData(BaseModel):
     """Information regarding a conference associated with an event."""
 
-    joining_url: Annotated[str, Field(description="URL to join the conference.")]
-    conference_id: Annotated[str, Field(description="Unique ID of the conference.")]
+    joining_url: Annotated[
+        str,
+        Field(description="URL to join the conference."),
+    ]
+    conference_id: Annotated[
+        str,
+        Field(description="Unique ID of the conference."),
+    ]
 
 
 class Attendee(BaseModel):
@@ -47,7 +53,11 @@ class Attendee(BaseModel):
     ]
     email: Annotated[str, Field(description="Email address of the attendee.")]
     display_name: Annotated[
-        Optional[str], Field(default=None, description="Display name of the attendee.")
+        Optional[str],
+        Field(
+            default=None,
+            description="Display name of the attendee.",
+        ),
     ]
     response_status: Annotated[
         ResponseStatus,
@@ -88,9 +98,13 @@ class EventAttachment(BaseModel):
 class CalendarEvent(BaseModel):
     """Represents the output structure of a Google Calendar event from the API."""
 
-    event_id: Annotated[str, Field(description="The unique identifier for the event.")]
+    event_id: Annotated[
+        str,
+        Field(description="The unique identifier for the event."),
+    ]
     title: Annotated[
-        Optional[str], Field(default=None, description="Title of the calendar event.")
+        Optional[str],
+        Field(default=None, description="Title of the calendar event."),
     ]
     description: Annotated[
         Optional[str],
@@ -98,30 +112,37 @@ class CalendarEvent(BaseModel):
     ]
     event_status: Annotated[
         Optional[EventStatus],
-        Field(default=None, description="The status of the event."),
+        Field(
+            default=None,
+            description="The status of the event.",
+        ),
     ]
     location: Annotated[
         Optional[str],
-        Field(default=None, description="The location where the event takes place."),
+        Field(
+            default=None,
+            description="The location where the event takes place.",
+        ),
     ]
 
     start_time: Annotated[
         datetime,
         Field(
-            description="Start time of the event as a datetime object (e.g. '2023-10-27T10:00:00Z')."
+            description="Start time of the event as a datetime object (e.g. '2023-10-27T10:00:00Z').",
         ),
     ]
     end_time: Annotated[
         datetime,
         Field(
-            description="End time of the event as a datetime object (e.g. '2023-10-27T11:30:00Z')."
+            description="End time of the event as a datetime object (e.g. '2023-10-27T11:30:00Z').",
         ),
     ]
 
     attendees: Annotated[
         list[Attendee],
         Field(
-            default_factory=list, description="List of attendees invited to the event."
+            default_factory=list,
+            description="List of attendees invited to the event.",
         ),
     ]
     conference_info: Annotated[
@@ -133,7 +154,10 @@ class CalendarEvent(BaseModel):
     ]
     attachments: Annotated[
         list[EventAttachment],
-        Field(default_factory=list, description="List of files attached to the event."),
+        Field(
+            default_factory=list,
+            description="List of files attached to the event.",
+        ),
     ]
 
     @computed_field
