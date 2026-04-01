@@ -53,6 +53,7 @@ class CalendarClient:
             attendees.append(
                 Attendee(
                     email=attendee.get("email", ""),
+                    user_id=attendee.get("id"),
                     display_name=attendee.get("displayName"),
                     response_status=attendee.get("responseStatus"),
                     organizer=attendee.get("organizer", False),
@@ -68,6 +69,7 @@ class CalendarClient:
             attendees.append(
                 Attendee(
                     email=organizer_dict.get("email", ""),
+                    user_id=organizer_dict.get("id"),
                     display_name=organizer_dict.get("displayName"),
                     response_status=ResponseStatus.ACCEPTED,
                     organizer=True,

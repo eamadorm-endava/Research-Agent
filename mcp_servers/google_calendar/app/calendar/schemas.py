@@ -37,6 +37,13 @@ class ConferenceData(BaseModel):
 class Attendee(BaseModel):
     """Metadata for an attendee or organizer in a calendar event."""
 
+    user_id: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Unique Google resource ID (Gaia ID) if available.",
+        ),
+    ]
     email: Annotated[str, Field(description="Email address of the attendee.")]
     display_name: Annotated[
         Optional[str], Field(default=None, description="Display name of the attendee.")
