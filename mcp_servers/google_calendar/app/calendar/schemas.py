@@ -4,6 +4,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Optional
 from pydantic import BaseModel, Field, computed_field, field_serializer, field_validator
 from dateutil import parser
+from ..utils import calculate_duration
 
 
 # The different values and attributes for the schemas below were obtained from:
@@ -143,11 +144,7 @@ class CalendarEvent(BaseModel):
         Return:
             A string formatted as "Xh Ym Zs".
         """
-        delta = self.end_time - self.start_time
-        total_seconds = int(delta.total_seconds())
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        return f"{hours}h {minutes}m {seconds}s"
+        return calculate_duration(self.start_time, self.end_time)
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
