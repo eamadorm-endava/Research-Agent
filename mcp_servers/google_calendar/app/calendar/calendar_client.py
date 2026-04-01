@@ -55,7 +55,9 @@ class CalendarClient:
                     email=attendee.get("email", ""),
                     user_id=attendee.get("id"),
                     display_name=attendee.get("displayName"),
-                    response_status=attendee.get("responseStatus"),
+                    response_status=attendee.get(
+                        "responseStatus", ResponseStatus.NEEDS_ACTION
+                    ),
                     organizer=attendee.get("organizer", False),
                     optional=attendee.get("optional", False),
                 )
