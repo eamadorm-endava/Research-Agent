@@ -2,7 +2,10 @@ import os
 from unittest.mock import patch
 
 from agent.core_agent.config import MCPServersConfig
-from agent.core_agent.utils.auxiliars import get_mcp_servers_tools
+from agent.core_agent.utils.auxiliars import (
+    build_runtime_headers,
+    get_mcp_servers_tools,
+)
 
 
 def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
@@ -84,3 +87,23 @@ def test_get_mcp_servers_tools_skips_empty_url_values():
         == "https://bq-server.example/mcp"
     )
     assert mock_toolset.call_count == 1
+
+
+def test_build_runtime_headers_includes_shared_google_auth_when_requested():
+    with (
+        patch("agent.core_agent.utils.auxiliars.get_id_token", return_value="id-token"),
+        patch(
+            "agent.core_agent.utils.auxiliars.get_ge_oauth_token",
+            return_value="oauth-token",
+        ),
+    ):
+        headers = build_runtime_headers(
+            "https://bq-server.example",
+            readonly_context=object(),
+            auth_id="shared-google-auth-id",
+        )
+
+    assert headers == {
+        "X-Serverless-Authorization": "Bearer id-token",
+        "Authorization": "Bearer oauth-token",
+    }

@@ -1,28 +1,28 @@
 import logging
-import vertexai
-from vertexai import agent_engines
-from google.adk.planners import BuiltInPlanner
-from google.genai.types import (
-    GenerateContentConfig,
-    ModelArmorConfig,
-    HttpRetryOptions,
-    ThinkingConfig,
-)
-from google.adk.agents import Agent
-from google.adk.models import Gemini
-from google.adk.tools.mcp_tool import McpToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
-from fastapi.openapi.models import OAuth2, OAuthFlows, OAuthFlowAuthorizationCode
-
-from .config import GCPConfig, AgentConfig, MCPServersConfig
-from .utils.security import get_id_token, get_ge_oauth_token
-
 from pathlib import Path
 
-
+import vertexai
+from google.adk.agents import Agent
+from google.adk.models import Gemini
+from google.adk.planners import BuiltInPlanner
 from google.adk.skills import load_skill_from_dir
+from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.skill_toolset import SkillToolset
+from google.genai.types import (
+    GenerateContentConfig,
+    HttpRetryOptions,
+    ModelArmorConfig,
+    ThinkingConfig,
+)
+from vertexai import agent_engines
+
+from .config import AgentConfig, GCPConfig, MCPServersConfig
+from .utils.auxiliars import (
+    build_google_auth_credential,
+    build_google_oauth_scheme,
+    build_runtime_headers,
+    build_streamable_http_params,
+)
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -64,10 +64,6 @@ agent_retry_options = HttpRetryOptions(
     max_delay=agent_config.RETRY_MAX_DELAY,
 )
 
-# MCP toolset construction is centralized in utils/auxiliars.py:get_mcp_servers_tools
-# tools = get_mcp_servers_tools(mcp_servers)
-
-
 # Skills
 # Load ADK Skill from directory
 skills_dir = Path(__file__).parent / "skills" / "meeting-summary"
@@ -78,66 +74,35 @@ shared_google_oauth_scopes = {
     **mcp_servers.DRIVE_OAUTH_SCOPES,
     **mcp_servers.BIGQUERY_OAUTH_SCOPES,
 }
-
-
-def build_google_oauth_scheme(scopes: dict[str, str]) -> OAuth2:
-    return OAuth2(
-        flows=OAuthFlows(
-            authorizationCode=OAuthFlowAuthorizationCode(
-                authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
-                tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
-                scopes=scopes,
-            )
-        )
-    )
-
-
-def build_google_auth_credential() -> AuthCredential:
-    return AuthCredential(
-        auth_type=AuthCredentialTypes.OAUTH2,
-        oauth2=OAuth2Auth(
-            client_id=mcp_servers.DRIVE_OAUTH_CLIENT_ID,
-            client_secret=mcp_servers.DRIVE_OAUTH_CLIENT_SECRET,
-            redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
-        ),
-    )
-
-
-def build_streamable_http_params(base_url: str) -> StreamableHTTPConnectionParams:
-    return StreamableHTTPConnectionParams(
-        url=base_url,
-        timeout=mcp_servers.GENERAL_TIMEOUT,
-    )
-
-
-def build_runtime_headers(base_url: str, ctx, include_user_oauth: bool = False) -> dict[str, str]:
-    headers = {"X-Serverless-Authorization": f"Bearer {get_id_token(base_url)}"}
-    if include_user_oauth:
-        headers["Authorization"] = (
-            f"Bearer {get_ge_oauth_token(ctx, mcp_servers.GEMINI_DRIVE_AUTH_ID)}"
-        )
-    return headers
-
+shared_google_auth_scheme = build_google_oauth_scheme(
+    mcp_servers, shared_google_oauth_scopes
+)
+shared_google_auth_credential = build_google_auth_credential(mcp_servers)
 
 agent_tools = [meeting_summary_toolset]
 
 if is_deployed:
     agent_tools.append(
         McpToolset(
-            connection_params=build_streamable_http_params(full_bq_mcp_server_path),
+            connection_params=build_streamable_http_params(
+                full_bq_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+            ),
             header_provider=lambda ctx: build_runtime_headers(
-                mcp_servers.BIGQUERY_URL, ctx, include_user_oauth=True
+                mcp_servers.BIGQUERY_URL,
+                ctx,
+                auth_id=mcp_servers.GEMINI_GOOGLE_AUTH_ID,
             ),
         )
     )
 else:
-    shared_google_auth_scheme = build_google_oauth_scheme(shared_google_oauth_scopes)
-    shared_google_auth_credential = build_google_auth_credential()
     agent_tools.append(
         McpToolset(
-            connection_params=build_streamable_http_params(full_bq_mcp_server_path),
+            connection_params=build_streamable_http_params(
+                full_bq_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+            ),
             header_provider=lambda ctx: build_runtime_headers(
-                mcp_servers.BIGQUERY_URL, ctx
+                mcp_servers.BIGQUERY_URL,
+                ctx,
             ),
             auth_scheme=shared_google_auth_scheme,
             auth_credential=shared_google_auth_credential,
@@ -146,7 +111,9 @@ else:
 
 agent_tools.append(
     McpToolset(
-        connection_params=build_streamable_http_params(full_gcs_mcp_server_path),
+        connection_params=build_streamable_http_params(
+            full_gcs_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+        ),
         header_provider=lambda ctx: build_runtime_headers(mcp_servers.GCS_URL, ctx),
     )
 )
@@ -154,18 +121,22 @@ agent_tools.append(
 if is_deployed:
     agent_tools.append(
         McpToolset(
-            connection_params=build_streamable_http_params(full_drive_mcp_server_path),
+            connection_params=build_streamable_http_params(
+                full_drive_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+            ),
             header_provider=lambda ctx: build_runtime_headers(
-                mcp_servers.DRIVE_URL, ctx, include_user_oauth=True
+                mcp_servers.DRIVE_URL,
+                ctx,
+                auth_id=mcp_servers.GEMINI_GOOGLE_AUTH_ID,
             ),
         )
     )
 else:
-    shared_google_auth_scheme = build_google_oauth_scheme(shared_google_oauth_scopes)
-    shared_google_auth_credential = build_google_auth_credential()
     agent_tools.append(
         McpToolset(
-            connection_params=build_streamable_http_params(full_drive_mcp_server_path),
+            connection_params=build_streamable_http_params(
+                full_drive_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+            ),
             header_provider=lambda ctx: build_runtime_headers(mcp_servers.DRIVE_URL, ctx),
             auth_scheme=shared_google_auth_scheme,
             auth_credential=shared_google_auth_credential,

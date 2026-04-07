@@ -36,15 +36,15 @@ Optional MCP server variables:
     BIGQUERY_ENDPOINT=/mcp
     DRIVE_URL=https://google-drive-mcp-server-xxxxx-uc.a.run.app
     DRIVE_ENDPOINT=/mcp
-    DRIVE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
-    DRIVE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
-    DRIVE_OAUTH_REDIRECT_URI=http://localhost:8000/oauth2callback
+    GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
+    GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
+    GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/oauth2callback
     BIGQUERY_OAUTH_SCOPES=["https://www.googleapis.com/auth/bigquery"]
 
 Notes:
 - Set `BIGQUERY_URL` and `DRIVE_URL` to your deployed Cloud Run **base URL** (without `/mcp`).
 - If you leave any URL empty, the corresponding MCP integration will be disabled automatically.
-- The `DRIVE_OAUTH_` variables identify the shared Google OAuth client used by both the Drive and BigQuery MCP toolsets.
+- The `GOOGLE_OAUTH_` variables identify the shared Google OAuth client used by the Drive and BigQuery MCP toolsets.
 - `BIGQUERY_OAUTH_SCOPES` lets you extend the delegated token with BigQuery access for local testing.
 
 MCP tool wiring is centralized in `get_mcp_servers_tools` inside `utils/auxiliars.py`, so `agent.py` stays focused on agent configuration and initialization.
