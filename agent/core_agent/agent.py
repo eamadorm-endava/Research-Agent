@@ -7,6 +7,7 @@ from google.adk.models import Gemini
 from google.adk.planners import BuiltInPlanner
 from google.adk.skills import load_skill_from_dir
 from google.adk.tools.mcp_tool import McpToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 from google.adk.tools.skill_toolset import SkillToolset
 from google.genai.types import (
     GenerateContentConfig,
@@ -20,8 +21,7 @@ from .config import AgentConfig, GCPConfig, MCPServersConfig
 from .utils.auxiliars import (
     build_google_auth_credential,
     build_google_oauth_scheme,
-    build_runtime_headers,
-    build_streamable_http_params,
+    build_runtime_headers
 )
 
 logging.getLogger().setLevel(logging.INFO)
@@ -84,7 +84,7 @@ agent_tools = [meeting_summary_toolset]
 if is_deployed:
     agent_tools.append(
         McpToolset(
-            connection_params=build_streamable_http_params(
+            connection_params=StreamableHTTPConnectionParams(
                 full_bq_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
             ),
             header_provider=lambda ctx: build_runtime_headers(
@@ -94,34 +94,10 @@ if is_deployed:
             ),
         )
     )
-else:
+    
     agent_tools.append(
         McpToolset(
-            connection_params=build_streamable_http_params(
-                full_bq_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
-            ),
-            header_provider=lambda ctx: build_runtime_headers(
-                mcp_servers.BIGQUERY_URL,
-                ctx,
-            ),
-            auth_scheme=shared_google_auth_scheme,
-            auth_credential=shared_google_auth_credential,
-        )
-    )
-
-agent_tools.append(
-    McpToolset(
-        connection_params=build_streamable_http_params(
-            full_gcs_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
-        ),
-        header_provider=lambda ctx: build_runtime_headers(mcp_servers.GCS_URL, ctx),
-    )
-)
-
-if is_deployed:
-    agent_tools.append(
-        McpToolset(
-            connection_params=build_streamable_http_params(
+            connection_params=StreamableHTTPConnectionParams(
                 full_drive_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
             ),
             header_provider=lambda ctx: build_runtime_headers(
@@ -134,7 +110,21 @@ if is_deployed:
 else:
     agent_tools.append(
         McpToolset(
-            connection_params=build_streamable_http_params(
+            connection_params=StreamableHTTPConnectionParams(
+                full_bq_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+            ),
+            header_provider=lambda ctx: build_runtime_headers(
+                mcp_servers.BIGQUERY_URL,
+                ctx,
+            ),
+            auth_scheme=shared_google_auth_scheme,
+            auth_credential=shared_google_auth_credential,
+        )
+    )
+    
+    agent_tools.append(
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
                 full_drive_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
             ),
             header_provider=lambda ctx: build_runtime_headers(mcp_servers.DRIVE_URL, ctx),
@@ -142,6 +132,15 @@ else:
             auth_credential=shared_google_auth_credential,
         )
     )
+
+agent_tools.append(
+    McpToolset(
+        connection_params=StreamableHTTPConnectionParams(
+            full_gcs_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+        ),
+        header_provider=lambda ctx: build_runtime_headers(mcp_servers.GCS_URL, ctx),
+    )
+)    
 
 root_agent = Agent(
     model=Gemini(

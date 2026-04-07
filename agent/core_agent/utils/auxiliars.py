@@ -10,7 +10,16 @@ from .security import get_ge_oauth_token, get_id_token
 def build_google_oauth_scheme(
     mcp_config: MCPServersConfig, scopes: dict[str, str]
 ) -> OAuth2:
-    """Build the shared Google OAuth scheme used by MCP toolsets."""
+    """
+    Builds the shared Google OAuth scheme for MCP toolsets.
+
+    Args:
+        mcp_config: The MCP server configuration with Google OAuth settings.
+        scopes: The OAuth scopes to request.
+
+    Returns:
+        OAuth2: The configured OAuth2 scheme.
+    """
     return OAuth2(
         flows=OAuthFlows(
             authorizationCode=OAuthFlowAuthorizationCode(
@@ -23,7 +32,15 @@ def build_google_oauth_scheme(
 
 
 def build_google_auth_credential(mcp_config: MCPServersConfig) -> AuthCredential:
-    """Build the shared Google OAuth client credential used by MCP toolsets."""
+    """
+    Builds the shared Google OAuth credential for MCP toolsets.
+
+    Args:
+        mcp_config: The MCP server configuration with Google OAuth client settings.
+
+    Returns:
+        AuthCredential: The configured OAuth credential.
+    """
     return AuthCredential(
         auth_type=AuthCredentialTypes.OAUTH2,
         oauth2=OAuth2Auth(
@@ -33,20 +50,22 @@ def build_google_auth_credential(mcp_config: MCPServersConfig) -> AuthCredential
         ),
     )
 
-
-def build_streamable_http_params(
-    url: str, timeout: int
-) -> StreamableHTTPConnectionParams:
-    """Build streamable HTTP connection parameters for an MCP server."""
-    return StreamableHTTPConnectionParams(url=url, timeout=timeout)
-
-
 def build_runtime_headers(
     audience: str,
     readonly_context,
     auth_id: str | None = None,
 ) -> dict[str, str]:
-    """Build runtime headers for MCP calls, including service and delegated auth."""
+    """
+    Builds the runtime headers for MCP requests.
+
+    Args:
+        audience: The target audience used to generate the ID token.
+        readonly_context: The runtime context used to get the delegated token.
+        auth_id: The auth resource ID used to fetch the delegated user token.
+
+    Returns:
+        dict[str, str]: The headers for the MCP request.
+    """
     headers = {"X-Serverless-Authorization": f"Bearer {get_id_token(audience)}"}
     if auth_id:
         headers["Authorization"] = (
@@ -82,7 +101,7 @@ def get_mcp_servers_tools(mcp_config: MCPServersConfig) -> list[McpToolset]:
 
         tools.append(
             McpToolset(
-                connection_params=build_streamable_http_params(
+                connection_params=StreamableHTTPConnectionParams(
                     url=full_server_path,
                     timeout=mcp_config.GENERAL_TIMEOUT,
                 ),
