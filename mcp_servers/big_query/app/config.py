@@ -76,7 +76,7 @@ class BigQueryServerConfig(BigQueryMcpConfigBase):
     default_log_level: Annotated[
         str,
         Field(
-            default="info",
+            default="INFO",
             description="Default log level for the local BigQuery MCP server.",
         ),
     ]
