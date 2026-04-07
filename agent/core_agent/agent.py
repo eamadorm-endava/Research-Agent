@@ -74,112 +74,101 @@ skills_dir = Path(__file__).parent / "skills" / "meeting-summary"
 agent_skills = load_skill_from_dir(skills_dir)
 meeting_summary_toolset = SkillToolset(skills=[agent_skills])
 
-agent_tools = [
-    meeting_summary_toolset,
-    McpToolset(
-        connection_params=StreamableHTTPConnectionParams(
-            url=full_gcs_mcp_server_path,
-            timeout=mcp_servers.GENERAL_TIMEOUT,
-        ),
-        header_provider=lambda ctx: {
-            "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.GCS_URL)}"
-        },
-    ),
-]
+shared_google_oauth_scopes = {
+    **mcp_servers.DRIVE_OAUTH_SCOPES,
+    **mcp_servers.BIGQUERY_OAUTH_SCOPES,
+}
 
-if is_deployed:
-    # BigQuery Toolset (Deployed)
-    agent_tools.append(
-        McpToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url=full_bq_mcp_server_path,
-                timeout=mcp_servers.GENERAL_TIMEOUT,
-            ),
-            header_provider=lambda ctx: {
-                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}",
-                "Authorization": f"Bearer {get_ge_oauth_token(ctx, mcp_servers.GEMINI_BIGQUERY_AUTH_ID)}",
-            },
+
+def build_google_oauth_scheme(scopes: dict[str, str]) -> OAuth2:
+    return OAuth2(
+        flows=OAuthFlows(
+            authorizationCode=OAuthFlowAuthorizationCode(
+                authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
+                tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
+                scopes=scopes,
+            )
         )
     )
-    # Drive Toolset (Deployed)
+
+
+def build_google_auth_credential() -> AuthCredential:
+    return AuthCredential(
+        auth_type=AuthCredentialTypes.OAUTH2,
+        oauth2=OAuth2Auth(
+            client_id=mcp_servers.DRIVE_OAUTH_CLIENT_ID,
+            client_secret=mcp_servers.DRIVE_OAUTH_CLIENT_SECRET,
+            redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
+        ),
+    )
+
+
+def build_streamable_http_params(base_url: str) -> StreamableHTTPConnectionParams:
+    return StreamableHTTPConnectionParams(
+        url=base_url,
+        timeout=mcp_servers.GENERAL_TIMEOUT,
+    )
+
+
+def build_runtime_headers(base_url: str, ctx, include_user_oauth: bool = False) -> dict[str, str]:
+    headers = {"X-Serverless-Authorization": f"Bearer {get_id_token(base_url)}"}
+    if include_user_oauth:
+        headers["Authorization"] = (
+            f"Bearer {get_ge_oauth_token(ctx, mcp_servers.GEMINI_DRIVE_AUTH_ID)}"
+        )
+    return headers
+
+
+agent_tools = [meeting_summary_toolset]
+
+if is_deployed:
     agent_tools.append(
         McpToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url=full_drive_mcp_server_path,
-                timeout=mcp_servers.GENERAL_TIMEOUT,
+            connection_params=build_streamable_http_params(full_bq_mcp_server_path),
+            header_provider=lambda ctx: build_runtime_headers(
+                mcp_servers.BIGQUERY_URL, ctx, include_user_oauth=True
             ),
-            header_provider=lambda ctx: {
-                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.DRIVE_URL)}",
-                "Authorization": f"Bearer {get_ge_oauth_token(ctx, mcp_servers.GEMINI_DRIVE_AUTH_ID)}",
-            },
         )
     )
 else:
-    # BigQuery Toolset (Local)
-    bq_auth_scheme = OAuth2(
-        flows=OAuthFlows(
-            authorizationCode=OAuthFlowAuthorizationCode(
-                authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
-                tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
-                scopes=mcp_servers.BIGQUERY_OAUTH_SCOPES,
-            )
-        )
-    )
-
-    bq_auth_credential = AuthCredential(
-        auth_type=AuthCredentialTypes.OAUTH2,
-        oauth2=OAuth2Auth(
-            client_id=mcp_servers.DRIVE_OAUTH_CLIENT_ID,
-            client_secret=mcp_servers.DRIVE_OAUTH_CLIENT_SECRET,
-            redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
-        ),
-    )
-
+    shared_google_auth_scheme = build_google_oauth_scheme(shared_google_oauth_scopes)
+    shared_google_auth_credential = build_google_auth_credential()
     agent_tools.append(
         McpToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url=full_bq_mcp_server_path,
-                timeout=mcp_servers.GENERAL_TIMEOUT,
+            connection_params=build_streamable_http_params(full_bq_mcp_server_path),
+            header_provider=lambda ctx: build_runtime_headers(
+                mcp_servers.BIGQUERY_URL, ctx
             ),
-            header_provider=lambda ctx: {
-                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.BIGQUERY_URL)}"
-            },
-            auth_scheme=bq_auth_scheme,
-            auth_credential=bq_auth_credential,
+            auth_scheme=shared_google_auth_scheme,
+            auth_credential=shared_google_auth_credential,
         )
     )
 
-    # Drive Toolset (Local)
-    drive_auth_scheme = OAuth2(
-        flows=OAuthFlows(
-            authorizationCode=OAuthFlowAuthorizationCode(
-                authorizationUrl=mcp_servers.DRIVE_OAUTH_AUTH_URI,
-                tokenUrl=mcp_servers.DRIVE_OAUTH_TOKEN_URI,
-                scopes=mcp_servers.DRIVE_OAUTH_SCOPES,
-            )
-        )
+agent_tools.append(
+    McpToolset(
+        connection_params=build_streamable_http_params(full_gcs_mcp_server_path),
+        header_provider=lambda ctx: build_runtime_headers(mcp_servers.GCS_URL, ctx),
     )
+)
 
-    drive_auth_credential = AuthCredential(
-        auth_type=AuthCredentialTypes.OAUTH2,
-        oauth2=OAuth2Auth(
-            client_id=mcp_servers.DRIVE_OAUTH_CLIENT_ID,
-            client_secret=mcp_servers.DRIVE_OAUTH_CLIENT_SECRET,
-            redirect_uri=mcp_servers.DRIVE_OAUTH_REDIRECT_URI,
-        ),
-    )
-
+if is_deployed:
     agent_tools.append(
         McpToolset(
-            connection_params=StreamableHTTPConnectionParams(
-                url=full_drive_mcp_server_path,
-                timeout=mcp_servers.GENERAL_TIMEOUT,
+            connection_params=build_streamable_http_params(full_drive_mcp_server_path),
+            header_provider=lambda ctx: build_runtime_headers(
+                mcp_servers.DRIVE_URL, ctx, include_user_oauth=True
             ),
-            header_provider=lambda ctx: {
-                "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_servers.DRIVE_URL)}"
-            },
-            auth_scheme=drive_auth_scheme,
-            auth_credential=drive_auth_credential,
+        )
+    )
+else:
+    shared_google_auth_scheme = build_google_oauth_scheme(shared_google_oauth_scopes)
+    shared_google_auth_credential = build_google_auth_credential()
+    agent_tools.append(
+        McpToolset(
+            connection_params=build_streamable_http_params(full_drive_mcp_server_path),
+            header_provider=lambda ctx: build_runtime_headers(mcp_servers.DRIVE_URL, ctx),
+            auth_scheme=shared_google_auth_scheme,
+            auth_credential=shared_google_auth_credential,
         )
     )
 
