@@ -284,7 +284,7 @@ def validate_access_token(
     try:
         with httpx.Client() as client:
             response = client.get(
-                BIGQUERY_AUTH_CONFIG.google_token_info_url_v3,
+                BIGQUERY_AUTH_CONFIG.google_token_info_url,
                 params={"access_token": access_token},
                 timeout=10,
             )

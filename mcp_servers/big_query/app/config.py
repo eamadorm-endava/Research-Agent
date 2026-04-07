@@ -31,18 +31,11 @@ class BigQueryApiConfig(BigQueryMcpConfigBase):
 class BigQueryAuthConfig(BigQueryMcpConfigBase):
     """Configuration for Google OAuth authentication endpoints and client details."""
 
-    google_token_info_url_v3: Annotated[
-        str,
-        Field(
-            default="https://www.googleapis.com/oauth2/v3/tokeninfo",
-            description="Google OAuth2 v3 token info endpoint for validation.",
-        ),
-    ]
     google_token_info_url: Annotated[
         str,
         Field(
             default="https://oauth2.googleapis.com/tokeninfo",
-            description="Google OAuth2 token info endpoint.",
+            description="Google OAuth2 token info endpoint for access token validation.",
         ),
     ]
     google_accounts_issuer_url: Annotated[
