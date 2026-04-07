@@ -1,5 +1,5 @@
 from loguru import logger
-from typing import Optional
+from typing import Optional, Union
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -37,7 +37,7 @@ class CalendarClient:
         )
 
     def _parse_attendees(
-        self, raw_attendees: list, organizer_dict: dict
+        self, raw_attendees: list[dict], organizer_dict: dict[str, Union[str, bool]]
     ) -> list[Attendee]:
         """Parses the raw attendee list and organizer into Attendee objects.
 
@@ -81,7 +81,7 @@ class CalendarClient:
         return attendees
 
     def _parse_meet_session_data(
-        self, meet_data_dict: dict
+        self, meet_data_dict: dict[str, Union[str, list, dict]]
     ) -> Optional[MeetSessionData]:
         """Parses Meet session data into a structured MeetSessionData object.
 
@@ -109,7 +109,7 @@ class CalendarClient:
 
         return None
 
-    def _parse_attachments(self, raw_attachments: list) -> list[EventAttachment]:
+    def _parse_attachments(self, raw_attachments: list[dict]) -> list[EventAttachment]:
         """Parses raw attachments into EventAttachment objects.
 
         Args:

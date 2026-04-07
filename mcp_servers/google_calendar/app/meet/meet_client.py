@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Union
 from loguru import logger
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -202,7 +202,7 @@ class MeetClient:
             )
             return ""
 
-    def _fetch_meet_sessions(self, space_name: str) -> list[dict[str, Any]]:
+    def _fetch_meet_sessions(self, space_name: str) -> list[dict]:
         """Queries the Google Meet API for all historical records associated with a space.
 
         Retrieves Meet sessions using a filter string to target specific spaces.
@@ -224,7 +224,7 @@ class MeetClient:
             logger.error(f"Error listing Meet sessions: {exc}")
             return []
 
-    def _fetch_recordings(self, meet_session_id: str) -> list[dict[str, Any]]:
+    def _fetch_recordings(self, meet_session_id: str) -> list[dict]:
         """Fetches the raw list of all recording artifacts associated with a session ID.
 
         Iterates through the recordings child collection of a specific Meet session.
@@ -247,7 +247,7 @@ class MeetClient:
         except HttpError:
             return []
 
-    def _fetch_transcripts(self, meet_session_id: str) -> list[dict[str, Any]]:
+    def _fetch_transcripts(self, meet_session_id: str) -> list[dict]:
         """Fetches the raw list of transcript artifacts generated during a Meet session.
 
         Looks up available transcripts within the specified session ID.
@@ -270,7 +270,7 @@ class MeetClient:
         except HttpError:
             return []
 
-    def _fetch_participants(self, meet_session_id: str) -> list[dict[str, Any]]:
+    def _fetch_participants(self, meet_session_id: str) -> list[dict]:
         """Retrieves raw participant metadata for everyone who joined a specific session.
 
         Fetches all participant resources for the given session ID. This contains
@@ -295,7 +295,9 @@ class MeetClient:
 
     # --- Private Methods (Mapping) ---
 
-    def _map_participant(self, raw_participant_data: dict[str, Any]) -> MeetParticipant:
+    def _map_participant(
+        self, raw_participant_data: dict[str, Union[str, list, dict]]
+    ) -> MeetParticipant:
         """Transforms raw API participant data into a structured MeetParticipant model.
 
         Identifies the user type (Signed-in, Anonymous, or Phone) and extracts
@@ -338,7 +340,9 @@ class MeetClient:
             user_type=user_type,
         )
 
-    def _map_recording(self, raw_recording_data: dict[str, Any]) -> MeetRecording:
+    def _map_recording(
+        self, raw_recording_data: dict[str, Union[str, list, dict]]
+    ) -> MeetRecording:
         """Converts raw recording artifact metadata into a structured MeetRecording model.
 
         Extracts the Drive destination ID and ensures the status is mapped correctly
@@ -359,7 +363,9 @@ class MeetClient:
             end_time=raw_recording_data.get("endTime"),
         )
 
-    def _map_transcript(self, raw_transcript_data: dict[str, Any]) -> MeetTranscript:
+    def _map_transcript(
+        self, raw_transcript_data: dict[str, Union[str, list, dict]]
+    ) -> MeetTranscript:
         """Transforms raw transcript metadata into a structured MeetTranscript model instance.
 
         Identifies the Google Docs destination for the generated transcript files
