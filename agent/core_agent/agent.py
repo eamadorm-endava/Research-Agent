@@ -21,7 +21,7 @@ from .config import AgentConfig, GCPConfig, MCPServersConfig
 from .utils.auxiliars import (
     build_google_auth_credential,
     build_google_oauth_scheme,
-    build_runtime_headers
+    build_runtime_headers,
 )
 
 logging.getLogger().setLevel(logging.INFO)
@@ -95,11 +95,12 @@ if is_deployed:
             ),
         )
     )
-    
+
     agent_tools.append(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
-                url=full_drive_mcp_server_path, timeout=float(mcp_servers.GENERAL_TIMEOUT)
+                url=full_drive_mcp_server_path,
+                timeout=float(mcp_servers.GENERAL_TIMEOUT),
             ),
             header_provider=lambda ctx: build_runtime_headers(
                 mcp_servers.DRIVE_URL,
@@ -123,13 +124,16 @@ else:
             auth_credential=shared_google_auth_credential,
         )
     )
-    
+
     agent_tools.append(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
-                url=full_drive_mcp_server_path, timeout=float(mcp_servers.GENERAL_TIMEOUT)
+                url=full_drive_mcp_server_path,
+                timeout=float(mcp_servers.GENERAL_TIMEOUT),
             ),
-            header_provider=lambda ctx: build_runtime_headers(mcp_servers.DRIVE_URL, ctx),
+            header_provider=lambda ctx: build_runtime_headers(
+                mcp_servers.DRIVE_URL, ctx
+            ),
             auth_scheme=shared_google_auth_scheme,
             auth_credential=shared_google_auth_credential,
         )
@@ -142,7 +146,7 @@ agent_tools.append(
         ),
         header_provider=lambda ctx: build_runtime_headers(mcp_servers.GCS_URL, ctx),
     )
-)    
+)
 
 root_agent = Agent(
     model=Gemini(

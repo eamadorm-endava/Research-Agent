@@ -26,7 +26,9 @@ class BigQueryManager:
         self.creds = creds
         self.default_project = default_project
         try:
-            self.client = bigquery.Client(credentials=self.creds, project=self.default_project)
+            self.client = bigquery.Client(
+                credentials=self.creds, project=self.default_project
+            )
             logger.info(
                 f"BigQuery client initialized using delegated user credentials (Project: {self.client.project})."
             )

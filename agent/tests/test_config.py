@@ -82,6 +82,8 @@ def test_mcp_servers_config_accepts_legacy_google_auth_env_names():
     assert config.GOOGLE_OAUTH_CLIENT_ID == "legacy-client-id"
     assert config.GOOGLE_OAUTH_CLIENT_SECRET == "legacy-client-secret"
     assert config.GOOGLE_OAUTH_REDIRECT_URI == "http://localhost:8000/dev-ui"
-    assert config.GOOGLE_OAUTH_AUTH_URI == "https://accounts.google.com/o/oauth2/v2/auth"
+    assert (
+        config.GOOGLE_OAUTH_AUTH_URI == "https://accounts.google.com/o/oauth2/v2/auth"
+    )
     assert config.GOOGLE_OAUTH_TOKEN_URI == "https://oauth2.googleapis.com/token"
     assert config.GEMINI_GOOGLE_AUTH_ID == "legacy-auth-id"

@@ -50,6 +50,7 @@ def build_google_auth_credential(mcp_config: MCPServersConfig) -> AuthCredential
         ),
     )
 
+
 def build_runtime_headers(
     audience: str,
     readonly_context,

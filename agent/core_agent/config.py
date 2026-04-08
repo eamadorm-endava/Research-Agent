@@ -319,7 +319,9 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="",
             description="Shared OAuth 2.0 Client ID for Google APIs used by the agent.",
-            validation_alias=AliasChoices("GOOGLE_OAUTH_CLIENT_ID", "DRIVE_OAUTH_CLIENT_ID"),
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_CLIENT_ID", "DRIVE_OAUTH_CLIENT_ID"
+            ),
         ),
     ]
     GOOGLE_OAUTH_CLIENT_SECRET: Annotated[
@@ -327,7 +329,9 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="",
             description="Shared OAuth 2.0 Client Secret for Google APIs used by the agent.",
-            validation_alias=AliasChoices("GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_OAUTH_CLIENT_SECRET"),
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_OAUTH_CLIENT_SECRET"
+            ),
         ),
     ]
     GOOGLE_OAUTH_REDIRECT_URI: Annotated[
@@ -335,7 +339,9 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="http://localhost:8000/dev-ui",
             description="Shared OAuth 2.0 Redirect URI for Google APIs used by the agent.",
-            validation_alias=AliasChoices("GOOGLE_OAUTH_REDIRECT_URI", "DRIVE_OAUTH_REDIRECT_URI"),
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_REDIRECT_URI", "DRIVE_OAUTH_REDIRECT_URI"
+            ),
         ),
     ]
     DRIVE_OAUTH_SCOPES: Annotated[
@@ -365,7 +371,9 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="https://accounts.google.com/o/oauth2/v2/auth",
             description="Shared OAuth 2.0 authorization URL for Google APIs used by the agent.",
-            validation_alias=AliasChoices("GOOGLE_OAUTH_AUTH_URI", "DRIVE_OAUTH_AUTH_URI"),
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_AUTH_URI", "DRIVE_OAUTH_AUTH_URI"
+            ),
         ),
     ]
     GOOGLE_OAUTH_TOKEN_URI: Annotated[
@@ -373,7 +381,9 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="https://oauth2.googleapis.com/token",
             description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
-            validation_alias=AliasChoices("GOOGLE_OAUTH_TOKEN_URI", "DRIVE_OAUTH_TOKEN_URI"),
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_TOKEN_URI", "DRIVE_OAUTH_TOKEN_URI"
+            ),
         ),
     ]
     BIGQUERY_OAUTH_SCOPES: Annotated[
@@ -413,6 +423,8 @@ class MCPServersConfig(BaseSettings):
             default="mock-ge-auth-id",
             description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise and reused by MCP tool calls."
             " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
-            validation_alias=AliasChoices("GEMINI_GOOGLE_AUTH_ID", "GEMINI_DRIVE_AUTH_ID"),
+            validation_alias=AliasChoices(
+                "GEMINI_GOOGLE_AUTH_ID", "GEMINI_DRIVE_AUTH_ID"
+            ),
         ),
     ]
