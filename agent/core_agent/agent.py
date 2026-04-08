@@ -85,7 +85,8 @@ if is_deployed:
     agent_tools.append(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
-                full_bq_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+                url=full_bq_mcp_server_path,
+                timeout=float(mcp_servers.GENERAL_TIMEOUT),
             ),
             header_provider=lambda ctx: build_runtime_headers(
                 mcp_servers.BIGQUERY_URL,
@@ -98,7 +99,7 @@ if is_deployed:
     agent_tools.append(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
-                full_drive_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+                url=full_drive_mcp_server_path, timeout=float(mcp_servers.GENERAL_TIMEOUT)
             ),
             header_provider=lambda ctx: build_runtime_headers(
                 mcp_servers.DRIVE_URL,
@@ -111,7 +112,8 @@ else:
     agent_tools.append(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
-                full_bq_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+                url=full_bq_mcp_server_path,
+                timeout=float(mcp_servers.GENERAL_TIMEOUT),
             ),
             header_provider=lambda ctx: build_runtime_headers(
                 mcp_servers.BIGQUERY_URL,
@@ -125,7 +127,7 @@ else:
     agent_tools.append(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(
-                full_drive_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+                url=full_drive_mcp_server_path, timeout=float(mcp_servers.GENERAL_TIMEOUT)
             ),
             header_provider=lambda ctx: build_runtime_headers(mcp_servers.DRIVE_URL, ctx),
             auth_scheme=shared_google_auth_scheme,
@@ -136,7 +138,7 @@ else:
 agent_tools.append(
     McpToolset(
         connection_params=StreamableHTTPConnectionParams(
-            full_gcs_mcp_server_path, mcp_servers.GENERAL_TIMEOUT
+            url=full_gcs_mcp_server_path, timeout=float(mcp_servers.GENERAL_TIMEOUT)
         ),
         header_provider=lambda ctx: build_runtime_headers(mcp_servers.GCS_URL, ctx),
     )
