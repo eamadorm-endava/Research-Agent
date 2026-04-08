@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 import pytest
 from mcp_servers.big_query.app.bq_client import BigQueryManager, build_bq_credentials
+from mcp_servers.big_query.app.config import BIGQUERY_API_CONFIG
 
 
 @pytest.fixture
@@ -163,11 +164,16 @@ def test_execute_query(mock_client):
 
 
 @patch("mcp_servers.big_query.app.bq_client.validate_access_token")
-@patch("mcp_servers.big_query.app.bq_client.Credentials")
+@patch("mcp_servers.big_query.app.bq_client.OAuthCredentials")
 def test_build_bq_credentials_from_access_token(mock_credentials, mock_validate):
     access_token = "ya29.mock-token"
 
     build_bq_credentials(access_token=access_token)
 
-    mock_validate.assert_called_once_with(access_token)
-    mock_credentials.assert_called_once_with(token=access_token)
+    expected_scopes = list(BIGQUERY_API_CONFIG.read_write_scopes)
+
+    mock_validate.assert_called_once_with(access_token, expected_scopes)
+    mock_credentials.assert_called_once_with(
+        token=access_token,
+        scopes=expected_scopes,
+    )

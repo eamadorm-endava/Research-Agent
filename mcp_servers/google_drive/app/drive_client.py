@@ -7,7 +7,8 @@ from typing import Any, Mapping, Optional, Sequence
 from xml.sax.saxutils import escape as xml_escape
 
 import httpx
-from google.oauth2.credentials import Credentials
+from google.auth.credentials import Credentials
+from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from pypdf import PdfReader
@@ -30,7 +31,7 @@ from .schemas import (
 class DriveManager:
     """Manager for Google Drive operations."""
 
-    def __init__(self, creds: Any) -> None:
+    def __init__(self, creds: Credentials) -> None:
         self.creds = creds
         self.drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
@@ -508,7 +509,7 @@ def build_drive_credentials(
     if access_token:
         if validate:
             validate_access_token(access_token, scopes)
-        return Credentials(token=access_token, scopes=scopes)
+        return OAuthCredentials(token=access_token, scopes=scopes)
 
     raise RuntimeError(
         "No Drive credentials available. Provide a delegated user access token header."

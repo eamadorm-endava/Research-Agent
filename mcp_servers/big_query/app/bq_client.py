@@ -5,7 +5,8 @@ import httpx
 from google.cloud import bigquery
 from google.cloud.bigquery.schema import SchemaField
 from google.cloud.exceptions import GoogleCloudError, NotFound
-from google.oauth2.credentials import Credentials
+from google.auth.credentials import Credentials
+from google.oauth2.credentials import Credentials as OAuthCredentials
 
 from .config import BIGQUERY_API_CONFIG, BIGQUERY_AUTH_CONFIG
 from .schemas import AuthenticationError
@@ -18,12 +19,14 @@ logger = logging.getLogger(__name__)
 class BigQueryManager:
     """
     Manager for Google Cloud BigQuery operations.
-    Initializes a client using Application Default Credentials (ADC).
+    Initializes a client using delegated Google credentials.
     """
 
-    def __init__(self, creds: Any, default_project: Optional[str] = None):
+    def __init__(self, creds: Credentials, default_project: Optional[str] = None):
+        self.creds = creds
+        self.default_project = default_project
         try:
-            self.client = bigquery.Client(credentials=creds, project=default_project)
+            self.client = bigquery.Client(credentials=self.creds, project=self.default_project)
             logger.info(
                 f"BigQuery client initialized using delegated user credentials (Project: {self.client.project})."
             )
@@ -265,7 +268,7 @@ def build_bq_credentials(
     if access_token:
         if validate:
             validate_access_token(access_token, scopes)
-        return Credentials(token=access_token, scopes=scopes)
+        return OAuthCredentials(token=access_token, scopes=scopes)
 
     raise RuntimeError(
         "No BigQuery credentials available. Provide a delegated user access token header."
