@@ -53,6 +53,7 @@ mcp_calendar = [
     "google-auth-oauthlib>=1.2.0",
     "httpx>=0.27.0",
     "loguru>=0.7.3",
+    "mcp>=1.26.0",
     "pydantic>=2.5.3",
     "pydantic-settings>=2.13.1",
 ]
