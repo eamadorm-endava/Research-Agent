@@ -2,6 +2,7 @@ from fastapi.openapi.models import OAuth2, OAuthFlowAuthorizationCode, OAuthFlow
 from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+from google.adk.agents.readonly_context import ReadonlyContext
 
 from ..config import MCPServersConfig
 from .security import get_ge_oauth_token, get_id_token
@@ -53,16 +54,16 @@ def build_google_auth_credential(mcp_config: MCPServersConfig) -> AuthCredential
 
 def build_runtime_headers(
     audience: str,
-    readonly_context,
+    readonly_context: ReadonlyContext,
     auth_id: str | None = None,
 ) -> dict[str, str]:
     """
     Builds the runtime headers for MCP requests.
 
     Args:
-        audience: The target audience used to generate the ID token.
-        readonly_context: The runtime context used to get the delegated token.
-        auth_id: The auth resource ID used to fetch the delegated user token.
+        audience (str): The target audience used to generate the ID token.
+        readonly_context (ReadonlyContext): The runtime context used to get the delegated token.
+        auth_id (str | None): The auth resource ID used to fetch the delegated user token.
 
     Returns:
         dict[str, str]: The headers for the MCP request.
