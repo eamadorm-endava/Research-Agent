@@ -289,7 +289,7 @@ class MCPServersConfig(BaseSettings):
     BIGQUERY_URL: Annotated[
         str,
         Field(
-            default="https://bigquery-mcp-server-753988132239.us-central1.run.app",
+            default="http://localhost:8080",
             description="BigQuery MCP Server URL, uses a streamable http connection",
         ),
     ]
@@ -406,7 +406,7 @@ class MCPServersConfig(BaseSettings):
     GCS_URL: Annotated[
         str,
         Field(
-            default="https://gcs-mcp-server-753988132239.us-central1.run.app",
+            default="http://localhost:8082",
             description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
         ),
     ]
