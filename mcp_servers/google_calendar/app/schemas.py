@@ -1,5 +1,5 @@
-from typing import Annotated, Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Annotated, Literal, Optional, Self
+from pydantic import BaseModel, Field, model_validator
 
 from .calendar.schemas import CalendarEvent
 from .meet.schemas import MeetParticipant, MeetRecording, MeetSession, MeetTranscript
@@ -72,6 +72,24 @@ class ListCalendarEventsRequest(BaseModel):
             ),
         ),
     ]
+
+    @model_validator(mode="after")
+    def validate_time_filters(self) -> Self:
+        # Time without Date: Raise error if times are provided but dates are missing
+        if (self.time_min or self.time_max) and (
+            not self.date_min or not self.date_max
+        ):
+            raise ValueError(
+                "Dates (date_min and date_max) are required when using time filters."
+            )
+
+        # Mandatory Date Pair: Raise error if only one date filter is provided
+        if bool(self.date_min) != bool(self.date_max):
+            raise ValueError(
+                "Both date_min and date_max are required for a valid date-time search range."
+            )
+
+        return self
 
 
 class ListCalendarEventsResponse(BaseResponse):
