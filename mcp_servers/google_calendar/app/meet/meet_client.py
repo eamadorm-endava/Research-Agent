@@ -32,7 +32,6 @@ class MeetClient:
         Args:
             creds (Credentials): Authorized Google OAuth2 credentials object.
         """
-        self.creds = creds
         self.meet = build(
             MEET_CONFIG.meet_api_service_name,
             MEET_CONFIG.meet_api_version,
@@ -237,6 +236,7 @@ class MeetClient:
             list[dict[str, Any]]: A list of raw recording dictionaries from the API.
         """
         try:
+            logger.debug(f"Fetching recordings for session: {meet_session_id}")
             response = (
                 self.meet.conferenceRecords()
                 .recordings()
@@ -244,7 +244,10 @@ class MeetClient:
                 .execute()
             )
             return response.get("recordings", [])
-        except HttpError:
+        except HttpError as exc:
+            logger.error(
+                f"Error fetching recordings for session {meet_session_id}: {exc}"
+            )
             return []
 
     def _fetch_transcripts(self, meet_session_id: str) -> list[dict]:
@@ -260,6 +263,7 @@ class MeetClient:
             list[dict[str, Any]]: A list of raw transcript dictionaries from the API.
         """
         try:
+            logger.debug(f"Fetching transcripts for session: {meet_session_id}")
             response = (
                 self.meet.conferenceRecords()
                 .transcripts()
@@ -267,7 +271,10 @@ class MeetClient:
                 .execute()
             )
             return response.get("transcripts", [])
-        except HttpError:
+        except HttpError as exc:
+            logger.error(
+                f"Error fetching transcripts for session {meet_session_id}: {exc}"
+            )
             return []
 
     def _fetch_participants(self, meet_session_id: str) -> list[dict]:
@@ -283,6 +290,7 @@ class MeetClient:
             list[dict[str, Any]]: A list of raw participant dictionaries from the API.
         """
         try:
+            logger.debug(f"Fetching participants for session: {meet_session_id}")
             response = (
                 self.meet.conferenceRecords()
                 .participants()
@@ -290,7 +298,10 @@ class MeetClient:
                 .execute()
             )
             return response.get("participants", [])
-        except HttpError:
+        except HttpError as exc:
+            logger.error(
+                f"Error fetching participants for session {meet_session_id}: {exc}"
+            )
             return []
 
     # --- Private Methods (Mapping) ---
@@ -309,6 +320,7 @@ class MeetClient:
         Returns:
             MeetParticipant: An initialized attendee model with descriptive attributes.
         """
+        logger.debug("Mapping raw participant data...")
         user_type = UserType.ANONYMOUS
         user_id = None
         display_name = "Unknown Participant"
@@ -354,6 +366,7 @@ class MeetClient:
         Returns:
             MeetRecording: A structured model containing the recording's life cycle details.
         """
+        logger.debug("Mapping raw recording data...")
         drive_id = raw_recording_data.get("driveDestination", {}).get("file")
         return MeetRecording(
             recording_id=raw_recording_data.get("name"),
@@ -377,6 +390,7 @@ class MeetClient:
         Returns:
             MeetTranscript: A validated model summarizing the transcript artifact.
         """
+        logger.debug("Mapping raw transcript data...")
         docs_id = raw_transcript_data.get("docsDestination", {}).get("document")
         return MeetTranscript(
             transcript_id=raw_transcript_data.get("name"),

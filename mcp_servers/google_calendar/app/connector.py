@@ -1,4 +1,5 @@
 from typing import Optional
+from loguru import logger
 from google.oauth2.credentials import Credentials
 
 from .calendar import CalendarClient
@@ -23,6 +24,7 @@ class EventsClient:
         Args:
             creds (Credentials): Valid Google OAuth2 credentials.
         """
+        logger.info("Initializing unified EventsClient")
         self._calendar = CalendarClient(creds)
         self._meet = MeetClient(creds)
 
@@ -41,15 +43,16 @@ class EventsClient:
 
         Args:
             max_events (int): The maximum number of events to return.
-            date_min (str | None): Optional lower bound date filter (YYYY-MM-DD).
-            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ).
-            date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
-            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ).
-            query (str | None): Optional search terms.
+            date_min (Optional[str]): Lower bound date filter (YYYY-MM-DD).
+            time_min (Optional[str]): Lower bound time filter (HH:MM:SSZ).
+            date_max (Optional[str]): Upper bound date filter (YYYY-MM-DD).
+            time_max (Optional[str]): Upper bound time filter (HH:MM:SSZ).
+            query (Optional[str]): Optional search terms.
 
-        Return:
+        Returns:
             list[CalendarEvent]: A list of parsed CalendarEvent objects.
         """
+        logger.info("EventsClient routing: list_events")
         return self._calendar.list_events(
             max_events=max_events,
             date_min=date_min,
@@ -70,6 +73,9 @@ class EventsClient:
         Returns:
             list[MeetSession]: A list of objects summarizing each meeting session.
         """
+        logger.info(
+            f"EventsClient routing: list_meet_sessions for code '{meeting_code}'"
+        )
         return self._meet.list_meet_sessions(meeting_code=meeting_code)
 
     def list_meet_participants(self, meet_session_id: str) -> list[MeetParticipant]:
@@ -81,6 +87,9 @@ class EventsClient:
         Returns:
             list[MeetParticipant]: A list of participants with join/leave metadata.
         """
+        logger.info(
+            f"EventsClient routing: list_meet_participants for session '{meet_session_id}'"
+        )
         return self._meet.list_meet_participants(meet_session_id=meet_session_id)
 
     def get_meet_recording(self, recording_id: str) -> MeetRecording:
@@ -92,6 +101,7 @@ class EventsClient:
         Returns:
             MeetRecording: A model containing the recording metadata.
         """
+        logger.info(f"EventsClient routing: get_meet_recording for id '{recording_id}'")
         return self._meet.get_meet_recording(recording_id=recording_id)
 
     def get_meet_transcript(self, transcript_id: str) -> MeetTranscript:
@@ -103,4 +113,7 @@ class EventsClient:
         Returns:
             MeetTranscript: A model containing transcript metadata.
         """
+        logger.info(
+            f"EventsClient routing: get_meet_transcript for id '{transcript_id}'"
+        )
         return self._meet.get_meet_transcript(transcript_id=transcript_id)

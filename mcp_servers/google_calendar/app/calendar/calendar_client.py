@@ -25,7 +25,6 @@ class CalendarClient:
         Return:
             None
         """
-        self.creds = creds
         self.calendar = build(
             CALENDAR_CONFIG.calendar_api_service_name,
             CALENDAR_CONFIG.calendar_api_version,
@@ -48,6 +47,7 @@ class CalendarClient:
         Return:
             list[Attendee]: A list of Attendee objects.
         """
+        logger.debug("Parsing attendees...")
         attendees = []
         for attendee in raw_attendees:
             attendees.append(
@@ -91,6 +91,7 @@ class CalendarClient:
         Return:
             Optional[MeetSessionData]: A MeetSessionData object or None if no Meet link is found.
         """
+        logger.debug("Parsing meet session data...")
         meeting_code = meet_data_dict.get("conferenceId")
         if not meeting_code:
             return None
@@ -118,6 +119,7 @@ class CalendarClient:
         Return:
             list[EventAttachment]: A list of EventAttachment objects.
         """
+        logger.debug("Parsing attachments...")
         attachments = []
         for attachment in raw_attachments:
             attachments.append(
