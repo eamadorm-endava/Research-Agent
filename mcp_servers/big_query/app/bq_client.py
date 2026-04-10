@@ -5,8 +5,7 @@ import httpx
 from google.cloud import bigquery
 from google.cloud.bigquery.schema import SchemaField
 from google.cloud.exceptions import GoogleCloudError, NotFound
-from google.auth.credentials import Credentials
-from google.oauth2.credentials import Credentials as OAuthCredentials
+from google.oauth2.credentials import Credentials
 
 from .config import BIGQUERY_API_CONFIG, BIGQUERY_AUTH_CONFIG
 from .schemas import AuthenticationError
@@ -270,7 +269,7 @@ def build_bq_credentials(
     if access_token:
         if validate:
             validate_access_token(access_token, scopes)
-        return OAuthCredentials(token=access_token, scopes=scopes)
+        return Credentials(token=access_token, scopes=scopes)
 
     raise RuntimeError(
         "No BigQuery credentials available. Provide a delegated user access token header."
