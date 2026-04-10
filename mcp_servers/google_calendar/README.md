@@ -12,6 +12,15 @@ By combining these, an agent can perform complex queries like: *"Find the transc
 
 ---
 
+## Architectural Highlights
+
+- **Standardized Schema Contracts**: Built exclusively using Pydantic `BaseModel`. All exposed tools receive well-defined `Request` objects and return consistent `Response` objects.
+- **Traceability (Parameter Echoing)**: Response schemas dynamically inherit from their corresponding Requests and a common `BaseResponse`. This means every tool returns the `execution_status` ("success" or "error"), the `execution_message`, and crucially, echoes back the original input parameters. The Agent never loses context when attempting rollbacks or compensations. 
+- **Graceful Error Handling**: Instead of raising raw runtime exceptions on API HTTP errors, the Server catches exceptions and securely returns them wrapped within the `BaseResponse` standard format.
+- **Unified Observability**: Leveraging `loguru`, the server implements tiered logging natively down to private components: `DEBUG` for mapping and fetching, `INFO` for unified routing boundaries, and `ERROR` for API exceptions.
+
+---
+
 ## Components
 
 ### [Calendar Client](./app/calendar/README.md)
@@ -37,20 +46,36 @@ To use all features of this server, your OAuth token must include:
 
 ---
 
-## Quick Start
+## Quick Start & Make Commands
+
+The project manages continuous integration and local development through `uv` and the global repository `Makefile`.
 
 ### 1. Installation
-This project uses `uv` for dependency management.
 
+Sync the exact dependencies for the calendar server securely using your `uv.lock`:
 ```bash
-uv sync --group mcp_calendar
+uv sync --group mcp_calendar --all-groups --locked
 ```
 
-### 2. Running Tests
-We maintain a robust test suite covering RFC3339 validation and API error handling.
+### 2. Running Locally
 
+We have registered a port footprint across our system to avoid collisions. The Calendar MCP runs locally on port `8083`:
 ```bash
-uv run pytest mcp_servers/google_calendar/tests/
+make run-calendar-mcp-locally
+```
+
+### 3. Running Tests & QA
+
+We maintain a robust test suite covering RFC3339 validation, base response schema inheritance, parameter echoing edge cases, and API failure modes.
+
+Run your tests using Make:
+```bash
+make run-calendar-tests
+```
+
+Or verify the entire pipeline (Pre-commit, Pytest, and Docker Build):
+```bash
+make verify-calendar-ci
 ```
 
 ---
