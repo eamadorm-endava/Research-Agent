@@ -1,92 +1,47 @@
 import os
 from unittest.mock import patch
 
+from google.adk.auth import AuthCredentialTypes
+
 from agent.core_agent.config import MCPServersConfig
 from agent.core_agent.utils.auxiliars import (
+    build_google_auth_credential,
+    build_google_oauth_scheme,
     build_runtime_headers,
-    get_mcp_servers_tools,
 )
 
 
-def test_get_mcp_servers_tools_builds_toolsets_from_url_endpoint_pairs():
+def test_build_google_oauth_scheme_assigns_attributes_correctly():
     mock_env = {
-        "GENERAL_TIMEOUT": "45",
-        "BIGQUERY_URL": "https://bq-server.example",
-        "BIGQUERY_ENDPOINT": "/mcp",
-        "GCS_URL": "https://gcs-server.example",
-        "GCS_ENDPOINT": "/custom-mcp",
-        "DRIVE_URL": "",
+        "GOOGLE_OAUTH_AUTH_URI": "https://custom.auth.uri",
+        "GOOGLE_OAUTH_TOKEN_URI": "https://custom.token.uri",
     }
-
     with patch.dict(os.environ, mock_env, clear=True):
         config = MCPServersConfig()
 
-    with (
-        patch(
-            "agent.core_agent.utils.auxiliars.StreamableHTTPConnectionParams"
-        ) as mock_connection_params,
-        patch("agent.core_agent.utils.auxiliars.McpToolset") as mock_toolset,
-        patch(
-            "agent.core_agent.utils.auxiliars.get_id_token",
-            side_effect=lambda url: f"token-for-{url}",
-        ),
-    ):
-        get_mcp_servers_tools(config)
+    scopes = {"https://www.googleapis.com/auth/test": "test scope"}
+    scheme = build_google_oauth_scheme(config, scopes)
 
-        assert mock_connection_params.call_count == 2
-        created_urls = [
-            call.kwargs["url"] for call in mock_connection_params.call_args_list
-        ]
-        assert "https://bq-server.example/mcp" in created_urls
-        assert "https://gcs-server.example/custom-mcp" in created_urls
-
-        created_timeouts = [
-            call.kwargs["timeout"] for call in mock_connection_params.call_args_list
-        ]
-        assert created_timeouts == [45, 45]
-
-        assert mock_toolset.call_count == 2
-        expected_auth = [
-            "https://bq-server.example",
-            "https://gcs-server.example",
-        ]
-        for call, expected_url in zip(mock_toolset.call_args_list, expected_auth):
-            header_provider = call.kwargs["header_provider"]
-            assert header_provider(None) == {
-                "X-Serverless-Authorization": f"Bearer token-for-{expected_url}"
-            }
+    assert scheme.flows.authorizationCode.authorizationUrl == "https://custom.auth.uri"
+    assert scheme.flows.authorizationCode.tokenUrl == "https://custom.token.uri"
+    assert scheme.flows.authorizationCode.scopes == scopes
 
 
-def test_get_mcp_servers_tools_skips_empty_url_values():
+def test_build_google_auth_credential_assigns_attributes_correctly():
     mock_env = {
-        "BIGQUERY_URL": "https://bq-server.example",
-        "BIGQUERY_ENDPOINT": "/mcp",
-        "GCS_URL": "",
-        "GCS_ENDPOINT": "/mcp",
-        "DRIVE_URL": "",
+        "GOOGLE_OAUTH_CLIENT_ID": "test-client-id",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "test-client-secret",
+        "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:8080/callback",
     }
-
     with patch.dict(os.environ, mock_env, clear=True):
         config = MCPServersConfig()
 
-    with (
-        patch(
-            "agent.core_agent.utils.auxiliars.StreamableHTTPConnectionParams"
-        ) as mock_connection_params,
-        patch("agent.core_agent.utils.auxiliars.McpToolset") as mock_toolset,
-        patch(
-            "agent.core_agent.utils.auxiliars.get_id_token",
-            return_value="token",
-        ),
-    ):
-        get_mcp_servers_tools(config)
+    cred = build_google_auth_credential(config)
 
-    assert mock_connection_params.call_count == 1
-    assert (
-        mock_connection_params.call_args.kwargs["url"]
-        == "https://bq-server.example/mcp"
-    )
-    assert mock_toolset.call_count == 1
+    assert cred.auth_type == AuthCredentialTypes.OAUTH2
+    assert cred.oauth2.client_id == "test-client-id"
+    assert cred.oauth2.client_secret == "test-client-secret"
+    assert cred.oauth2.redirect_uri == "http://localhost:8080/callback"
 
 
 def test_build_runtime_headers_includes_shared_google_auth_when_requested():
@@ -107,3 +62,15 @@ def test_build_runtime_headers_includes_shared_google_auth_when_requested():
         "X-Serverless-Authorization": "Bearer id-token",
         "Authorization": "Bearer oauth-token",
     }
+
+
+def test_build_runtime_headers_omits_authorization_if_auth_id_not_provided():
+    with patch(
+        "agent.core_agent.utils.auxiliars.get_id_token", return_value="id-token"
+    ):
+        headers = build_runtime_headers(
+            "https://bq-server.example",
+            readonly_context=object(),
+        )
+
+    assert headers == {"X-Serverless-Authorization": "Bearer id-token"}

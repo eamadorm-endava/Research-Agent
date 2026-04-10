@@ -46,7 +46,7 @@ def test_mcp_servers_config():
         "GENERAL_TIMEOUT": "120",
         "BIGQUERY_ENDPOINT": "/custom-mcp",
         "DRIVE_URL": "http://localhost:9090",
-        "DRIVE_OAUTH_SCOPES": '["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file"]',
+        "DRIVE_OAUTH_SCOPES": '["https://www.googleapis.com/auth/drive"]',
         "BIGQUERY_OAUTH_SCOPES": '["https://www.googleapis.com/auth/bigquery"]',
         "GOOGLE_OAUTH_CLIENT_ID": "shared-google-client-id",
         "GEMINI_GOOGLE_AUTH_ID": "shared-google-auth-id",
@@ -59,8 +59,7 @@ def test_mcp_servers_config():
         assert config.GOOGLE_OAUTH_CLIENT_ID == "shared-google-client-id"
         assert config.GEMINI_GOOGLE_AUTH_ID == "shared-google-auth-id"
         assert config.DRIVE_OAUTH_SCOPES == {
-            "https://www.googleapis.com/auth/drive.readonly": "google drive access",
-            "https://www.googleapis.com/auth/drive.file": "google drive access",
+            "https://www.googleapis.com/auth/drive": "google drive access",
         }
         assert config.BIGQUERY_OAUTH_SCOPES == {
             "https://www.googleapis.com/auth/bigquery": "google bigquery access",
