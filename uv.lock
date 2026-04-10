@@ -2346,6 +2346,7 @@ mcp-calendar = [
     { name = "mcp" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "python-dateutil" },
 ]
 mcp-drive = [
     { name = "google-api-python-client" },
@@ -2400,6 +2401,7 @@ mcp-calendar = [
     { name = "mcp", specifier = ">=1.26.0" },
     { name = "pydantic", specifier = ">=2.5.3" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
+    { name = "python-dateutil", specifier = ">=2.9.0.post0" },
 ]
 mcp-drive = [
     { name = "google-api-python-client", specifier = ">=2.0.0" },

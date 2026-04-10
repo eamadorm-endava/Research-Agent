@@ -5,6 +5,7 @@ substitutions:
   _AGENT_SA: "adk-agent"
   _BIGQUERY_URL: "https://bigquery-mcp-server-753988132239.us-central1.run.app"
   _DRIVE_URL: "https://drive-mcp-server-753988132239.us-central1.run.app"
+  _GCS_URL: "https://gcs-mcp-server-753988132239.us-central1.run.app"
   _GE_APP_ID: "newgeapp_1773239361913"
   _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
@@ -108,7 +109,7 @@ steps:
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GEMINI_GOOGLE_AUTH_ID=$$GEMINI_GOOGLE_AUTH_ID" 2>&1 | tee deploy_output.txt
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GCS_URL=${_GCS_URL},GEMINI_GOOGLE_AUTH_ID=$$GEMINI_GOOGLE_AUTH_ID" 2>&1 | tee deploy_output.txt
         
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"

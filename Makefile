@@ -1,8 +1,9 @@
 PROJECT_ID?=p-dev-gce-60pf # ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
-BIGQUERY_URL?=mock-bigquery-url 
-DRIVE_URL?=mock-drive-url
-CALENDAR_URL?=mock-calendar-url
+BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
+DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
+GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
+CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
 ### General Commands ###
 
@@ -59,7 +60,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@p-dev-gce-60pf.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_URL},DRIVE_URL=${DRIVE_URL},CALENDAR_URL=${CALENDAR_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:

@@ -27,6 +27,16 @@ def test_gcp_config_override():
         assert config.REGION == "europe-west1"
 
 
+def test_mcp_servers_config_defaults_to_localhost_urls():
+    """Test that MCP server URLs default to local localhost endpoints."""
+    with patch.dict(os.environ, clear=True):
+        config = MCPServersConfig()
+
+    assert config.BIGQUERY_URL == "http://localhost:8080"
+    assert config.DRIVE_URL == "http://localhost:8081"
+    assert config.GCS_URL == "http://localhost:8082"
+
+
 def test_agent_config_validation():
     """Test that AgentConfig enforces data types and constraints."""
     with patch.dict(os.environ, clear=True):
