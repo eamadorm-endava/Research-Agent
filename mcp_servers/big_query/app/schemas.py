@@ -67,6 +67,10 @@ class BaseResponse(BaseModel):
     ]
 
 
+class AuthenticationError(Exception):
+    """Raised when delegated OAuth authentication fails."""
+
+
 class GetTableSchemaRequest(BaseModel):
     """
     Request model for retrieving table schema.

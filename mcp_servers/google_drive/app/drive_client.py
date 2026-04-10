@@ -30,7 +30,7 @@ from .schemas import (
 class DriveManager:
     """Manager for Google Drive operations."""
 
-    def __init__(self, creds: Any) -> None:
+    def __init__(self, creds: Credentials) -> None:
         self.creds = creds
         self.drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 

@@ -6,9 +6,9 @@ The agent to be developed is an [**LLM Agent**](../../docs/ADK/ADK-01-Intro.md#l
 
 - **BigQuery** is consumed through a remote MCP server.
 - **Google Drive** is consumed through a remote MCP server via `McpToolset`, matching the same `mcp_servers/<service>/app/...` layout as BigQuery.
-- The Drive MCP integration now supports two authentication layers:
-  - **MCP-service authentication** through `McpToolset(auth_scheme=..., auth_credential=...)` when the Drive MCP endpoint itself sits behind an API gateway or OAuth2-protected ingress.
-  - **Delegated user Drive authentication** through `header_provider`, which forwards the Gemini Enterprise user token to the MCP server on each request.
+- The Drive and BigQuery MCP integrations now share the same delegated Google OAuth token.
+  - **MCP-service authentication** still happens through `X-Serverless-Authorization` so the agent can invoke the Cloud Run service.
+  - **Delegated user data access** is forwarded through `Authorization`, so Drive and BigQuery calls run with the end-user's permissions.
 - The legacy in-process Drive tools are still present as a fallback, but the preferred runtime path is the Drive MCP server.
 
 ## Folder structure
@@ -36,14 +36,16 @@ Optional MCP server variables:
     BIGQUERY_ENDPOINT=/mcp
     DRIVE_URL=https://google-drive-mcp-server-xxxxx-uc.a.run.app
     DRIVE_ENDPOINT=/mcp
-    DRIVE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
-    DRIVE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
-    DRIVE_OAUTH_REDIRECT_URI=http://localhost:8000/oauth2callback
+    GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
+    GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
+    GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/oauth2callback
+    BIGQUERY_OAUTH_SCOPES=["https://www.googleapis.com/auth/bigquery"]
 
 Notes:
 - Set `BIGQUERY_URL` and `DRIVE_URL` to your deployed Cloud Run **base URL** (without `/mcp`).
 - If you leave any URL empty, the corresponding MCP integration will be disabled automatically.
-- The `DRIVE_OAUTH_` variables are required for the agent to authenticate users via the interactive Per-User OAuth 2.0 flow.
+- The `GOOGLE_OAUTH_` variables identify the shared Google OAuth client used by the Drive and BigQuery MCP toolsets.
+- `BIGQUERY_OAUTH_SCOPES` lets you extend the delegated token with BigQuery access for local testing.
 
 MCP tool wiring is centralized in `get_mcp_servers_tools` inside `utils/auxiliars.py`, so `agent.py` stays focused on agent configuration and initialization.
 
@@ -87,7 +89,7 @@ This agent connects to robust backend tools by consuming **Model Context Protoco
 - **BigQuery MCP Server**: Enables the agent to execute analytical queries against structural tables.
 - **Google Drive MCP Server**: Connects the agent directly to Google Drive, allowing it to read, list, and upload files.
 
-> **Authentication Status**: Currently, each MCP Server operates using its own dedicated Google Cloud Service Account, which holds the necessary backend permissions to access the resources (BigQuery datasets and Drive files). In the near future, this architecture will be upgraded to use **Per-User OAuth 2.0**, allowing the MCP servers to act on behalf of the specific end-user interacting with the agent.
+> **Authentication Status**: Drive and BigQuery now use a shared delegated Google OAuth token, so both MCP servers act on behalf of the specific end-user interacting with the agent. The Cloud Run identity token is kept only for invoking the protected MCP service itself.
 
 ### Security: Model Armor Implementation
 

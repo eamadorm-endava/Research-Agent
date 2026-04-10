@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from enum import StrEnum
 from typing import Annotated, Union
 
@@ -260,6 +260,14 @@ class DriveScopes(StrEnum):
     DRIVE = "https://www.googleapis.com/auth/drive"
 
 
+class BigQueryScopes(StrEnum):
+    """
+    Enum for Google BigQuery OAuth scopes.
+    """
+
+    BIGQUERY = "https://www.googleapis.com/auth/bigquery"
+
+
 class MCPServersConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -306,25 +314,34 @@ class MCPServersConfig(BaseSettings):
             description="Google Drive MCP Server Endpoint",
         ),
     ]
-    DRIVE_OAUTH_CLIENT_ID: Annotated[
+    GOOGLE_OAUTH_CLIENT_ID: Annotated[
         str,
         Field(
             default="",
-            description="OAuth 2.0 Client ID for Google Drive (provided to the Agent)",
+            description="Shared OAuth 2.0 Client ID for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_CLIENT_ID", "DRIVE_OAUTH_CLIENT_ID"
+            ),
         ),
     ]
-    DRIVE_OAUTH_CLIENT_SECRET: Annotated[
+    GOOGLE_OAUTH_CLIENT_SECRET: Annotated[
         str,
         Field(
             default="",
-            description="OAuth 2.0 Client Secret for Google Drive (provided to the Agent)",
+            description="Shared OAuth 2.0 Client Secret for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_OAUTH_CLIENT_SECRET"
+            ),
         ),
     ]
-    DRIVE_OAUTH_REDIRECT_URI: Annotated[
+    GOOGLE_OAUTH_REDIRECT_URI: Annotated[
         str,
         Field(
             default="http://localhost:8000/dev-ui",
-            description="OAuth 2.0 Redirect URI for Google Drive (provided to the Agent)",
+            description="Shared OAuth 2.0 Redirect URI for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_REDIRECT_URI", "DRIVE_OAUTH_REDIRECT_URI"
+            ),
         ),
     ]
     DRIVE_OAUTH_SCOPES: Annotated[
@@ -349,20 +366,43 @@ class MCPServersConfig(BaseSettings):
             return v
         return {scope.value: "google drive access" for scope in v}
 
-    DRIVE_OAUTH_AUTH_URI: Annotated[
+    GOOGLE_OAUTH_AUTH_URI: Annotated[
         str,
         Field(
             default="https://accounts.google.com/o/oauth2/v2/auth",
-            description="OAuth 2.0 Authorization URL for Google Drive",
+            description="Shared OAuth 2.0 authorization URL for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_AUTH_URI", "DRIVE_OAUTH_AUTH_URI"
+            ),
         ),
     ]
-    DRIVE_OAUTH_TOKEN_URI: Annotated[
+    GOOGLE_OAUTH_TOKEN_URI: Annotated[
         str,
         Field(
             default="https://oauth2.googleapis.com/token",
-            description="OAuth 2.0 Token URL for Google Drive",
+            description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_TOKEN_URI", "DRIVE_OAUTH_TOKEN_URI"
+            ),
         ),
     ]
+    BIGQUERY_OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[BigQueryScopes]],
+        Field(
+            default=[BigQueryScopes.BIGQUERY],
+            description="OAuth scopes requested by the agent when authenticating to the BigQuery MCP server.",
+        ),
+    ]
+
+    @field_validator("BIGQUERY_OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_bigquery_oauth_scopes(
+        cls, v: Union[list[BigQueryScopes], dict[str, str]]
+    ) -> dict[str, str]:
+        if isinstance(v, dict):
+            return v
+        return {scope.value: "google bigquery access" for scope in v}
+
     GCS_URL: Annotated[
         str,
         Field(
@@ -377,11 +417,14 @@ class MCPServersConfig(BaseSettings):
             description="GCS MCP Server Endpoint",
         ),
     ]
-    GEMINI_DRIVE_AUTH_ID: Annotated[
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
         str,
         Field(
             default="mock-ge-auth-id",
-            description="The ID of the authorization resource registered in Gemini Enterprise."
+            description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise and reused by MCP tool calls."
             " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
+            validation_alias=AliasChoices(
+                "GEMINI_GOOGLE_AUTH_ID", "GEMINI_DRIVE_AUTH_ID"
+            ),
         ),
     ]

@@ -14,7 +14,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Check https://github.com/modelcontextprotocol/python-sdk/blob/main/src/mcp/server/mcpserver/server.py#L126
+    # Check https://github.com/modelcontextprotocol/python-sdk/blob/v1.26.0/src/mcp/server/fastmcp/server.py#L98
     mcp.settings.host = args.host
     mcp.settings.port = args.port
     mcp.settings.log_level = args.log_level

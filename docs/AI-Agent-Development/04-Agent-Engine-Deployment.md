@@ -70,7 +70,7 @@ The pipeline uses `uv` to rapidly export dependencies and execute the deployment
           --requirements-file=./agent/core_agent/requirements.txt \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},DRIVE_URL=${_DRIVE_URL},GEMINI_DRIVE_AUTH_ID=$$DRIVE_AUTH_ID"
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},DRIVE_URL=${_DRIVE_URL},GEMINI_GOOGLE_AUTH_ID=$$GOOGLE_AUTH_ID"
 ```
 
 ### 3. Post-Deployment

@@ -76,7 +76,7 @@ curl -X POST \
 Deploy your agent to **Vertex AI Agent Engine** via your **CI/CD pipeline**. The agent code uses a Pydantic `BaseSettings` subclass (`MCPServersConfig`) to manage its configuration.
 
 **CI/CD Injection Flow:**
-- The configuration class includes a field (e.g., `GEMINI_DRIVE_AUTH_ID`) that stores the `AUTH_ID` created in Step 2.
+- The configuration class includes a field (e.g., `GEMINI_GOOGLE_AUTH_ID`) that stores the `AUTH_ID` created in Step 2.
 - In a production flow, this value (and other secrets) is stored in **Google Cloud Secret Manager**.
 - The **CI/CD pipeline** retrieves these secrets and injects them as environment variables into the Agent's runtime environment during deployment.
 - If the agent uses multiple tools with different authorizations, each unique `AUTH_ID` must be injected as a separate environment variable.

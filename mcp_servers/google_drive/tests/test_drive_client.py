@@ -102,7 +102,7 @@ def test_drive_manager_list_files_simple(mock_drive_service):
         "parents": [],
     }
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
     items = manager.list_files(max_results=1)
 
     assert len(items) == 1
@@ -144,7 +144,7 @@ def test_drive_manager_get_file_text_google_doc(mock_drive_service):
         b"doc content"
     )
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
     doc = manager.get_file_text("f1")
 
     assert doc.text == "doc content"
@@ -167,7 +167,7 @@ def test_drive_manager_create_folder(mock_drive_service):
         "id": "new_folder_id"
     }
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
 
     # Mock get_file (which is called at the end of create_folder)
     with patch.object(DriveManager, "get_file") as mock_get_file:
@@ -201,7 +201,7 @@ def test_drive_manager_move_file(mock_drive_service):
     }
     mock_drive.files.return_value.update.return_value.execute.return_value = {}
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
     with patch.object(DriveManager, "get_file"):
         manager.move_file(file_id="f1", destination_folder_id="new_p")
 
@@ -266,7 +266,7 @@ def test_resolve_folder_id_by_path(mock_drive_service):
         {"files": [{"id": "id_b", "name": "FolderB"}]},
     ]
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
     folder_id = manager._resolve_folder_id_by_path("Folder A/Folder B")
 
     assert folder_id == "id_b"
@@ -295,7 +295,7 @@ def test_drive_manager_create_file(mock_drive_service):
         "id": "f123"
     }
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
     with patch.object(DriveManager, "get_file"):
         manager.create_file(name="notes", content="hello world", mime_type="text/plain")
 
@@ -321,7 +321,7 @@ def test_drive_manager_upload_pdf_from_text(mock_drive_service):
         "id": "p123"
     }
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
     with patch.object(DriveManager, "get_file"):
         manager.upload_pdf_from_text(title="Report", text="PDF Content")
 
@@ -344,7 +344,7 @@ def test_drive_manager_rename_file(mock_drive_service):
     mock_drive_service.return_value = mock_drive
     mock_drive.files.return_value.update.return_value.execute.return_value = {}
 
-    manager = DriveManager(None)
+    manager = DriveManager(MagicMock())
     with patch.object(DriveManager, "get_file"):
         manager.rename_file(file_id="f1", new_name="new_name")
 
