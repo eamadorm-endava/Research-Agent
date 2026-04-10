@@ -20,6 +20,7 @@ verify-all-ci:
 	$(MAKE) verify-bq-ci
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
+	$(MAKE) verify-calendar-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -113,10 +114,10 @@ run-gcs-tests:
 	uv run --group mcp_gcs pytest mcp_servers/gcs/tests/
 
 run-gcs-mcp-locally:
-	uv run --group mcp_gcs python -m mcp_servers.gcs.app.main --host localhost --port 8080
+	uv run --group mcp_gcs python -m mcp_servers.gcs.app.main --host localhost --port 8082
 
 run-gcs-mcp-smoke:
-	uv run --group mcp_gcs python mcp_servers/gcs/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket $(BUCKET) --prefix $(PREFIX)$(if $(BUCKET_PREFIX), --bucket-prefix $(BUCKET_PREFIX),)
+	uv run --group mcp_gcs python mcp_servers/gcs/scripts/mcp_smoke_test.py --endpoint http://localhost:8082/mcp --bucket $(BUCKET) --prefix $(PREFIX)$(if $(BUCKET_PREFIX), --bucket-prefix $(BUCKET_PREFIX),)
 
 build-gcs-mcp-image:
 	docker build -t test-gcs-mcp-server -f mcp_servers/gcs/Dockerfile .
@@ -129,3 +130,22 @@ verify-gcs-ci:
 
 test-gcs-terraform:
 	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
+
+### Google Calendar & Meet MCP Commands ###
+
+run-calendar-precommit:
+	uvx pre-commit run --files mcp_servers/google_calendar/**/*
+
+run-calendar-tests:
+	uv run --group mcp_calendar pytest mcp_servers/google_calendar/tests/
+
+run-calendar-mcp-locally:
+	uv run --group mcp_calendar python -m mcp_servers.google_calendar.app.main --host localhost --port 8083
+
+build-calendar-mcp-image:
+	docker build -t test-calendar-mcp-server -f mcp_servers/google_calendar/Dockerfile .
+
+verify-calendar-ci:
+	$(MAKE) run-calendar-precommit
+	$(MAKE) run-calendar-tests
+	$(MAKE) build-calendar-mcp-image
