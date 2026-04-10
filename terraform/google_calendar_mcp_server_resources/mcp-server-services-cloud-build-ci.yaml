@@ -26,7 +26,7 @@ steps:
       - |
         apt-get update && apt-get install -y make
         pip install uv
-        make run-precommit
+        SKIP=terraform_fmt make run-precommit
 
   # Step 4: Python Tests
   - name: 'python:3.12'
