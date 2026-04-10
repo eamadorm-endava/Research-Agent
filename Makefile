@@ -1,9 +1,8 @@
-PROJECT_ID=p-dev-gce-60pf
-REGION=us-central1
-BIGQUERY_URL=mock-bigquery-url
-DRIVE_URL=mock-drive-url
-GOOGLE_AUTH_ID=mock-GE-drive-auth-resource-id
-
+PROJECT_ID?=p-dev-gce-60pf # ?= is used to set a default value if the variable is not set in the .env file
+REGION?=us-central1
+BIGQUERY_URL?=mock-bigquery-url 
+DRIVE_URL?=mock-drive-url
+GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
 ### General Commands ###
 
 gcloud-auth:
