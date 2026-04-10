@@ -274,6 +274,80 @@ class CalendarScopes(StrEnum):
     MEET_READONLY = "https://www.googleapis.com/auth/meetings.space.readonly"
 
 
+class GoogleAuthConfig(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        validate_assignment=True,
+    )
+    """
+    Class that holds configuration values for generic Shared Google OAuth infrastructure credentials.
+    """
+
+    GOOGLE_OAUTH_CLIENT_ID: Annotated[
+        str,
+        Field(
+            default="",
+            description="Shared OAuth 2.0 Client ID for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_CLIENT_ID", "DRIVE_OAUTH_CLIENT_ID"
+            ),
+        ),
+    ]
+    GOOGLE_OAUTH_CLIENT_SECRET: Annotated[
+        str,
+        Field(
+            default="",
+            description="Shared OAuth 2.0 Client Secret for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_OAUTH_CLIENT_SECRET"
+            ),
+        ),
+    ]
+    GOOGLE_OAUTH_REDIRECT_URI: Annotated[
+        str,
+        Field(
+            default="http://localhost:8000/dev-ui",
+            description="Shared OAuth 2.0 Redirect URI for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_REDIRECT_URI", "DRIVE_OAUTH_REDIRECT_URI"
+            ),
+        ),
+    ]
+    GOOGLE_OAUTH_AUTH_URI: Annotated[
+        str,
+        Field(
+            default="https://accounts.google.com/o/oauth2/v2/auth",
+            description="Shared OAuth 2.0 authorization URL for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_AUTH_URI", "DRIVE_OAUTH_AUTH_URI"
+            ),
+        ),
+    ]
+    GOOGLE_OAUTH_TOKEN_URI: Annotated[
+        str,
+        Field(
+            default="https://oauth2.googleapis.com/token",
+            description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
+            validation_alias=AliasChoices(
+                "GOOGLE_OAUTH_TOKEN_URI", "DRIVE_OAUTH_TOKEN_URI"
+            ),
+        ),
+    ]
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
+        str,
+        Field(
+            default="mock-ge-auth-id",
+            description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise and reused by MCP tool calls."
+            " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
+            validation_alias=AliasChoices(
+                "GEMINI_GOOGLE_AUTH_ID", "GEMINI_DRIVE_AUTH_ID"
+            ),
+        ),
+    ]
+
+
 class MCPServersConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -348,67 +422,7 @@ class MCPServersConfig(BaseSettings):
             description="Google Calendar MCP Server Endpoint",
         ),
     ]
-    GOOGLE_OAUTH_CLIENT_ID: Annotated[
-        str,
-        Field(
-            default="",
-            description="Shared OAuth 2.0 Client ID for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_CLIENT_ID", "DRIVE_OAUTH_CLIENT_ID"
-            ),
-        ),
-    ]
-    GOOGLE_OAUTH_CLIENT_SECRET: Annotated[
-        str,
-        Field(
-            default="",
-            description="Shared OAuth 2.0 Client Secret for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_OAUTH_CLIENT_SECRET"
-            ),
-        ),
-    ]
-    GOOGLE_OAUTH_REDIRECT_URI: Annotated[
-        str,
-        Field(
-            default="http://localhost:8000/dev-ui",
-            description="Shared OAuth 2.0 Redirect URI for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_REDIRECT_URI", "DRIVE_OAUTH_REDIRECT_URI"
-            ),
-        ),
-    ]
-    GOOGLE_OAUTH_AUTH_URI: Annotated[
-        str,
-        Field(
-            default="https://accounts.google.com/o/oauth2/v2/auth",
-            description="Shared OAuth 2.0 authorization URL for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_AUTH_URI", "DRIVE_OAUTH_AUTH_URI"
-            ),
-        ),
-    ]
-    GOOGLE_OAUTH_TOKEN_URI: Annotated[
-        str,
-        Field(
-            default="https://oauth2.googleapis.com/token",
-            description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_TOKEN_URI", "DRIVE_OAUTH_TOKEN_URI"
-            ),
-        ),
-    ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
-        str,
-        Field(
-            default="mock-ge-auth-id",
-            description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise and reused by MCP tool calls."
-            " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
-            validation_alias=AliasChoices(
-                "GEMINI_GOOGLE_AUTH_ID", "GEMINI_DRIVE_AUTH_ID"
-            ),
-        ),
-    ]
+
     BIGQUERY_OAUTH_SCOPES: Annotated[
         Union[dict[str, str], list[BigQueryScopes]],
         Field(
