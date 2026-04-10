@@ -1,5 +1,5 @@
 import asyncio
-import logging
+from loguru import logger
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
@@ -19,8 +19,6 @@ from .schemas import (
     ListMeetSessionsResponse,
 )
 
-
-logger = logging.getLogger(__name__)
 
 # Instantiate MCP Server
 mcp = FastMCP(

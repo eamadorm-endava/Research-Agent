@@ -1,5 +1,5 @@
-import logging
 from typing import Optional
+from loguru import logger
 
 import httpx
 from google.oauth2.credentials import Credentials
@@ -8,8 +8,6 @@ from mcp.server.auth.provider import AccessToken, TokenVerifier
 
 from .config import CALENDAR_API_CONFIG
 from .connector import EventsClient
-
-logger = logging.getLogger(__name__)
 
 
 class GoogleCalendarTokenVerifier(TokenVerifier):
