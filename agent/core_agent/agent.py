@@ -37,6 +37,7 @@ model_armor_template_id = f"projects/{project_id}/locations/{region}/templates/{
 full_bq_mcp_server_path = mcp_servers.BIGQUERY_URL + mcp_servers.BIGQUERY_ENDPOINT
 full_gcs_mcp_server_path = mcp_servers.GCS_URL + mcp_servers.GCS_ENDPOINT
 full_drive_mcp_server_path = mcp_servers.DRIVE_URL + mcp_servers.DRIVE_ENDPOINT
+full_calendar_mcp_server_path = mcp_servers.CALENDAR_URL + mcp_servers.CALENDAR_ENDPOINT
 
 is_deployed = gcp_config.IS_DEPLOYED
 
@@ -73,6 +74,7 @@ meeting_summary_toolset = SkillToolset(skills=[agent_skills])
 shared_google_oauth_scopes = {
     **mcp_servers.DRIVE_OAUTH_SCOPES,
     **mcp_servers.BIGQUERY_OAUTH_SCOPES,
+    **mcp_servers.CALENDAR_OAUTH_SCOPES,
 }
 shared_google_auth_scheme = build_google_oauth_scheme(
     mcp_servers, shared_google_oauth_scopes
@@ -109,6 +111,20 @@ if is_deployed:
             ),
         )
     )
+
+    agent_tools.append(
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_calendar_mcp_server_path,
+                timeout=float(mcp_servers.GENERAL_TIMEOUT),
+            ),
+            header_provider=lambda ctx: build_runtime_headers(
+                mcp_servers.CALENDAR_URL,
+                ctx,
+                auth_id=mcp_servers.GEMINI_GOOGLE_AUTH_ID,
+            ),
+        )
+    )
 else:
     agent_tools.append(
         McpToolset(
@@ -133,6 +149,20 @@ else:
             ),
             header_provider=lambda ctx: build_runtime_headers(
                 mcp_servers.DRIVE_URL, ctx
+            ),
+            auth_scheme=shared_google_auth_scheme,
+            auth_credential=shared_google_auth_credential,
+        )
+    )
+
+    agent_tools.append(
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=full_calendar_mcp_server_path,
+                timeout=float(mcp_servers.GENERAL_TIMEOUT),
+            ),
+            header_provider=lambda ctx: build_runtime_headers(
+                mcp_servers.CALENDAR_URL, ctx
             ),
             auth_scheme=shared_google_auth_scheme,
             auth_credential=shared_google_auth_credential,
