@@ -25,7 +25,6 @@ class CalendarClient:
         Return:
             None
         """
-        self.creds = creds
         self.calendar = build(
             CALENDAR_CONFIG.calendar_api_service_name,
             CALENDAR_CONFIG.calendar_api_version,

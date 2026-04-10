@@ -32,7 +32,6 @@ class MeetClient:
         Args:
             creds (Credentials): Authorized Google OAuth2 credentials object.
         """
-        self.creds = creds
         self.meet = build(
             MEET_CONFIG.meet_api_service_name,
             MEET_CONFIG.meet_api_version,
