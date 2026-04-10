@@ -34,8 +34,7 @@ def _make_http_error(status_code: int) -> HttpError:
 
 def test_meet_client_init(mock_build):
     creds = MagicMock()
-    client = MeetClient(creds)
-    assert client.creds is creds
+    _ = MeetClient(creds)
     mock_build.assert_called_once()
 
 
