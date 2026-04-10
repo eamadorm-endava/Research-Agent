@@ -8,9 +8,7 @@ main_region = "us-central1"
 apis_to_enable = {
   "p-dev-gce-60pf" = [
     "calendar-json.googleapis.com",
-    "meet.googleapis.com",
-    "run.googleapis.com",
-    "artifactregistry.googleapis.com"
+    "meet.googleapis.com"
   ],
 }
 
