@@ -32,7 +32,10 @@ class CalendarAPIConfig(CalendarMcpConfigBase):
         tuple[Scopes, ...],
         Field(
             default=(Scopes.CALENDAR_READONLY, Scopes.MEET_READONLY),
-            description="Full set of scopes required for the Calendar MCP server.",
+            description=(
+                "Full set of scopes required for the Calendar MCP server. "
+                "Defined as a tuple to ensure global config immutability."
+            ),
         ),
     ]
     google_token_info_url: Annotated[

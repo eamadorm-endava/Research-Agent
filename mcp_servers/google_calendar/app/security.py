@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Sequence
+from typing import Optional
 
 import httpx
 from google.oauth2.credentials import Credentials
@@ -57,13 +57,10 @@ class GoogleCalendarTokenVerifier(TokenVerifier):
         return None
 
 
-def create_events_client(*, scopes: Optional[Sequence[str]] = None) -> EventsClient:
+def create_events_client() -> EventsClient:
     """Factory to create an EventsClient using the current authenticated token.
 
     Extracts the token from the MCP auth context and builds authorized credentials.
-
-    Args:
-        scopes (Optional[Sequence[str]]): Optional specific scopes for the client.
 
     Returns:
         EventsClient: An initialized client for Google Calendar and Meet.
@@ -72,6 +69,10 @@ def create_events_client(*, scopes: Optional[Sequence[str]] = None) -> EventsCli
     if not token_obj or not token_obj.token:
         raise RuntimeError("No access token provided in request context")
 
-    creds = Credentials(token=token_obj.token, scopes=scopes)
+    # required_scopes is defined as an immutable tuple in the global config.
+    # We cast it to a list here to satisfy the google.oauth2.credentials Credentials signature.
+    creds = Credentials(
+        token=token_obj.token, scopes=list(CALENDAR_API_CONFIG.required_scopes)
+    )
 
     return EventsClient(creds)
