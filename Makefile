@@ -1,8 +1,5 @@
 PROJECT_ID?=p-dev-gce-60pf # ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
-BIGQUERY_URL?=http://localhost:8080
-DRIVE_URL?=http://localhost:8081
-GCS_URL?=http://localhost:8082
 BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
 GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
