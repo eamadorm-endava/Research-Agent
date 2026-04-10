@@ -4,12 +4,10 @@ This folder contains the ADK agent that is deployed to Vertex AI Agent Engine an
 
 The agent to be developed is an [**LLM Agent**](../../docs/ADK/ADK-01-Intro.md#llm-agents-llmagent-agent) type.
 
-- **BigQuery** is consumed through a remote MCP server.
-- **Google Drive** is consumed through a remote MCP server via `McpToolset`, matching the same `mcp_servers/<service>/app/...` layout as BigQuery.
-- The Drive and BigQuery MCP integrations now share the same delegated Google OAuth token.
-  - **MCP-service authentication** still happens through `X-Serverless-Authorization` so the agent can invoke the Cloud Run service.
-  - **Delegated user data access** is forwarded through `Authorization`, so Drive and BigQuery calls run with the end-user's permissions.
-- The legacy in-process Drive tools are still present as a fallback, but the preferred runtime path is the Drive MCP server.
+- **BigQuery**, **Google Cloud Storage (GCS)**, **Google Drive**, and **Google Calendar** are surfaced through remote MCP servers via `McpToolset`.
+- These MCP integrations share the same delegated Google OAuth token architecture.
+  - **MCP-service authentication** happens through `X-Serverless-Authorization` so the agent can invoke the Cloud Run service.
+  - **Delegated user data access** is forwarded through `Authorization`, allowing all tool calls to run with the end-user's permissions.
 
 ## Folder structure
 
@@ -36,16 +34,20 @@ Optional MCP server variables:
     BIGQUERY_ENDPOINT=/mcp
     DRIVE_URL=https://google-drive-mcp-server-xxxxx-uc.a.run.app
     DRIVE_ENDPOINT=/mcp
+    CALENDAR_URL=https://calendar-mcp-server-xxxxx-uc.a.run.app
+    CALENDAR_ENDPOINT=/mcp
+    GCS_URL=https://gcs-mcp-server-xxxxx-uc.a.run.app
+    GCS_ENDPOINT=/mcp
     GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
     GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
     GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/oauth2callback
     BIGQUERY_OAUTH_SCOPES=["https://www.googleapis.com/auth/bigquery"]
 
 Notes:
-- Set `BIGQUERY_URL` and `DRIVE_URL` to your deployed Cloud Run **base URL** (without `/mcp`).
+- Set the server connection URLs to your deployed Cloud Run **base URLs** (without `/mcp`).
 - If you leave any URL empty, the corresponding MCP integration will be disabled automatically.
-- The `GOOGLE_OAUTH_` variables identify the shared Google OAuth client used by the Drive and BigQuery MCP toolsets.
-- `BIGQUERY_OAUTH_SCOPES` lets you extend the delegated token with BigQuery access for local testing.
+- The `GOOGLE_OAUTH_` variables identify the shared Google OAuth client used by all MCP toolsets.
+- The scopes variables like `BIGQUERY_OAUTH_SCOPES` let you extend the delegated token with specific programmatic access scopes for local testing.
 
 MCP tool wiring is centralized in `get_mcp_servers_tools` inside `utils/auxiliars.py`, so `agent.py` stays focused on agent configuration and initialization.
 
@@ -87,9 +89,11 @@ This agent takes advantage of the [ADK tools and integrations](https://google.gi
 This agent connects to robust backend tools by consuming **Model Context Protocol (MCP)** servers dynamically:
 
 - **BigQuery MCP Server**: Enables the agent to execute analytical queries against structural tables.
+- **Google Cloud Storage (GCS) MCP Server**: Allows the agent to systematically search and read unstructured files and data from Google Cloud Storage buckets.
 - **Google Drive MCP Server**: Connects the agent directly to Google Drive, allowing it to read, list, and upload files.
+- **Google Calendar MCP Server**: Equips the agent to interact dynamically with upcoming events, schedule data, and meet links.
 
-> **Authentication Status**: Drive and BigQuery now use a shared delegated Google OAuth token, so both MCP servers act on behalf of the specific end-user interacting with the agent. The Cloud Run identity token is kept only for invoking the protected MCP service itself.
+> **Authentication Status**: Drive, BigQuery, and Calendar now use a shared delegated Google OAuth token, so both MCP servers act on behalf of the specific end-user interacting with the agent. The Cloud Run identity token is kept only for invoking the protected MCP service itself.
 
 ### Security: Model Armor Implementation
 
@@ -132,23 +136,18 @@ PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
 REGION=${GOOGLE_CLOUD_LOCATION}
 MODEL_ARMOR_TEMPLATE_ID=mock-model-armor-template-id
 
-# Gemini Enterprise delegated Drive OAuth
-GEMINI_ENTERPRISE_AUTH_ID=drive-oauth
+# Gemini Enterprise delegated Google OAuth
+GEMINI_GOOGLE_AUTH_ID=shared-oauth-id
 
-# Google Drive MCP server
+# MCP Servers (optional)
+BIGQUERY_URL=https://bigquery-mcp-server-xxxxx-uc.a.run.app
+BIGQUERY_ENDPOINT=/mcp
 DRIVE_URL=http://localhost:8081
 DRIVE_ENDPOINT=/mcp
-DRIVE_DELEGATED_TOKEN_HEADER=x-drive-access-token
-
-# Optional authentication for the MCP service itself
-DRIVE_MCP_AUTH_MODE=none
-DRIVE_MCP_AUTH_HEADER_NAME=Authorization
-DRIVE_MCP_AUTH_TOKEN=
-DRIVE_MCP_OAUTH_CLIENT_ID=
-DRIVE_MCP_OAUTH_CLIENT_SECRET=
-DRIVE_MCP_OAUTH_TOKEN_URL=
-DRIVE_MCP_OAUTH_AUTH_URL=
-DRIVE_MCP_OAUTH_SCOPES=
+CALENDAR_URL=https://calendar-mcp-server-xxxxx-uc.a.run.app
+CALENDAR_ENDPOINT=/mcp
+GCS_URL=https://gcs-mcp-server-xxxxx-uc.a.run.app
+GCS_ENDPOINT=/mcp
 ```
 
 ## Local testing flow
@@ -174,11 +173,10 @@ For local Drive auth, enable one of the following in the Drive MCP server enviro
 
 ## Deployment pattern
 
-In production, the agent can call the Drive MCP server using up to two layers of auth:
+In production, the agent can call the backend MCP servers using up to two layers of auth:
 
-- **MCP service auth** for reaching the Drive MCP endpoint itself:
-  - a **Cloud Run ID token** in `Authorization` when the service is protected by Cloud Run IAM, or
-  - an ADK-managed `auth_scheme` / `auth_credential` pair when the MCP endpoint is protected by an OAuth2-capable gateway or another token-based auth layer.
-- **Delegated user Drive auth** in `x-drive-access-token` (or your configured header name) so the MCP server can call Google Drive on the user's behalf.
+- **MCP service auth** for reaching the Cloud Run MCP endpoint itself:
+  - a **Cloud Run ID token** in `X-Serverless-Authorization` when the service is protected by Cloud Run IAM (managed by ADK automatically).
+- **Delegated user data auth** in `Authorization` (or a configured header name) so the MCP server can call Google APIs on the user's behalf.
 
-That delegated token originates from Gemini Enterprise authorization attached to the agent registration. The code intentionally keeps delegated Drive access in `header_provider` so the token can vary per user/session while still allowing optional static MCP-service auth through `McpToolset`.
+That delegated token originates from Gemini Enterprise authorization attached to the agent registration (`GEMINI_GOOGLE_AUTH_ID`). The code intentionally injects delegated access in `header_provider` per request so the identity can verify the specific user/session.
