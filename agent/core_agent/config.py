@@ -320,6 +320,20 @@ class MCPServersConfig(BaseSettings):
             description="Google Drive MCP Server Endpoint",
         ),
     ]
+    GCS_URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8082",
+            description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
+        ),
+    ]
+    GCS_ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="GCS MCP Server Endpoint",
+        ),
+    ]
     CALENDAR_URL: Annotated[
         str,
         Field(
@@ -332,20 +346,6 @@ class MCPServersConfig(BaseSettings):
         Field(
             default="/mcp",
             description="Google Calendar MCP Server Endpoint",
-        ),
-    ]
-    GCS_URL: Annotated[
-        str,
-        Field(
-            default="https://gcs-mcp-server-753988132239.us-central1.run.app",
-            description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
-        ),
-    ]
-    GCS_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="GCS MCP Server Endpoint",
         ),
     ]
     GOOGLE_OAUTH_CLIENT_ID: Annotated[
@@ -416,6 +416,13 @@ class MCPServersConfig(BaseSettings):
             description="OAuth scopes requested by the agent when authenticating to the BigQuery MCP server.",
         ),
     ]
+    DRIVE_OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[DriveScopes]],
+        Field(
+            default=[DriveScopes.DRIVE],
+            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
+        ),
+    ]
     CALENDAR_OAUTH_SCOPES: Annotated[
         Union[dict[str, str], list[CalendarScopes]],
         Field(
@@ -424,13 +431,6 @@ class MCPServersConfig(BaseSettings):
                 CalendarScopes.MEET_READONLY,
             ],
             description="OAuth scopes requested by the agent when authenticating to the Calendar MCP server.",
-        ),
-    ]
-    DRIVE_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[DriveScopes]],
-        Field(
-            default=[DriveScopes.DRIVE],
-            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
         ),
     ]
 
