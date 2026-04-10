@@ -45,7 +45,7 @@ def test_drive_manager_init(mock_drive_service):
 
 
 @patch("mcp_servers.google_drive.app.drive_client.validate_access_token")
-@patch("mcp_servers.google_drive.app.drive_client.OAuthCredentials")
+@patch("mcp_servers.google_drive.app.drive_client.Credentials")
 def test_build_drive_credentials(mock_creds, mock_validate):
     """
     Verifies credential construction logic for both success and Failure cases.

@@ -164,7 +164,7 @@ def test_execute_query(mock_client):
 
 
 @patch("mcp_servers.big_query.app.bq_client.validate_access_token")
-@patch("mcp_servers.big_query.app.bq_client.OAuthCredentials")
+@patch("mcp_servers.big_query.app.bq_client.Credentials")
 def test_build_bq_credentials_from_access_token(mock_credentials, mock_validate):
     access_token = "ya29.mock-token"
 
