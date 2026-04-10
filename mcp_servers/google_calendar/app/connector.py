@@ -41,13 +41,13 @@ class EventsClient:
 
         Args:
             max_events (int): The maximum number of events to return.
-            date_min (str | None): Optional lower bound date filter (YYYY-MM-DD).
-            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ).
-            date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
-            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ).
-            query (str | None): Optional search terms.
+            date_min (Optional[str]): Lower bound date filter (YYYY-MM-DD).
+            time_min (Optional[str]): Lower bound time filter (HH:MM:SSZ).
+            date_max (Optional[str]): Upper bound date filter (YYYY-MM-DD).
+            time_max (Optional[str]): Upper bound time filter (HH:MM:SSZ).
+            query (Optional[str]): Optional search terms.
 
-        Return:
+        Returns:
             list[CalendarEvent]: A list of parsed CalendarEvent objects.
         """
         return self._calendar.list_events(
