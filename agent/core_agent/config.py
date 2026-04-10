@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, ValidationInfo
 from enum import StrEnum
 from typing import Annotated, Union
 
@@ -334,6 +334,20 @@ class MCPServersConfig(BaseSettings):
             description="Google Calendar MCP Server Endpoint",
         ),
     ]
+    GCS_URL: Annotated[
+        str,
+        Field(
+            default="https://gcs-mcp-server-753988132239.us-central1.run.app",
+            description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
+        ),
+    ]
+    GCS_ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="GCS MCP Server Endpoint",
+        ),
+    ]
     GOOGLE_OAUTH_CLIENT_ID: Annotated[
         str,
         Field(
@@ -364,23 +378,6 @@ class MCPServersConfig(BaseSettings):
             ),
         ),
     ]
-    DRIVE_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[DriveScopes]],
-        Field(
-            default=[DriveScopes.DRIVE],
-            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
-        ),
-    ]
-
-    @field_validator("DRIVE_OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_drive_oauth_scopes(
-        cls, v: Union[list[DriveScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        if isinstance(v, dict):
-            return v
-        return {scope.value: "google drive access" for scope in v}
-
     GOOGLE_OAUTH_AUTH_URI: Annotated[
         str,
         Field(
@@ -401,57 +398,6 @@ class MCPServersConfig(BaseSettings):
             ),
         ),
     ]
-    BIGQUERY_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[BigQueryScopes]],
-        Field(
-            default=[BigQueryScopes.BIGQUERY],
-            description="OAuth scopes requested by the agent when authenticating to the BigQuery MCP server.",
-        ),
-    ]
-
-    @field_validator("BIGQUERY_OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_bigquery_oauth_scopes(
-        cls, v: Union[list[BigQueryScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        if isinstance(v, dict):
-            return v
-        return {scope.value: "google bigquery access" for scope in v}
-
-    CALENDAR_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[CalendarScopes]],
-        Field(
-            default=[
-                CalendarScopes.CALENDAR_READONLY,
-                CalendarScopes.MEET_READONLY,
-            ],
-            description="OAuth scopes requested by the agent when authenticating to the Calendar MCP server.",
-        ),
-    ]
-
-    @field_validator("CALENDAR_OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_calendar_oauth_scopes(
-        cls, v: Union[list[CalendarScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        if isinstance(v, dict):
-            return v
-        return {scope.value: "google calendar access" for scope in v}
-
-    GCS_URL: Annotated[
-        str,
-        Field(
-            default="https://gcs-mcp-server-753988132239.us-central1.run.app",
-            description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
-        ),
-    ]
-    GCS_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="GCS MCP Server Endpoint",
-        ),
-    ]
     GEMINI_GOOGLE_AUTH_ID: Annotated[
         str,
         Field(
@@ -463,3 +409,49 @@ class MCPServersConfig(BaseSettings):
             ),
         ),
     ]
+    BIGQUERY_OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[BigQueryScopes]],
+        Field(
+            default=[BigQueryScopes.BIGQUERY],
+            description="OAuth scopes requested by the agent when authenticating to the BigQuery MCP server.",
+        ),
+    ]
+    CALENDAR_OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[CalendarScopes]],
+        Field(
+            default=[
+                CalendarScopes.CALENDAR_READONLY,
+                CalendarScopes.MEET_READONLY,
+            ],
+            description="OAuth scopes requested by the agent when authenticating to the Calendar MCP server.",
+        ),
+    ]
+    DRIVE_OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[DriveScopes]],
+        Field(
+            default=[DriveScopes.DRIVE],
+            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
+        ),
+    ]
+
+    @field_validator(
+        "BIGQUERY_OAUTH_SCOPES",
+        "CALENDAR_OAUTH_SCOPES",
+        "DRIVE_OAUTH_SCOPES",
+        mode="after",
+    )
+    @classmethod
+    def validate_oauth_scopes(
+        cls,
+        v: Union[
+            list[Union[BigQueryScopes, CalendarScopes, DriveScopes]], dict[str, str]
+        ],
+        info: ValidationInfo,
+    ) -> dict[str, str]:
+        if isinstance(v, dict):
+            return v
+
+        service_name = (
+            info.field_name.replace("_OAUTH_SCOPES", "").lower().replace("_", " ")
+        )
+        return {scope.value: f"google {service_name} access" for scope in v}
