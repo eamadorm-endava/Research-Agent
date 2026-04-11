@@ -9,7 +9,6 @@ from google.genai.types import (
     HttpRetryOptions,
     ThinkingConfig,
 )
-from vertexai import agent_engines
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
 from .mcp_factory import MCPToolsetBuilder
@@ -126,12 +125,11 @@ class AgentBuilder:
             )
         )
 
-    def build(self) -> agent_engines.AdkApp:
-        """Assembles and returns the final ADK Agent application.
-        Integrates the model, instructions, and collected tools into an engine.
-
+    def build(self) -> Agent:
+        """
+        Assembles the agent instance that will be used in the application.
         Returns:
-            agent_engines.AdkApp: The executable agent application instance.
+            Agent: The executable agent instance.
         """
         root_agent = Agent(
             model=Gemini(
@@ -145,4 +143,4 @@ class AgentBuilder:
             planner=self._build_planner(),
         )
 
-        return agent_engines.AdkApp(agent=root_agent)
+        return root_agent
