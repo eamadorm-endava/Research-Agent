@@ -28,8 +28,21 @@ core_agent/
     └── auth.py          # GCP ID tokens + Gemini Enterprise OAuth delegation
 ```
 
+## Module Overview
 
-### Sequence Diagram
+The package is organized into three internal modules, each with a single responsibility:
+
+- **`config/`** — Centralized configuration management. Contains Pydantic `BaseSettings` classes that validate environment variables at import time. Exposes both the **classes** (for type hints and testing) and **singleton instances** (for runtime usage), so consumers never need to call `os.getenv()` directly.
+
+- **`builder/`** — Agent construction logic. Separates the _what to build_ from the _how to build it_ using the Builder pattern. The `AgentBuilder` orchestrates the full agent assembly, while `MCPToolsetBuilder` and `get_skill_toolset` handle the specific construction of MCP connections and ADK skills respectively.
+
+- **`security/`** — Token generation utilities. Provides functions to obtain GCP identity tokens (for Cloud Run service authentication) and Gemini Enterprise OAuth tokens (for delegated user data access). These are consumed by the builder at runtime, not at construction time.
+
+The entry point `agent.py` wires everything together: it imports singletons from `config/`, passes them into `AgentBuilder`, and wraps the result in an `AdkApp` for deployment.
+
+## How the Components Interact
+
+The following sequence diagram shows the data flow between components during agent construction. **Solid arrows** (`→`) represent inputs passed to a component, and **dashed arrows** (`⇢`) represent the values returned back.
 
 ```mermaid
 sequenceDiagram
@@ -49,19 +62,15 @@ sequenceDiagram
     AgentBuilder-->>agent.py: Agent
 ```
 
-### Construction Flow (Step by Step)
+### Reading the Diagram
 
-1. **Environment Loading**: The `.env` file is read by Pydantic `BaseSettings`. Each config class validates and types its variables at import time. Singleton instances (`GCP_CONFIG`, `AGENT_CONFIG`, etc.) are created once.
+1. **Initialization** — `agent.py` creates an `AgentBuilder` by passing the three configuration singletons. The builder internally instantiates an `MCPToolsetBuilder` with the auth config it needs.
 
-2. **Builder Initialization**: `agent.py` creates an `AgentBuilder`, passing the three core configs. The builder initializes a VertexAI client and instantiates an `MCPToolsetBuilder` internally.
+2. **Skill registration** — When `agent.py` calls `.with_skills(...)`, the builder delegates each skill name to `get_skill_toolset`, which loads the skill from disk and returns a `SkillToolset`.
 
-3. **Tool Registration** (fluent chaining):
-   - `.with_skills(["meeting-summary"])` → calls `get_skill_toolset()` for each skill name, loads the ADK skill from disk, and appends the `SkillToolset` to the tools list.
-   - `.with_mcp_servers([BIGQUERY_MCP_CONFIG, ...])` → for each config, delegates to `MCPToolsetBuilder.build()` which resolves auth parameters (local OAuth vs. production headers) and creates a `McpToolset`.
+3. **MCP registration** — When `agent.py` calls `.with_mcp_servers(...)`, the builder passes each MCP config to `MCPToolsetBuilder.build()`. The MCP builder uses the `security` module to obtain an ID token (for Cloud Run access) and an OAuth token (for delegated user data), then returns a fully configured `McpToolset`.
 
-4. **Agent Assembly**: `.build()` constructs the `Agent` with the model, planner, instructions, and accumulated tools.
-
-5. **Application Wrapping**: `agent.py` wraps the `Agent` in `AdkApp` for deployment to Vertex AI Agent Engine.
+4. **Final assembly** — `agent.py` calls `.build()`, which assembles the `Agent` with the accumulated tools, model settings, and planner. The returned `Agent` is then wrapped in `AdkApp` for deployment.
 
 ## Benefits of This Architecture
 
@@ -168,3 +177,7 @@ In production, the agent calls backend MCP servers using up to two layers of aut
 - **Delegated user data auth**: An OAuth token in `Authorization` so the MCP server can call Google APIs on behalf of the end-user.
 
 The delegated token originates from Gemini Enterprise authorization attached to the agent registration (`GEMINI_GOOGLE_AUTH_ID`). The code injects this per-request via `header_provider` so each call reflects the specific user session.
+
+---
+
+> **⚠️ ADK Naming Convention**: The ADK CLI (`adk web`) expects a specific directory and variable structure to discover and run the agent locally. The folder must be named `core_agent` (matching the package import path), and the `agent.py` file must expose a variable called `root_agent` (the `Agent` instance) and `app` (the `AdkApp` wrapper). If the directory is renamed or these variables are moved, the ADK local Dev UI (`adk web`) will fail to locate the agent.
