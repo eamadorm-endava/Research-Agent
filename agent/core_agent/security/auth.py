@@ -4,10 +4,6 @@ import google.auth
 import google.oauth2.id_token
 from google.auth.transport.requests import Request
 from google.adk.agents.readonly_context import ReadonlyContext
-from fastapi.openapi.models import OAuth2, OAuthFlowAuthorizationCode, OAuthFlows
-from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
-
-from ..config.agent_settings import GoogleAuthConfig
 
 
 def get_id_token(audience: str) -> str | None:
@@ -20,13 +16,13 @@ def get_id_token(audience: str) -> str | None:
     request = Request()
     try:
         logger.debug(
-            "Retrieving ID token from metadata server for audience %s", audience
+            f"Retrieving ID token from metadata server for audience {audience}"
         )
         id_token = google.oauth2.id_token.fetch_id_token(request, audience)
         logger.debug("ID token successfully retrieved from metadata server")
         return id_token
     except Exception as exc:
-        logger.debug("Metadata-server ID token retrieval failed: {exc}", exc=exc)
+        logger.debug(f"Metadata-server ID token retrieval failed: {exc}")
 
     try:
         logger.debug("Retrieving ID token from local ADC credentials")
@@ -38,9 +34,7 @@ def get_id_token(audience: str) -> str | None:
             return id_token
         logger.warning("ADC credentials did not yield an ID token")
     except Exception as exc:
-        logger.warning(
-            "Unable to obtain ID token from local ADC credentials: {exc}", exc=exc
-        )
+        logger.warning(f"Unable to obtain ID token from local ADC credentials: {exc}")
 
     return None
 
@@ -68,71 +62,3 @@ def get_ge_oauth_token(readonly_context: ReadonlyContext, auth_id: str) -> str |
         logger.error(f"Available keys: {readonly_context.state.keys()}")
 
     return oauth_token
-
-
-def build_google_oauth_scheme(
-    auth_config: GoogleAuthConfig, scopes: dict[str, str]
-) -> OAuth2:
-    """
-    Builds the shared Google OAuth scheme for MCP toolsets.
-
-    Args:
-        auth_config: The global Google OAuth configurations.
-        scopes: The OAuth scopes to request.
-
-    Returns:
-        OAuth2: The configured OAuth2 scheme.
-    """
-    return OAuth2(
-        flows=OAuthFlows(
-            authorizationCode=OAuthFlowAuthorizationCode(
-                authorizationUrl=auth_config.GOOGLE_OAUTH_AUTH_URI,
-                tokenUrl=auth_config.GOOGLE_OAUTH_TOKEN_URI,
-                scopes=scopes,
-            )
-        )
-    )
-
-
-def build_google_auth_credential(auth_config: GoogleAuthConfig) -> AuthCredential:
-    """
-    Builds the shared Google OAuth credential for MCP toolsets.
-
-    Args:
-        auth_config: The global Google OAuth client configurations.
-
-    Returns:
-        AuthCredential: The configured OAuth credential.
-    """
-    return AuthCredential(
-        auth_type=AuthCredentialTypes.OAUTH2,
-        oauth2=OAuth2Auth(
-            client_id=auth_config.GOOGLE_OAUTH_CLIENT_ID,
-            client_secret=auth_config.GOOGLE_OAUTH_CLIENT_SECRET,
-            redirect_uri=auth_config.GOOGLE_OAUTH_REDIRECT_URI,
-        ),
-    )
-
-
-def build_runtime_headers(
-    audience: str,
-    readonly_context: ReadonlyContext,
-    auth_id: str | None = None,
-) -> dict[str, str]:
-    """
-    Builds the runtime headers for MCP requests.
-
-    Args:
-        audience (str): The target audience used to generate the ID token.
-        readonly_context (ReadonlyContext): The runtime context used to get the delegated token.
-        auth_id (str | None): The auth resource ID used to fetch the delegated user token.
-
-    Returns:
-        dict[str, str]: The headers for the MCP request.
-    """
-    headers = {"X-Serverless-Authorization": f"Bearer {get_id_token(audience)}"}
-    if auth_id:
-        headers["Authorization"] = (
-            f"Bearer {get_ge_oauth_token(readonly_context, auth_id)}"
-        )
-    return headers
