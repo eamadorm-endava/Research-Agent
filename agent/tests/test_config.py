@@ -4,7 +4,15 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from agent.core_agent.config import AgentConfig, GCPConfig, MCPServersConfig
+from agent.core_agent.config import (
+    AgentConfig,
+    BigQueryMCPConfig,
+    CalendarMCPConfig,
+    DriveMCPConfig,
+    GCPConfig,
+    GCSMCPConfig,
+    GoogleAuthConfig,
+)
 
 
 def test_gcp_config_defaults():
@@ -13,6 +21,7 @@ def test_gcp_config_defaults():
         config = GCPConfig()
         assert config.PROJECT_ID == "dummy-gcp-project-id"
         assert config.REGION == "dummy-gcp-region"
+        assert config.PROD_EXECUTION is True
 
 
 def test_gcp_config_override():
@@ -30,12 +39,15 @@ def test_gcp_config_override():
 def test_mcp_servers_config_defaults_to_localhost_urls():
     """Test that MCP server URLs default to local localhost endpoints."""
     with patch.dict(os.environ, clear=True):
-        config = MCPServersConfig()
+        bq_config = BigQueryMCPConfig()
+        drive_config = DriveMCPConfig()
+        gcs_config = GCSMCPConfig()
+        cal_config = CalendarMCPConfig()
 
-    assert config.BIGQUERY_URL == "http://localhost:8080"
-    assert config.DRIVE_URL == "http://localhost:8081"
-    assert config.GCS_URL == "http://localhost:8082"
-    assert config.CALENDAR_URL == "http://localhost:8083"
+    assert bq_config.URL == "http://localhost:8080"
+    assert drive_config.URL == "http://localhost:8081"
+    assert gcs_config.URL == "http://localhost:8082"
+    assert cal_config.URL == "http://localhost:8083"
 
 
 def test_agent_config_validation():
@@ -65,20 +77,21 @@ def test_mcp_servers_config():
         "DRIVE_URL": "http://localhost:9090",
         "DRIVE_OAUTH_SCOPES": '["https://www.googleapis.com/auth/drive"]',
         "BIGQUERY_OAUTH_SCOPES": '["https://www.googleapis.com/auth/bigquery"]',
-        "GOOGLE_OAUTH_CLIENT_ID": "shared-google-client-id",
-        "GEMINI_GOOGLE_AUTH_ID": "shared-google-auth-id",
     }
     with patch.dict(os.environ, mock_env, clear=True):
-        config = MCPServersConfig()
-        assert config.GENERAL_TIMEOUT == 120
-        assert config.BIGQUERY_ENDPOINT == "/custom-mcp"
-        assert config.DRIVE_URL == "http://localhost:9090"
-        assert config.GOOGLE_OAUTH_CLIENT_ID == "shared-google-client-id"
-        assert config.GEMINI_GOOGLE_AUTH_ID == "shared-google-auth-id"
-        assert config.DRIVE_OAUTH_SCOPES == {
+        bq_config = BigQueryMCPConfig()
+        drive_config = DriveMCPConfig()
+
+        assert bq_config.GENERAL_TIMEOUT == 120
+        assert drive_config.GENERAL_TIMEOUT == 120
+
+        assert bq_config.ENDPOINT == "/custom-mcp"
+        assert drive_config.URL == "http://localhost:9090"
+
+        assert drive_config.OAUTH_SCOPES == {
             "https://www.googleapis.com/auth/drive": "google drive access",
         }
-        assert config.BIGQUERY_OAUTH_SCOPES == {
+        assert bq_config.OAUTH_SCOPES == {
             "https://www.googleapis.com/auth/bigquery": "google bigquery access",
         }
 
@@ -91,8 +104,8 @@ def test_mcp_servers_config_oauth_scopes_validator_dict_vs_list_behavior():
         "DRIVE_OAUTH_SCOPES": '{"https://custom.scope/drive": "custom drive access"}'
     }
     with patch.dict(os.environ, mock_env_dict, clear=True):
-        config = MCPServersConfig()
-        assert config.DRIVE_OAUTH_SCOPES == {
+        config = DriveMCPConfig()
+        assert config.OAUTH_SCOPES == {
             "https://custom.scope/drive": "custom drive access"
         }
 
@@ -101,29 +114,37 @@ def test_mcp_servers_config_oauth_scopes_validator_dict_vs_list_behavior():
         "CALENDAR_OAUTH_SCOPES": '["https://www.googleapis.com/auth/calendar.events.readonly"]'
     }
     with patch.dict(os.environ, mock_env_list, clear=True):
-        config_list = MCPServersConfig()
-        assert config_list.CALENDAR_OAUTH_SCOPES == {
+        config_list = CalendarMCPConfig()
+        assert config_list.OAUTH_SCOPES == {
             "https://www.googleapis.com/auth/calendar.events.readonly": "google calendar access"
         }
 
 
-def test_mcp_servers_config_accepts_legacy_google_auth_env_names():
+def test_google_auth_config_reading_env_vars():
+    """Test that GoogleAuthConfig correctly reads primary environment variables."""
     mock_env = {
-        "DRIVE_OAUTH_CLIENT_ID": "legacy-client-id",
-        "DRIVE_OAUTH_CLIENT_SECRET": "legacy-client-secret",
-        "DRIVE_OAUTH_REDIRECT_URI": "http://localhost:8000/dev-ui",
-        "DRIVE_OAUTH_AUTH_URI": "https://accounts.google.com/o/oauth2/v2/auth",
-        "DRIVE_OAUTH_TOKEN_URI": "https://oauth2.googleapis.com/token",
-        "GEMINI_DRIVE_AUTH_ID": "legacy-auth-id",
+        "GOOGLE_OAUTH_CLIENT_ID": "test-client-id",
+        "GOOGLE_OAUTH_CLIENT_SECRET": "test-client-secret",
+        "GOOGLE_OAUTH_REDIRECT_URI": "http://localhost:8000/dev-ui",
+        "GOOGLE_OAUTH_AUTH_URI": "https://accounts.google.com/o/oauth2/v2/auth",
+        "GOOGLE_OAUTH_TOKEN_URI": "https://oauth2.googleapis.com/token",
     }
     with patch.dict(os.environ, mock_env, clear=True):
-        config = MCPServersConfig()
+        config = GoogleAuthConfig()
 
-    assert config.GOOGLE_OAUTH_CLIENT_ID == "legacy-client-id"
-    assert config.GOOGLE_OAUTH_CLIENT_SECRET == "legacy-client-secret"
+    assert config.GOOGLE_OAUTH_CLIENT_ID == "test-client-id"
+    assert config.GOOGLE_OAUTH_CLIENT_SECRET == "test-client-secret"
     assert config.GOOGLE_OAUTH_REDIRECT_URI == "http://localhost:8000/dev-ui"
     assert (
         config.GOOGLE_OAUTH_AUTH_URI == "https://accounts.google.com/o/oauth2/v2/auth"
     )
     assert config.GOOGLE_OAUTH_TOKEN_URI == "https://oauth2.googleapis.com/token"
-    assert config.GEMINI_GOOGLE_AUTH_ID == "legacy-auth-id"
+
+
+def test_mcp_config_accepts_legacy_auth_id():
+    mock_env = {
+        "GEMINI_DRIVE_AUTH_ID": "legacy-drive-id",
+    }
+    with patch.dict(os.environ, mock_env, clear=True):
+        config = DriveMCPConfig()
+    assert config.GEMINI_GOOGLE_AUTH_ID == "legacy-drive-id"

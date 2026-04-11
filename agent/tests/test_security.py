@@ -1,6 +1,6 @@
 from unittest.mock import patch, MagicMock
 
-from agent.core_agent.utils.security import get_id_token
+from agent.core_agent.security import get_id_token
 
 
 @patch("google.oauth2.id_token.fetch_id_token")
