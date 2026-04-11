@@ -1,7 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AliasChoices, Field, field_validator, ValidationInfo
-from enum import StrEnum
-from typing import Annotated, Union
+from pydantic import AliasChoices, Field
+from typing import Annotated
 
 
 class GCPConfig(BaseSettings):
@@ -233,45 +232,6 @@ class AgentConfig(BaseSettings):
             description="Agent's System Prompt",
         ),
     ]
-    MEETING_SUMMARY_FOLDER: Annotated[
-        str,
-        Field(
-            default="AI Meetings Summaries",
-            description="Folder where meeting summaries are stored in Drive",
-        ),
-    ]
-    MEETING_SUMMARY_FILENAME_PATTERN: Annotated[
-        str,
-        Field(
-            default="YYYY-MM-DD - meeting-name - Summary.docx",
-            description="Pattern used to name generated meeting summary documents",
-        ),
-    ]
-
-
-class DriveScopes(StrEnum):
-    """
-    Enum for Google Drive OAuth scopes.
-    """
-
-    DRIVE = "https://www.googleapis.com/auth/drive"
-
-
-class BigQueryScopes(StrEnum):
-    """
-    Enum for Google BigQuery OAuth scopes.
-    """
-
-    BIGQUERY = "https://www.googleapis.com/auth/bigquery"
-
-
-class CalendarScopes(StrEnum):
-    """
-    Enum for Google Calendar OAuth scopes.
-    """
-
-    CALENDAR_READONLY = "https://www.googleapis.com/auth/calendar.events.readonly"
-    MEET_READONLY = "https://www.googleapis.com/auth/meetings.space.readonly"
 
 
 class GoogleAuthConfig(BaseSettings):
@@ -288,21 +248,15 @@ class GoogleAuthConfig(BaseSettings):
     GOOGLE_OAUTH_CLIENT_ID: Annotated[
         str,
         Field(
-            default="",
+            default="mock-oauth-client-id",
             description="Shared OAuth 2.0 Client ID for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_CLIENT_ID", "DRIVE_OAUTH_CLIENT_ID"
-            ),
         ),
     ]
     GOOGLE_OAUTH_CLIENT_SECRET: Annotated[
         str,
         Field(
-            default="",
+            default="mock-oauth-client-secret",
             description="Shared OAuth 2.0 Client Secret for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_OAUTH_CLIENT_SECRET"
-            ),
         ),
     ]
     GOOGLE_OAUTH_REDIRECT_URI: Annotated[
@@ -310,9 +264,6 @@ class GoogleAuthConfig(BaseSettings):
         Field(
             default="http://localhost:8000/dev-ui",
             description="Shared OAuth 2.0 Redirect URI for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_REDIRECT_URI", "DRIVE_OAUTH_REDIRECT_URI"
-            ),
         ),
     ]
     GOOGLE_OAUTH_AUTH_URI: Annotated[
@@ -320,9 +271,6 @@ class GoogleAuthConfig(BaseSettings):
         Field(
             default="https://accounts.google.com/o/oauth2/v2/auth",
             description="Shared OAuth 2.0 authorization URL for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_AUTH_URI", "DRIVE_OAUTH_AUTH_URI"
-            ),
         ),
     ]
     GOOGLE_OAUTH_TOKEN_URI: Annotated[
@@ -330,9 +278,6 @@ class GoogleAuthConfig(BaseSettings):
         Field(
             default="https://oauth2.googleapis.com/token",
             description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
-            validation_alias=AliasChoices(
-                "GOOGLE_OAUTH_TOKEN_URI", "DRIVE_OAUTH_TOKEN_URI"
-            ),
         ),
     ]
     GEMINI_GOOGLE_AUTH_ID: Annotated[
@@ -346,126 +291,3 @@ class GoogleAuthConfig(BaseSettings):
             ),
         ),
     ]
-
-
-class MCPServersConfig(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        validate_assignment=True,
-    )
-    """
-    Class that holds configuration values for MCP servers.
-    """
-
-    GENERAL_TIMEOUT: Annotated[
-        int,
-        Field(
-            default=60,
-            description="Timeout in seconds for MCP servers.",
-        ),
-    ]
-    BIGQUERY_URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8080",
-            description="BigQuery MCP Server URL, uses a streamable http connection",
-        ),
-    ]
-    BIGQUERY_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="BigQuery MCP Server Endpoint",
-        ),
-    ]
-    DRIVE_URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8081",
-            description="Google Drive MCP Server URL, uses a streamable http connection",
-        ),
-    ]
-    DRIVE_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="Google Drive MCP Server Endpoint",
-        ),
-    ]
-    GCS_URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8082",
-            description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
-        ),
-    ]
-    GCS_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="GCS MCP Server Endpoint",
-        ),
-    ]
-    CALENDAR_URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8083",
-            description="Google Calendar MCP Server URL, uses a streamable http connection",
-        ),
-    ]
-    CALENDAR_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="Google Calendar MCP Server Endpoint",
-        ),
-    ]
-
-    BIGQUERY_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[BigQueryScopes]],
-        Field(
-            default=[BigQueryScopes.BIGQUERY],
-            description="OAuth scopes requested by the agent when authenticating to the BigQuery MCP server.",
-        ),
-    ]
-    DRIVE_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[DriveScopes]],
-        Field(
-            default=[DriveScopes.DRIVE],
-            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
-        ),
-    ]
-    CALENDAR_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[CalendarScopes]],
-        Field(
-            default=[
-                CalendarScopes.CALENDAR_READONLY,
-                CalendarScopes.MEET_READONLY,
-            ],
-            description="OAuth scopes requested by the agent when authenticating to the Calendar MCP server.",
-        ),
-    ]
-
-    @field_validator(
-        "BIGQUERY_OAUTH_SCOPES",
-        "CALENDAR_OAUTH_SCOPES",
-        "DRIVE_OAUTH_SCOPES",
-        mode="after",
-    )
-    @classmethod
-    def validate_oauth_scopes(
-        cls,
-        v: Union[
-            list[Union[BigQueryScopes, CalendarScopes, DriveScopes]], dict[str, str]
-        ],
-        info: ValidationInfo,
-    ) -> dict[str, str]:
-        if isinstance(v, dict):
-            return v
-
-        service_name = (
-            info.field_name.replace("_OAUTH_SCOPES", "").lower().replace("_", " ")
-        )
-        return {scope.value: f"google {service_name} access" for scope in v}
