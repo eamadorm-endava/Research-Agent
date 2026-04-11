@@ -14,6 +14,7 @@ def get_skill_toolset(skill_name: str) -> SkillToolset:
     Returns:
         SkillToolset: The configured ADK wrapper.
     """
+    logger.info(f"Initializing ADK Skill: {skill_name}")
     skills_base_path = Path(__file__).parent.parent.parent / "skills"
     target_skill_path = skills_base_path / skill_name
 
@@ -23,4 +24,5 @@ def get_skill_toolset(skill_name: str) -> SkillToolset:
     logger.info(f"Loading ADK Skill from: {target_skill_path}")
     agent_skill = load_skill_from_dir(target_skill_path)
 
+    logger.info(f"Successfully loaded skill: {skill_name}")
     return SkillToolset(skills=[agent_skill])
