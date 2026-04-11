@@ -16,6 +16,7 @@ ai-agent = [
     "google-cloud-modelarmor>=0.4.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "loguru>=0.7.3",
 ]
 dev = [
     "google-cloud-modelarmor>=0.4.0",
