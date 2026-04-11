@@ -33,15 +33,19 @@ core_agent/
 
 ```mermaid
 sequenceDiagram
-    agent.py->>AgentBuilder: create
-    AgentBuilder->>MCPToolsetBuilder: create
-    agent.py->>AgentBuilder: with_skills
-    AgentBuilder->>get_skill_toolset: load skill
-    agent.py->>AgentBuilder: with_mcp_servers
-    AgentBuilder->>MCPToolsetBuilder: build toolset
-    MCPToolsetBuilder->>security: get_id_token
-    MCPToolsetBuilder->>security: get_ge_oauth_token
-    agent.py->>AgentBuilder: build
+    agent.py->>AgentBuilder: AgentConfig, GCPConfig, GoogleAuthConfig
+    AgentBuilder->>MCPToolsetBuilder: GoogleAuthConfig
+    agent.py->>AgentBuilder: skill names list
+    AgentBuilder->>get_skill_toolset: skill name
+    get_skill_toolset-->>AgentBuilder: SkillToolset
+    agent.py->>AgentBuilder: MCP configs list
+    AgentBuilder->>MCPToolsetBuilder: BaseMCPConfig, prod_execution
+    MCPToolsetBuilder->>security: audience URL
+    security-->>MCPToolsetBuilder: ID token
+    MCPToolsetBuilder->>security: ReadonlyContext, auth_id
+    security-->>MCPToolsetBuilder: OAuth token
+    MCPToolsetBuilder-->>AgentBuilder: McpToolset
+    agent.py->>AgentBuilder: .build()
     AgentBuilder-->>agent.py: Agent
 ```
 
