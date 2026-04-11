@@ -228,3 +228,10 @@ class GCSMCPConfig(BaseMCPConfig):
         ),
     ]
     # GCS relies purely on Google SDK application default credentials downstream, so it does not expose standard scopes mapping.
+
+
+# Global MCP configuration instances
+BIGQUERY_MCP_CONFIG = BigQueryMCPConfig()
+DRIVE_MCP_CONFIG = DriveMCPConfig()
+CALENDAR_MCP_CONFIG = CalendarMCPConfig()
+GCS_MCP_CONFIG = GCSMCPConfig()

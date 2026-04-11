@@ -281,3 +281,9 @@ class GoogleAuthConfig(BaseSettings):
             description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
         ),
     ]
+
+
+# Global configuration instances
+GCP_CONFIG = GCPConfig()
+AGENT_CONFIG = AgentConfig()
+GOOGLE_AUTH_CONFIG = GoogleAuthConfig()
