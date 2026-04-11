@@ -36,6 +36,13 @@ def test_gcp_config_override():
         assert config.REGION == "europe-west1"
 
 
+def test_gcp_config_prod_execution_alias():
+    """Test that PROD_EXECUTION reads from the IS_DEPLOYED alias."""
+    with patch.dict(os.environ, {"IS_DEPLOYED": "false"}, clear=True):
+        config = GCPConfig()
+        assert config.PROD_EXECUTION is False
+
+
 def test_mcp_servers_config_defaults_to_localhost_urls():
     """Test that MCP server URLs default to local localhost endpoints."""
     with patch.dict(os.environ, clear=True):
@@ -142,6 +149,7 @@ def test_google_auth_config_reading_env_vars():
 
 
 def test_mcp_config_accepts_legacy_auth_id():
+    """Test that service-specific alias (GEMINI_DRIVE_AUTH_ID) maps to GEMINI_GOOGLE_AUTH_ID."""
     mock_env = {
         "GEMINI_DRIVE_AUTH_ID": "legacy-drive-id",
     }
