@@ -6,12 +6,8 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from fastapi.openapi.models import OAuth2, OAuthFlowAuthorizationCode, OAuthFlows
 from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
 
-from ..config.agent_settings import GoogleAuthConfig
-from ..config.mcp_settings import BaseMCPConfig
-from ..security.auth import (
-    get_id_token,
-    get_ge_oauth_token,
-)
+from ..config import BaseMCPConfig, GoogleAuthConfig
+from ..security import get_ge_oauth_token, get_id_token
 
 
 class MCPToolsetBuilder:
