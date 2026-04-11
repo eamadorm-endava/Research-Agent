@@ -29,11 +29,12 @@ class GCPConfig(BaseSettings):
             description="GCP Region where most of the services will be deployed",
         ),
     ]
-    IS_DEPLOYED: Annotated[
+    PROD_EXECUTION: Annotated[
         bool,
         Field(
             default=True,
-            description="Flag to determine if the agent is running in a deployed environment. Defaults to True, override in local .env to False.",
+            description="Flag to determine if the agent is running in a production environment. Defaults to True, override in local .env to False.",
+            validation_alias=AliasChoices("PROD_EXECUTION", "IS_DEPLOYED"),
         ),
     ]
 
@@ -278,16 +279,5 @@ class GoogleAuthConfig(BaseSettings):
         Field(
             default="https://oauth2.googleapis.com/token",
             description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
-        ),
-    ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
-        str,
-        Field(
-            default="mock-ge-auth-id",
-            description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise and reused by MCP tool calls."
-            " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
-            validation_alias=AliasChoices(
-                "GEMINI_GOOGLE_AUTH_ID", "GEMINI_DRIVE_AUTH_ID"
-            ),
         ),
     ]

@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, AliasChoices
 from enum import StrEnum
-from typing import Annotated, Union
+from typing import Annotated, Optional, Union
 
 
 class DriveScopes(StrEnum):
@@ -47,6 +47,13 @@ class BaseMCPConfig(BaseSettings):
             description="Timeout in seconds for MCP servers.",
         ),
     ]
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise.",
+        ),
+    ]
 
 
 class BigQueryMCPConfig(BaseMCPConfig):
@@ -72,6 +79,17 @@ class BigQueryMCPConfig(BaseMCPConfig):
             default=[BigQueryScopes.BIGQUERY],
             description="OAuth scopes requested by the agent.",
             validation_alias="BIGQUERY_OAUTH_SCOPES",  # validation_alias is used to map the environment variable to the field
+        ),
+    ]
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ge-auth-id",
+            description="Auth Resource ID for BigQuery.",
+            validation_alias=AliasChoices(
+                "BIGQUERY_AUTH_ID",
+                "GEMINI_GOOGLE_AUTH_ID",
+            ),  # In case this MCP Server uses a different Auth Resource ID than the general auth id defined in the AgentConfig
         ),
     ]
 
@@ -108,6 +126,17 @@ class DriveMCPConfig(BaseMCPConfig):
             default=[DriveScopes.DRIVE],
             description="OAuth scopes requested by the agent.",
             validation_alias="DRIVE_OAUTH_SCOPES",  # validation_alias is used to map the environment variable to the field
+        ),
+    ]
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ge-auth-id",
+            description="Auth Resource ID for Google Drive.",
+            validation_alias=AliasChoices(
+                "GEMINI_DRIVE_AUTH_ID",
+                "GEMINI_GOOGLE_AUTH_ID",
+            ),  # In case this MCP Server uses a different Auth Resource ID than the general auth id defined in the AgentConfig
         ),
     ]
 
@@ -149,6 +178,16 @@ class CalendarMCPConfig(BaseMCPConfig):
             validation_alias="CALENDAR_OAUTH_SCOPES",  # validation_alias is used to map the environment variable to the field
         ),
     ]
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ge-auth-id",
+            description="Auth Resource ID for Google Calendar.",
+            validation_alias=AliasChoices(
+                "CALENDAR_AUTH_ID", "GEMINI_GOOGLE_AUTH_ID"
+            ),  # In case this MCP Server uses a different Auth Resource ID than the general auth id defined in the AgentConfig
+        ),
+    ]
 
     @field_validator("OAUTH_SCOPES", mode="after")
     @classmethod
@@ -175,6 +214,17 @@ class GCSMCPConfig(BaseMCPConfig):
             default="/mcp",
             description="GCS MCP Server Endpoint",
             validation_alias="GCS_ENDPOINT",  # validation_alias is used to map the environment variable to the field
+        ),
+    ]
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="None due to currently GCS MCP Server not using delegated OAuth.",
+            validation_alias=AliasChoices(
+                "GCS_AUTH_ID",
+                "GEMINI_GOOGLE_AUTH_ID",
+            ),  # In case this MCP Server uses a different Auth Resource ID than the general auth id defined in the AgentConfig
         ),
     ]
     # GCS relies purely on Google SDK application default credentials downstream, so it does not expose standard scopes mapping.
