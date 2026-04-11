@@ -22,7 +22,7 @@ def get_id_token(audience: str) -> str | None:
         logger.debug("ID token successfully retrieved from metadata server")
         return id_token
     except Exception as exc:
-        logger.debug(f"Metadata-server ID token retrieval failed: {exc}")
+        logger.warning(f"Metadata-server ID token retrieval failed: {exc}")
 
     try:
         logger.debug("Retrieving ID token from local ADC credentials")
