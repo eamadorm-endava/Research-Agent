@@ -13,6 +13,7 @@ def get_id_token(audience: str) -> str | None:
     It first tries the metadata server (when running on GCP) and then falls back to
     local ADC credentials for development.
     """
+    logger.info(f"Generating ID token for audience: {audience}")
     request = Request()
     try:
         logger.debug(
