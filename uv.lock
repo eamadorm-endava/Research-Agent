@@ -680,6 +680,22 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-dlp"
+version = "3.36.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/fd/7cc493dedfcf2816a51034349d1961dcc0d62e5a6ad6152a62456fdf9631/google_cloud_dlp-3.36.0.tar.gz", hash = "sha256:a239a214303ca08ccdcdd7b6ee270d2ce4e4e81955a05648ffdb383204bf5ca6", size = 280086, upload-time = "2026-04-10T00:41:23.883Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/b1/f3c8a58d6c267308c26ba951003adb6b63f53516eb1e9c91981ad762a5fe/google_cloud_dlp-3.36.0-py3-none-any.whl", hash = "sha256:e215c4d74e87108449838fb81f60875f3811772f645aa0455753d74069395dec", size = 224246, upload-time = "2026-04-10T00:41:03.741Z" },
+]
+
+[[package]]
 name = "google-cloud-iam"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2323,6 +2339,9 @@ ai-agent = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
+classification-pipeline = [
+    { name = "google-cloud-dlp" },
+]
 dev = [
     { name = "click" },
     { name = "google-cloud-modelarmor" },
@@ -2379,6 +2398,7 @@ ai-agent = [
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
 ]
+classification-pipeline = [{ name = "google-cloud-dlp", specifier = ">=3.36.0" }]
 dev = [
     { name = "click", specifier = ">=8.3.1" },
     { name = "google-cloud-modelarmor", specifier = ">=0.4.0" },

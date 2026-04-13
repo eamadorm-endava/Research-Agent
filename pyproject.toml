@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-ai-agent = [
+ai_agent = [
     "google-cloud-aiplatform[adk,agent-engines]>=1.138.0",
     "google-cloud-modelarmor>=0.4.0",
     "pydantic>=2.12.5",
@@ -58,6 +58,9 @@ mcp_calendar = [
     "pydantic>=2.5.3",
     "pydantic-settings>=2.13.1",
     "python-dateutil>=2.9.0.post0",
+]
+classification_pipeline = [
+    "google-cloud-dlp>=3.36.0",
 ]
 
 [tool.pytest.ini_options]
