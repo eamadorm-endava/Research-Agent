@@ -84,21 +84,27 @@ graph TD
 ```text
 Research-Agent/
 ├── agent/                      # ADK Agent implementation
-│   ├── core_agent/            # Main logic, config, model safeguards
+│   ├── core_agent/            # Agent package (entry point + internal modules)
+│   │   ├── agent.py           # Application entry point (wires config → builder → agent)
+│   │   ├── config/            # Pydantic Settings (centralized env var validation)
+│   │   ├── builder/           # Builder pattern (AgentBuilder, MCPToolsetBuilder, skills)
+│   │   └── security/          # Token utilities (ID tokens, delegated OAuth)
+│   ├── skills/                # ADK Skills (meeting-summary, etc.)
 │   ├── deployment/            # Vertex AI / Agent Engine deployment scripts
-│   └── tests/                  # Agent unit and integration tests
+│   └── tests/                 # Agent unit and integration tests
 ├── mcp_servers/               # MCP server implementations
 │   ├── big_query/             # BigQuery MCP server
 │   ├── gcs/                   # Cloud Storage MCP server
-│   └── google_drive/          # Google Drive MCP server
-├── terraform/                  # Infrastructure as Code
+│   ├── google_drive/          # Google Drive MCP server
+│   └── google_calendar/       # Google Calendar & Meet MCP server
+├── terraform/                 # Infrastructure as Code
 │   ├── ai_agent_resources/    # Service accounts, IAM, and APIs
 │   ├── bq_mcp_server_resources/
 │   ├── gcs_mcp_server_resources/
 │   ├── shared_resources/      # Shared state and Artifact Registry
 │   └── scripts/               # Bootstrap and trigger scripts
-├── docs/                       # Detailed documentation
-├── notebooks/                  # Exploration and research notebooks
+├── docs/                      # Detailed documentation
+├── notebooks/                 # Exploration and research notebooks
 ├── Makefile                   # Development automation commands
 ├── pyproject.toml             # Python project configuration (uv)
 ```
@@ -150,6 +156,7 @@ make test-agent
 # Run MCP Server integration tests
 make run-bq-tests
 make run-gcs-tests
+make run-drive-tests
 ```
 
 #### 3. Execution & Local Verification
@@ -160,29 +167,27 @@ make run-ui-agent
 # Start MCP Servers locally for direct testing
 make run-bq-mcp-locally
 make run-gcs-mcp-locally
+make run-drive-mcp-locally
+make run-calendar-mcp-locally
 ```
 
 ## Documentation
 
 For more detailed information about each component, refer to the following documentation:
 
-- **ADK Introduction** - See [docs/ADK-Intro.md](docs/ADK-Intro.md) for detailed information about the Agent Development Kit
-- **Model Armor** - See [notebooks/model_armor.ipynb](notebooks/model_armor.ipynb) for model safeguards exploration
-
-
-## MCP servers in this repo
-
-- `mcp_servers/big_query` - BigQuery MCP server
-- `mcp_servers/google_drive` - Google Drive MCP server
 ### Core AI Agent
-- [AI Agent Overview](agent/core_agent/README.md): Core logic, configuration, and model safeguards.
+- [Agent Overview](agent/core_agent/README.md): Architecture, builder pattern, configuration, and deployment.
+- [Builder Module](agent/core_agent/builder/README.md): How `AgentBuilder`, `MCPToolsetBuilder`, and `get_skill_toolset` work.
 
 ### MCP Servers
-- [BigQuery MCP Server](mcp_servers/big_query/README.md): Detailed usage and implementation of the BigQuery connector.
-- [Cloud Storage (GCS) MCP Server](mcp_servers/gcs/README.md): Detailed usage and implementation of the GCS connector.
+- [BigQuery MCP Server](mcp_servers/big_query/README.md): BigQuery connector implementation.
+- [Cloud Storage (GCS) MCP Server](mcp_servers/gcs/README.md): GCS connector implementation.
+- [Google Drive MCP Server](mcp_servers/google_drive/README.md): Google Drive connector implementation.
+- [Google Calendar MCP Server](mcp_servers/google_calendar/README.md): Google Calendar & Meet connector implementation.
 
 ### Security & Authentication
-- [Authentication Methods](docs/security/auth_methods.md): Strategies for identity propagation (DWD vs. OAuth).
+- [Authentication Methods](docs/Authentication/README.md): Strategies for identity propagation (DWD vs. OAuth).
 
 ### ADK Framework
 - [ADK Introduction](docs/ADK/ADK-01-Intro.md): Introduction to the Agent Development Kit.
+- [AI Agent Development Guide](docs/AI-Agent-Development/README.md): Step-by-step guide for building, deploying, and connecting agents.

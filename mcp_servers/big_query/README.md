@@ -44,12 +44,17 @@ Your MCP-compatible agent will automatically discover the tools and their parame
     *   **Local Testing**: `http://localhost:8080/mcp`
     *   **Production**: `https://[CLOUD_RUN_SERVICE_URL]/mcp`
 3.  **Authentication**:
-    *   **Locally**: Relies on `gcloud auth application-default login`.
-    *   **Production**: Ensure the agent passes a valid Google ID Token if the service is secured.
+    *   **MCP OAuth**: The server expects `Authorization: Bearer <delegated-user-oauth-access-token>` and validates it through MCP auth middleware.
+    *   **Cloud Run IAM**: If service ingress is protected, the caller also needs `X-Serverless-Authorization: Bearer <google-id-token>` for Cloud Run invocation.
 
-## Security & Authentication (Keyless Architecture)
+## Security & Authentication (Delegated User Access)
 
-This server relies on **Google Application Default Credentials (ADC)**. No JSON key files are required, adhering to zero-trust security best practices.
+This server relies on a **delegated end-user OAuth access token** propagated by ADK/Gemini Enterprise through the MCP `Authorization` header. No JSON key files are required.
+
+### Key Benefits
+- **Least-Privilege Data Access**: Queries run with the requesting user's BigQuery permissions, not a broad backend identity.
+- **Safer Failure Mode**: Unauthorized attempts return `execution_status="error"` with a `Permission Denied` message instead of data.
+- **Reduced Credential Exposure Risk**: Tokens are handled through MCP auth context and are not logged by the tool handlers.
 
 ### 1. In Production (Cloud Run)
 -   Create a Service Account with restricted BigQuery roles (e.g., `roles/bigquery.dataEditor`, `roles/bigquery.jobUser`).
@@ -58,12 +63,10 @@ This server relies on **Google Application Default Credentials (ADC)**. No JSON 
     gcloud run deploy bigquery-mcp-server --image IMAGE_URL --service-account="[SA_EMAIL]"
     ```
 
-### 2. Local Development (Impersonation)
-Developers can impersonate the target service account:
-```bash
-gcloud config set auth/impersonate_service_account [SA_EMAIL]
-gcloud auth application-default login
-```
+### 2. Local Development
+For end-to-end auth parity with Gemini Enterprise, send a valid user OAuth access token as `Authorization: Bearer <token>` when invoking `/mcp`.
+
+If you are only validating Cloud Run ingress, also include an ID token in `X-Serverless-Authorization`.
 
 ---
 

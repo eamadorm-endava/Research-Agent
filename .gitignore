@@ -123,6 +123,7 @@ celerybeat.pid
 notebooks/.cache/
 notebooks/client_secret.json
 /client_secret.json
+**/token.json
 mcp_servers/google_drive/temp_secrets/
 .venv
 env/
