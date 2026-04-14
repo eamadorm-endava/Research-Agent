@@ -61,6 +61,7 @@ mcp_calendar = [
 ]
 classification_pipeline = [
     "google-cloud-dlp>=3.36.0",
+    "google-genai>=0.1.0",
 ]
 
 [tool.pytest.ini_options]

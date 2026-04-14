@@ -2340,7 +2340,14 @@ ai-agent = [
     { name = "pydantic-settings" },
 ]
 classification-pipeline = [
+    { name = "google-cloud-bigquery" },
     { name = "google-cloud-dlp" },
+    { name = "google-cloud-storage" },
+    { name = "google-genai" },
+    { name = "loguru" },
+    { name = "protobuf" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
 ]
 dev = [
     { name = "click" },
@@ -2398,7 +2405,16 @@ ai-agent = [
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
 ]
-classification-pipeline = [{ name = "google-cloud-dlp", specifier = ">=3.36.0" }]
+classification-pipeline = [
+    { name = "google-cloud-bigquery", specifier = ">=3.20.0" },
+    { name = "google-cloud-dlp", specifier = ">=3.36.0" },
+    { name = "google-cloud-storage", specifier = ">=2.14.0" },
+    { name = "google-genai", specifier = ">=0.1.0" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "protobuf", specifier = ">=5.28.1" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pydantic-settings", specifier = ">=2.13.1" },
+]
 dev = [
     { name = "click", specifier = ">=8.3.1" },
     { name = "google-cloud-modelarmor", specifier = ">=0.4.0" },
