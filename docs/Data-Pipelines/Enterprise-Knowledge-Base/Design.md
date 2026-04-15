@@ -1,7 +1,7 @@
 # Enterprise Knowledge Base — Pipeline Architecture Design
 
-> **Status:** Draft — Approved by Architecture / Data Engineering Team  
-> **Version:** 2.0  
+> **Status:** Final Design Approved  
+> **Version:** 3.0  
 > **Last Updated:** 2026-04-15  
 > **Owner:** Data Engineering Team  
 > **Standards Alignment:** ISO/IEC 27001:2022 (Controls 5.12, 5.13), NIST SP 800-53 Rev5 (AC-16, RA-2, SI-12), NIST SP 800-171 Rev3 (§3.1, §3.13), NIST SP 800-60 Vol 1–2  
@@ -12,12 +12,12 @@
 
 The **Enterprise Knowledge Base (EKB)** is an agent-orchestrated and event-driven data pipeline designed to:
 
-1. **Ingest**: Direct user interaction via **Gemini Enterprise AI Agent**. The user uploads a file and provides metadata (Project, PII status, Versioning) to an **ADK-powered Skill**.
-2. **Handoff**: The Agent writes to the shared GCS landing zone with enriched custom metadata.
-3. **Classify**: The Agent **directly triggers** the automated document vetting via **Cloud DLP + Gemini LLM** (overriding user claims if necessary).
-4. **Route**: Document is moved to domain-specific, access-controlled GCS buckets.
+1. **Ingestion**: Direct user interaction via **Gemini Enterprise AI Agent**. The user uploads a file and provides metadata (Project, PII status, Versioning) to an **ADK-powered Skill**.
+2. **Handoff**: The Agent writes to the shared GCS landing zone with enriched custom metadata using the user's **OAuth context**.
+3. **Classify**: The Agent orquestrator (**`KBIngestionPipeline`**) triggers the classification service.
+4. **Route**: Document is moved to domain-specific, access-controlled GCS buckets based on the classification result.
 5. **Extract**: Structured metadata lands in BigQuery for searching.
-6. **Vectorize (RAG)**: An automated Eventarc trigger fires upon document arrival in the domain buckets to initiate parsing, chunking, and semantic indexing via BigQuery ML Vector Search.
+6. **Vectorize (RAG)**: The orchestrator triggers the RAG pipeline **programmatically** after successful routing, bypassing event-based triggers for better latency and control.
 
 ---
 
@@ -25,31 +25,30 @@ The **Enterprise Knowledge Base (EKB)** is an agent-orchestrated and event-drive
 
 ```mermaid
 flowchart TD
-    subgraph AGENT["1 AI Agent Entry Point"]
-        Z["User Uploads File to Chat"] --> Y["Gemini Agent (ADK Skill)"]
-        Y --> X["Metadata Collection (Project?, PII?)"]
-        X --> B["GCS: kb-landing-zone"]
-        B --> C["Agent Triggers Classification Pipeline"]
-    end
+    subgraph AGENT["1 AI Agent Entry Point"]
+        Z["User Uploads File to Chat"] --> Y["Gemini Agent (ADK Skill)"]
+        Y --> X["Metadata Collection & OAuth Context"]
+        X --> B["GCS: kb-landing-zone"]
+        B --> ORQ["KBIngestionPipeline Orchestrator"]
+    end
 
-    subgraph CLASSIFY["2 Classification — CloudRun"]
-        C --> D["Phase 1 — Cloud DLP: Deterministic InfoType Scan"]
-        D --> DG{"Tier 4 or 5 Detected?"}
-        DG -- Yes --> DM["DLP De-Identification: Mask to GCS _masked suffix, return masked_uri"]
-        DG -- No --> DP["Pass original URI"]
-        DM --> E["Phase 2 — Gemini 2.5 Flash: Multimodal GCS Access, Contextual Classifier"]
-        DP --> E
-        E --> F["Structured Output: tier, domain, summary, confidence_score"]
-        F --> K["BigQuery kb_metadata table (direct write)"]
-        F --> H["Domain Buckets: gs://kb-domain/tier/project/filename"]
-    end
+    subgraph CLASSIFY["2 Classification — Cloud Run"]
+        ORQ -- Programmatic POST --> D["Phase 1 — Cloud DLP Scan"]
+        D --> DG{"Tier 4 or 5?"}
+        DG -- Yes --> DM["Generate Temporary _masked file"]
+        DG -- No --> DP["Original URI"]
+        DM -- masked_uri --> E["Phase 2 — Gemini 2.5 Flash Classifier"]
+        DP -- source_uri --> E
+        E --> F["Structured Verdict: tier, domain, summary"]
+        F --> ROUTE["GCS Routing: Move Original to Domain Bucket"]
+        ROUTE --> CLEAN["Delete _masked file from Landing Zone"]
+    end
 
-    subgraph VECTOR["3 Vectorization (RAG)"]
-        H --> L["Eventarc Trigger (object.finalize in domain bucket)"]
-        L --> N["BigQuery ML: Document Chunking & ML.GENERATE_EMBEDDING"]
-        N --> O["BigQuery VECTOR_SEARCH"]
-        O --> P["AI Agent MCP Servers: semantic_search tool"]
-    end
+    subgraph VECTOR["3 Vectorization (RAG) — Cloud Run"]
+        CLEAN -- Programmatic POST --> N["BigQuery ML: Document Chunking & Vectorization"]
+        N --> O["BigQuery documents_chunks Table"]
+        O --> P["AI Agent: ekb_semantic_search (OAuth Restricted)"]
+    end
 ```
 
 ---
@@ -61,8 +60,8 @@ The primary entry point for documents is a direct interaction with the **Enterpr
 ### Ingestion Flow:
 1.  **File Upload**: User attaches a PDF/Docx to the chat.
 2.  **Skill Activation**: The Agent triggers the **`Ingestion Metadata Skill` (ADK-based)**.
-3.  **Questionnaire**: The Agent dynamically asks for:
-    - **Project ID**: Which team or project owns this document? (**Note**: The Skill must perform a **Similarity Check** against existing BigQuery metadata to prevent duplicates).
+3.  **Questionnaire**: The Agent dynamically asks for:
+    - **Project Name (Project ID)**: The primary identifier for grouping. (Note: The Skill must perform a **Similarity Check** against `knowledge_base.projects_config` to prevent duplicates). 
     - **Versioning**: Is this document a new version of an existing file?
     - **PII Intent**: "Does this document contain sensitive PII (SSNs, CCs)?" (Optional pre-classification).
     - **Trust Maturity**: Is this a **Published** document or a **WIP** draft?
@@ -131,21 +130,18 @@ Document classification is performed in **two sequential phases**:
 | **5** | **Strictly Confidential** | High | *Strictly Confidential* | 🔴🔴 Critical | **Need-to-know basis only.** Unauthorized disclosure causes catastrophic harm: severe legal liability (GDPR, CCPA, HIPAA), individual harm, or existential organizational risk. Examples: HR records with PII, employee PIPs/termination agreements, severance packages, M&A due diligence files, financial data with government identifiers, system credentials. | **ISO 27001 §5.12**: Highest classification level — equivalent to *"Strictly Confidential"*. Maximum security controls: CMEK, MFA, strict IAM, VPC-SC. **NIST SP 800-53 AC-16 + SI-12**: Maximum security attribute enforcement and retention controls. **NIST SP 800-171 §3.1 + §3.13**: CUI-Specified — most sensitive categories: HR (Privacy CUI), Legal, Financial. **GDPR Art. 9 / CCPA §1798.100**: Personal data requiring mandatory protection. **FIPS 199**: High confidentiality impact. | **Identity PII**: `US_SOCIAL_SECURITY_NUMBER`, `PASSPORT`, `DRIVERS_LICENSE_NUMBER`. **Financial PII**: `CREDIT_CARD_NUMBER`, `IBAN_CODE`, `SWIFT_CODE`. **Credentials**: `GCP_API_KEY`, `JSON_WEB_TOKEN`, `AUTH_TOKEN`. **HR/Legal Custom** `KEYWORD` — *"Performance Improvement Plan"*, *"PIP"*, *"Termination Agreement"*, *"Severance"*, *"Due Diligence"*, *"Acquisition Target"*, *"Merger Agreement"*. | Detects M&A due diligence language, acquisition strategy, employee performance management context, termination/severance framing, and bankruptcy risk language. **Contextual Tier 5 is assigned** when HR/legal business context signals appear **even without hard PII** (e.g., a document describing employee termination terms without SSNs). Phase 2 is the sole authority for contextual Tier 5 elevation. | **YES** — DLP de-identifies, stores `<filename>_masked.<ext>` in GCS, returns `masked_gcs_uri` |
 
 
-### 5.4 Masking Pipeline for Tiers 4 & 5
+### 5.4 Masked/Original Pipeline Logic
 
-When **Phase 1 (DLP)** detects Tier 4 or Tier 5 content, the following masking workflow executes **before Phase 2**:
+The system maintains a strict separation between classification safety and RAG accuracy:
 
+1.  **DLP Verification:** If Tier 4/5 is detected, Cloud DLP generates a temporary `<filename>_masked.<ext>` file in the landing zone.
+2.  **Classification:** Gemini 2.5 Flash reads ONLY the `_masked` file to perform its analysis.
+3.  **Final Routing:** The orchestrator moves the **Original (unmasked)** file to the domain bucket.
+4.  **Cleanup:** The temporary `_masked` file is **explicitly deleted** from the landing zone immediately after routing.
+5.  **RAG Indexing:** The RAG pipeline processes the **Original** document from the domain bucket to ensure search results provide full context.
 
-  1. DLP inspects the document and confirms Tier 4 or Tier 5 InfoType findings.
-  2. DLP executes a de-identification (InfoType transformation: MASK or REPLACE_WITH_INFO_TYPE).
-  3. Masked document is stored in the SAME GCS bucket as the original, with the _masked suffix.
-  4. The masked_gcs_uri is returned to the classification pipeline.
-  5. Phase 2 (Gemini 2.5 Flash) reads ONLY the masked document via multimodal GCS access.
-  6. BigQuery metadata records: gcs_uri → masked_gcs_uri / source_uri → original document URI
-  7. The original document remains protected by CMEK + strict IAM Conditions (need-to-know only).
-
-> [!WARNING]
-> The pipeline **never** passes raw Tier 4/5 content to the Gemini model.
+> [!IMPORTANT]
+> **Zero Residuals:** No masked or original files may remain in the landing zone bucket after successful routing and BQ persistence.
 
 ---
 
@@ -170,12 +166,13 @@ Documents are routed to domain-specific buckets with the following internal stru
     {uploader_email_prefix}/
       {filename}
 ```
-*Example: `gs://kb-it/confidential/project-alpha/maria.gutierrez/architecture.pdf`*
+*Example: `gs://kb-it/client-confidential/project-alpha/maria.gutierrez/architecture.pdf`*
 
-### Security Rationale: IAM Condition Prefixing
-To enforce fine-grained security at the object level, the pipeline relies on **GCS IAM Conditions** with the `.startsWith()` operator.
-- **Why Tier First?**: IAM Conditions do not support wildcards (e.g., `*/strictly-confidential/*`). By placing the `{tier}` at the **root prefix**, we can grant classification-based access using a single, scalable condition.
-- **Uniform Bucket-Level Access (UBLA)**: This architecture **requires** UBLA to be enabled.
+### Security Rationale: IAM & Group-Based ACLs
+Access to domain buckets is managed via **Google Groups** mapped to `project` and `tier`.
+- **Group Pattern:** `ekb-{project_name}-tier{N}@midominio.com`.
+- **GCS Enforcement:** ACLs are applied at the folder level within the bucket to ensure only members of the corresponding group can list or read the objects.
+- **Identity:** The AI Agent interacts with these buckets using the **delegated OAuth token** of the end-user, ensuring native IAM enforcement.
 
 ### Routing Design: No Quarantine Bucket
 
@@ -186,24 +183,39 @@ Low-confidence results are surfaced through BigQuery queries rather than physica
 
 ---
 
-## 7. BigQuery Metadata Schema (`kb_metadata`)
+## 7. BigQuery Schemas
+
+### 7.1 Metadata Table (`documents_metadata`)
 
 | Field | Type | Description |
 |---|---|---|
 | `document_id` | `STRING` | UUID (Primary Key) |
 | `gcs_uri` | `STRING` | Final routed path in domain bucket |
-| `source_uri` | `STRING` | Original landing zone path |
 | `filename` | `STRING` | Original filename |
-| `classification_tier` | `STRING` | Result from classification matrix |
+| `classification_tier` | `INT64` | Numeric Tier (1-5) |
 | `domain` | `STRING` | it, hr, sales, etc. |
 | `confidence_score` | `FLOAT64` | AI classifier confidence (0.0 - 1.0) |
-| `trust_level` | `STRING` | published, wip, archived |
-| `project` | `STRING` | Project identifier |
-| `uploader_email` | `STRING` | Email of the contributor |
+| `trust_level` | `STRING` | Published, WIP, Archived |
+| `project_id` | `STRING` | Matches `project_name` |
+| `uploader_email` | `STRING` | Account that uploaded the file |
 | `description` | `STRING` | AI Summary (Generated via Gemini) |
-| `vectorization_status`| `STRING` | pending, completed, failed |
+| `version` | `INT64` | Incremental version number |
+| `is_latest` | `BOOL` | Flag for the current active version |
+| `ingested_at` | `TIMESTAMP` | ISO 8601 timestamp |
 
-### 7.1 Performance & Cost Optimization (Partitioning & Clustering)
+### 7.2 Chunks Table (`documents_chunks`)
+
+| Field | Type | Description |
+|---|---|---|
+| `chunk_id` | `STRING` | UUID |
+| `document_id` | `STRING` | Foreign Key to metadata |
+| `chunk_data` | `STRING` | Raw text of the chunk |
+| `embedding` | `ARRAY<FLOAT64>` | Vector generated by BQML |
+| `page_number` | `INT64` | Source page in the document |
+| `structural_metadata` | `JSON` | Section headers, list context |
+| `vectorized_at` | `TIMESTAMP` | Execution time of BQML job |
+
+### 7.3 Performance & Cost Optimization (Partitioning & Clustering)
 - **Partitioning**: Day-partitioned by `ingested_at`. 
 - **Clustering**: Multi-column clustering by `domain`, `project`, `classification_tier`, `uploader_email`.
 
@@ -232,13 +244,11 @@ Each chunk index carries a rich metadata payload for grounding responses:
 | Step | Service | Justification |
 |---|---|---|
 | **Entry Point** | **Gemini Enterprise Agent** | Direct human interface for ingestion in Chat. |
-| **Ingestion Logic** | **ADK (Skill Framework)** | Orchestrates metadata collection, GCS handoff, and actively triggers the Classification pipeline. |
-| **Compute Engine** | **Agent Engine** | Secure environment for running ADK-powered Skills. |
-| **Trigger (RAG)** | **Eventarc** | Decoupled eventing. Supports object finalization events in the **domain buckets** to automatically kick off the RAG/vectorization pipeline. |
-| **Compute (Classification)**| **Cloud Run** | Invoked directly by the Agent. Handles DLP scan → Gemini classification → BigQuery write → GCS routing. |
-| **Compute (RAG)**| **Cloud Run** | Handles document parsing and text chunking logic before BQ insertion. |
-| **Metadata Store** | **BigQuery** | Receives the structured output from the classifier directly. |
-| **Vector DB** | **BigQuery + BQML** | VECTOR_SEARCH() + ML.GENERATE_EMBEDDING() minimizes infrastructure and scales natively within SQL. |
+| **Orchestration** | **`KBIngestionPipeline`** | Programmatic Python class that sequences API calls. |
+| **Compute (Classification)**| **Cloud Run** | Handles DLP scan → Gemini classification → BQ metadata write. |
+| **Compute (RAG)**| **Cloud Run** | Triggered programmatically to perform chunking after routing. |
+| **Infrastructure CI/CD** | **Cloud Build** | Automates deployment and enforces the 60-line code rule. |
+| **Vector Search** | **BigQuery ML** | Performant `VECTOR_SEARCH` with native RLS/CLS support. |
 
 ---
 
@@ -253,12 +263,10 @@ The EKB pipeline is built to strictly adhere to **[ADR-001: Data Privacy Strateg
 
 ## 11. Next Steps
 
-1. **Phase 0 (Infrastructure)**: Provision GCS Buckets (`kb-landing-zone` + domain buckets) and BigQuery Dataset/`kb_metadata` table. Ensure DLP, Gemini, and GCS service accounts have correct IAM bindings.
-2. **Phase 1 — Landing Zone & Trigger Setup**: Set up `gs://kb-landing-zone`. Configure the AI Agent to perform an authenticated HTTP POST directly to the Classifier Cloud Run service once ingestion is complete.
-3. **Phase 1 — DLP Scanning Service**: Implement Python-based Cloud DLP scanning. Deterministic InfoType scan for Tiers 4 & 5. 
-4. **Phase 2 — Gemini Classifier + BQ Write**: Gemini 2.5 Flash reads the safest available URI via multimodal GCS access. Returns structured output for immediate BigQuery ingestion.
-5. **Phase 3 — Routing**: Router moves the document from `kb-landing-zone` to the correct domain bucket.
-6. **Phase 4 — Vectorization RAG (Event-Driven)**: Configure Eventarc triggers on all domain buckets (`object.finalize`). When the router deposits a new file (or a file update), Eventarc triggers the parsing/chunking Cloud Run service, followed by BigQuery ML embedding generation.
+1. **Phase 1 — ADK Skill & OAuth**: Implement the ingestion tool that extracts the user's OAuth token and injects metadata into GCS.
+2. **Phase 2 — Classification Service**: Build the Cloud Run service that performs the DLP `_masked` generation and Gemini 2.5 classification.
+3. **Phase 3 — Programmatic Orchestrator**: Implement the master `KBIngestionPipeline` class to sequence all calls and handle the final file movement.
+4. **Phase 4 — BQ Security & RAG**: Provision BigQuery Row-Level Security policies based on Google Groups. Implement the chunking and BQML vectorization logic.
 
 ---
 
@@ -270,3 +278,24 @@ The EKB pipeline is built to strictly adhere to **[ADR-001: Data Privacy Strateg
 > **Customer-Managed Encryption Keys (CMEK) via Cloud KMS are explicitly deferred and will not be implemented in the first stage of this pipeline.**
 
 **Current approach (Phase 1):** GCS Buckets and BigQuery Datasets will use Google-managed default encryption. CMEK will be provisioned as a dedicated infrastructure phase once the core classification pipeline is validated in production.
+
+---
+
+## 13. Security & Access Control Model
+
+The EKB enforces security through a **delegated identity model** combined with native GCP access controls.
+
+### 13.1 Delegated Access (OAuth)
+The AI Agent and its MCP tools never act as a "super-user". Every query to BigQuery or GCS is executed using the **end-user's OAuth context**. 
+- If a user lacks permission to a file in GCS or a row in BQ, the Agent will simply find "no results".
+
+### 13.2 Google Groups & IAM
+- **Project/Tier Groups:** Users are assigned to Google Groups: `ekb-{project}-{tier}@midominio.com`.
+- **GCS ACLs:** Folders in domain buckets are restricted to their corresponding project/tier group.
+- **BQ Row-Level Security (RLS):** Policies are applied to `documents_chunks` and `documents_metadata` to filter rows based on `SESSION_USER()` and their group memberships.
+
+### 13.3 Policy Tags (Column-Level Security)
+Sensitive metadata fields (e.g., original filenames or project-specific IDs) are protected by **Data Catalog Policy Tags**. Only users with the appropriate security clearance group can see the contents of these columns in query results.
+
+### 13.4 Config Table (`groups_access_mapping`)
+A centralized BigQuery table defines the relationship between Google Groups and their permitted `security_tier` and `project_id`. This table is used by the search tools to dynamically construct the safest possible SQL queries.
