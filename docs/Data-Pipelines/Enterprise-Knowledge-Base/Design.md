@@ -223,6 +223,7 @@ Each chunk index carries a rich metadata payload for grounding responses:
     "tier": "confidential",
     "project": "alpha",
     "chunk_text": "The actual text context of this segment..."
+  }
 }
 ```
 ---
