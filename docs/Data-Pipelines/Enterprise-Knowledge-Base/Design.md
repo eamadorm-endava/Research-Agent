@@ -29,7 +29,7 @@ flowchart TD
         Z["User Uploads File to Chat"] --> Y["Gemini Agent (ADK Skill)"]
         Y --> X["Metadata Collection (Project?, PII?)"]
         X --> B["GCS: kb-landing-zone"]
-        B --> C["Agent Triggers Classification API"]
+        B --> C["Agent Triggers Classification Pipeline"]
     end
 
     subgraph CLASSIFY["2 Classification — CloudRun"]
