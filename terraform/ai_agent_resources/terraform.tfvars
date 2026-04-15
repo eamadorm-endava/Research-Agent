@@ -1,8 +1,8 @@
 
-project_id             = "ag-core-dev-fdx7"
+project_id             = "p-dev-gce-60pf"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
-  "ag-core-dev-fdx7" = [
+  "p-dev-gce-60pf" = [
     "aiplatform.googleapis.com",
     "modelarmor.googleapis.com",
     "cloudresourcemanager.googleapis.com",
@@ -11,7 +11,7 @@ apis_to_enable = {
 }
 ai_agent_service_account_name = "adk-agent"
 ai_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "p-dev-gce-60pf" = [
     "roles/aiplatform.user",
     "roles/modelarmor.user",
     "roles/run.invoker",
@@ -21,14 +21,14 @@ ai_agent_iam_project_roles = {
   ]
 }
 vertex_ai_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "p-dev-gce-60pf" = [
     "roles/modelarmor.user",
     "roles/cloudtrace.agent"
   ]
 }
 
 discovery_engine_service_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "p-dev-gce-60pf" = [
     "roles/aiplatform.user",
     "roles/modelarmor.user",
     "roles/discoveryengine.user",
