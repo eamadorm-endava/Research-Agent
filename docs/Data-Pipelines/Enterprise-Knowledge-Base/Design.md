@@ -215,14 +215,14 @@ Each chunk index carries a rich metadata payload for grounding responses:
 
 ```json
 {
-  "id": "doc_uuid_chunk_001",
-  "embedding": [0.012, -0.83, ...],
-  "metadata": {
-    "document_id": "doc_uuid",
-    "domain": "it",
-    "tier": "confidential",
-    "project": "alpha",
-    "chunk_text": "The actual text context of this segment..."
+  "id": "doc_uuid_chunk_001",
+  "embedding": [0.012, -0.83, ...],
+  "metadata": {
+    "document_id": "doc_uuid",
+    "domain": "it",
+    "tier": "confidential",
+    "project": "alpha",
+    "chunk_text": "The actual text context of this segment..."
   }
 }
 ```
