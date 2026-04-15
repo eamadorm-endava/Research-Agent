@@ -1,8 +1,10 @@
-PROJECT_ID=p-dev-gce-60pf
-REGION=us-central1
-DRIVE_URL=mock-drive-url
-DRIVE_AUTH_ID=mock-GE-drive-auth-resource-id
-
+PROJECT_ID?=p-dev-gce-60pf # ?= is used to set a default value if the variable is not set in the .env file
+REGION?=us-central1
+BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
+DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
+GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
+CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
+GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
 ### General Commands ###
 
 gcloud-auth:
@@ -20,6 +22,7 @@ verify-all-ci:
 	$(MAKE) verify-bq-ci
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
+	$(MAKE) verify-calendar-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -57,7 +60,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@p-dev-gce-60pf.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,DRIVE_URL=${DRIVE_URL},GEMINI_DRIVE_AUTH_ID=${DRIVE_AUTH_ID}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
@@ -113,10 +116,10 @@ run-gcs-tests:
 	uv run --group mcp_gcs pytest mcp_servers/gcs/tests/
 
 run-gcs-mcp-locally:
-	uv run --group mcp_gcs python -m mcp_servers.gcs.app.main --host localhost --port 8080
+	uv run --group mcp_gcs python -m mcp_servers.gcs.app.main --host localhost --port 8082
 
 run-gcs-mcp-smoke:
-	uv run --group mcp_gcs python mcp_servers/gcs/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket $(BUCKET) --prefix $(PREFIX)$(if $(BUCKET_PREFIX), --bucket-prefix $(BUCKET_PREFIX),)
+	uv run --group mcp_gcs python mcp_servers/gcs/scripts/mcp_smoke_test.py --endpoint http://localhost:8082/mcp --bucket $(BUCKET) --prefix $(PREFIX)$(if $(BUCKET_PREFIX), --bucket-prefix $(BUCKET_PREFIX),)
 
 build-gcs-mcp-image:
 	docker build -t test-gcs-mcp-server -f mcp_servers/gcs/Dockerfile .
@@ -129,3 +132,22 @@ verify-gcs-ci:
 
 test-gcs-terraform:
 	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
+
+### Google Calendar & Meet MCP Commands ###
+
+run-calendar-precommit:
+	uvx pre-commit run --files mcp_servers/google_calendar/**/*
+
+run-calendar-tests:
+	uv run --group mcp_calendar pytest mcp_servers/google_calendar/tests/
+
+run-calendar-mcp-locally:
+	uv run --group mcp_calendar python -m mcp_servers.google_calendar.app.main --host localhost --port 8083
+
+build-calendar-mcp-image:
+	docker build -t test-calendar-mcp-server -f mcp_servers/google_calendar/Dockerfile .
+
+verify-calendar-ci:
+	$(MAKE) run-calendar-precommit
+	$(MAKE) run-calendar-tests
+	$(MAKE) build-calendar-mcp-image

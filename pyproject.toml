@@ -16,6 +16,7 @@ ai-agent = [
     "google-cloud-modelarmor>=0.4.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "loguru>=0.7.3",
 ]
 dev = [
     "google-cloud-modelarmor>=0.4.0",
@@ -45,6 +46,18 @@ mcp_drive = [
     "pypdf>=4.0.0",
     "reportlab>=4.0.0",
     "uvicorn>=0.27.0",
+]
+mcp_calendar = [
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.0",
+    "httpx>=0.27.0",
+    "loguru>=0.7.3",
+    "mcp>=1.26.0",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.13.1",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [tool.pytest.ini_options]

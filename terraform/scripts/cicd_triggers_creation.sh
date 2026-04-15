@@ -108,4 +108,8 @@ create_trigger "gcs-mcp-server-services-apply" "push" "terraform/gcs_mcp_server_
 create_trigger "drive-mcp-server-services-plan" "pr" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_drive/**"
 create_trigger "drive-mcp-server-services-apply" "push" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_drive/**"
 
+# Calendar MCP triggers
+create_trigger "calendar-mcp-server-services-plan" "pr" "terraform/google_calendar_mcp_server_resources" "terraform/google_calendar_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_calendar/**"
+create_trigger "calendar-mcp-server-services-apply" "push" "terraform/google_calendar_mcp_server_resources" "terraform/google_calendar_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_calendar/**"
+
 echo "Done. All AI Agent and MCP triggers are created (or already existed)."

@@ -1,11 +1,9 @@
-import logging
+from loguru import logger
 
 import google.auth
 import google.oauth2.id_token
 from google.auth.transport.requests import Request
 from google.adk.agents.readonly_context import ReadonlyContext
-
-logger = logging.getLogger(__name__)
 
 
 def get_id_token(audience: str) -> str | None:
@@ -15,28 +13,29 @@ def get_id_token(audience: str) -> str | None:
     It first tries the metadata server (when running on GCP) and then falls back to
     local ADC credentials for development.
     """
+    logger.info(f"Generating ID token for audience: {audience}")
     request = Request()
     try:
         logger.debug(
-            "Retrieving ID token from metadata server for audience %s", audience
+            f"Retrieving ID token from metadata server for audience {audience}"
         )
         id_token = google.oauth2.id_token.fetch_id_token(request, audience)
         logger.debug("ID token successfully retrieved from metadata server")
         return id_token
     except Exception as exc:
-        logging.debug("Metadata-server ID token retrieval failed: %s", exc)
+        logger.warning(f"Metadata-server ID token retrieval failed: {exc}")
 
     try:
-        logging.debug("Retrieving ID token from local ADC credentials")
+        logger.debug("Retrieving ID token from local ADC credentials")
         credentials, _ = google.auth.default()
         credentials.refresh(request)
         id_token = getattr(credentials, "id_token", None)
         if id_token:
-            logging.debug("ID token retrieved from local ADC credentials")
+            logger.debug("ID token retrieved from local ADC credentials")
             return id_token
-        logging.warning("ADC credentials did not yield an ID token")
+        logger.warning("ADC credentials did not yield an ID token")
     except Exception as exc:
-        logging.warning("Unable to obtain ID token from local ADC credentials: %s", exc)
+        logger.warning(f"Unable to obtain ID token from local ADC credentials: {exc}")
 
     return None
 

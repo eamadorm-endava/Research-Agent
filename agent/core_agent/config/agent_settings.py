@@ -1,7 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
-from enum import StrEnum
-from typing import Annotated, Union
+from pydantic import AliasChoices, Field
+from typing import Annotated
 
 
 class GCPConfig(BaseSettings):
@@ -30,11 +29,12 @@ class GCPConfig(BaseSettings):
             description="GCP Region where most of the services will be deployed",
         ),
     ]
-    IS_DEPLOYED: Annotated[
+    PROD_EXECUTION: Annotated[
         bool,
         Field(
             default=True,
-            description="Flag to determine if the agent is running in a deployed environment. Defaults to True, override in local .env to False.",
+            description="Flag to determine if the agent is running in a production environment. Defaults to True, override in local .env to False.",
+            validation_alias=AliasChoices("PROD_EXECUTION", "IS_DEPLOYED"),
         ),
     ]
 
@@ -233,34 +233,9 @@ class AgentConfig(BaseSettings):
             description="Agent's System Prompt",
         ),
     ]
-    MEETING_SUMMARY_FOLDER: Annotated[
-        str,
-        Field(
-            default="AI Meetings Summaries",
-            description="Folder where meeting summaries are stored in Drive",
-        ),
-    ]
-    MEETING_SUMMARY_FILENAME_PATTERN: Annotated[
-        str,
-        Field(
-            default="YYYY-MM-DD - meeting-name - Summary.docx",
-            description="Pattern used to name generated meeting summary documents",
-        ),
-    ]
 
 
-class DriveScopes(StrEnum):
-    """
-    Enum for Google Drive OAuth scopes.
-    """
-
-    READONLY = "https://www.googleapis.com/auth/drive.readonly"
-    FILE = "https://www.googleapis.com/auth/drive.file"
-    DOCUMENTS = "https://www.googleapis.com/auth/documents"
-    DRIVE = "https://www.googleapis.com/auth/drive"
-
-
-class MCPServersConfig(BaseSettings):
+class GoogleAuthConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -268,120 +243,47 @@ class MCPServersConfig(BaseSettings):
         validate_assignment=True,
     )
     """
-    Class that holds configuration values for MCP servers.
+    Class that holds configuration values for generic Shared Google OAuth infrastructure credentials.
     """
 
-    GENERAL_TIMEOUT: Annotated[
-        int,
-        Field(
-            default=60,
-            description="Timeout in seconds for MCP servers.",
-        ),
-    ]
-    BIGQUERY_URL: Annotated[
+    GOOGLE_OAUTH_CLIENT_ID: Annotated[
         str,
         Field(
-            default="https://bigquery-mcp-server-753988132239.us-central1.run.app",
-            description="BigQuery MCP Server URL, uses a streamable http connection",
+            default="mock-oauth-client-id",
+            description="Shared OAuth 2.0 Client ID for Google APIs used by the agent.",
         ),
     ]
-    BIGQUERY_ENDPOINT: Annotated[
+    GOOGLE_OAUTH_CLIENT_SECRET: Annotated[
         str,
         Field(
-            default="/mcp",
-            description="BigQuery MCP Server Endpoint",
+            default="mock-oauth-client-secret",
+            description="Shared OAuth 2.0 Client Secret for Google APIs used by the agent.",
         ),
     ]
-    DRIVE_URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8081",
-            description="Google Drive MCP Server URL, uses a streamable http connection",
-        ),
-    ]
-    DRIVE_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="Google Drive MCP Server Endpoint",
-        ),
-    ]
-    DRIVE_OAUTH_CLIENT_ID: Annotated[
-        str,
-        Field(
-            default="",
-            description="OAuth 2.0 Client ID for Google Drive (provided to the Agent)",
-        ),
-    ]
-    DRIVE_OAUTH_CLIENT_SECRET: Annotated[
-        str,
-        Field(
-            default="",
-            description="OAuth 2.0 Client Secret for Google Drive (provided to the Agent)",
-        ),
-    ]
-    DRIVE_OAUTH_REDIRECT_URI: Annotated[
+    GOOGLE_OAUTH_REDIRECT_URI: Annotated[
         str,
         Field(
             default="http://localhost:8000/dev-ui",
-            description="OAuth 2.0 Redirect URI for Google Drive (provided to the Agent)",
+            description="Shared OAuth 2.0 Redirect URI for Google APIs used by the agent.",
         ),
     ]
-    DRIVE_OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[DriveScopes]],
-        Field(
-            default=[
-                # DriveScopes.READONLY,
-                # DriveScopes.FILE,
-                # DriveScopes.DOCUMENTS,
-                DriveScopes.DRIVE,
-            ],
-            description="OAuth scopes requested by the agent when authenticating to the Drive MCP server.",
-        ),
-    ]
-
-    @field_validator("DRIVE_OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_drive_oauth_scopes(
-        cls, v: Union[list[DriveScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        if isinstance(v, dict):
-            return v
-        return {scope.value: "google drive access" for scope in v}
-
-    DRIVE_OAUTH_AUTH_URI: Annotated[
+    GOOGLE_OAUTH_AUTH_URI: Annotated[
         str,
         Field(
             default="https://accounts.google.com/o/oauth2/v2/auth",
-            description="OAuth 2.0 Authorization URL for Google Drive",
+            description="Shared OAuth 2.0 authorization URL for Google APIs used by the agent.",
         ),
     ]
-    DRIVE_OAUTH_TOKEN_URI: Annotated[
+    GOOGLE_OAUTH_TOKEN_URI: Annotated[
         str,
         Field(
             default="https://oauth2.googleapis.com/token",
-            description="OAuth 2.0 Token URL for Google Drive",
+            description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
         ),
     ]
-    GCS_URL: Annotated[
-        str,
-        Field(
-            default="https://gcs-mcp-server-753988132239.us-central1.run.app",
-            description="GCS MCP Server URL, uses a streamable http connection. Leave empty to disable.",
-        ),
-    ]
-    GCS_ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="GCS MCP Server Endpoint",
-        ),
-    ]
-    GEMINI_DRIVE_AUTH_ID: Annotated[
-        str,
-        Field(
-            default="mock-ge-auth-id",
-            description="The ID of the authorization resource registered in Gemini Enterprise."
-            " Check: https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent?hl=en#add-authorization-resource",
-        ),
-    ]
+
+
+# Global configuration instances
+GCP_CONFIG = GCPConfig()
+AGENT_CONFIG = AgentConfig()
+GOOGLE_AUTH_CONFIG = GoogleAuthConfig()
