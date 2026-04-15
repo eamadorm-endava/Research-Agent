@@ -1,12 +1,12 @@
 ################ Project configuration ################
 
-project_id  = "p-dev-gce-60pf"
+project_id  = "ag-core-dev-fdx7"
 main_region = "us-central1"
 
 ################ APIs to enable ################
 
 apis_to_enable = {
-  "p-dev-gce-60pf" = [
+  "ag-core-dev-fdx7" = [
     "calendar-json.googleapis.com",
     "meet.googleapis.com"
   ],

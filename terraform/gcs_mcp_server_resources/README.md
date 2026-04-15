@@ -154,23 +154,23 @@ This script creates (or skips if existing) the PR/CD triggers for:
 Example:
 
 ```
-project_id             = "p-dev-gce-60pf"
+project_id             = "ag-core-dev-fdx7"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
-  "p-dev-gce-60pf" = [
+  "ag-core-dev-fdx7" = [
     "aiplatform.googleapis.com",
     "modelarmor.googleapis.com",
   ]
 }
 ai_agent_service_account_name = "adk-agent"
 ai_agent_iam_project_roles = {
-  "p-dev-gce-60pf" = [
+  "ag-core-dev-fdx7" = [
     "roles/aiplatform.user",
     "roles/modelarmor.user"
   ]
 }
 vertex_ai_agent_iam_project_roles = {
-  "p-dev-gce-60pf" = [
+  "ag-core-dev-fdx7" = [
     "roles/modelarmor.user"
   ]
 }
