@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 import logging
 import mimetypes
 import os
@@ -7,7 +7,7 @@ from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
 from google.oauth2.credentials import Credentials
 
-from .config import GCS_AUTH_CONFIG
+from .config import GCS_API_CONFIG, GCS_AUTH_CONFIG
 from .schemas import AuthenticationError
 
 # Configure logging
@@ -18,13 +18,17 @@ logger = logging.getLogger(__name__)
 class GCSManager:
     """
     Manager for Google Cloud Storage operations.
-    Initializes a storage client using Application Default Credentials (ADC)
-    and provides methods for bucket and object management as per Issue #5.
+    Initializes a storage client using delegated user credentials
+    and provides methods for bucket and object management.
     """
 
-    def __init__(self, creds: Any, default_project: Optional[str] = None):
+    def __init__(self, creds: Credentials, default_project: Optional[str] = None):
+        self.creds = creds
+        self.default_project = default_project
         try:
-            self.client = storage.Client(credentials=creds, project=default_project)
+            self.client = storage.Client(
+                credentials=self.creds, project=self.default_project
+            )
             logger.info(
                 "GCS client initialized successfully using delegated user credentials."
             )
@@ -276,6 +280,7 @@ class GCSManager:
 def build_gcs_credentials(
     *,
     access_token: Optional[str] = None,
+    scopes: Optional[Sequence[str]] = None,
     validate: bool = True,
 ) -> Credentials:
     """
@@ -286,17 +291,21 @@ def build_gcs_credentials(
     Return: A Google Credentials object.
     """
 
+    scopes = list(scopes or GCS_API_CONFIG.read_write_scopes)
+
     if access_token:
         if validate:
-            validate_access_token(access_token)
-        return Credentials(token=access_token)
+            validate_access_token(access_token, scopes)
+        return Credentials(token=access_token, scopes=scopes)
 
     raise RuntimeError(
         "No GCS credentials available. Provide a delegated user access token header."
     )
 
 
-def validate_access_token(access_token: str) -> dict[str, Any]:
+def validate_access_token(
+    access_token: str, required_scopes: Optional[Sequence[str]] = None
+) -> dict[str, Any]:
     """
     Validates an OAuth access token against Google's tokeninfo endpoint.
     Args:
@@ -320,4 +329,43 @@ def validate_access_token(access_token: str) -> dict[str, Any]:
             error_detail = response.text
         raise AuthenticationError(f"Invalid OAuth token: {error_detail}")
 
-    return response.json()
+    token_info = response.json()
+
+    if required_scopes:
+        token_scopes = set(token_info.get("scope", "").split())
+        token_scopes = _expand_storage_scopes(token_scopes)
+        missing = [scope for scope in required_scopes if scope not in token_scopes]
+        if missing:
+            raise AuthenticationError(
+                f"Token is missing required scopes: {', '.join(missing)}"
+            )
+
+    return token_info
+
+
+def _expand_storage_scopes(token_scopes: set[str]) -> set[str]:
+    """Expands broader Google Cloud / Storage scopes into compatible GCS equivalents."""
+
+    expanded_scopes = set(token_scopes)
+
+    if GCS_API_CONFIG.cloud_platform_scope in expanded_scopes:
+        expanded_scopes.update(
+            {
+                GCS_API_CONFIG.storage_read_only_scope,
+                GCS_API_CONFIG.storage_read_write_scope,
+                GCS_API_CONFIG.storage_full_control_scope,
+            }
+        )
+
+    if GCS_API_CONFIG.storage_full_control_scope in expanded_scopes:
+        expanded_scopes.update(
+            {
+                GCS_API_CONFIG.storage_read_only_scope,
+                GCS_API_CONFIG.storage_read_write_scope,
+            }
+        )
+
+    if GCS_API_CONFIG.storage_read_write_scope in expanded_scopes:
+        expanded_scopes.add(GCS_API_CONFIG.storage_read_only_scope)
+
+    return expanded_scopes

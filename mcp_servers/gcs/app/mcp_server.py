@@ -10,7 +10,7 @@ from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
-from .config import GCS_AUTH_CONFIG, GCS_SERVER_CONFIG
+from .config import GCS_API_CONFIG, GCS_AUTH_CONFIG, GCS_SERVER_CONFIG
 from .gcs_client import GCSManager, build_gcs_credentials
 from .schemas import (
     CreateBucketRequest,
@@ -414,7 +414,10 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
 def _make_gcs_manager() -> GCSManager:
     """Creates a GCS manager using the delegated user token from MCP context."""
     access_token = _get_current_token()
-    creds = build_gcs_credentials(access_token=access_token)
+    creds = build_gcs_credentials(
+        access_token=access_token,
+        scopes=GCS_API_CONFIG.read_write_scopes,
+    )
     return GCSManager(creds)
 
 

@@ -1,6 +1,11 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from mcp_servers.gcs.app.gcs_client import GCSManager, build_gcs_credentials
+from mcp_servers.gcs.app.config import GCS_API_CONFIG
+from mcp_servers.gcs.app.gcs_client import (
+    GCSManager,
+    build_gcs_credentials,
+    validate_access_token,
+)
 from google.cloud.exceptions import GoogleCloudError
 
 
@@ -155,5 +160,22 @@ def test_build_gcs_credentials_from_access_token(mock_credentials, mock_validate
 
     build_gcs_credentials(access_token=access_token)
 
-    mock_validate.assert_called_once_with(access_token)
-    mock_credentials.assert_called_once_with(token=access_token)
+    expected_scopes = list(GCS_API_CONFIG.read_write_scopes)
+
+    mock_validate.assert_called_once_with(access_token, expected_scopes)
+    mock_credentials.assert_called_once_with(
+        token=access_token,
+        scopes=expected_scopes,
+    )
+
+
+def test_validate_access_token_accepts_cloud_platform_scope_for_gcs_operations():
+    with patch("httpx.Client.get") as mock_get:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            "scope": GCS_API_CONFIG.cloud_platform_scope
+        }
+
+        info = validate_access_token("tok", GCS_API_CONFIG.read_write_scopes)
+
+    assert info["scope"] == GCS_API_CONFIG.cloud_platform_scope

@@ -1,13 +1,15 @@
 import pytest
 import asyncio
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from mcp_servers.gcs.app.mcp_server import (
+    _make_gcs_manager,
     create_bucket,
     list_objects,
     list_buckets,
     read_object,
 )
+from mcp_servers.gcs.app.config import GCS_API_CONFIG
 from mcp_servers.gcs.app.schemas import (
     CreateBucketRequest,
     ListObjectsRequest,
@@ -96,3 +98,30 @@ def test_mcp_read_object_not_found_normalized_message(mock_gcs_manager):
 
     assert result.execution_status == "error"
     assert "Object not found" in result.execution_message
+
+
+def test_make_gcs_manager_uses_context_token_and_configured_scopes():
+    token_obj = MagicMock(token="delegated-token")
+
+    with (
+        patch(
+            "mcp_servers.gcs.app.mcp_server.get_access_token",
+            return_value=token_obj,
+        ),
+        patch(
+            "mcp_servers.gcs.app.mcp_server.build_gcs_credentials",
+            return_value="creds",
+        ) as mock_build_credentials,
+        patch(
+            "mcp_servers.gcs.app.mcp_server.GCSManager",
+            return_value="manager",
+        ) as mock_manager,
+    ):
+        manager = _make_gcs_manager()
+
+    assert manager == "manager"
+    mock_build_credentials.assert_called_once_with(
+        access_token="delegated-token",
+        scopes=GCS_API_CONFIG.read_write_scopes,
+    )
+    mock_manager.assert_called_once_with("creds")

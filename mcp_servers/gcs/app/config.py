@@ -19,6 +19,38 @@ class GcsMcpConfigBase(BaseSettings):
 class GcsApiConfig(GcsMcpConfigBase):
     """Configuration for GCS API interaction settings."""
 
+    cloud_platform_scope: Annotated[
+        str,
+        Field(
+            default="https://www.googleapis.com/auth/cloud-platform",
+            description=(
+                "Broad Google Cloud scope that can satisfy delegated Cloud Storage "
+                "operations when issued by Gemini Enterprise or local OAuth."
+            ),
+        ),
+    ]
+    storage_read_only_scope: Annotated[
+        str,
+        Field(
+            default="https://www.googleapis.com/auth/devstorage.read_only",
+            description="Read-only Cloud Storage scope.",
+        ),
+    ]
+    storage_read_write_scope: Annotated[
+        str,
+        Field(
+            default="https://www.googleapis.com/auth/devstorage.read_write",
+            description="Read-write Cloud Storage scope.",
+        ),
+    ]
+    storage_full_control_scope: Annotated[
+        str,
+        Field(
+            default="https://www.googleapis.com/auth/devstorage.full_control",
+            description="Full-control Cloud Storage scope.",
+        ),
+    ]
+
     read_write_scopes: Annotated[
         tuple[str, ...],
         Field(

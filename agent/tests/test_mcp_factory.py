@@ -30,8 +30,8 @@ def test_get_mcp_toolset_local_with_scopes():
     assert tool._auth_credential is not None
 
 
-def test_get_mcp_toolset_local_without_scopes():
-    """Test factory creates a tool without OAuth if no scopes."""
+def test_get_mcp_toolset_local_with_gcs_scopes():
+    """Test factory creates a GCS tool with delegated OAuth locally."""
     with patch.dict(os.environ, clear=True):
         mcp_config = GCSMCPConfig()
         auth_config = GoogleAuthConfig()
@@ -41,9 +41,8 @@ def test_get_mcp_toolset_local_without_scopes():
 
     assert tool._connection_params.url == "http://localhost:8082/mcp"
 
-    # Check GCS does not use user OAuth delegated schemes
-    assert getattr(tool, "_auth_scheme", None) is None
-    assert getattr(tool, "_auth_credential", None) is None
+    assert getattr(tool, "_auth_scheme", None) is not None
+    assert getattr(tool, "_auth_credential", None) is not None
 
 
 def test_get_mcp_toolset_prod_mode_logic():
@@ -71,9 +70,9 @@ def test_get_mcp_toolset_prod_mode_logic():
         assert headers["Authorization"] == "Bearer delegated-token"
 
 
-def test_get_mcp_toolset_prod_mode_no_oauth():
-    """Test factory prod mode for GCS (should omit Authorization header)."""
-    with patch.dict(os.environ, clear=True):
+def test_get_mcp_toolset_prod_mode_gcs_uses_delegated_token():
+    """Test factory prod mode for GCS forwards the delegated OAuth token."""
+    with patch.dict(os.environ, {"GCS_AUTH_ID": "gcs-auth-id"}, clear=True):
         mcp_config = GCSMCPConfig()
         auth_config = GoogleAuthConfig()
 
@@ -83,14 +82,15 @@ def test_get_mcp_toolset_prod_mode_no_oauth():
     # No ADK schemes
     assert getattr(tool, "_auth_scheme", None) is None
 
-    # Check header provider logic (Authorization must be absent)
+    # Check header provider logic (Authorization must be present)
     ctx = MagicMock()
+    ctx.state = {"gcs-auth-id": "delegated-token"}
     with patch(
         "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
     ):
         headers = tool._header_provider(ctx)
         assert headers["X-Serverless-Authorization"] == "Bearer id-token"
-        assert "Authorization" not in headers
+        assert headers["Authorization"] == "Bearer delegated-token"
 
 
 def test_mcp_config_alias_precedence():
