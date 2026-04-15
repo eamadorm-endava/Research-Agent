@@ -5,7 +5,7 @@ set -euo pipefail
 # One-time Cloud Build trigger setup for AI Agent and MCP servers (BQ + GCS + Drive).
 # It is safe to re-run: existing triggers are detected and skipped.
 
-PROJECT_ID="${PROJECT_ID:-p-dev-gce-60pf}"
+PROJECT_ID="${PROJECT_ID:-ag-core-dev-fdx7}"
 PROJECT_NUMBER="${PROJECT_NUMBER:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')}"
 
 SA_NAME="${SA_NAME:-terraform-sa-gemini-project}"
