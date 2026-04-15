@@ -18,7 +18,7 @@ The **Enterprise Knowledge Base (EKB)** is a fully automated, event-driven data 
 4. **Route**: Document is moved to domain-specific, access-controlled GCS buckets.
 5. **Extract**: Structured metadata lands in BigQuery for searching.
 6. **Enrich**: BQML-powered summary generation.
-7. **Vectorize**: Semantic indexing via Vertex AI Vector Search.
+7. **Vectorize**: Semantic indexing via BigQuery ML Vector Search.
 
 ---
 
@@ -49,9 +49,9 @@ flowchart TD
     end
 
     subgraph VECTOR["4 Vectorization (RAG)"]
-        H --> N["Vertex AI Embeddings: textembedding-gecko"]
-        N --> O["Vertex AI Vector Search"]
-        O --> P["AI Agent MCP Servers: Semantic Retrieval"]
+        K --> N["BigQuery ML: ML.GENERATE_EMBEDDING"]
+        N --> O["BigQuery VECTOR_SEARCH"]
+        O --> P["AI Agent MCP Servers: semantic_search tool"]
     end
 ```
 
@@ -247,7 +247,7 @@ To maximize query efficiency and reduce BigQuery analysis costs (GCP Slot usage)
 
 ---
 
-## 8. Vector Database Payload (Vertex AI Vector Search)
+## 8. Vector Database Payload (BigQuery ML Vector Search)
 
 Each chunk index carries a rich metadata payload for grounding responses:
 
@@ -282,7 +282,7 @@ Each chunk index carries a rich metadata payload for grounding responses:
 | **Phase 1 Classifier** | **Cloud DLP** | Hardened, enterprise-grade PII and InfoType detection. Mandatory gate for Tier 4/5 masking before AI processing. |
 | **Phase 2 Classifier** | **Gemini 2.5 Flash (Vertex AI)** | Multimodal GCS access enables reasoning over document content. Produces `tier`, `domain`, `summary`, and `confidence_score` as structured output — this output is the metadata record written to BigQuery. |
 | **Metadata Store** | **BigQuery** | Receives the structured output from the classifier directly. No intermediate extractor job required. Highly scalable for audit queries and RAG-anchored filtering. |
-| **Vector DB** | **Vertex AI Vector Search** | Serverless, highly performant scaling, part of the unified Vertex AI platform for RAG. |
+| **Vector DB** | **BigQuery + BQML** | Leverages existing metadata in BigQuery. VECTOR_SEARCH() + ML.GENERATE_EMBEDDING() minimizes infrastructure and scales natively within SQL. |
 
 ---
 
@@ -307,7 +307,7 @@ The EKB pipeline is built to strictly adhere to **[ADR-001: Data Privacy Strateg
 3. **Phase 1 — DLP Scanning Service** *(Issue #107)*: Implement Python-based Cloud DLP scanning. Deterministic InfoType scan for Tiers 4 & 5. Automatic de-identification when triggered. Masked document stored in GCS with `_masked` suffix. Returns `(tier, masked_gcs_uri | original_gcs_uri)`. InfoTypes managed via `config.py`.
 4. **Phase 2 — Gemini Classifier + BQ Write** *(User Story — Gemini 2.5 Flash)*: Gemini 2.5 Flash reads the safest available URI via multimodal GCS access. Returns structured output `(tier, domain, summary, confidence_score)`. The **same Cloud Run service** immediately writes this record to BigQuery `kb_metadata` — no separate extractor job needed. The `summary` field from Gemini replaces the previous BQML description generation step.
 5. **Phase 3 — Routing**: Router moves the document from `kb-landing-zone` to the correct domain bucket (`gs://kb-<domain>/<tier>/<project>/<uploader>/<filename>`).
-6. **Phase 4 (Vectorization RAG)**: Vectorization pipeline — Vertex AI Embeddings → Vector Search index.
+6. **Phase 4 (Vectorization RAG)**: Vectorization pipeline — BigQuery ML (VECTOR_SEARCH + ML.GENERATE_EMBEDDING).
 
 ---
 
