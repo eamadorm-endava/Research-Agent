@@ -25,12 +25,10 @@ class EKBConfig(BaseSettings):
     ]
 
     TIER_5_INFOTYPES: list[str] = [
-        "FINANCIAL_ID",
         "CREDIT_CARD_DATA",
-        "GOVERNMENT_ID",
         "PASSPORT",
-        "MEDICAL_ID",
         "SECURITY_DATA",
+        "SWIFT_CODE",
     ]
 
     TIER_5_DOCUMENT_TYPES: list[str] = [
@@ -39,6 +37,20 @@ class EKBConfig(BaseSettings):
         "DOCUMENT_TYPE/R&D/DATABASE_BACKUP",
         "DOCUMENT_TYPE/R&D/SOURCE_CODE",
         "DOCUMENT_TYPE/R&D/SYSTEM_LOG",
+    ]
+
+    TIER_5_KEYWORDS: list[str] = [
+        "Performance Improvement Plan",
+        "PIP",
+        "Termination Agreement",
+        "Severance",
+        "Due Diligence",
+        "Acquisition Target",
+        "Merger Agreement",
+    ]
+
+    TIER_4_INFOTYPES: list[str] = [
+        "DATE",
     ]
 
     TIER_4_DOCUMENT_TYPES: list[str] = [
@@ -52,21 +64,28 @@ class EKBConfig(BaseSettings):
         "DOCUMENT_TYPE/LEGAL/PLEADING",
     ]
 
-    CONTEXTUAL_INFOTYPES: list[str] = [
-        "PERSON_NAME",
-        "EMAIL_ADDRESS",
-        "PHONE_NUMBER",
-        "STREET_ADDRESS",
-        "LOCATION",
-        "DEMOGRAPHIC_DATA",
-        "TECHNICAL_ID",
-    ]
-
     TIER_4_KEYWORDS: list[str] = [
         "Confidential",
         "Proprietary",
-        "Internal Strategy",
-        "Strictly Private",
+        "Under NDA",
+        "Roadmap",
+        "OKR",
+        "EBITDA",
+        "Q1 Target",
+        "Q2 Target",
+        "Q3 Target",
+        "Q4 Target",
+    ]
+
+    CONTEXTUAL_INFOTYPES: list[str] = [
+        "GOVERNMENT_ID",
+        "FINANCIAL_ID",
+        "GEOGRAPHIC_DATA",
+        "DEMOGRAPHIC_DATA",
+        "PERSON_NAME",
+        "EMAIL_ADDRESS",
+        "PHONE_NUMBER",
+        "MEDICAL_ID",
     ]
 
 

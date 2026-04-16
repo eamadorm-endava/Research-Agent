@@ -69,15 +69,21 @@ class ClassificationPipeline:
         Returns:
             int: 4, 5, or None.
         """
+        # Tier 5: Critical Risk (Identity, Financial PII, Credentials, HR/Legal Keywords)
         if any(
-            f in EKB_CONFIG.TIER_5_INFOTYPES or f in EKB_CONFIG.TIER_5_DOCUMENT_TYPES
+            f in EKB_CONFIG.TIER_5_INFOTYPES
+            or f in EKB_CONFIG.TIER_5_DOCUMENT_TYPES
+            or f == "TIER_5_KEYWORDS"
             for f in findings
         ):
             return 5
 
-        if (
-            any(f in EKB_CONFIG.TIER_4_DOCUMENT_TYPES for f in findings)
-            or "TIER_4_KEYWORDS" in findings
+        # Tier 4: High Risk (Strategy, Invoices, Financial patterns, Strategic Keywords)
+        if any(
+            f in EKB_CONFIG.TIER_4_DOCUMENT_TYPES
+            or f in EKB_CONFIG.TIER_4_INFOTYPES
+            or f == "TIER_4_KEYWORDS"
+            for f in findings
         ):
             return 4
 
@@ -116,7 +122,7 @@ class ClassificationPipeline:
         try:
             for page_num in range(len(doc)):
                 page = doc.load_page(page_num)
-                pix = page.get_pixmap()
+                pix = page.get_pixmap(dpi=1000)
                 img_bytes = pix.tobytes("png")
 
                 # Send single page to DLP Image Redactor

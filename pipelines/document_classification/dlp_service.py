@@ -38,6 +38,7 @@ class DLPService:
         all_info_types = (
             EKB_CONFIG.TIER_5_INFOTYPES
             + EKB_CONFIG.TIER_5_DOCUMENT_TYPES
+            + EKB_CONFIG.TIER_4_INFOTYPES
             + EKB_CONFIG.TIER_4_DOCUMENT_TYPES
             + EKB_CONFIG.CONTEXTUAL_INFOTYPES
         )
@@ -49,7 +50,12 @@ class DLPService:
                     "info_type": {"name": "TIER_4_KEYWORDS"},
                     "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_4_KEYWORDS}},
                     "likelihood": dlp_v2.Likelihood.VERY_LIKELY,
-                }
+                },
+                {
+                    "info_type": {"name": "TIER_5_KEYWORDS"},
+                    "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_5_KEYWORDS}},
+                    "likelihood": dlp_v2.Likelihood.VERY_LIKELY,
+                },
             ],
             "min_likelihood": dlp_v2.Likelihood.LIKELY,
             "include_quote": False,
@@ -136,27 +142,37 @@ class DLPService:
         file_type = dlp_v2.ByteContentItem.BytesType.IMAGE
 
         masking_info_types = EKB_CONFIG.TIER_5_INFOTYPES.copy()
-        if requires_contextual_masking:
-            masking_info_types.extend(EKB_CONFIG.CONTEXTUAL_INFOTYPES)
+        custom_masking = [
+            {
+                "info_type": {"name": "TIER_5_KEYWORDS"},
+                "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_5_KEYWORDS}},
+            }
+        ]
 
-        inspect_config = {
-            "info_types": [{"name": it} for it in masking_info_types],
-            "custom_info_types": [
+        if requires_contextual_masking:
+            masking_info_types.extend(EKB_CONFIG.TIER_4_INFOTYPES)
+            masking_info_types.extend(EKB_CONFIG.CONTEXTUAL_INFOTYPES)
+            custom_masking.append(
                 {
                     "info_type": {"name": "TIER_4_KEYWORDS"},
                     "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_4_KEYWORDS}},
                 }
-            ],
+            )
+
+        inspect_config = {
+            "info_types": [{"name": it} for it in masking_info_types],
+            "custom_info_types": custom_masking,
             "include_quote": False,
         }
 
-        # We don't specify explicit ImageRedactionConfigs.
-        # By default, DLP will redact all findings in the InspectConfig with an opaque box.
+        # Dynamic redaction configs for all active types
         image_redaction_configs = []
         for info_type in masking_info_types:
             image_redaction_configs.append({"info_type": {"name": info_type}})
-
-        image_redaction_configs.append({"info_type": {"name": "TIER_4_KEYWORDS"}})
+        for custom in custom_masking:
+            image_redaction_configs.append(
+                {"info_type": {"name": custom["info_type"]["name"]}}
+            )
 
         response = self.client.redact_image(
             request={
@@ -206,17 +222,26 @@ class DLPService:
         }
 
         masking_info_types = EKB_CONFIG.TIER_5_INFOTYPES.copy()
-        if requires_contextual_masking:
-            masking_info_types.extend(EKB_CONFIG.CONTEXTUAL_INFOTYPES)
+        custom_masking = [
+            {
+                "info_type": {"name": "TIER_5_KEYWORDS"},
+                "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_5_KEYWORDS}},
+            }
+        ]
 
-        inspect_config = {
-            "info_types": [{"name": it} for it in masking_info_types],
-            "custom_info_types": [
+        if requires_contextual_masking:
+            masking_info_types.extend(EKB_CONFIG.TIER_4_INFOTYPES)
+            masking_info_types.extend(EKB_CONFIG.CONTEXTUAL_INFOTYPES)
+            custom_masking.append(
                 {
                     "info_type": {"name": "TIER_4_KEYWORDS"},
                     "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_4_KEYWORDS}},
                 }
-            ],
+            )
+
+        inspect_config = {
+            "info_types": [{"name": it} for it in masking_info_types],
+            "custom_info_types": custom_masking,
         }
 
         # 3. Execute
