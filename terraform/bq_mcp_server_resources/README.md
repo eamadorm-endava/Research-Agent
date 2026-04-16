@@ -16,7 +16,7 @@ First, ensure you are authenticated with your corporate account:
 
 ```
 Bash
-
+ 
 gcloud auth login
 ```
 
@@ -124,18 +124,18 @@ To create service accounts, define the service account names and IAM role mappin
 Example:
 
 ```
-project_id             = "p-dev-gce-60pf"
+project_id             = "ag-core-dev-fdx7"
 main_region            = "us-central1"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
-  "p-dev-gce-60pf" = [
+  "ag-core-dev-fdx7" = [
     "bigquery.googleapis.com",
     "storage.googleapis.com",
   ]
 }
 mcp_server_service_account_name = "mcp-server"
 mcp_server_iam_project_roles = {
-  "p-dev-gce-60pf" = [
+  "ag-core-dev-fdx7" = [
     "roles/bigquery.dataViewer",
     "roles/bigquery.jobUser",
     "roles/storage.objectUser"

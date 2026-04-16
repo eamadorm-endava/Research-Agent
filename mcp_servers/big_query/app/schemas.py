@@ -5,7 +5,7 @@ import re
 
 
 class AvailableProject(StrEnum):
-    DEV = "p-dev-gce-60pf"
+    DEV = "ag-core-dev-fdx7"
 
 
 # Reusable Types
