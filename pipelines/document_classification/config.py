@@ -24,67 +24,109 @@ class EKBConfig(BaseSettings):
         ),
     ]
 
-    TIER_5_INFOTYPES: list[str] = [
-        "CREDIT_CARD_DATA",
-        "PASSPORT",
-        "SECURITY_DATA",
-        "SWIFT_CODE",
-        "GOVERNMENT_ID",
-        "FINANCIAL_ID",
-        "MEDICAL_ID",
+    TIER_5_INFOTYPES: Annotated[
+        list[str],
+        Field(
+            default=[
+                "CREDIT_CARD_DATA",
+                "PASSPORT",
+                "SECURITY_DATA",
+                "SWIFT_CODE",
+                "GOVERNMENT_ID",
+                "FINANCIAL_ID",
+                "MEDICAL_ID",
+            ],
+            description="Highly sensitive built-in InfoTypes triggering Tier 5 classification.",
+        ),
     ]
 
-    TIER_5_DOCUMENT_TYPES: list[str] = [
-        "DOCUMENT_TYPE/MEDICAL/RECORD",
-        "DOCUMENT_TYPE/HR/RESUME",
-        "DOCUMENT_TYPE/R&D/DATABASE_BACKUP",
-        "DOCUMENT_TYPE/R&D/SOURCE_CODE",
-        "DOCUMENT_TYPE/R&D/SYSTEM_LOG",
+    TIER_5_DOCUMENT_TYPES: Annotated[
+        list[str],
+        Field(
+            default=[
+                "DOCUMENT_TYPE/MEDICAL/RECORD",
+                "DOCUMENT_TYPE/HR/RESUME",
+                "DOCUMENT_TYPE/R&D/DATABASE_BACKUP",
+                "DOCUMENT_TYPE/R&D/SOURCE_CODE",
+                "DOCUMENT_TYPE/R&D/SYSTEM_LOG",
+            ],
+            description="Cloud DLP Document Detectors triggering Tier 5 classification.",
+        ),
     ]
 
-    TIER_5_KEYWORDS: list[str] = [
-        "Performance Improvement Plan",
-        "PIP",
-        "Termination Agreement",
-        "Severance",
-        "Due Diligence",
-        "Acquisition Target",
-        "Merger Agreement",
+    TIER_5_KEYWORDS: Annotated[
+        list[str],
+        Field(
+            default=[
+                "Performance Improvement Plan",
+                "PIP",
+                "Termination Agreement",
+                "Severance",
+                "Due Diligence",
+                "Acquisition Target",
+                "Merger Agreement",
+            ],
+            description="Custom keywords triggering Tier 5 classification.",
+        ),
     ]
 
-    TIER_4_INFOTYPES: list[str] = []
-
-    TIER_4_DOCUMENT_TYPES: list[str] = [
-        "DOCUMENT_TYPE/FINANCE/INVOICE",
-        "DOCUMENT_TYPE/FINANCE/REGULATORY",
-        "DOCUMENT_TYPE/FINANCE/SEC_FILING",
-        "DOCUMENT_TYPE/LEGAL/COURT_ORDER",
-        "DOCUMENT_TYPE/LEGAL/BRIEF",
-        "DOCUMENT_TYPE/LEGAL/BLANK_FORM",
-        "DOCUMENT_TYPE/LEGAL/LAW",
-        "DOCUMENT_TYPE/LEGAL/PLEADING",
+    TIER_4_INFOTYPES: Annotated[
+        list[str],
+        Field(
+            default=[],
+            description="Medium-sensitivity built-in InfoTypes triggering Tier 4 classification.",
+        ),
     ]
 
-    TIER_4_KEYWORDS: list[str] = [
-        "Confidential",
-        "Proprietary",
-        "Under NDA",
-        "Roadmap",
-        "OKR",
-        "EBITDA",
-        "Q1 Target",
-        "Q2 Target",
-        "Q3 Target",
-        "Q4 Target",
+    TIER_4_DOCUMENT_TYPES: Annotated[
+        list[str],
+        Field(
+            default=[
+                "DOCUMENT_TYPE/FINANCE/INVOICE",
+                "DOCUMENT_TYPE/FINANCE/REGULATORY",
+                "DOCUMENT_TYPE/FINANCE/SEC_FILING",
+                "DOCUMENT_TYPE/LEGAL/COURT_ORDER",
+                "DOCUMENT_TYPE/LEGAL/BRIEF",
+                "DOCUMENT_TYPE/LEGAL/BLANK_FORM",
+                "DOCUMENT_TYPE/LEGAL/LAW",
+                "DOCUMENT_TYPE/LEGAL/PLEADING",
+            ],
+            description="Cloud DLP Document Detectors triggering Tier 4 classification.",
+        ),
     ]
 
-    CONTEXTUAL_INFOTYPES: list[str] = [
-        "GEOGRAPHIC_DATA",
-        "DEMOGRAPHIC_DATA",
-        "PERSON_NAME",
-        "EMAIL_ADDRESS",
-        "PHONE_NUMBER",
-        "DATE",
+    TIER_4_KEYWORDS: Annotated[
+        list[str],
+        Field(
+            default=[
+                "Confidential",
+                "Proprietary",
+                "Under NDA",
+                "Roadmap",
+                "OKR",
+                "EBITDA",
+                "Q1 Target",
+                "Q2 Target",
+                "Q3 Target",
+                "Q4 Target",
+            ],
+            description="Custom keywords triggering Tier 4 classification.",
+        ),
+    ]
+
+    CONTEXTUAL_INFOTYPES: Annotated[
+        list[str],
+        Field(
+            default=[
+                "GEOGRAPHIC_DATA",
+                "DEMOGRAPHIC_DATA",
+                "PERSON_NAME",
+                "EMAIL_ADDRESS",
+                "PHONE_NUMBER",
+                "DATE",
+            ],
+            description="General PII that requires masking only when high-risk context is detected.",
+        ),
     ]
 
 

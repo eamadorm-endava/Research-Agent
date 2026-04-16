@@ -1,9 +1,10 @@
-import os
+from typing import Union
 import fitz  # PyMuPDF
 from loguru import logger
 from .config import EKB_CONFIG
 from .dlp_service import DLPService
 from .gcs_service import GCSService
+from .schemas import DocumentMetadata, DLPTriggerResponse
 
 
 class ClassificationPipeline:
@@ -13,31 +14,24 @@ class ClassificationPipeline:
     using Cloud DLP and GCS. It adheres to the 60-line method limit.
     """
 
-    def __init__(self):
-        """Initializes the required services."""
+    def __init__(self) -> None:
+        """Initializes the required services for classification.
+
+        Returns:
+            None
+        """
         self.dlp = DLPService()
         self.gcs = GCSService()
 
-    def _get_blob_metadata(self, landing_zone_original_uri: str) -> dict:
-        """Extracts and returns the 8 required metadata fields from GCS.
-
-        Args:
-            landing_zone_original_uri (str): URI of the original document.
-
-        Returns:
-            dict: The extracted metadata (filename, mime_type, domain, etc.)
-        """
-        logger.debug(f"Extracting metadata for: {landing_zone_original_uri}")
-        return self.gcs.get_blob_metadata(landing_zone_original_uri)
-
-    def dlp_trigger(self, landing_zone_original_uri: str) -> dict:
+    def dlp_trigger(self, landing_zone_original_uri: str) -> DLPTriggerResponse:
         """Triggers DLP scanning and performs masking if high-risk data is found.
+        This is the main entry point for the Phase 1 security gate.
 
         Args:
             landing_zone_original_uri (str): URI of the original document.
 
         Returns:
-            dict: {"sanitized_gcs_uri": str, "proposed_classification_tier": int or None}
+            DLPTriggerResponse: The results including the sanitized URI and tier.
         """
         logger.info(f"Triggering DLP scan for: {landing_zone_original_uri}")
 
@@ -48,131 +42,141 @@ class ClassificationPipeline:
         # 2. Determine risk tier
         tier = self._determine_tier(findings)
         if not tier:
-            return {
-                "sanitized_gcs_uri": landing_zone_original_uri,
-                "proposed_classification_tier": None,
-            }
+            return DLPTriggerResponse(
+                sanitized_gcs_uri=landing_zone_original_uri,
+                proposed_classification_tier=None,
+            )
 
         # 3. Apply masking for Tier 4 or 5
         requires_context = tier in [4, 5]
         masked_uri = self._mask_and_save(
-            landing_zone_original_uri, requires_contextual_masking=requires_context
+            landing_zone_original_uri, requires_context=requires_context
         )
-        return {"sanitized_gcs_uri": masked_uri, "proposed_classification_tier": tier}
+        return DLPTriggerResponse(
+            sanitized_gcs_uri=masked_uri, proposed_classification_tier=tier
+        )
 
-    def _determine_tier(self, findings: list[str]) -> int:
+    def _get_blob_metadata(self, original_uri: str) -> DocumentMetadata:
+        """Extracts and returns structured metadata from GCS.
+
+        Args:
+            original_uri (str): URI of the original document.
+
+        Returns:
+            DocumentMetadata: The structured metadata model.
+        """
+        logger.debug(f"Extracting metadata for: {original_uri}")
+        return self.gcs.get_blob_metadata(original_uri)
+
+    def _determine_tier(self, findings: list[str]) -> Union[int, None]:
         """Internal helper to map DLP findings to EKB Tiers.
 
         Args:
-            findings (list[str]): List of detected InfoTypes.
+            findings (list[str]): List of detected InfoType names.
 
         Returns:
-            int: 4, 5, or None.
+            Union[int, None]: 4, 5, or None if no high-risk data found.
         """
-        # Tier 5: Critical Risk (Identity, Financial PII, Credentials, HR/Legal Keywords)
+        logger.debug(f"Determining risk tier from findings: {findings}")
+        # Tier 5: Critical Risk
         if any(
-            f in EKB_CONFIG.TIER_5_INFOTYPES
-            or f in EKB_CONFIG.TIER_5_DOCUMENT_TYPES
-            or f == "TIER_5_KEYWORDS"
-            for f in findings
+            finding in EKB_CONFIG.TIER_5_INFOTYPES
+            or finding in EKB_CONFIG.TIER_5_DOCUMENT_TYPES
+            or finding == "TIER_5_KEYWORDS"
+            for finding in findings
         ):
             return 5
 
-        # Tier 4: High Risk (Strategy, Invoices, Financial patterns, Strategic Keywords)
+        # Tier 4: High Risk
         if any(
-            f in EKB_CONFIG.TIER_4_DOCUMENT_TYPES
-            or f in EKB_CONFIG.TIER_4_INFOTYPES
-            or f == "TIER_4_KEYWORDS"
-            for f in findings
+            finding in EKB_CONFIG.TIER_4_DOCUMENT_TYPES
+            or finding in EKB_CONFIG.TIER_4_INFOTYPES
+            or finding == "TIER_4_KEYWORDS"
+            for finding in findings
         ):
             return 4
 
         return None
 
-    def _mask_and_save(
-        self, source_uri: str, requires_contextual_masking: bool = False
-    ) -> str:
-        """Internal helper to download, mask, and upload a de-identified copy.
-
-        Args:
-            source_uri (str): URI of the original document.
-            requires_contextual_masking (bool): Instructs to mask contextual PII.
-
-        Returns:
-            str: URI of the masked document.
-        """
-
-    def _mask_pdf_locally(
-        self, original_bytes: bytes, requires_contextual_masking: bool
-    ) -> bytes:
-        """Splits PDF into images, redacts via DLP Image API, and merges back to PDF.
-        Follows the Split-Redact-Merge pattern for secure PDF de-identification.
+    def _mask_pdf_locally(self, original_bytes: bytes, requires_context: bool) -> bytes:
+        """Splits PDF into images, redacts via DLP Image API, and merges back.
+        Uses the Split-Redact-Merge pattern to bypass direct PDF redaction limits.
 
         Args:
             original_bytes (bytes): The raw PDF bytes.
-            requires_contextual_masking (bool): Whether to mask contextual PII.
+            requires_context (bool): Whether to mask contextual PII.
 
         Returns:
             bytes: The redacted PDF bytes.
         """
         logger.debug("Executing native Split-Redact-Merge on PDF buffer.")
         doc = fitz.open(stream=original_bytes, filetype="pdf")
-
         redacted_images = []
         try:
             for page_num in range(len(doc)):
                 page = doc.load_page(page_num)
-                pix = page.get_pixmap(dpi=300)
-                img_bytes = pix.tobytes("png")
+                pixmap = page.get_pixmap(dpi=300)
+                image_buffer = pixmap.tobytes("png")
 
                 # Send single page to DLP Image Redactor
                 masked_img_bytes = self.dlp.mask_image_content(
-                    img_bytes, "image/png", requires_contextual_masking
+                    image_buffer, "image/png", requires_context
                 )
                 redacted_images.append(masked_img_bytes)
         finally:
             doc.close()
 
-        # Merge back to PDF natively
-        out_doc = fitz.open()
+        return self._merge_images_to_pdf(redacted_images)
+
+    def _merge_images_to_pdf(self, image_list: list[bytes]) -> bytes:
+        """Helper to reconstruct a PDF from sanitized image buffers.
+
+        Args:
+            image_list (list[bytes]): List of raw PNG bytes.
+
+        Returns:
+            bytes: The merged PDF buffer.
+        """
+        logger.debug(f"Merging {len(image_list)} sanitized pages into PDF.")
+        output_document = fitz.open()
         try:
-            for masked_img in redacted_images:
-                with fitz.open(stream=masked_img, filetype="png") as img_doc:
-                    pdf_bytes = img_doc.convert_to_pdf()
-                    with fitz.open("pdf", pdf_bytes) as pdf_doc:
-                        out_doc.insert_pdf(pdf_doc)
-            return out_doc.write()
+            for masked_image in image_list:
+                with fitz.open(stream=masked_image, filetype="png") as img_doc:
+                    generated_pdf_bytes = img_doc.convert_to_pdf()
+                    with fitz.open("pdf", generated_pdf_bytes) as pdf_doc:
+                        output_document.insert_pdf(pdf_doc)
+            return output_document.write()
         finally:
-            out_doc.close()
+            output_document.close()
 
-    def _mask_and_save(
-        self, source_uri: str, requires_contextual_masking: bool = False
-    ) -> str:
-        logger.debug(
-            f"Applying masking to: {source_uri} (Context: {requires_contextual_masking})"
-        )
+    def _mask_and_save(self, source_uri: str, requires_context: bool = False) -> str:
+        """Downloads, masks, and uploads a de-identified copy of the source.
 
-        # 1. Prepare paths
-        base_name, ext = os.path.splitext(source_uri)
+        Args:
+            source_uri (str): URI of the original document.
+            requires_context (bool): Instructs to mask contextual PII.
+
+        Returns:
+            str: URI of the masked document in GCS.
+        """
+        logger.debug(f"Applying masking to: {source_uri} (Context: {requires_context})")
+        filename_parts = source_uri.rsplit(".", 1)
+        base_name = filename_parts[0]
+        ext = f".{filename_parts[1]}" if len(filename_parts) > 1 else ""
         masked_uri = f"{base_name}_masked{ext}"
 
-        # 2. Download and try synchronous mask
-        meta = self.gcs.get_blob_metadata(source_uri)
+        document_metadata = self.gcs.get_blob_metadata(source_uri)
         try:
             original_bytes = self.gcs.download_blob_bytes(source_uri)
-
-            if "pdf" in meta["mime_type"]:
-                masked_bytes = self._mask_pdf_locally(
-                    original_bytes, requires_contextual_masking
-                )
+            if "pdf" in document_metadata.mime_type:
+                masked_bytes = self._mask_pdf_locally(original_bytes, requires_context)
             else:
                 masked_bytes = self.dlp.mask_content(
-                    original_bytes, meta["mime_type"], requires_contextual_masking
+                    original_bytes, document_metadata.mime_type, requires_context
                 )
 
-            # 3. Upload masked copy synchronously
             return self.gcs.upload_blob_bytes(
-                masked_uri, masked_bytes, content_type=meta["mime_type"]
+                masked_uri, masked_bytes, content_type=document_metadata.mime_type
             )
         except Exception as e:
             logger.error(f"Redaction failed: {str(e)}")
