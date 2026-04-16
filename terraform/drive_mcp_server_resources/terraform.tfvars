@@ -1,13 +1,13 @@
 ################ Project configuration ################
 
-project_id             = "p-dev-gce-60pf"
+project_id             = "ag-core-dev-fdx7"
 main_region            = "us-central1"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 
 ################ APIs to enable ################
 
 apis_to_enable = {
-  "p-dev-gce-60pf" = [
+  "ag-core-dev-fdx7" = [
     "drive.googleapis.com",
     "run.googleapis.com",
     "artifactregistry.googleapis.com"

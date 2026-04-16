@@ -4,7 +4,7 @@
 # Exit on error
 set -e
 
-PROJECT_ID="p-dev-gce-60pf"
+PROJECT_ID="ag-core-dev-fdx7"
 SA_EMAIL="terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "This will delete all Cloud Build triggers and the Terraform Service Account in project: $PROJECT_ID"
