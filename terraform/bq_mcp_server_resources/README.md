@@ -16,7 +16,7 @@ First, ensure you are authenticated with your corporate account:
 
 ```
 Bash
- 
+
 gcloud auth login
 ```
 
