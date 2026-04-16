@@ -122,7 +122,7 @@ class ClassificationPipeline:
         try:
             for page_num in range(len(doc)):
                 page = doc.load_page(page_num)
-                pix = page.get_pixmap(dpi=1000)
+                pix = page.get_pixmap(dpi=300)
                 img_bytes = pix.tobytes("png")
 
                 # Send single page to DLP Image Redactor

@@ -29,6 +29,9 @@ class EKBConfig(BaseSettings):
         "PASSPORT",
         "SECURITY_DATA",
         "SWIFT_CODE",
+        "GOVERNMENT_ID",
+        "FINANCIAL_ID",
+        "MEDICAL_ID",
     ]
 
     TIER_5_DOCUMENT_TYPES: list[str] = [
@@ -49,9 +52,7 @@ class EKBConfig(BaseSettings):
         "Merger Agreement",
     ]
 
-    TIER_4_INFOTYPES: list[str] = [
-        "DATE",
-    ]
+    TIER_4_INFOTYPES: list[str] = []
 
     TIER_4_DOCUMENT_TYPES: list[str] = [
         "DOCUMENT_TYPE/FINANCE/INVOICE",
@@ -78,14 +79,12 @@ class EKBConfig(BaseSettings):
     ]
 
     CONTEXTUAL_INFOTYPES: list[str] = [
-        "GOVERNMENT_ID",
-        "FINANCIAL_ID",
         "GEOGRAPHIC_DATA",
         "DEMOGRAPHIC_DATA",
         "PERSON_NAME",
         "EMAIL_ADDRESS",
         "PHONE_NUMBER",
-        "MEDICAL_ID",
+        "DATE",
     ]
 
 
