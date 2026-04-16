@@ -1,8 +1,6 @@
 import pytest
 from unittest.mock import patch
-from pipelines.enterprise_knowledge_base.document_classification.pipeline import (
-    ClassificationPipeline,
-)
+from pipelines.enterprise_knowledge_base import ClassificationPipeline
 from pipelines.enterprise_knowledge_base.document_classification.schemas import (
     DocumentMetadata,
     DLPTriggerResponse,
