@@ -23,47 +23,43 @@ class EKBConfig(BaseSettings):
             description="GCP Project ID to use for DLP and BigQuery.",
         ),
     ]
-    LOCATION: Annotated[
-        str,
-        Field(
-            default="us-central1", description="GCP Location for regional processing."
-        ),
-    ]
 
-    # GCS Settings
-    LANDING_ZONE_BUCKET: Annotated[
-        str,
-        Field(
-            default="knowledge_base_landing_zone",
-            description="GCS bucket where documents are initially uploaded.",
-        ),
-    ]
-
-    # BigQuery Settings
-    BQ_DATASET: Annotated[
-        str,
-        Field(
-            default="knowledge_base",
-            description="BigQuery dataset for metadata storage.",
-        ),
-    ]
-    BQ_TABLE: Annotated[
-        str,
-        Field(
-            default="documents_metadata",
-            description="BigQuery table for document metadata.",
-        ),
-    ]
-
-    # DLP Patterns
     TIER_5_INFOTYPES: list[str] = [
-        "US_SOCIAL_SECURITY_NUMBER",
-        "CREDIT_CARD_NUMBER",
-        "IBAN_CODE",
-        "SWIFT_CODE",
-        "GCP_API_KEY",
-        "JSON_WEB_TOKEN",
+        "FINANCIAL_ID",
+        "CREDIT_CARD_DATA",
+        "GOVERNMENT_ID",
         "PASSPORT",
+        "MEDICAL_ID",
+        "SECURITY_DATA",
+    ]
+
+    TIER_5_DOCUMENT_TYPES: list[str] = [
+        "DOCUMENT_TYPE/MEDICAL/RECORD",
+        "DOCUMENT_TYPE/HR/RESUME",
+        "DOCUMENT_TYPE/R&D/DATABASE_BACKUP",
+        "DOCUMENT_TYPE/R&D/SOURCE_CODE",
+        "DOCUMENT_TYPE/R&D/SYSTEM_LOG",
+    ]
+
+    TIER_4_DOCUMENT_TYPES: list[str] = [
+        "DOCUMENT_TYPE/FINANCE/INVOICE",
+        "DOCUMENT_TYPE/FINANCE/REGULATORY",
+        "DOCUMENT_TYPE/FINANCE/SEC_FILING",
+        "DOCUMENT_TYPE/LEGAL/COURT_ORDER",
+        "DOCUMENT_TYPE/LEGAL/BRIEF",
+        "DOCUMENT_TYPE/LEGAL/BLANK_FORM",
+        "DOCUMENT_TYPE/LEGAL/LAW",
+        "DOCUMENT_TYPE/LEGAL/PLEADING",
+    ]
+
+    CONTEXTUAL_INFOTYPES: list[str] = [
+        "PERSON_NAME",
+        "EMAIL_ADDRESS",
+        "PHONE_NUMBER",
+        "STREET_ADDRESS",
+        "LOCATION",
+        "DEMOGRAPHIC_DATA",
+        "TECHNICAL_ID",
     ]
 
     TIER_4_KEYWORDS: list[str] = [
@@ -71,17 +67,6 @@ class EKBConfig(BaseSettings):
         "Proprietary",
         "Internal Strategy",
         "Strictly Private",
-    ]
-
-    # Domain list
-    DOMAINS: list[str] = [
-        "it",
-        "finance",
-        "hr",
-        "sales",
-        "executives",
-        "legal",
-        "operations",
     ]
 
 

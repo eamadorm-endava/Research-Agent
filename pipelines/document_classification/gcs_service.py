@@ -1,7 +1,6 @@
 from google.cloud import storage
 from loguru import logger
 import os
-from .config import EKB_CONFIG
 
 
 class GCSService:
@@ -22,98 +21,61 @@ class GCSService:
             gcs_uri (str): URI of the blob (gs://bucket/object).
 
         Returns:
-            dict: Dictionary with extracted metadata.
+            dict: Dictionary with 8 fields required by Step 01.
         """
-        logger.info(f"Extracting GCS metadata for: {gcs_uri}")
+        logger.info(f"Extracting detailed GCS metadata for: {gcs_uri}")
         bucket_name, blob_name = self._parse_uri(gcs_uri)
-
         bucket = self.client.bucket(bucket_name)
         blob = bucket.get_blob(blob_name)
 
         if not blob:
-            raise FileNotFoundError(f"File not found: {gcs_uri}")
+            raise FileNotFoundError(f"Blob not found: {gcs_uri}")
 
-        metadata = {
-            "project": blob.metadata.get("project", "unknown")
-            if blob.metadata
-            else "unknown",
-            "trust_level": blob.metadata.get("trust-level", "wip")
-            if blob.metadata
-            else "wip",
-            "uploader_email": blob.metadata.get("uploader", "system")
-            if blob.metadata
-            else "system",
+        # Extract from custom metadata (x-goog-meta-*) or provide defaults
+        custom = blob.metadata if blob.metadata else {}
+
+        return {
             "filename": os.path.basename(blob.name),
-            "content_type": blob.content_type,
+            "mime_type": blob.content_type or "application/octet-stream",
+            "proposed_domain": custom.get("domain", "it"),
+            "trust_level": custom.get("trust-level", "wip"),
+            "project_name": custom.get("project", "unknown"),
+            "uploader_email": custom.get("uploader", "system"),
+            "creator_name": custom.get("creator-name")
+            or (blob.owner.get("entity") if isinstance(blob.owner, dict) else "system"),
+            "ingested_at": blob.time_created.isoformat() if blob.time_created else None,
         }
 
-        return metadata
-
-    def ensure_bucket_exists(self, bucket_name: str) -> None:
-        """Checks if a bucket exists; if not, creates it in the configured location.
+    def download_blob_bytes(self, gcs_uri: str) -> bytes:
+        """Downloads the content of a GCS blob as bytes.
 
         Args:
-            bucket_name (str): The name of the bucket to verify.
-        """
-        bucket = self.client.bucket(bucket_name)
-        if not bucket.exists():
-            logger.info(
-                f"Bucket {bucket_name} not found. Creating in {EKB_CONFIG.LOCATION}..."
-            )
-            # Create bucket with default settings in the specified location
-            self.client.create_bucket(bucket, location=EKB_CONFIG.LOCATION)
-            logger.info(f"Bucket {bucket_name} created successfully.")
-
-    def move_blob(self, source_uri: str, destination_uri: str) -> str:
-        """Moves a blob from a source URI to a destination URI.
-
-        Args:
-            source_uri (str): Source GCS URI.
-            destination_uri (str): Destination GCS URI.
+            gcs_uri (str): GCS URI.
 
         Returns:
-            str: The final GCS URI of the moved file.
+            bytes: Content of the blob.
         """
-        logger.info(f"Moving file: {source_uri} -> {destination_uri}")
+        bucket_name, blob_name = self._parse_uri(gcs_uri)
+        bucket = self.client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        return blob.download_as_bytes()
 
-        source_bucket_name, source_blob_name = self._parse_uri(source_uri)
-        dest_bucket_name, dest_blob_name = self._parse_uri(destination_uri)
-
-        # Ensure target bucket exists before copying
-        self.ensure_bucket_exists(dest_bucket_name)
-
-        source_bucket = self.client.bucket(source_bucket_name)
-        source_blob = source_bucket.blob(source_blob_name)
-        dest_bucket = self.client.bucket(dest_bucket_name)
-
-        # Copy to destination then delete source
-        source_bucket.copy_blob(source_blob, dest_bucket, dest_blob_name)
-        source_blob.delete()
-
-        logger.info(f"File successfully moved to: {destination_uri}")
-        return destination_uri
-
-    def upload_masked_copy(self, source_uri: str, masked_content: str) -> str:
-        """Uploads a temporary masked copy for LLM analysis.
+    def upload_blob_bytes(self, gcs_uri: str, data: bytes, content_type: str) -> str:
+        """Uploads bytes to a GCS destination.
 
         Args:
-            source_uri (str): Original URI (to derive path).
-            masked_content (str): The de-identified content.
+            gcs_uri (str): Destination URI.
+            data (bytes): Content to upload.
+            content_type (str): MIME type.
 
         Returns:
-            str: URI of the temporary masked copy.
+            str: Destination URI.
         """
-        bucket_name, blob_name = self._parse_uri(source_uri)
-        temp_blob_name = f"temp_masked/{os.path.basename(blob_name)}"
-
-        # Ensure landing zone bucket exists (though it should)
-        self.ensure_bucket_exists(bucket_name)
-
+        bucket_name, blob_name = self._parse_uri(gcs_uri)
         bucket = self.client.bucket(bucket_name)
-        blob = bucket.blob(temp_blob_name)
-        blob.upload_from_string(masked_content, content_type="text/plain")
-
-        return f"gs://{bucket_name}/{temp_blob_name}"
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(data, content_type=content_type)
+        return gcs_uri
 
     def _parse_uri(self, gcs_uri: str) -> tuple[str, str]:
         """Helper to split gs://bucket/path into (bucket, path)."""

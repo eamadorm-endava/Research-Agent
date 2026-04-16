@@ -34,8 +34,16 @@ class DLPService:
         """
         logger.info(f"Starting DLP scan for: {gcs_uri}")
 
+        # Combine all explicit info_types for scanning
+        all_info_types = (
+            EKB_CONFIG.TIER_5_INFOTYPES
+            + EKB_CONFIG.TIER_5_DOCUMENT_TYPES
+            + EKB_CONFIG.TIER_4_DOCUMENT_TYPES
+            + EKB_CONFIG.CONTEXTUAL_INFOTYPES
+        )
+
         inspect_config = {
-            "info_types": [{"name": it} for it in EKB_CONFIG.TIER_5_INFOTYPES],
+            "info_types": [{"name": it} for it in all_info_types],
             "custom_info_types": [
                 {
                     "info_type": {"name": "TIER_4_KEYWORDS"},
@@ -90,7 +98,7 @@ class DLPService:
                 for stat in stats:
                     if stat.count > 0:
                         findings.append(stat.info_type.name)
-                logger.debug(f"DLP findings detected: {findings}")
+                logger.info(f"DLP findings detected: {findings}")
                 return findings
 
             if state in (
@@ -100,23 +108,124 @@ class DLPService:
                 logger.error(f"DLP Job failed or was canceled: {state.name}")
                 raise RuntimeError(f"DLP Job {job_name} failed.")
 
-            logger.debug(f"Waiting for DLP Job... (Current state: {state.name})")
+            logger.info(f"Waiting for DLP Job... (Current state: {state.name})")
             time.sleep(5)
 
         raise TimeoutError(
             f"DLP Job {job_name} did not finish within {timeout} seconds."
         )
 
-    def deidentify_gcs_file(self, gcs_uri: str, output_uri: str) -> str:
-        """Placeholder for GCS de-identification logic.
+    def mask_image_content(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+        requires_contextual_masking: bool = False,
+    ) -> bytes:
+        """De-identifies sensitive content in images using DLP redact_image API.
 
         Args:
-            gcs_uri (str): Source GCS URI.
-            output_uri (str): Destination for masked file.
+            image_bytes (bytes): The raw image bytes (PNG/JPEG) to redact.
+            mime_type (str): The MIME type of the image.
+            requires_contextual_masking (bool): Instructs to mask contextual PII.
 
         Returns:
-            str: The URI of the de-identified file.
+            bytes: The redacted image buffer.
         """
-        logger.info(f"De-identifying file: {gcs_uri}")
-        # In a real implementation, this would trigger a de-identification job
-        return output_uri
+        logger.debug(f"Redacting individual image (type: {mime_type})")
+
+        file_type = dlp_v2.ByteContentItem.BytesType.IMAGE
+
+        masking_info_types = EKB_CONFIG.TIER_5_INFOTYPES.copy()
+        if requires_contextual_masking:
+            masking_info_types.extend(EKB_CONFIG.CONTEXTUAL_INFOTYPES)
+
+        inspect_config = {
+            "info_types": [{"name": it} for it in masking_info_types],
+            "custom_info_types": [
+                {
+                    "info_type": {"name": "TIER_4_KEYWORDS"},
+                    "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_4_KEYWORDS}},
+                }
+            ],
+            "include_quote": False,
+        }
+
+        # We don't specify explicit ImageRedactionConfigs.
+        # By default, DLP will redact all findings in the InspectConfig with an opaque box.
+        image_redaction_configs = []
+        for info_type in masking_info_types:
+            image_redaction_configs.append({"info_type": {"name": info_type}})
+
+        image_redaction_configs.append({"info_type": {"name": "TIER_4_KEYWORDS"}})
+
+        response = self.client.redact_image(
+            request={
+                "parent": self.parent,
+                "inspect_config": inspect_config,
+                "image_redaction_configs": image_redaction_configs,
+                "byte_item": {"type_": file_type, "data": image_bytes},
+            }
+        )
+        return response.redacted_image
+
+    def mask_content(
+        self, content: bytes, mime_type: str, requires_contextual_masking: bool = False
+    ) -> bytes:
+        """De-identifies sensitive content by replacing findings with InfoType names.
+
+        Args:
+            content (bytes): The raw content to mask.
+            mime_type (str): The MIME type of the content.
+            requires_contextual_masking (bool): If True, also mask purely contextual
+                InfoTypes (like Names, Emails). Otherwise, only mask Core Tier 5 items.
+
+        Returns:
+            bytes: The de-identified content.
+        """
+        logger.info(f"Masking content (type: {mime_type})")
+
+        # 1. Map MIME to DLP BytesType
+        if "pdf" in mime_type:
+            raise ValueError(
+                f"Google Cloud DLP deidentify_content API does not natively support inline binary redaction for {mime_type}."
+            )
+
+        file_type = dlp_v2.ByteContentItem.BytesType.BYTES_TYPE_UNSPECIFIED
+        if "image" in mime_type:
+            file_type = dlp_v2.ByteContentItem.BytesType.IMAGE
+        elif "text" in mime_type or "json" in mime_type:
+            file_type = dlp_v2.ByteContentItem.BytesType.TEXT_UTF8
+
+        # 2. Configure de-identification
+        deid_config = {
+            "info_type_transformations": {
+                "transformations": [
+                    {"primitive_transformation": {"replace_with_info_type_config": {}}}
+                ]
+            }
+        }
+
+        masking_info_types = EKB_CONFIG.TIER_5_INFOTYPES.copy()
+        if requires_contextual_masking:
+            masking_info_types.extend(EKB_CONFIG.CONTEXTUAL_INFOTYPES)
+
+        inspect_config = {
+            "info_types": [{"name": it} for it in masking_info_types],
+            "custom_info_types": [
+                {
+                    "info_type": {"name": "TIER_4_KEYWORDS"},
+                    "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_4_KEYWORDS}},
+                }
+            ],
+        }
+
+        # 3. Execute
+        response = self.client.deidentify_content(
+            request={
+                "parent": self.parent,
+                "deidentify_config": deid_config,
+                "inspect_config": inspect_config,
+                "item": {"byte_item": {"type_": file_type, "data": content}},
+            }
+        )
+        return response.item.byte_item.data
