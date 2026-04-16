@@ -18,8 +18,3 @@ module "artifact_registry" {
     }
   }
 }
-
-import {
-  to = module.artifact_registry.google_artifact_registry_repository.registry
-  id = "projects/${var.project_id}/locations/${local.artifact_registry_region}/repositories/${var.artifact_registry_name}"
-}
