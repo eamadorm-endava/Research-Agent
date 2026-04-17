@@ -9,10 +9,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # --- Configuration ---
 
 #service accounts and IAM roles
-PROJECT_ID="p-dev-gce-60pf"
+PROJECT_ID="ag-core-dev-fdx7"
 SA_NAME="terraform-sa-gemini-project"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-USER_EMAIL="davidalejandro.sanchezarias@endava.com"
+USER_EMAIL="emmanuel.amador@endava.com"
 DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com" # Update with your email or group
 
 #bucket
@@ -122,7 +122,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 echo "Waiting for identity propagation (15s)..."
 sleep 15
 
-# 5. Enable Cloud Build API (Required for trigger creation)
+# 5. Enable Cloud Build API (Required for º creation)
 echo "Ensuring Cloud Build API is enabled..."
 gcloud services enable cloudbuild.googleapis.com --project=$PROJECT_ID
 

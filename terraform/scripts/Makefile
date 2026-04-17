@@ -1,5 +1,5 @@
 # --- Bootstrap Configuration ---
-#PROJECT_ID             := p-dev-gce-60pf
+#PROJECT_ID             := ag-core-dev-fdx7
 SA_NAME                := terraform-sa-gemini-project
 SA_EMAIL               := $(SA_NAME)@$(PROJECT_ID).iam.gserviceaccount.com
 DEVELOPER_GROUP_EMAIL  := gcu_latam_team_devs@endava.com
