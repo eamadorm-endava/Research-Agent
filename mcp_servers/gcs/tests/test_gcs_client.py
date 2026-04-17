@@ -13,14 +13,14 @@ class TestGCSManager(unittest.TestCase):
     @patch("google.cloud.storage.Client")
     def setUp(self, mock_client):
         self.mock_client_instance = mock_client.return_value
-        self.gcs_manager = GCSManager(creds=MagicMock())
+        self.gcs_manager = GCSManager(creds=MagicMock(), default_project="test-project")
 
     def test_create_bucket_success(self):
         self.mock_client_instance.create_bucket.return_value.name = "test-bucket"
         result = self.gcs_manager.create_bucket("test-bucket")
         self.assertEqual(result, "test-bucket")
         self.mock_client_instance.create_bucket.assert_called_with(
-            "test-bucket", location="US"
+            "test-bucket", location="US", project="test-project"
         )
 
     def test_create_bucket_failure(self):
@@ -146,7 +146,9 @@ class TestGCSManager(unittest.TestCase):
         result = self.gcs_manager.list_buckets(prefix="my-")
 
         self.assertEqual(result, ["my-bucket-a", "my-bucket-b"])
-        self.mock_client_instance.list_buckets.assert_called_with(prefix="my-")
+        self.mock_client_instance.list_buckets.assert_called_with(
+            prefix="my-", project="test-project"
+        )
 
 
 if __name__ == "__main__":
