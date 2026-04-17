@@ -29,6 +29,14 @@ class CalendarScopes(StrEnum):
     MEET_READONLY = "https://www.googleapis.com/auth/meetings.space.readonly"
 
 
+class GCSScopes(StrEnum):
+    """
+    Enum for Google Cloud Storage OAuth scopes.
+    """
+
+    CLOUD_PLATFORM = "https://www.googleapis.com/auth/cloud-platform"
+
+
 class BaseMCPConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -216,18 +224,34 @@ class GCSMCPConfig(BaseMCPConfig):
             validation_alias="GCS_ENDPOINT",  # validation_alias is used to map the environment variable to the field
         ),
     ]
+    OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[GCSScopes]],
+        Field(
+            default=[GCSScopes.CLOUD_PLATFORM],
+            description="OAuth scopes requested by the agent.",
+            validation_alias="GCS_OAUTH_SCOPES",  # validation_alias is used to map the environment variable to the field
+        ),
+    ]
     GEMINI_GOOGLE_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default=None,
-            description="None due to currently GCS MCP Server not using delegated OAuth.",
+            default="mock-ge-auth-id",
+            description="Auth Resource ID for Google Cloud Storage.",
             validation_alias=AliasChoices(
                 "GCS_AUTH_ID",
                 "GEMINI_GOOGLE_AUTH_ID",
             ),  # In case this MCP Server uses a different Auth Resource ID than the general auth id defined in the AgentConfig
         ),
     ]
-    # GCS relies purely on Google SDK application default credentials downstream, so it does not expose standard scopes mapping.
+
+    @field_validator("OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_oauth_scopes(
+        cls, v: Union[list[GCSScopes], dict[str, str]]
+    ) -> dict[str, str]:
+        if isinstance(v, dict):
+            return v
+        return {scope.value: "google cloud storage access" for scope in v}
 
 
 # Global MCP configuration instances

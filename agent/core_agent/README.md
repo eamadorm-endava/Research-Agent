@@ -106,7 +106,7 @@ The agent connects to backend services via **MCP servers** and exposes **ADK Ski
 ### ADK Skills
 - **meeting-summary**: Summarizes meeting notes and action items
 
-> **Authentication Model**: Drive, BigQuery, and Calendar share a delegated Google OAuth token so MCP servers act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.
+> **Authentication Model**: Drive, BigQuery, Calendar, and GCS share a delegated Google OAuth token so MCP servers act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.
 
 ## Environment Setup
 
