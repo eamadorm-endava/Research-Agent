@@ -89,21 +89,31 @@ async def create_bucket(request: CreateBucketRequest) -> CreateBucketResponse:
         str: Success message with the bucket name.
     """
     logger.info(
-        f"Tool call: create_bucket(bucket_name={request.bucket_name}, location={request.location})"
+        "Tool call: create_bucket("
+        f"project_id={request.project_id}, bucket_name={request.bucket_name}, "
+        f"location={request.location})"
     )
     try:
         gcs_manager = _make_gcs_manager()
         name = await asyncio.to_thread(
-            gcs_manager.create_bucket, request.bucket_name, request.location
+            gcs_manager.create_bucket,
+            request.bucket_name,
+            request.location,
+            request.project_id,
         )
         return CreateBucketResponse(
+            project_id=request.project_id,
             bucket_name=name,
             location=request.location,
             execution_status="success",
-            execution_message=f"Successfully created bucket: {name}",
+            execution_message=(
+                f"Successfully created bucket: {name} in project "
+                f"{gcs_manager.resolve_project_id(request.project_id)}"
+            ),
         )
     except Exception as e:
         return CreateBucketResponse(
+            project_id=request.project_id,
             bucket_name=request.bucket_name,
             location=request.location,
             execution_status="error",
@@ -390,20 +400,27 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
     Returns:
         ListBucketsResponse: A structured response with matching bucket names.
     """
-    logger.info(f"Tool call: list_buckets(prefix={request.prefix})")
+    logger.info(
+        f"Tool call: list_buckets(project_id={request.project_id}, prefix={request.prefix})"
+    )
     try:
         gcs_manager = _make_gcs_manager()
-        buckets = await asyncio.to_thread(gcs_manager.list_buckets, request.prefix)
+        buckets = await asyncio.to_thread(
+            gcs_manager.list_buckets, request.prefix, request.project_id
+        )
         return ListBucketsResponse(
+            project_id=request.project_id,
             prefix=request.prefix,
             buckets=buckets,
             execution_status="success",
             execution_message=(
-                f"Found {len(buckets)} buckets with prefix '{request.prefix or ''}'."
+                f"Found {len(buckets)} buckets with prefix '{request.prefix or ''}' "
+                f"in project {gcs_manager.resolve_project_id(request.project_id)}."
             ),
         )
     except Exception as e:
         return ListBucketsResponse(
+            project_id=request.project_id,
             prefix=request.prefix,
             buckets=[],
             execution_status="error",
@@ -418,7 +435,7 @@ def _make_gcs_manager() -> GCSManager:
         access_token=access_token,
         scopes=GCS_API_CONFIG.read_write_scopes,
     )
-    return GCSManager(creds)
+    return GCSManager(creds, default_project=GCS_SERVER_CONFIG.default_project_id)
 
 
 def _get_current_token() -> Optional[str]:

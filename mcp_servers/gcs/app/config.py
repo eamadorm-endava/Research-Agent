@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,8 +10,9 @@ class GcsMcpConfigBase(BaseSettings):
     """Shared immutable configuration base for the GCS MCP server."""
 
     model_config = SettingsConfigDict(
-        extra="forbid",
+        extra="ignore",
         frozen=True,
+        env_file=".env",
         env_file_encoding="utf-8",
     )
 
@@ -110,6 +111,21 @@ class GcsServerConfig(GcsMcpConfigBase):
             ge=1,
             le=65535,
             description="Default port for the GCS MCP server.",
+        ),
+    ]
+    default_project_id: Annotated[
+        str | None,
+        Field(
+            default=None,
+            validation_alias=AliasChoices(
+                "GCS_PROJECT_ID",
+                "PROJECT_ID",
+                "GOOGLE_CLOUD_PROJECT",
+            ),
+            description=(
+                "Default GCP project ID for project-scoped Cloud Storage operations. "
+                "Used when the request does not provide project_id."
+            ),
         ),
     ]
     default_log_level: Annotated[

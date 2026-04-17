@@ -30,11 +30,22 @@ class GCSManager:
                 credentials=self.creds, project=self.default_project
             )
             logger.info(
-                "GCS client initialized successfully using delegated user credentials."
+                "GCS client initialized successfully using delegated user credentials "
+                f"(Project: {self.client.project})."
             )
         except GoogleCloudError as e:
             logger.error(f"Failed to initialize GCS Client: {e}")
             raise
+
+    def resolve_project_id(self, project_id: Optional[str] = None) -> str:
+        """Resolves the effective GCP project ID for project-scoped operations."""
+        resolved_project = project_id or self.default_project or self.client.project
+        if not resolved_project:
+            raise ValueError(
+                "No GCP project ID is configured for GCS. Provide request.project_id "
+                "or set GCS_PROJECT_ID, PROJECT_ID, or GOOGLE_CLOUD_PROJECT."
+            )
+        return resolved_project
 
     def get_bucket(self, bucket_name: str) -> storage.Bucket:
         """
@@ -53,7 +64,12 @@ class GCSManager:
             logger.error(f"Error retrieving bucket {bucket_name}: {e}")
             raise
 
-    def create_bucket(self, bucket_name: str, location: str = "US") -> str:
+    def create_bucket(
+        self,
+        bucket_name: str,
+        location: str = "US",
+        project_id: Optional[str] = None,
+    ) -> str:
         """
         Creates a new bucket in GCS.
 
@@ -65,8 +81,15 @@ class GCSManager:
             str: The name of the created bucket.
         """
         try:
-            bucket = self.client.create_bucket(bucket_name, location=location)
-            logger.info(f"Bucket {bucket.name} created in {location}.")
+            resolved_project = self.resolve_project_id(project_id)
+            bucket = self.client.create_bucket(
+                bucket_name,
+                location=location,
+                project=resolved_project,
+            )
+            logger.info(
+                f"Bucket {bucket.name} created in {location} for project {resolved_project}."
+            )
             return bucket.name
         except GoogleCloudError as e:
             logger.error(f"Error creating bucket {bucket_name}: {e}")
@@ -254,7 +277,11 @@ class GCSManager:
             logger.error(f"Error listing blobs in bucket {bucket_name}: {e}")
             raise
 
-    def list_buckets(self, prefix: Optional[str] = None) -> List[str]:
+    def list_buckets(
+        self,
+        prefix: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> List[str]:
         """
         Lists all buckets visible to the current project credentials
         (optionally filtering by bucket-name prefix).
@@ -266,10 +293,15 @@ class GCSManager:
             List[str]: A list of bucket names.
         """
         try:
-            buckets = self.client.list_buckets(prefix=prefix)
+            resolved_project = self.resolve_project_id(project_id)
+            buckets = self.client.list_buckets(
+                prefix=prefix,
+                project=resolved_project,
+            )
             bucket_names = [bucket.name for bucket in buckets]
             logger.info(
-                f"Listed {len(bucket_names)} buckets with prefix '{prefix or ''}'."
+                f"Listed {len(bucket_names)} buckets with prefix '{prefix or ''}' "
+                f"for project {resolved_project}."
             )
             return bucket_names
         except GoogleCloudError as e:

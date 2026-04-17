@@ -1,6 +1,8 @@
 from typing import Annotated, Dict, Optional, Any, List, Literal
 from pydantic import BaseModel, Field, model_validator
 
+from .config import GCS_SERVER_CONFIG
+
 
 BUCKET_NAME = Annotated[
     str,
@@ -22,6 +24,16 @@ OBJECT_NAME = Annotated[
 LOCATION = Annotated[
     str,
     Field(default="US", description="The geographic location for bucket creation."),
+]
+PROJECT_ID = Annotated[
+    Optional[str],
+    Field(
+        default=GCS_SERVER_CONFIG.default_project_id,
+        description=(
+            "Optional GCP project ID for project-scoped bucket operations. "
+            "When omitted, the server uses its configured default project."
+        ),
+    ),
 ]
 
 
@@ -55,6 +67,7 @@ class BaseRequest(BaseModel):
 
 
 class CreateBucketRequest(BaseRequest):
+    project_id: PROJECT_ID
     bucket_name: BUCKET_NAME
     location: LOCATION
 
@@ -163,6 +176,7 @@ class ListObjectsResponse(ListObjectsRequest, BaseResponse):
 
 
 class ListBucketsRequest(BaseRequest):
+    project_id: PROJECT_ID
     prefix: Annotated[
         Optional[str],
         Field(default=None, description="Optional bucket-name prefix filter."),
