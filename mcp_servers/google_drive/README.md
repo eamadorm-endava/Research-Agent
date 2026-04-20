@@ -49,4 +49,4 @@ uv run --group mcp_drive python -m mcp_servers.google_drive.app.main --host loca
 ## Cloud Run / Gemini Enterprise
 
 In production, the agent calls this server with a delegated user access token obtained through Gemini Enterprise authorization.
-The MCP middleware validates the token and exposes it to tools through the request context.
+The MCP middleware validates the token and exposes it to tools through the request context. 

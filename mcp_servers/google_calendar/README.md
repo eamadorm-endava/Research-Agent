@@ -18,7 +18,7 @@ By combining these, an agent can perform complex queries like: *"Find the transc
 - **Traceability (Parameter Echoing)**: Response schemas dynamically inherit from their corresponding Requests and a common `BaseResponse`. This means every tool returns the `execution_status` ("success" or "error"), the `execution_message`, and crucially, echoes back the original input parameters. The Agent never loses context when attempting rollbacks or compensations. 
 - **Graceful Error Handling**: Instead of raising raw runtime exceptions on API HTTP errors, the Server catches exceptions and securely returns them wrapped within the `BaseResponse` standard format.
 - **Unified Observability**: Leveraging `loguru`, the server implements tiered logging natively down to private components: `DEBUG` for mapping and fetching, `INFO` for unified routing boundaries, and `ERROR` for API exceptions.
-
+ 
 ---
 
 ## Components
