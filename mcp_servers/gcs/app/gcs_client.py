@@ -1,8 +1,11 @@
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence, Union
 import logging
 import mimetypes
 import os
 import httpx
+import google.auth
+from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
 from google.oauth2.credentials import Credentials
@@ -15,6 +18,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=1)
+def detect_default_project_id() -> Optional[str]:
+    """Best-effort detection of the ambient GCP project ID."""
+    try:
+        _, project_id = google.auth.default()
+        return project_id
+    except DefaultCredentialsError:
+        logger.debug("Unable to detect default GCP project ID from ADC.")
+        return None
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.debug("Unexpected error while detecting default GCP project ID: %s", exc)
+        return None
+
+
 class GCSManager:
     """
     Manager for Google Cloud Storage operations.
@@ -24,7 +41,7 @@ class GCSManager:
 
     def __init__(self, creds: Credentials, default_project: Optional[str] = None):
         self.creds = creds
-        self.default_project = default_project
+        self.default_project = default_project or detect_default_project_id()
         try:
             self.client = storage.Client(
                 credentials=self.creds, project=self.default_project

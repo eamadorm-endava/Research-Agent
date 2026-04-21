@@ -4,6 +4,7 @@ from mcp_servers.gcs.app.config import GCS_API_CONFIG
 from mcp_servers.gcs.app.gcs_client import (
     GCSManager,
     build_gcs_credentials,
+    detect_default_project_id,
     validate_access_token,
 )
 from google.cloud.exceptions import GoogleCloudError
@@ -181,3 +182,45 @@ def test_validate_access_token_accepts_cloud_platform_scope_for_gcs_operations()
         info = validate_access_token("tok", GCS_API_CONFIG.read_write_scopes)
 
     assert info["scope"] == GCS_API_CONFIG.cloud_platform_scope
+
+
+@patch("mcp_servers.gcs.app.gcs_client.storage.Client")
+@patch(
+    "mcp_servers.gcs.app.gcs_client.detect_default_project_id",
+    return_value="adc-project",
+)
+def test_gcs_manager_uses_adc_project_when_env_default_missing(
+    mock_detect_project, mock_client
+):
+    GCSManager(creds=MagicMock(), default_project=None)
+
+    mock_detect_project.assert_called_once_with()
+    mock_client.assert_called_once()
+    _, kwargs = mock_client.call_args
+    assert kwargs["project"] == "adc-project"
+
+
+@patch(
+    "mcp_servers.gcs.app.gcs_client.google.auth.default",
+    return_value=(MagicMock(), "adc-project"),
+)
+def test_detect_default_project_id_returns_adc_project(mock_google_auth_default):
+    detect_default_project_id.cache_clear()
+
+    assert detect_default_project_id() == "adc-project"
+
+    mock_google_auth_default.assert_called_once_with()
+
+
+@patch(
+    "mcp_servers.gcs.app.gcs_client.google.auth.default",
+    side_effect=Exception("metadata unavailable"),
+)
+def test_detect_default_project_id_returns_none_when_detection_fails(
+    mock_google_auth_default,
+):
+    detect_default_project_id.cache_clear()
+
+    assert detect_default_project_id() is None
+
+    mock_google_auth_default.assert_called_once_with()
