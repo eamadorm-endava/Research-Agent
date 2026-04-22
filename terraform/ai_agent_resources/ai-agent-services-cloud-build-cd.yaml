@@ -10,7 +10,7 @@ substitutions:
   _GE_APP_ID: "gemini-enterprise-17762829_1776282953068"
   _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
-  _GOOGLE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
+  _GOOGLE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend

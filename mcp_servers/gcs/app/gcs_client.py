@@ -1,30 +1,68 @@
-from typing import Union, Optional, List, Dict, Any
+from functools import lru_cache
+from typing import Any, Dict, List, Optional, Sequence, Union
 import logging
 import mimetypes
 import os
+import httpx
+import google.auth
+from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
+from google.oauth2.credentials import Credentials
+
+from .config import GCS_API_CONFIG, GCS_AUTH_CONFIG
+from .schemas import AuthenticationError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=1)
+def detect_default_project_id() -> Optional[str]:
+    """Best-effort detection of the ambient GCP project ID."""
+    try:
+        _, project_id = google.auth.default()
+        return project_id
+    except DefaultCredentialsError:
+        logger.debug("Unable to detect default GCP project ID from ADC.")
+        return None
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.debug("Unexpected error while detecting default GCP project ID: %s", exc)
+        return None
+
+
 class GCSManager:
     """
     Manager for Google Cloud Storage operations.
-    Initializes a storage client using Application Default Credentials (ADC)
-    and provides methods for bucket and object management as per Issue #5.
+    Initializes a storage client using delegated user credentials
+    and provides methods for bucket and object management.
     """
 
-    def __init__(self):
+    def __init__(self, creds: Credentials, default_project: Optional[str] = None):
+        self.creds = creds
+        self.default_project = default_project or detect_default_project_id()
         try:
-            # Initializes client using Google Application Default Credentials (ADC)
-            self.client = storage.Client()
-            logger.info("GCS Client initialized successfully using ADC.")
+            self.client = storage.Client(
+                credentials=self.creds, project=self.default_project
+            )
+            logger.info(
+                "GCS client initialized successfully using delegated user credentials "
+                f"(Project: {self.client.project})."
+            )
         except GoogleCloudError as e:
             logger.error(f"Failed to initialize GCS Client: {e}")
             raise
+
+    def resolve_project_id(self, project_id: Optional[str] = None) -> str:
+        """Resolves the effective GCP project ID for project-scoped operations."""
+        resolved_project = project_id or self.default_project or self.client.project
+        if not resolved_project:
+            raise ValueError(
+                "No GCP project ID is configured for GCS. Provide request.project_id "
+                "or set GCS_PROJECT_ID, PROJECT_ID, or GOOGLE_CLOUD_PROJECT."
+            )
+        return resolved_project
 
     def get_bucket(self, bucket_name: str) -> storage.Bucket:
         """
@@ -43,7 +81,12 @@ class GCSManager:
             logger.error(f"Error retrieving bucket {bucket_name}: {e}")
             raise
 
-    def create_bucket(self, bucket_name: str, location: str = "US") -> str:
+    def create_bucket(
+        self,
+        bucket_name: str,
+        location: str = "US",
+        project_id: Optional[str] = None,
+    ) -> str:
         """
         Creates a new bucket in GCS.
 
@@ -55,8 +98,15 @@ class GCSManager:
             str: The name of the created bucket.
         """
         try:
-            bucket = self.client.create_bucket(bucket_name, location=location)
-            logger.info(f"Bucket {bucket.name} created in {location}.")
+            resolved_project = self.resolve_project_id(project_id)
+            bucket = self.client.create_bucket(
+                bucket_name,
+                location=location,
+                project=resolved_project,
+            )
+            logger.info(
+                f"Bucket {bucket.name} created in {location} for project {resolved_project}."
+            )
             return bucket.name
         except GoogleCloudError as e:
             logger.error(f"Error creating bucket {bucket_name}: {e}")
@@ -244,7 +294,11 @@ class GCSManager:
             logger.error(f"Error listing blobs in bucket {bucket_name}: {e}")
             raise
 
-    def list_buckets(self, prefix: Optional[str] = None) -> List[str]:
+    def list_buckets(
+        self,
+        prefix: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> List[str]:
         """
         Lists all buckets visible to the current project credentials
         (optionally filtering by bucket-name prefix).
@@ -256,12 +310,111 @@ class GCSManager:
             List[str]: A list of bucket names.
         """
         try:
-            buckets = self.client.list_buckets(prefix=prefix)
+            resolved_project = self.resolve_project_id(project_id)
+            buckets = self.client.list_buckets(
+                prefix=prefix,
+                project=resolved_project,
+            )
             bucket_names = [bucket.name for bucket in buckets]
             logger.info(
-                f"Listed {len(bucket_names)} buckets with prefix '{prefix or ''}'."
+                f"Listed {len(bucket_names)} buckets with prefix '{prefix or ''}' "
+                f"for project {resolved_project}."
             )
             return bucket_names
         except GoogleCloudError as e:
             logger.error(f"Error listing buckets with prefix '{prefix or ''}': {e}")
             raise
+
+
+def build_gcs_credentials(
+    *,
+    access_token: Optional[str] = None,
+    scopes: Optional[Sequence[str]] = None,
+    validate: bool = True,
+) -> Credentials:
+    """
+    Builds Google OAuth2 credentials for GCS from a delegated access token.
+    Args:
+        access_token: Optional OAuth2 access token.
+        validate: Whether to validate token validity before creating credentials.
+    Return: A Google Credentials object.
+    """
+
+    scopes = list(scopes or GCS_API_CONFIG.read_write_scopes)
+
+    if access_token:
+        if validate:
+            validate_access_token(access_token, scopes)
+        return Credentials(token=access_token, scopes=scopes)
+
+    raise RuntimeError(
+        "No GCS credentials available. Provide a delegated user access token header."
+    )
+
+
+def validate_access_token(
+    access_token: str, required_scopes: Optional[Sequence[str]] = None
+) -> dict[str, Any]:
+    """
+    Validates an OAuth access token against Google's tokeninfo endpoint.
+    Args:
+        access_token: The OAuth2 access token to validate.
+    Return: The token info payload when token is valid.
+    """
+    try:
+        with httpx.Client() as client:
+            response = client.get(
+                GCS_AUTH_CONFIG.google_token_info_url_v3,
+                params={"access_token": access_token},
+                timeout=10,
+            )
+    except Exception as exc:
+        raise AuthenticationError(f"Failed to reach token validation endpoint: {exc}")
+
+    if response.status_code != 200:
+        try:
+            error_detail = response.json().get("error_description", response.text)
+        except Exception:
+            error_detail = response.text
+        raise AuthenticationError(f"Invalid OAuth token: {error_detail}")
+
+    token_info = response.json()
+
+    if required_scopes:
+        token_scopes = set(token_info.get("scope", "").split())
+        token_scopes = _expand_storage_scopes(token_scopes)
+        missing = [scope for scope in required_scopes if scope not in token_scopes]
+        if missing:
+            raise AuthenticationError(
+                f"Token is missing required scopes: {', '.join(missing)}"
+            )
+
+    return token_info
+
+
+def _expand_storage_scopes(token_scopes: set[str]) -> set[str]:
+    """Expands broader Google Cloud / Storage scopes into compatible GCS equivalents."""
+
+    expanded_scopes = set(token_scopes)
+
+    if GCS_API_CONFIG.cloud_platform_scope in expanded_scopes:
+        expanded_scopes.update(
+            {
+                GCS_API_CONFIG.storage_read_only_scope,
+                GCS_API_CONFIG.storage_read_write_scope,
+                GCS_API_CONFIG.storage_full_control_scope,
+            }
+        )
+
+    if GCS_API_CONFIG.storage_full_control_scope in expanded_scopes:
+        expanded_scopes.update(
+            {
+                GCS_API_CONFIG.storage_read_only_scope,
+                GCS_API_CONFIG.storage_read_write_scope,
+            }
+        )
+
+    if GCS_API_CONFIG.storage_read_write_scope in expanded_scopes:
+        expanded_scopes.add(GCS_API_CONFIG.storage_read_only_scope)
+
+    return expanded_scopes
