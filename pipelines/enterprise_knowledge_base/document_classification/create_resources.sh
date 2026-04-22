@@ -8,7 +8,7 @@ BUCKET_NAME="enterprise_knowledgebase_landing_zone"
 LOCATION="us-central1"
 
 echo "Enabling required APIs..."
-gcloud services enable dlp.googleapis.com storage.googleapis.com --project="${PROJECT_ID}"
+gcloud services enable dlp.googleapis.com storage.googleapis.com aiplatform.googleapis.com --project="${PROJECT_ID}"
 
 echo "Creating landing zone bucket: ${BUCKET_NAME}..."
 if gsutil ls -b "gs://${BUCKET_NAME}" >/dev/null 2>&1; then

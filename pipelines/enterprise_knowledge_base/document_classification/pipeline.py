@@ -4,14 +4,19 @@ from loguru import logger
 from .config import EKB_CONFIG
 from .dlp_service import DLPService
 from .gcs_service import GCSService
-from .schemas import DocumentMetadata, DLPTriggerResponse
+from .gemini_service import GeminiService
+from .schemas import (
+    DocumentMetadata,
+    DLPTriggerResponse,
+    ContextualClassificationResponse,
+)
 
 
 class ClassificationPipeline:
-    """The core logic for Step 01 of the Document Classification Pipeline.
+    """The core logic for Step 01 and Step 02 of the Document Classification Pipeline.
 
-    This class is stateless and handles metadata extraction and security masking
-    using Cloud DLP and GCS. It adheres to the 60-line method limit.
+    This class is stateless and handles metadata extraction, security masking,
+    and LLM-based contextual classification. It adheres to the 60-line method limit.
     """
 
     def __init__(self) -> None:
@@ -22,6 +27,39 @@ class ClassificationPipeline:
         """
         self.dlp = DLPService()
         self.gcs = GCSService()
+        self.gemini = GeminiService()
+
+    def contextual_classification(
+        self,
+        sanitized_url: str,
+        proposed_classification_tier: Optional[int],
+        proposed_domain: Optional[str],
+        trust_level: Optional[str],
+    ) -> ContextualClassificationResponse:
+        """Performs Phase 2 classification using Gemini 2.5 Flash.
+
+        This method leverages the multimodal capabilities of Gemini to reason over
+        the document content and return a final security verdict.
+
+        Args:
+            sanitized_url (str): URI of the (masked) document to classify.
+            proposed_classification_tier (Optional[int]): Tier from Phase 1.
+            proposed_domain (Optional[str]): Proposed business domain.
+            trust_level (Optional[str]): Maturity level of the doc.
+
+        Returns:
+            ContextualClassificationResponse: The final AI classification.
+        """
+        logger.info(f"Starting contextual classification for: {sanitized_url}")
+        metadata = self.gcs.get_blob_metadata(sanitized_url)
+
+        return self.gemini.classify_document(
+            gcs_uri=sanitized_url,
+            mime_type=metadata.mime_type,
+            proposed_tier=proposed_classification_tier,
+            proposed_domain=proposed_domain,
+            trust_level=trust_level,
+        )
 
     def dlp_trigger(self, landing_zone_original_uri: str) -> DLPTriggerResponse:
         """Triggers DLP scanning and performs masking if high-risk data is found.
