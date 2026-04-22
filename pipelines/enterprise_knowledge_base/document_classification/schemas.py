@@ -62,3 +62,71 @@ class ContextualClassificationResponse(BaseModel):
     file_description: Annotated[
         str, Field(description="A brief summary of the document, less than 150 words.")
     ]
+
+
+class BQMetadataRecord(BaseModel):
+    """Schema for a single metadata record stored in BigQuery."""
+
+    document_id: Annotated[str, Field(description="Unique UUID for the document.")]
+    gcs_uri: Annotated[
+        str, Field(description="Final GCS URI in the domain bucket (Original).")
+    ]
+    filename: Annotated[str, Field(description="The original filename.")]
+    classification_tier: Annotated[
+        int, Field(description="Numeric classification tier (1-5).")
+    ]
+    domain: Annotated[str, Field(description="The business domain (it, hr, etc.).")]
+    confidence_score: Annotated[
+        float, Field(description="AI classifier confidence (0.0 - 1.0).")
+    ]
+    trust_level: Annotated[
+        str, Field(description="Trust maturity (published, wip, archived).")
+    ]
+    project_id: Annotated[str, Field(description="Project identifier.")]
+    uploader_email: Annotated[str, Field(description="Uploader's email address.")]
+    description: Annotated[str, Field(description="AI-generated content summary.")]
+    version: Annotated[int, Field(description="Incremental version number.", default=1)]
+    is_latest: Annotated[bool, Field(description="Whether this is the latest version.")]
+    ingested_at: Annotated[str, Field(description="ISO 8601 ingestion timestamp.")]
+
+
+class FileRoutingRequest(BaseModel):
+    """Request schema for the file_routing method."""
+
+    original_landing_uri: Annotated[
+        str, Field(description="Source URI in landing zone.")
+    ]
+    sanitized_landing_uri: Annotated[
+        Optional[str], Field(description="Masked URI in landing zone (if any).")
+    ]
+    final_domain: Annotated[str, Field(description="Target business domain.")]
+    final_security_tier: Annotated[int, Field(description="Final numeric tier.")]
+    project_name: Annotated[str, Field(description="Project identifier.")]
+    uploader_email: Annotated[str, Field(description="Uploader's email.")]
+
+
+class FileRoutingResponse(BaseModel):
+    """Response schema for the file_routing method."""
+
+    final_original_uri: Annotated[
+        str, Field(description="Final URI of the original doc.")
+    ]
+    final_sanitized_uri: Annotated[
+        Optional[str], Field(description="Final URI of the masked doc (if any).")
+    ]
+
+
+class MetadataBQRequest(BaseModel):
+    """Request schema for the metadata_bq method."""
+
+    final_original_uri: Annotated[str, Field(description="Final original URI.")]
+    final_sanitized_uri: Annotated[
+        Optional[str], Field(description="Final masked URI (if any).")
+    ]
+    llm_classification: Annotated[
+        ContextualClassificationResponse,
+        Field(description="Classification results from Gemini."),
+    ]
+    blob_metadata: Annotated[
+        DocumentMetadata, Field(description="Metadata extracted from GCS.")
+    ]

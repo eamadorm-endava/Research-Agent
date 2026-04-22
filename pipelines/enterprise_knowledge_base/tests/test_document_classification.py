@@ -5,6 +5,9 @@ from pipelines.enterprise_knowledge_base.document_classification.schemas import 
     DocumentMetadata,
     DLPTriggerResponse,
     ContextualClassificationResponse,
+    FileRoutingRequest,
+    MetadataBQRequest,
+    BQMetadataRecord,
 )
 
 
@@ -302,12 +305,14 @@ def test_contextual_classification_calls_gemini_with_metadata(
 
 def test_file_routing_moves_and_cleans_files(pipeline, mock_gcs):
     """Verifies that file_routing copies files to domain buckets and cleans landing zone."""
-    original_uri = "gs://landing/doc.pdf"
-    sanitized_uri = "gs://landing/doc_masked.pdf"
-    domain = "finance"
-    tier = 4
-    project = "audit-2026"
-    uploader = "accountant@corp.com"
+    request = FileRoutingRequest(
+        original_landing_uri="gs://landing/doc.pdf",
+        sanitized_landing_uri="gs://landing/doc_masked.pdf",
+        final_domain="finance",
+        final_security_tier=4,
+        project_name="audit-2026",
+        uploader_email="accountant@corp.com",
+    )
 
     # Mock tier mapping (Tier 4 -> confidential)
     expected_original_dst = "gs://kb-finance/confidential/audit-2026/accountant/doc.pdf"
@@ -315,48 +320,54 @@ def test_file_routing_moves_and_cleans_files(pipeline, mock_gcs):
         "gs://kb-finance/confidential/audit-2026/accountant/doc_masked.pdf"
     )
 
-    result_uri = pipeline.file_routing(
-        original_uri, sanitized_uri, domain, tier, project, uploader
-    )
+    result = pipeline.file_routing(request)
 
     # Verify copies
-    mock_gcs.copy_blob.assert_any_call(original_uri, expected_original_dst)
-    mock_gcs.copy_blob.assert_any_call(sanitized_uri, expected_masked_dst)
+    mock_gcs.copy_blob.assert_any_call(
+        request.original_landing_uri, expected_original_dst
+    )
+    mock_gcs.copy_blob.assert_any_call(
+        request.sanitized_landing_uri, expected_masked_dst
+    )
 
     # Verify cleanup
-    mock_gcs.delete_blob.assert_any_call(original_uri)
-    mock_gcs.delete_blob.assert_any_call(sanitized_uri)
+    mock_gcs.delete_blob.assert_any_call(request.original_landing_uri)
+    mock_gcs.delete_blob.assert_any_call(request.sanitized_landing_uri)
 
-    assert result_uri == expected_original_dst
+    assert result.final_original_uri == expected_original_dst
 
 
 def test_metadata_bq_inserts_correct_record(pipeline, mock_bq):
     """Verifies that metadata_bq formats the record correctly and calls BQService."""
-    original_uri = "gs://kb-hr/strictly-confidential/hr-data/admin/record.pdf"
-    sanitized_uri = "gs://kb-hr/strictly-confidential/hr-data/admin/record_masked.pdf"
-    llm_dict = {
-        "final_classification_tier": 5,
-        "confidence": 0.99,
-        "final_domain": "hr",
-        "file_description": "Employee performance record.",
-    }
-    blob_dict = {
-        "filename": "record.pdf",
-        "trust_level": "published",
-        "project_name": "hr-data",
-        "uploader_email": "admin@hr.com",
-    }
+    request = MetadataBQRequest(
+        final_original_uri="gs://kb-hr/strictly-confidential/hr-data/admin/record.pdf",
+        final_sanitized_uri="gs://kb-hr/strictly-confidential/hr-data/admin/record_masked.pdf",
+        llm_classification=ContextualClassificationResponse(
+            final_classification_tier=5,
+            confidence=0.99,
+            final_domain="hr",
+            file_description="Employee performance record.",
+        ),
+        blob_metadata=DocumentMetadata(
+            filename="record.pdf",
+            mime_type="application/pdf",
+            proposed_domain="hr",
+            trust_level="published",
+            project_name="hr-data",
+            uploader_email="admin@hr.com",
+        ),
+    )
 
-    pipeline.metadata_bq(original_uri, sanitized_uri, llm_dict, blob_dict)
+    pipeline.metadata_bq(request)
 
     # Capture the call to bq.insert_metadata
     args, _ = mock_bq.insert_metadata.call_args
-    record = args[0]
+    record_model = args[0]
 
-    assert record["gcs_uri"] == sanitized_uri
-    assert record["classification_tier"] == 5
-    assert record["domain"] == "hr"
-    assert record["uploader_email"] == "admin@hr.com"
-    assert record["is_latest"] is True
-    assert "document_id" in record
-    assert "ingested_at" in record
+    assert isinstance(record_model, BQMetadataRecord)
+    assert record_model.gcs_uri == request.final_original_uri
+    assert record_model.classification_tier == 5
+    assert record_model.domain == "hr"
+    assert record_model.uploader_email == "admin@hr.com"
+    assert record_model.is_latest is True
+    assert record_model.document_id is not None

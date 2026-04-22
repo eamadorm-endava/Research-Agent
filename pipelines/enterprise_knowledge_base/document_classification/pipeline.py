@@ -10,6 +10,10 @@ from .schemas import (
     DocumentMetadata,
     DLPTriggerResponse,
     ContextualClassificationResponse,
+    FileRoutingRequest,
+    FileRoutingResponse,
+    MetadataBQRequest,
+    BQMetadataRecord,
 )
 
 
@@ -222,99 +226,85 @@ class ClassificationPipeline:
             logger.error(f"Redaction failed: {str(e)}")
             raise e
 
-    def file_routing(
-        self,
-        original_landing_uri: str,
-        sanitized_landing_uri: Optional[str],
-        final_domain: str,
-        final_security_tier: int,
-        project_name: str,
-        uploader_email: str,
-    ) -> str:
+    def file_routing(self, request: FileRoutingRequest) -> FileRoutingResponse:
         """Routes the original and masked files to the domain-specific bucket.
 
         Constructs the target path based on domain, tier, project, and uploader.
         Ensures both files are moved and landing zone is cleaned up.
 
         Args:
-            original_landing_uri (str): URI of the original doc in landing zone.
-            sanitized_landing_uri (Optional[str]): URI of the masked doc (if any).
-            final_domain (str): The target business domain.
-            final_security_tier (int): The numeric tier (1-5).
-            project_name (str): The associated project name.
-            uploader_email (str): The email of the uploader.
+            request (FileRoutingRequest): The routing parameters.
 
         Returns:
-            str: The final URI of the original document in the domain bucket.
+            FileRoutingResponse: The final locations in the domain bucket.
         """
         logger.info(
-            f"Routing files for domain: {final_domain}, Tier: {final_security_tier}"
+            f"Routing files for domain: {request.final_domain}, Tier: {request.final_security_tier}"
         )
-        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(final_security_tier, "unknown")
-        filename = original_landing_uri.split("/")[-1]
-        uploader_prefix = uploader_email.split("@")[0]
+        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(
+            request.final_security_tier, "unknown"
+        )
+        filename = request.original_landing_uri.split("/")[-1]
+        uploader_prefix = request.uploader_email.split("@")[0]
 
         # Construct destination base path: gs://kb-<domain>/<tier>/<project>/<uploader>/
-        dest_base = (
-            f"gs://kb-{final_domain}/{tier_label}/{project_name}/{uploader_prefix}/"
-        )
+        dest_base = f"gs://kb-{request.final_domain}/{tier_label}/{request.project_name}/{uploader_prefix}/"
         final_original_uri = f"{dest_base}{filename}"
 
         # 1. Copy Original
-        self.gcs.copy_blob(original_landing_uri, final_original_uri)
+        self.gcs.copy_blob(request.original_landing_uri, final_original_uri)
 
         # 2. Copy Masked (if exists)
-        if sanitized_landing_uri and sanitized_landing_uri != original_landing_uri:
-            sanitized_filename = sanitized_landing_uri.split("/")[-1]
+        final_sanitized_uri = None
+        if (
+            request.sanitized_landing_uri
+            and request.sanitized_landing_uri != request.original_landing_uri
+        ):
+            sanitized_filename = request.sanitized_landing_uri.split("/")[-1]
             final_sanitized_uri = f"{dest_base}{sanitized_filename}"
-            self.gcs.copy_blob(sanitized_landing_uri, final_sanitized_uri)
+            self.gcs.copy_blob(request.sanitized_landing_uri, final_sanitized_uri)
 
         # 3. Cleanup Landing Zone
-        self.gcs.delete_blob(original_landing_uri)
-        if sanitized_landing_uri and sanitized_landing_uri != original_landing_uri:
-            self.gcs.delete_blob(sanitized_landing_uri)
+        self.gcs.delete_blob(request.original_landing_uri)
+        if (
+            request.sanitized_landing_uri
+            and request.sanitized_landing_uri != request.original_landing_uri
+        ):
+            self.gcs.delete_blob(request.sanitized_landing_uri)
 
         logger.info(f"File routing complete. Original URI: {final_original_uri}")
-        return final_original_uri
+        return FileRoutingResponse(
+            final_original_uri=final_original_uri,
+            final_sanitized_uri=final_sanitized_uri,
+        )
 
-    def metadata_bq(
-        self,
-        final_original_uri: str,
-        final_sanitized_uri: Optional[str],
-        llm_classification_dict: dict,
-        blob_metadata_dict: dict,
-    ) -> None:
+    def metadata_bq(self, request: MetadataBQRequest) -> bool:
         """Persists the document metadata into BigQuery knowledge_base dataset.
 
         Args:
-            final_original_uri (str): Final URI of the original doc (used for search/RAG).
-            final_sanitized_uri (Optional[str]): Final URI of the masked doc.
-            llm_classification_dict (dict): Data from ContextualClassificationResponse.
-            blob_metadata_dict (dict): Data from DocumentMetadata.
+            request (MetadataBQRequest): The metadata and classification context.
 
         Returns:
-            None
+            bool: True if insertion was successful.
         """
-        logger.info(f"Persisting metadata to BQ for: {final_original_uri}")
+        logger.info(f"Persisting metadata to BQ for: {request.final_original_uri}")
         import uuid
         from datetime import datetime, timezone
 
-        record = {
-            "document_id": str(uuid.uuid4()),
-            "gcs_uri": final_original_uri,
-            "filename": blob_metadata_dict.get("filename"),
-            "classification_tier": llm_classification_dict.get(
-                "final_classification_tier"
-            ),
-            "domain": llm_classification_dict.get("final_domain"),
-            "confidence_score": llm_classification_dict.get("confidence"),
-            "trust_level": blob_metadata_dict.get("trust_level"),
-            "project_id": blob_metadata_dict.get("project_name"),
-            "uploader_email": blob_metadata_dict.get("uploader_email"),
-            "description": llm_classification_dict.get("file_description"),
-            "version": 1,  # Default to 1 for MVP
-            "is_latest": True,
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
-        }
+        record = BQMetadataRecord(
+            document_id=str(uuid.uuid4()),
+            gcs_uri=request.final_original_uri,
+            filename=request.blob_metadata.filename,
+            classification_tier=request.llm_classification.final_classification_tier,
+            domain=request.llm_classification.final_domain,
+            confidence_score=request.llm_classification.confidence,
+            trust_level=request.blob_metadata.trust_level or "unknown",
+            project_id=request.blob_metadata.project_name or "unknown",
+            uploader_email=request.blob_metadata.uploader_email or "unknown",
+            description=request.llm_classification.file_description,
+            version=1,
+            is_latest=True,
+            ingested_at=datetime.now(timezone.utc).isoformat(),
+        )
 
-        self.bq.insert_metadata(record)
+        return self.bq.insert_metadata(record)

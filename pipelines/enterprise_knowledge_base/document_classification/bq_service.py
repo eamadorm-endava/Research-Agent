@@ -1,6 +1,7 @@
 from google.cloud import bigquery
 from loguru import logger
 from .config import EKB_CONFIG
+from .schemas import BQMetadataRecord
 
 
 class BQService:
@@ -20,14 +21,14 @@ class BQService:
         self.dataset_id = EKB_CONFIG.BQ_DATASET
         self.table_id = EKB_CONFIG.BQ_TABLE
 
-    def insert_metadata(self, record_dict: dict) -> None:
+    def insert_metadata(self, record: BQMetadataRecord) -> bool:
         """Performs a streaming insert of a metadata record into BigQuery.
 
         Args:
-            record_dict (dict): The metadata record to insert, matching the table schema.
+            record (BQMetadataRecord): The structured metadata record to insert.
 
         Returns:
-            None
+            bool: True if the insertion was successful.
 
         Raises:
             RuntimeError: If the insertion fails.
@@ -37,6 +38,8 @@ class BQService:
             f"Inserting metadata into BigQuery: {self.dataset_id}.{self.table_id}"
         )
 
+        # Convert Pydantic model to dict for BigQuery API
+        record_dict = record.model_dump()
         errors = self.client.insert_rows_json(table_ref, [record_dict])
 
         if errors:
@@ -44,3 +47,4 @@ class BQService:
             raise RuntimeError(f"BigQuery insertion failed: {errors}")
 
         logger.info("BigQuery insertion successful.")
+        return True
