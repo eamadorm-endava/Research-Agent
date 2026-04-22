@@ -4,6 +4,7 @@ from pipelines.enterprise_knowledge_base import ClassificationPipeline
 from pipelines.enterprise_knowledge_base.document_classification.schemas import (
     DocumentMetadata,
     DLPTriggerResponse,
+    ContextualClassificationResponse,
 )
 
 
@@ -26,7 +27,16 @@ def mock_dlp():
 
 
 @pytest.fixture
-def pipeline(mock_gcs, mock_dlp):
+def mock_gemini():
+    """Fixture providing a mock GeminiService."""
+    with patch(
+        "pipelines.enterprise_knowledge_base.document_classification.pipeline.GeminiService"
+    ) as mock:
+        yield mock.return_value
+
+
+@pytest.fixture
+def pipeline(mock_gcs, mock_dlp, mock_gemini):
     """Fixture returning a ClassificationPipeline initialized with mocks."""
     return ClassificationPipeline()
 
@@ -241,3 +251,41 @@ def test_dlp_trigger_new_infotypes_trigger_tier_5(pipeline, mock_dlp, mock_gcs):
     result = pipeline.dlp_trigger(uri)
 
     assert result.proposed_classification_tier == 5
+
+
+def test_contextual_classification_calls_gemini_with_metadata(
+    pipeline, mock_gcs, mock_gemini
+):
+    """Verifies that contextual_classification correctly orchestrates the Gemini call."""
+    mock_gcs.get_blob_metadata.return_value = DocumentMetadata(
+        filename="strategy.pdf",
+        mime_type="application/pdf",
+        proposed_domain="it",
+        trust_level="published",
+    )
+    expected_response = ContextualClassificationResponse(
+        final_classification_tier=4,
+        confidence=0.95,
+        final_domain="it",
+        file_description="A strategic document about infrastructure.",
+    )
+    mock_gemini.classify_document.return_value = expected_response
+
+    uri = "gs://landing-bucket/strategy_masked.pdf"
+    result = pipeline.contextual_classification(
+        sanitized_url=uri,
+        proposed_classification_tier=4,
+        proposed_domain="it",
+        trust_level="published",
+    )
+
+    mock_gemini.classify_document.assert_called_once_with(
+        gcs_uri=uri,
+        mime_type="application/pdf",
+        proposed_tier=4,
+        proposed_domain="it",
+        trust_level="published",
+    )
+    assert result.final_classification_tier == 4
+    assert result.confidence == 0.95
+    assert result.final_domain == "it"
