@@ -29,11 +29,11 @@ class GeminiService:
         """Classifies a document using Gemini 2.5 Flash via GCS native access.
 
         Args:
-            gcs_uri: GCS URI of the (potentially masked) document.
-            mime_type: MIME type of the document.
-            proposed_tier: Tier suggested by Phase 1 (DLP).
-            proposed_domain: Domain proposed by the user/agent.
-            trust_level: Trust maturity level of the document.
+            gcs_uri (str): GCS URI of the (potentially masked) document.
+            mime_type (str): MIME type of the document.
+            proposed_tier (Optional[int]): Tier suggested by Phase 1 (DLP).
+            proposed_domain (Optional[str]): Domain proposed by the user/agent.
+            trust_level (Optional[str]): Trust maturity level of the document.
 
         Returns:
             ContextualClassificationResponse: Structured classification result.
@@ -67,9 +67,9 @@ class GeminiService:
         """Constructs the system prompt with grounding context.
 
         Args:
-            proposed_tier: Tier from Phase 1.
-            proposed_domain: User-provided domain.
-            trust_level: User-provided trust level.
+            proposed_tier (Optional[int]): Tier from Phase 1.
+            proposed_domain (Optional[str]): User-provided domain.
+            trust_level (Optional[str]): User-provided trust level.
 
         Returns:
             str: The formatted system prompt.
