@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Annotated, Optional
-from .gcs.schemas import DocumentMetadata
-from .gemini.schemas import ContextualClassificationResponse
+from .gcs_service.schemas import DocumentMetadata
+from .gemini_service.schemas import ContextualClassificationResponse
 
 
 class FileRoutingRequest(BaseModel):
