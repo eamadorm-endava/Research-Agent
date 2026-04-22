@@ -52,6 +52,27 @@ def test_get_blob_metadata_extracts_structured_metadata(pipeline, mock_gcs):
     assert isinstance(result, DocumentMetadata)
     assert result.filename == "secret_doc.pdf"
     assert result.mime_type == "application/pdf"
+    assert result.creator_name == "Jane User"
+
+
+def test_get_blob_metadata_handles_missing_creator(pipeline, mock_gcs):
+    """Verifies that _get_blob_metadata handles missing creator name correctly."""
+    expected_meta = DocumentMetadata(
+        filename="no_creator.txt",
+        mime_type="text/plain",
+        proposed_domain="it",
+        trust_level="wip",
+        project_name="test",
+        uploader_email="user@test.com",
+        creator_name=None,
+        ingested_at=None,
+    )
+    mock_gcs.get_blob_metadata.return_value = expected_meta
+
+    uri = "gs://landing-bucket/no_creator.txt"
+    result = pipeline._get_blob_metadata(uri)
+
+    assert result.creator_name is None
 
 
 def test_dlp_trigger_clean_returns_original(pipeline, mock_dlp):
@@ -191,6 +212,32 @@ def test_dlp_trigger_tier_5_keyword_high_risk(pipeline, mock_dlp, mock_gcs):
     mock_gcs.upload_blob_bytes.return_value = "gs://landing-bucket/sev_masked.txt"
 
     uri = "gs://landing-bucket/sev.txt"
+    result = pipeline.dlp_trigger(uri)
+
+    assert result.proposed_classification_tier == 5
+
+
+def test_dlp_trigger_new_infotypes_trigger_tier_5(pipeline, mock_dlp, mock_gcs):
+    """Verifies that new sensitive InfoTypes (SSN, API Key) trigger Tier 5."""
+    mock_dlp.inspect_gcs_file.return_value = "job/112"
+    # Testing some of the newly added InfoTypes
+    mock_dlp.wait_for_job.return_value = ["US_SOCIAL_SECURITY_NUMBER", "GCP_API_KEY"]
+
+    mock_gcs.get_blob_metadata.return_value = DocumentMetadata(
+        filename="secrets.txt",
+        mime_type="text/plain",
+        proposed_domain="it",
+        trust_level="wip",
+        project_name="top-secret",
+        uploader_email="admin@corp.com",
+        creator_name="Admin",
+        ingested_at=None,
+    )
+    mock_gcs.download_blob_bytes.return_value = b"SSN: 000-00-0000, Key: AIza..."
+    mock_dlp.mask_content.return_value = b"Masked"
+    mock_gcs.upload_blob_bytes.return_value = "gs://landing-bucket/secrets_masked.txt"
+
+    uri = "gs://landing-bucket/secrets.txt"
     result = pipeline.dlp_trigger(uri)
 
     assert result.proposed_classification_tier == 5
