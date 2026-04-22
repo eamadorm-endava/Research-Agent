@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Annotated, Union
+from typing import Annotated, Optional
 
 
 class DocumentMetadata(BaseModel):
@@ -8,18 +8,23 @@ class DocumentMetadata(BaseModel):
     filename: Annotated[str, Field(description="The name of the file.")]
     mime_type: Annotated[str, Field(description="The MIME type of the content.")]
     proposed_domain: Annotated[
-        str, Field(description="The detected or proposed domain.")
+        Optional[str], Field(description="The detected or proposed domain.")
     ]
     trust_level: Annotated[
-        str, Field(description="The trust maturity level (published, wip, archived).")
+        Optional[str],
+        Field(description="The trust maturity level (published, wip, archived)."),
     ]
     project_name: Annotated[
-        str, Field(description="The associated project identifier.")
+        Optional[str], Field(description="The associated project identifier.")
     ]
-    uploader_email: Annotated[str, Field(description="The email of the uploader.")]
-    creator_name: Annotated[str, Field(description="The display name of the creator.")]
+    uploader_email: Annotated[
+        Optional[str], Field(description="The email of the uploader.")
+    ]
+    creator_name: Annotated[
+        Optional[str], Field(description="The display name of the creator.")
+    ]
     ingested_at: Annotated[
-        Union[str, None], Field(description="ISO timestamp of ingestion.")
+        Optional[str], Field(description="ISO timestamp of ingestion.")
     ]
 
 
@@ -30,5 +35,5 @@ class DLPTriggerResponse(BaseModel):
         str, Field(description="The URI of the sanitized/masked document.")
     ]
     proposed_classification_tier: Annotated[
-        Union[int, None], Field(description="The suggested classification tier (1-5).")
+        Optional[int], Field(description="The suggested classification tier (1-5).")
     ]

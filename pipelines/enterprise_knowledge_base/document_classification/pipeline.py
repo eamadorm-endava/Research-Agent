@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional
 import fitz  # PyMuPDF
 from loguru import logger
 from .config import EKB_CONFIG
@@ -68,14 +68,14 @@ class ClassificationPipeline:
         logger.debug(f"Extracting metadata for: {original_uri}")
         return self.gcs.get_blob_metadata(original_uri)
 
-    def _determine_tier(self, findings: list[str]) -> Union[int, None]:
+    def _determine_tier(self, findings: list[str]) -> Optional[int]:
         """Internal helper to map DLP findings to EKB Tiers.
 
         Args:
             findings (list[str]): List of detected InfoType names.
 
         Returns:
-            Union[int, None]: 4, 5, or None if no high-risk data found.
+            Optional[int]: 4, 5, or None if no high-risk data found.
         """
         logger.debug(f"Determining risk tier from findings: {findings}")
         # Tier 5: Critical Risk

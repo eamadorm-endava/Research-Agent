@@ -129,6 +129,7 @@ class DLPService:
             ],
             "custom_info_types": masking_config["customs"],
             "include_quote": False,
+            "min_likelihood": dlp_v2.Likelihood.LIKELY,
         }
 
         # Build combined redaction configs (built-in + custom)
@@ -192,6 +193,7 @@ class DLPService:
                         for info_type in masking_config["info_types"]
                     ],
                     "custom_info_types": masking_config["customs"],
+                    "min_likelihood": dlp_v2.Likelihood.LIKELY,
                 },
                 "item": {"byte_item": {"type_": file_type, "data": content}},
             }

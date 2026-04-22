@@ -40,16 +40,13 @@ class GCSService:
         metadata_dict = blob.metadata if blob.metadata else {}
 
         return DocumentMetadata(
-            filename=blob.name.split("/")[-1].split(".")[0],
+            filename=blob.name.split("/")[-1],
             mime_type=blob.content_type or "application/octet-stream",
-            proposed_domain=metadata_dict.get("domain", "unknown"),
-            trust_level=metadata_dict.get("trust-level", "unknown"),
-            project_name=metadata_dict.get("project", "unknown"),
-            uploader_email=metadata_dict.get("uploader", "unknown"),
-            creator_name=metadata_dict.get("creator-name", "unknown")
-            or (
-                blob.owner.get("entity") if isinstance(blob.owner, dict) else "unknown"
-            ),
+            proposed_domain=metadata_dict.get("domain"),
+            trust_level=metadata_dict.get("trust-level"),
+            project_name=metadata_dict.get("project"),
+            uploader_email=metadata_dict.get("uploader"),
+            creator_name=metadata_dict.get("creator-name"),
             ingested_at=blob.time_created.isoformat() if blob.time_created else None,
         )
 

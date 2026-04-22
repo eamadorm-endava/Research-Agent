@@ -28,9 +28,12 @@ class EKBConfig(BaseSettings):
         list[str],
         Field(
             default=[
-                "CREDIT_CARD_DATA",
+                "US_SOCIAL_SECURITY_NUMBER",
+                "CREDIT_CARD_NUMBER",
                 "PASSPORT",
-                "SECURITY_DATA",
+                "GCP_API_KEY",
+                "AUTH_TOKEN",
+                "IBAN_CODE",
                 "SWIFT_CODE",
                 "GOVERNMENT_ID",
                 "FINANCIAL_ID",
