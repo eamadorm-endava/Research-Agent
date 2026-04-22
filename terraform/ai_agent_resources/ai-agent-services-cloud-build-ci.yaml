@@ -26,7 +26,7 @@ steps:
       - |
         apt-get update && apt-get install -y make
         pip install uv
-        uv sync --group ai_agent --group dev
+        uv sync --group ai-agent --group dev
         make run-agent-precommit
         make test-agent
 

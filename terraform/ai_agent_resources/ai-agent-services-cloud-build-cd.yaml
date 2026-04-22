@@ -97,11 +97,11 @@ steps:
       - |
         pip install uv
         uv export \
-          --group ai_agent \
+          --group ai-agent \
           --no-hashes \
           --no-annotate \
           -o agent/core_agent/requirements.txt
-        uv run --group ai_agent --group dev python -m agent.deployment.deploy \
+        uv run --group ai-agent --group dev python -m agent.deployment.deploy \
           --project ${PROJECT_ID} \
           --location ${_REGION} \
           --display-name "${_AGENT_DISPLAY_NAME}" \

@@ -39,19 +39,19 @@ run-agent-precommit:
 	uvx pre-commit run --files agent/**/*
 
 test-agent:
-	cd agent && uv run --group ai_agent --group dev pytest tests/ -v
+	cd agent && uv run --group ai-agent --group dev pytest tests/ -v
 
 run-ui-agent:
 	cd agent && \
-	uv run --group ai_agent adk web --port 8000
+	uv run --group ai-agent adk web --port 8000
 
 deploy-agent:
 	uv export \
-		--group ai_agent \
+		--group ai-agent \
 		--no-hashes \
 		--no-annotate \
 		-o agent/core_agent/requirements.txt
-	uv run --group ai_agent --group dev python -m agent.deployment.deploy \
+	uv run --group ai-agent --group dev python -m agent.deployment.deploy \
 		--project ${PROJECT_ID} \
 		--location ${REGION} \
 		--display-name "test-ai-agent" \
