@@ -1,6 +1,6 @@
 from google.cloud import bigquery
 from loguru import logger
-from .config import EKB_CONFIG
+from ..config import EKB_CONFIG
 from .schemas import BQMetadataRecord
 
 

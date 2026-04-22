@@ -2,10 +2,10 @@ from typing import Optional
 import fitz  # PyMuPDF
 from loguru import logger
 from .config import EKB_CONFIG
-from .dlp_service import DLPService
-from .gcs_service import GCSService
-from .gemini_service import GeminiService
-from .bq_service import BQService
+from .gcs.service import GCSService
+from .dlp.service import DLPService
+from .gemini.service import GeminiService
+from .bq.service import BQService
 from .schemas import (
     DocumentMetadata,
     DLPTriggerResponse,
