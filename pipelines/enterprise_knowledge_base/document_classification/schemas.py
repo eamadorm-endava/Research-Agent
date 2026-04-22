@@ -8,15 +8,11 @@ class DocumentMetadata(BaseModel):
     filename: Annotated[str, Field(description="The name of the file.")]
     mime_type: Annotated[str, Field(description="The MIME type of the content.")]
     proposed_domain: Annotated[
-        Optional[str],
-        Field(description="The detected or proposed domain.", default=None),
+        Optional[str], Field(description="The detected or proposed domain.")
     ]
     trust_level: Annotated[
         Optional[str],
-        Field(
-            description="The trust maturity level (published, wip, archived).",
-            default=None,
-        ),
+        Field(description="The trust maturity level (published, wip, archived)."),
     ]
     project_name: Annotated[
         Optional[str],
@@ -34,14 +30,6 @@ class DocumentMetadata(BaseModel):
     ]
 
 
-class DLPTriggerRequest(BaseModel):
-    """Request schema for the DLP trigger phase."""
-
-    landing_zone_original_uri: Annotated[
-        str, Field(description="The URI of the original document in GCS.")
-    ]
-
-
 class DLPTriggerResponse(BaseModel):
     """Schema for the response of the DLP trigger pipeline."""
 
@@ -49,31 +37,7 @@ class DLPTriggerResponse(BaseModel):
         str, Field(description="The URI of the sanitized/masked document.")
     ]
     proposed_classification_tier: Annotated[
-        Optional[int],
-        Field(description="The suggested classification tier (1-5).", default=None),
-    ]
-
-
-class ContextualClassificationRequest(BaseModel):
-    """Request schema for the Gemini contextual classification phase."""
-
-    sanitized_url: Annotated[
-        str, Field(description="The URI of the sanitized/masked document.")
-    ]
-    proposed_classification_tier: Annotated[
-        Optional[int],
-        Field(description="The suggested classification tier (1-5).", default=None),
-    ]
-    proposed_domain: Annotated[
-        Optional[str],
-        Field(description="The detected or proposed domain.", default=None),
-    ]
-    trust_level: Annotated[
-        Optional[str],
-        Field(
-            description="The trust maturity level (published, wip, archived).",
-            default=None,
-        ),
+        Optional[int], Field(description="The suggested classification tier (1-5).")
     ]
 
 

@@ -7,9 +7,7 @@ from .gcs_service import GCSService
 from .gemini_service import GeminiService
 from .schemas import (
     DocumentMetadata,
-    DLPTriggerRequest,
     DLPTriggerResponse,
-    ContextualClassificationRequest,
     ContextualClassificationResponse,
 )
 
@@ -32,7 +30,11 @@ class ClassificationPipeline:
         self.gemini = GeminiService()
 
     def contextual_classification(
-        self, request: ContextualClassificationRequest
+        self,
+        sanitized_url: str,
+        proposed_classification_tier: Optional[int],
+        proposed_domain: Optional[str],
+        trust_level: Optional[str],
     ) -> ContextualClassificationResponse:
         """Performs Phase 2 classification using Gemini 2.5 Flash.
 
@@ -40,50 +42,53 @@ class ClassificationPipeline:
         the document content and return a final security verdict.
 
         Args:
-            request (ContextualClassificationRequest): The classification parameters.
+            sanitized_url (str): URI of the (masked) document to classify.
+            proposed_classification_tier (Optional[int]): Tier from Phase 1.
+            proposed_domain (Optional[str]): Proposed business domain.
+            trust_level (Optional[str]): Maturity level of the doc.
 
         Returns:
             ContextualClassificationResponse: The final AI classification.
         """
-        logger.info(f"Starting contextual classification for: {request.sanitized_url}")
-        metadata = self.gcs.get_blob_metadata(request.sanitized_url)
+        logger.info(f"Starting contextual classification for: {sanitized_url}")
+        metadata = self.gcs.get_blob_metadata(sanitized_url)
 
         return self.gemini.classify_document(
-            gcs_uri=request.sanitized_url,
+            gcs_uri=sanitized_url,
             mime_type=metadata.mime_type,
-            proposed_tier=request.proposed_classification_tier,
-            proposed_domain=request.proposed_domain,
-            trust_level=request.trust_level,
+            proposed_tier=proposed_classification_tier,
+            proposed_domain=proposed_domain,
+            trust_level=trust_level,
         )
 
-    def dlp_trigger(self, request: DLPTriggerRequest) -> DLPTriggerResponse:
+    def dlp_trigger(self, landing_zone_original_uri: str) -> DLPTriggerResponse:
         """Triggers DLP scanning and performs masking if high-risk data is found.
         This is the main entry point for the Phase 1 security gate.
 
         Args:
-            request (DLPTriggerRequest): The request parameters.
+            landing_zone_original_uri (str): URI of the original document.
 
         Returns:
             DLPTriggerResponse: The results including the sanitized URI and tier.
         """
-        logger.info(f"Triggering DLP scan for: {request.landing_zone_original_uri}")
+        logger.info(f"Triggering DLP scan for: {landing_zone_original_uri}")
 
         # 1. Scan for findings
-        job_name = self.dlp.inspect_gcs_file(request.landing_zone_original_uri)
+        job_name = self.dlp.inspect_gcs_file(landing_zone_original_uri)
         findings = self.dlp.wait_for_job(job_name)
 
         # 2. Determine risk tier
         tier = self._determine_tier(findings)
         if not tier:
             return DLPTriggerResponse(
-                sanitized_gcs_uri=request.landing_zone_original_uri,
+                sanitized_gcs_uri=landing_zone_original_uri,
                 proposed_classification_tier=None,
             )
 
         # 3. Apply masking for Tier 4 or 5
         requires_context = tier in [4, 5]
         masked_uri = self._mask_and_save(
-            request.landing_zone_original_uri, requires_context=requires_context
+            landing_zone_original_uri, requires_context=requires_context
         )
         return DLPTriggerResponse(
             sanitized_gcs_uri=masked_uri, proposed_classification_tier=tier
