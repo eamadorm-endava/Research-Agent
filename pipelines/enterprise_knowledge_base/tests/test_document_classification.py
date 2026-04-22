@@ -1,13 +1,21 @@
 import pytest
 from unittest.mock import patch
 from pipelines.enterprise_knowledge_base import ClassificationPipeline
-from pipelines.enterprise_knowledge_base.document_classification.schemas import (
+from pipelines.enterprise_knowledge_base.document_classification.gcs_service.schemas import (
     DocumentMetadata,
+)
+from pipelines.enterprise_knowledge_base.document_classification.dlp_service.schemas import (
     DLPTriggerResponse,
+)
+from pipelines.enterprise_knowledge_base.document_classification.gemini_service.schemas import (
     ContextualClassificationResponse,
+)
+from pipelines.enterprise_knowledge_base.document_classification.bq_service.schemas import (
+    BQMetadataRecord,
+)
+from pipelines.enterprise_knowledge_base.document_classification.schemas import (
     FileRoutingRequest,
     MetadataBQRequest,
-    BQMetadataRecord,
 )
 
 

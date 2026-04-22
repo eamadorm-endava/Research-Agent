@@ -6,14 +6,14 @@ from .gcs_service.service import GCSService
 from .dlp_service.service import DLPService
 from .gemini_service.service import GeminiService
 from .bq_service.service import BQService
+from .gcs_service.schemas import DocumentMetadata
+from .dlp_service.schemas import DLPTriggerResponse
+from .gemini_service.schemas import ContextualClassificationResponse
+from .bq_service.schemas import BQMetadataRecord
 from .schemas import (
-    DocumentMetadata,
-    DLPTriggerResponse,
-    ContextualClassificationResponse,
     FileRoutingRequest,
     FileRoutingResponse,
     MetadataBQRequest,
-    BQMetadataRecord,
 )
 
 
