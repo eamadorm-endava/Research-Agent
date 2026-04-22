@@ -151,3 +151,15 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-precommit
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
+
+### Document Classification Pipeline Commands ###
+
+run-classification-precommit:
+	uvx pre-commit run --files pipelines/enterprise_knowledge_base/**/*
+
+run-classification-tests:
+	uv run --group classification_pipeline pytest pipelines/enterprise_knowledge_base/tests/
+
+verify-classification-ci:
+	$(MAKE) run-classification-precommit
+	$(MAKE) run-classification-tests

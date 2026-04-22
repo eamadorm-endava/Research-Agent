@@ -132,5 +132,53 @@ class EKBConfig(BaseSettings):
         ),
     ]
 
+    GEMINI_MODEL: Annotated[
+        str,
+        Field(
+            default="gemini-2.5-flash",
+            description="The Gemini model to use for contextual classification.",
+        ),
+    ]
+
+    GEMINI_LOCATION: Annotated[
+        str,
+        Field(
+            default="us-central1",
+            description="The GCP location for the Gemini model.",
+        ),
+    ]
+
+    CLASSIFICATION_MATRIX: Annotated[
+        str,
+        Field(
+            default="""
+| Tier | Label | Risk Level | Definition & Rationale |
+|---|---|---|---|
+| 1 | Public | None | Information approved for external release. Unauthorized disclosure causes no measurable organizational harm. |
+| 2 | Internal Use Only | Low | Information intended exclusively for internal employees. Unauthorized disclosure causes limited reputational harm. |
+| 3 | Client Confidential | Moderate | Information pertaining to specific named clients under contractual obligation (NDA, MSA, SOW). |
+| 4 | Confidential | High | Sensitive internal strategic and proprietary information. Unauthorized disclosure could cause significant competitive harm. |
+| 5 | Strictly Confidential | Critical | Need-to-know basis only. Unauthorized disclosure causes catastrophic harm (legal liability, PII, HR records). |
+""",
+            description="The ISO/IEC 27001:2022 and NIST aligned classification matrix for grounding.",
+        ),
+    ]
+
+    VALID_DOMAINS: Annotated[
+        list[str],
+        Field(
+            default=[
+                "it",
+                "finance",
+                "hr",
+                "sales",
+                "executives",
+                "legal",
+                "operations",
+            ],
+            description="The list of valid target business domains established in the design doc.",
+        ),
+    ]
+
 
 EKB_CONFIG = EKBConfig()
