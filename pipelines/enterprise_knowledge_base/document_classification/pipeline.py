@@ -225,7 +225,7 @@ class ClassificationPipeline:
     def file_routing(
         self,
         original_landing_uri: str,
-        sanitized_landing_uri: str,
+        sanitized_landing_uri: Optional[str],
         final_domain: str,
         final_security_tier: int,
         project_name: str,
@@ -238,7 +238,7 @@ class ClassificationPipeline:
 
         Args:
             original_landing_uri (str): URI of the original doc in landing zone.
-            sanitized_landing_uri (str): URI of the masked doc (if any).
+            sanitized_landing_uri (Optional[str]): URI of the masked doc (if any).
             final_domain (str): The target business domain.
             final_security_tier (int): The numeric tier (1-5).
             project_name (str): The associated project name.
@@ -264,15 +264,14 @@ class ClassificationPipeline:
         self.gcs.copy_blob(original_landing_uri, final_original_uri)
 
         # 2. Copy Masked (if exists)
-        final_sanitized_uri = None
-        if sanitized_landing_uri != original_landing_uri:
+        if sanitized_landing_uri and sanitized_landing_uri != original_landing_uri:
             sanitized_filename = sanitized_landing_uri.split("/")[-1]
             final_sanitized_uri = f"{dest_base}{sanitized_filename}"
             self.gcs.copy_blob(sanitized_landing_uri, final_sanitized_uri)
 
         # 3. Cleanup Landing Zone
         self.gcs.delete_blob(original_landing_uri)
-        if sanitized_landing_uri != original_landing_uri:
+        if sanitized_landing_uri and sanitized_landing_uri != original_landing_uri:
             self.gcs.delete_blob(sanitized_landing_uri)
 
         logger.info(f"File routing complete. Original URI: {final_original_uri}")
