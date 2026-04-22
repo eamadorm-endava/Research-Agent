@@ -26,6 +26,7 @@ dev = [
     "pydantic-settings>=2.13.1",
     "click>=8.3.1",
     "ipykernel>=7.2.0",
+    "pytest-mock>=3.15.1",
 ]
 mcp_gcs = [
     "google-cloud-storage>=2.14.0",
@@ -58,6 +59,12 @@ mcp_calendar = [
     "pydantic>=2.5.3",
     "pydantic-settings>=2.13.1",
     "python-dateutil>=2.9.0.post0",
+]
+classification_pipeline = [
+    "google-cloud-dlp>=3.36.0",
+    "google-genai>=0.1.0",
+    "google-cloud-storage>=2.14.0",
+    "pymupdf>=1.24.1",
 ]
 
 [tool.pytest.ini_options]

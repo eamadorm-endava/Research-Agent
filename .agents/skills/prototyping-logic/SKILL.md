@@ -27,7 +27,7 @@ Execute the following iterative cycle for each component or feature:
 
 ## 4. Jupyter Notebook Standard
 Location: `notebooks/<deployable_name>/<notebook_name>.ipynb`
-- **Mandatory**: Use `import sys; sys.path.append("../..")` to correctly import modules from the project root.
+- **Mandatory**: Append the repository root path to `sys.path`. This path must be adjusted based on the directory depth of the notebook relative to the repository root (e.g., `sys.path.append("../..")` for notebooks nested two levels deep) to ensure all modules can be imported correctly.
 - **Requirements**: Demonstrate successful execution, edge case handling, and data validation.
 
 ## 5. Commit & PR Protocol
