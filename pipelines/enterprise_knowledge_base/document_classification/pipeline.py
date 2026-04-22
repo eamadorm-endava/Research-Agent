@@ -5,6 +5,7 @@ from .config import EKB_CONFIG
 from .dlp_service import DLPService
 from .gcs_service import GCSService
 from .gemini_service import GeminiService
+from .bq_service import BQService
 from .schemas import (
     DocumentMetadata,
     DLPTriggerResponse,
@@ -28,6 +29,7 @@ class ClassificationPipeline:
         self.dlp = DLPService()
         self.gcs = GCSService()
         self.gemini = GeminiService()
+        self.bq = BQService()
 
     def contextual_classification(
         self,
@@ -219,3 +221,101 @@ class ClassificationPipeline:
         except Exception as e:
             logger.error(f"Redaction failed: {str(e)}")
             raise e
+
+    def file_routing(
+        self,
+        original_landing_uri: str,
+        sanitized_landing_uri: str,
+        final_domain: str,
+        final_security_tier: int,
+        project_name: str,
+        uploader_email: str,
+    ) -> str:
+        """Routes the original and masked files to the domain-specific bucket.
+
+        Constructs the target path based on domain, tier, project, and uploader.
+        Ensures both files are moved and landing zone is cleaned up.
+
+        Args:
+            original_landing_uri (str): URI of the original doc in landing zone.
+            sanitized_landing_uri (str): URI of the masked doc (if any).
+            final_domain (str): The target business domain.
+            final_security_tier (int): The numeric tier (1-5).
+            project_name (str): The associated project name.
+            uploader_email (str): The email of the uploader.
+
+        Returns:
+            str: The final URI of the original document in the domain bucket.
+        """
+        logger.info(
+            f"Routing files for domain: {final_domain}, Tier: {final_security_tier}"
+        )
+        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(final_security_tier, "unknown")
+        filename = original_landing_uri.split("/")[-1]
+        uploader_prefix = uploader_email.split("@")[0]
+
+        # Construct destination base path: gs://kb-<domain>/<tier>/<project>/<uploader>/
+        dest_base = (
+            f"gs://kb-{final_domain}/{tier_label}/{project_name}/{uploader_prefix}/"
+        )
+        final_original_uri = f"{dest_base}{filename}"
+
+        # 1. Copy Original
+        self.gcs.copy_blob(original_landing_uri, final_original_uri)
+
+        # 2. Copy Masked (if exists)
+        final_sanitized_uri = None
+        if sanitized_landing_uri != original_landing_uri:
+            sanitized_filename = sanitized_landing_uri.split("/")[-1]
+            final_sanitized_uri = f"{dest_base}{sanitized_filename}"
+            self.gcs.copy_blob(sanitized_landing_uri, final_sanitized_uri)
+
+        # 3. Cleanup Landing Zone
+        self.gcs.delete_blob(original_landing_uri)
+        if sanitized_landing_uri != original_landing_uri:
+            self.gcs.delete_blob(sanitized_landing_uri)
+
+        logger.info(f"File routing complete. Original URI: {final_original_uri}")
+        return final_original_uri
+
+    def metadata_bq(
+        self,
+        final_original_uri: str,
+        final_sanitized_uri: Optional[str],
+        llm_classification_dict: dict,
+        blob_metadata_dict: dict,
+    ) -> None:
+        """Persists the document metadata into BigQuery knowledge_base dataset.
+
+        Args:
+            final_original_uri (str): Final URI of the original doc.
+            final_sanitized_uri (Optional[str]): Final URI of the masked doc.
+            llm_classification_dict (dict): Data from ContextualClassificationResponse.
+            blob_metadata_dict (dict): Data from DocumentMetadata.
+
+        Returns:
+            None
+        """
+        logger.info(f"Persisting metadata to BQ for: {final_original_uri}")
+        import uuid
+        from datetime import datetime, timezone
+
+        record = {
+            "document_id": str(uuid.uuid4()),
+            "gcs_uri": final_sanitized_uri or final_original_uri,
+            "filename": blob_metadata_dict.get("filename"),
+            "classification_tier": llm_classification_dict.get(
+                "final_classification_tier"
+            ),
+            "domain": llm_classification_dict.get("final_domain"),
+            "confidence_score": llm_classification_dict.get("confidence"),
+            "trust_level": blob_metadata_dict.get("trust_level"),
+            "project_id": blob_metadata_dict.get("project_name"),
+            "uploader_email": blob_metadata_dict.get("uploader_email"),
+            "description": llm_classification_dict.get("file_description"),
+            "version": 1,  # Default to 1 for MVP
+            "is_latest": True,
+            "ingested_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        self.bq.insert_metadata(record)

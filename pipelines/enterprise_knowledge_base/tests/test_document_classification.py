@@ -36,7 +36,16 @@ def mock_gemini():
 
 
 @pytest.fixture
-def pipeline(mock_gcs, mock_dlp, mock_gemini):
+def mock_bq():
+    """Fixture providing a mock BQService."""
+    with patch(
+        "pipelines.enterprise_knowledge_base.document_classification.pipeline.BQService"
+    ) as mock:
+        yield mock.return_value
+
+
+@pytest.fixture
+def pipeline(mock_gcs, mock_dlp, mock_gemini, mock_bq):
     """Fixture returning a ClassificationPipeline initialized with mocks."""
     return ClassificationPipeline()
 
@@ -289,3 +298,65 @@ def test_contextual_classification_calls_gemini_with_metadata(
     assert result.final_classification_tier == 4
     assert result.confidence == 0.95
     assert result.final_domain == "it"
+
+
+def test_file_routing_moves_and_cleans_files(pipeline, mock_gcs):
+    """Verifies that file_routing copies files to domain buckets and cleans landing zone."""
+    original_uri = "gs://landing/doc.pdf"
+    sanitized_uri = "gs://landing/doc_masked.pdf"
+    domain = "finance"
+    tier = 4
+    project = "audit-2026"
+    uploader = "accountant@corp.com"
+
+    # Mock tier mapping (Tier 4 -> confidential)
+    expected_original_dst = "gs://kb-finance/confidential/audit-2026/accountant/doc.pdf"
+    expected_masked_dst = (
+        "gs://kb-finance/confidential/audit-2026/accountant/doc_masked.pdf"
+    )
+
+    result_uri = pipeline.file_routing(
+        original_uri, sanitized_uri, domain, tier, project, uploader
+    )
+
+    # Verify copies
+    mock_gcs.copy_blob.assert_any_call(original_uri, expected_original_dst)
+    mock_gcs.copy_blob.assert_any_call(sanitized_uri, expected_masked_dst)
+
+    # Verify cleanup
+    mock_gcs.delete_blob.assert_any_call(original_uri)
+    mock_gcs.delete_blob.assert_any_call(sanitized_uri)
+
+    assert result_uri == expected_original_dst
+
+
+def test_metadata_bq_inserts_correct_record(pipeline, mock_bq):
+    """Verifies that metadata_bq formats the record correctly and calls BQService."""
+    original_uri = "gs://kb-hr/strictly-confidential/hr-data/admin/record.pdf"
+    sanitized_uri = "gs://kb-hr/strictly-confidential/hr-data/admin/record_masked.pdf"
+    llm_dict = {
+        "final_classification_tier": 5,
+        "confidence": 0.99,
+        "final_domain": "hr",
+        "file_description": "Employee performance record.",
+    }
+    blob_dict = {
+        "filename": "record.pdf",
+        "trust_level": "published",
+        "project_name": "hr-data",
+        "uploader_email": "admin@hr.com",
+    }
+
+    pipeline.metadata_bq(original_uri, sanitized_uri, llm_dict, blob_dict)
+
+    # Capture the call to bq.insert_metadata
+    args, _ = mock_bq.insert_metadata.call_args
+    record = args[0]
+
+    assert record["gcs_uri"] == sanitized_uri
+    assert record["classification_tier"] == 5
+    assert record["domain"] == "hr"
+    assert record["uploader_email"] == "admin@hr.com"
+    assert record["is_latest"] is True
+    assert "document_id" in record
+    assert "ingested_at" in record
