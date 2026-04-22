@@ -3,14 +3,14 @@ substitutions:
   _AGENT_DISPLAY_NAME: "Research Agent"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
-  _BIGQUERY_URL: "https://bigquery-mcp-server-753988132239.us-central1.run.app"
-  _DRIVE_URL: "https://drive-mcp-server-753988132239.us-central1.run.app"
-  _GCS_URL: "https://gcs-mcp-server-753988132239.us-central1.run.app"
-  _CALENDAR_URL: "https://calendar-mcp-server-753988132239.us-central1.run.app"
-  _GE_APP_ID: "newgeapp_1773239361913"
+  _BIGQUERY_URL: "https://bigquery-mcp-server-1035423789253.us-central1.run.app"
+  _DRIVE_URL: "https://drive-mcp-server-1035423789253.us-central1.run.app"
+  _GCS_URL: "https://gcs-mcp-server-1035423789253.us-central1.run.app"
+  _CALENDAR_URL: "https://calendar-mcp-server-1035423789253.us-central1.run.app"
+  _GE_APP_ID: "gemini-enterprise-17762829_1776282953068"
   _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
-  _GOOGLE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
+  _GOOGLE_OAUTH_SCOPES: "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
