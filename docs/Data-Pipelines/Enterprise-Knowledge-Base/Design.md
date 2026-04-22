@@ -239,6 +239,9 @@ Each chunk index carries a rich metadata payload for grounding responses:
 }
 ```
 ---
+| **Vector Search** | **BigQuery ML** | Performant `VECTOR_SEARCH` with native RLS/CLS support. |
+
+---
 ## 9. Google Cloud Services — Selection & Justification
 
 | Step | Service | Justification |
@@ -252,7 +255,20 @@ Each chunk index carries a rich metadata payload for grounding responses:
 
 ---
 
-## 10. Data Privacy & ADR-001 Alignment
+## 10. Implementation Architecture
+
+To ensure scalability and strict adherence to backend best practices, the pipeline is implemented using a modular service pattern:
+
+- **bq_service**: Encapsulates BigQuery streaming inserts and metadata validation.
+- **dlp_service**: Manages the complex Split-Redact-Merge logic for PDF de-identification.
+- **gcs_service**: Handles physical blob movement (routing) and metadata extraction.
+- **gemini_service**: Orchestrates multimodal reasoning using Gemini 2.5 Flash.
+
+All services use **relative imports** (max 1 level depth) and **Pydantic Request/Response** models to enforce interface stability.
+
+---
+
+## 11. Data Privacy & ADR-001 Alignment
 
 The EKB pipeline is built to strictly adhere to **[ADR-001: Data Privacy Strategy](https://github.com/eamadorm-endava/Research-Agent/blob/main/docs/ADRs/001-Data-Privacy-Strategy.md)**.
 
@@ -261,7 +277,7 @@ The EKB pipeline is built to strictly adhere to **[ADR-001: Data Privacy Strateg
 
 ---
 
-## 11. Next Steps
+## 12. Next Steps
 
 1. **Phase 1 — ADK Skill & OAuth**: Implement the ingestion tool that extracts the user's OAuth token and injects metadata into GCS.
 2. **Phase 2 — Classification Service**: Build the Cloud Run service that performs the DLP `_masked` generation and Gemini 2.5 classification.
@@ -270,7 +286,7 @@ The EKB pipeline is built to strictly adhere to **[ADR-001: Data Privacy Strateg
 
 ---
 
-## 12. Deferred Scope & Known Limitations
+## 13. Deferred Scope & Known Limitations
 
 ### 12.1 KMS / CMEK — Not Implemented in Phase 1
 
@@ -281,7 +297,7 @@ The EKB pipeline is built to strictly adhere to **[ADR-001: Data Privacy Strateg
 
 ---
 
-## 13. Security & Access Control Model
+## 14. Security & Access Control Model
 
 The EKB enforces security through a **delegated identity model** combined with native GCP access controls.
 

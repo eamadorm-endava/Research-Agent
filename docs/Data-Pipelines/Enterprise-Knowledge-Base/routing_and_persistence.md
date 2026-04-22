@@ -47,8 +47,16 @@ Metadata is stored in the `knowledge_base` dataset, `documents_metadata` table.
 
 ## Technical Services
 
-### GCSService
-Enhanced with `copy_blob` and `delete_blob` to handle cross-bucket relocation.
+The implementation follows a modular service pattern located in `pipelines/enterprise_knowledge_base/document_classification/`:
 
-### BQService
-Dedicated service for BigQuery streaming inserts, ensuring atomicity and auditability of metadata records.
+### gcs_service
+Handles cross-bucket relocation and metadata extraction.
+- **Import**: `from .gcs_service.service import GCSService`
+
+### bq_service
+Dedicated service for BigQuery streaming inserts, ensuring atomicity and auditability.
+- **Import**: `from .bq_service.service import BQService`
+
+### Best Practices
+- **Relative Imports**: All internal service communication uses relative imports (e.g., `from ..config import ...`).
+- **Validation**: All service interfaces are validated using Pydantic models defined in each service's `schemas.py`.
