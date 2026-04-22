@@ -86,4 +86,5 @@ class GeminiService:
         prompt += "2. Return confidence (0.0-1.0).\n"
         prompt += f"3. Return final_domain (Must be one of: {', '.join(EKB_CONFIG.VALID_DOMAINS)}).\n"
         prompt += "4. Return file_description (brief summary, < 150 words).\n"
+        prompt += "5. LANGUAGE CONSTRAINT: No matter the language of the document, the answer MUST be written in English, always.\n"
         return prompt
