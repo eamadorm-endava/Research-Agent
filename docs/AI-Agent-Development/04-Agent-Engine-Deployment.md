@@ -57,10 +57,10 @@ The pipeline uses `uv` to rapidly export dependencies and execute the deployment
         pip install uv
         
         # 1. Export dependencies for Vertex AI
-        uv export --group ai-agent --no-hashes --no-annotate -o agent/core_agent/requirements.txt
+        uv export --group ai_agent --no-hashes --no-annotate -o agent/core_agent/requirements.txt
           
         # 2. Execute deployment securely
-        uv run --group ai-agent --group dev python -m agent.deployment.deploy \
+        uv run --group ai_agent --group dev python -m agent.deployment.deploy \
           --project ${PROJECT_ID} \
           --location ${_REGION} \
           --display-name "${_AGENT_DISPLAY_NAME}" \
