@@ -30,7 +30,7 @@ Metadata is stored in the `knowledge_base` dataset, `documents_metadata` table.
 | Field | Type | Description |
 |---|---|---|
 | `document_id` | `STRING` | Unique UUID for the document record. |
-| `gcs_uri` | `STRING` | The URI of the document to be used for search/RAG (Masked if exists, otherwise Original). |
+| `gcs_uri` | `STRING` | The URI of the original document in the domain bucket (used for search/RAG). |
 | `filename` | `STRING` | Original filename. |
 | `classification_tier` | `INT64` | Numeric classification tier (1-5). |
 | `domain` | `STRING` | Valid business domain. |

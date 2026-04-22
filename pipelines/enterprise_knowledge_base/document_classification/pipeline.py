@@ -288,7 +288,7 @@ class ClassificationPipeline:
         """Persists the document metadata into BigQuery knowledge_base dataset.
 
         Args:
-            final_original_uri (str): Final URI of the original doc.
+            final_original_uri (str): Final URI of the original doc (used for search/RAG).
             final_sanitized_uri (Optional[str]): Final URI of the masked doc.
             llm_classification_dict (dict): Data from ContextualClassificationResponse.
             blob_metadata_dict (dict): Data from DocumentMetadata.
@@ -302,7 +302,7 @@ class ClassificationPipeline:
 
         record = {
             "document_id": str(uuid.uuid4()),
-            "gcs_uri": final_sanitized_uri or final_original_uri,
+            "gcs_uri": final_original_uri,
             "filename": blob_metadata_dict.get("filename"),
             "classification_tier": llm_classification_dict.get(
                 "final_classification_tier"
