@@ -38,7 +38,7 @@ If the scripts require GCP resources (GCS, BigQuery, Secret Manager only), they 
 A Jupyter Notebook must be created to demonstrate the functionality:
 - **Location**: `notebooks/<deployable_name>/<notebook_name>.ipynb`.
 - **Requirements**:
-  - Must use `import sys; sys.path.append("../..")` to correctly import modules from the project root.
+  - Must append the repository root path to `sys.path`. This path must be adjusted based on the directory depth of the notebook relative to the repository root (e.g., `sys.path.append("../..")` for notebooks nested two levels deep) to ensure all modules can be imported correctly.
   - Must show successful execution, edge case handling, and data validation.
 
 ### 4. Implementation Cycle
