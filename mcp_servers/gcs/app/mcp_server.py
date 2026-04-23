@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import json
 import logging
 import re
 from typing import Optional
@@ -15,20 +17,20 @@ from .gcs_client import GCSManager, build_gcs_credentials
 from .schemas import (
     CreateBucketRequest,
     CreateBucketResponse,
-    UpdateBucketLabelsRequest,
-    UpdateBucketLabelsResponse,
-    UploadObjectRequest,
-    UploadObjectResponse,
-    ReadObjectRequest,
-    ReadObjectResponse,
-    UpdateObjectMetadataRequest,
-    UpdateObjectMetadataResponse,
     DeleteObjectRequest,
     DeleteObjectResponse,
-    ListObjectsRequest,
-    ListObjectsResponse,
     ListBucketsRequest,
     ListBucketsResponse,
+    ListObjectsRequest,
+    ListObjectsResponse,
+    ReadObjectRequest,
+    ReadObjectResponse,
+    UpdateBucketLabelsRequest,
+    UpdateBucketLabelsResponse,
+    UpdateObjectMetadataRequest,
+    UpdateObjectMetadataResponse,
+    UploadObjectRequest,
+    UploadObjectResponse,
 )
 
 # Configure logging
@@ -164,14 +166,17 @@ async def update_bucket_labels(
 async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     """
     Uploads a file (blob) to a specified GCS bucket.
-    Supports providing content directly as a string or specifying a local file path.
+    Supports providing content directly as a string, base64-encoded binary data,
+    or specifying a local file path.
 
     Args:
         bucket_name (str): The name of the bucket.
         object_name (str): The name/path of the object to create in GCS.
         content (str, optional): The string content to upload.
+        content_base64 (str, optional): Base64-encoded binary content to upload.
         local_path (str, optional): The local file path to upload.
         content_type (str, optional): The MIME type of the file. Auto-detected if not provided.
+        metadata (Dict[str, str], optional): Custom metadata to write as x-goog-meta-* headers.
 
     Returns:
         str: Success message with the object name.
@@ -181,20 +186,27 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     )
     try:
         gcs_manager = _make_gcs_manager()
+        user_email = await _extract_user_email_from_current_token()
+        merged_metadata = _merge_upload_metadata(request.metadata, user_email)
+        content_payload = _decode_upload_content(request)
         blob = await asyncio.to_thread(
             gcs_manager.create_object,
             request.bucket_name,
             request.object_name,
-            request.content,
+            content_payload,
             request.local_path,
             request.content_type,
+            merged_metadata,
         )
         return UploadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=blob.name,
             content=request.content,
+            content_base64=request.content_base64,
             local_path=request.local_path,
             content_type=blob.content_type,
+            metadata=blob.metadata or merged_metadata,
+            user_email=user_email,
             execution_status="success",
             execution_message=(
                 f"Successfully uploaded object: {blob.name} to bucket: {request.bucket_name}"
@@ -205,8 +217,11 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
             bucket_name=request.bucket_name,
             object_name=request.object_name,
             content=request.content,
+            content_base64=request.content_base64,
             local_path=request.local_path,
             content_type=request.content_type,
+            metadata=request.metadata,
+            user_email=None,
             execution_status="error",
             execution_message=_format_execution_error(e),
         )
@@ -442,6 +457,77 @@ def _get_current_token() -> Optional[str]:
     """Returns the currently authenticated OAuth access token from MCP auth context."""
     token_obj = get_access_token()
     return token_obj.token if token_obj else None
+
+
+async def _extract_user_email_from_current_token() -> Optional[str]:
+    """Extracts the end-user email from the delegated OAuth token when available."""
+    token = _get_current_token()
+    if not token:
+        return None
+
+    decoded_email = _decode_email_from_bearer_token(token)
+    if decoded_email:
+        return decoded_email
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                GCS_AUTH_CONFIG.google_token_info_url,
+                params={"access_token": token},
+                timeout=10,
+            )
+        if response.status_code != 200:
+            return None
+        token_info = response.json()
+    except Exception:
+        return None
+
+    email = token_info.get("email")
+    if isinstance(email, str) and email:
+        return email
+    return None
+
+
+def _decode_email_from_bearer_token(token: str) -> Optional[str]:
+    """Attempts to decode an email claim from a JWT-style bearer token payload."""
+    token_parts = token.split(".")
+    if len(token_parts) != 3:
+        return None
+
+    try:
+        payload_segment = token_parts[1]
+        payload_segment += "=" * (-len(payload_segment) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_segment).decode("utf-8"))
+    except Exception:
+        return None
+
+    candidate = payload.get("email") or payload.get("upn")
+    if isinstance(candidate, str) and candidate:
+        return candidate
+    return None
+
+
+def _merge_upload_metadata(
+    request_metadata: dict[str, str],
+    user_email: Optional[str],
+) -> dict[str, str]:
+    """Merges request metadata with server-derived audit metadata."""
+    merged = {str(key): str(value) for key, value in request_metadata.items()}
+    if user_email:
+        merged["user-email"] = user_email
+    return merged
+
+
+def _decode_upload_content(request: UploadObjectRequest) -> Optional[str | bytes]:
+    """Decodes the effective upload payload from the request model."""
+    if request.content is not None:
+        return request.content
+    if request.content_base64 is not None:
+        try:
+            return base64.b64decode(request.content_base64)
+        except Exception as exc:
+            raise ValueError("content_base64 is not valid base64 data.") from exc
+    return None
 
 
 def _format_execution_error(exc: Exception) -> str:

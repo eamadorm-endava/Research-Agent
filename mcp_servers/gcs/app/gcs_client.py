@@ -142,6 +142,7 @@ class GCSManager:
         content: Optional[Union[str, bytes]] = None,
         local_path: Optional[str] = None,
         content_type: Optional[str] = None,
+        metadata: Optional[Dict[str, str]] = None,
     ) -> storage.Blob:
         """
         Uploads an object to a GCS bucket. Supports string/bytes content or local file paths.
@@ -152,6 +153,7 @@ class GCSManager:
             content: Text or binary content to upload.
             local_path: Path to a local file to upload.
             content_type: MIME type for the object. If not provided, it's auto-detected.
+            metadata: Optional custom metadata to attach to the object.
 
         Returns:
             storage.Blob: The created blob object.
@@ -159,6 +161,11 @@ class GCSManager:
         try:
             bucket = self.get_bucket(bucket_name)
             blob = bucket.blob(object_name)
+
+            if metadata:
+                blob.metadata = {
+                    str(key): str(value) for key, value in metadata.items()
+                }
 
             # Determine content type if not provided
             if not content_type:
@@ -278,98 +285,55 @@ class GCSManager:
         Lists all blobs in a bucket (optionally filtering by prefix).
 
         Args:
-            bucket_name: The name of the bucket.
-            prefix: Optional prefix to filter results.
+            bucket_name: The bucket to inspect.
+            prefix: Optional prefix filter.
 
         Returns:
-            List[str]: A list of blob names.
+            List[str]: Matching blob names.
         """
         try:
             bucket = self.get_bucket(bucket_name)
             blobs = self.client.list_blobs(bucket, prefix=prefix)
-            blob_names = [blob.name for blob in blobs]
-            logger.info(f"Listed {len(blob_names)} blobs in bucket {bucket_name}.")
-            return blob_names
+            return [blob.name for blob in blobs]
         except GoogleCloudError as e:
             logger.error(f"Error listing blobs in bucket {bucket_name}: {e}")
             raise
 
     def list_buckets(
-        self,
-        prefix: Optional[str] = None,
-        project_id: Optional[str] = None,
+        self, prefix: Optional[str] = None, project_id: Optional[str] = None
     ) -> List[str]:
         """
-        Lists all buckets visible to the current project credentials
-        (optionally filtering by bucket-name prefix).
+        Lists buckets accessible to the current credentials.
 
         Args:
-            prefix: Optional prefix to filter bucket names.
+            prefix: Optional prefix filter.
+            project_id: Optional explicit project override.
 
         Returns:
-            List[str]: A list of bucket names.
+            List[str]: Bucket names.
         """
         try:
             resolved_project = self.resolve_project_id(project_id)
-            buckets = self.client.list_buckets(
-                prefix=prefix,
-                project=resolved_project,
-            )
-            bucket_names = [bucket.name for bucket in buckets]
-            logger.info(
-                f"Listed {len(bucket_names)} buckets with prefix '{prefix or ''}' "
-                f"for project {resolved_project}."
-            )
-            return bucket_names
+            buckets = self.client.list_buckets(prefix=prefix, project=resolved_project)
+            return [bucket.name for bucket in buckets]
         except GoogleCloudError as e:
-            logger.error(f"Error listing buckets with prefix '{prefix or ''}': {e}")
+            logger.error(f"Error listing buckets for project {project_id}: {e}")
             raise
 
 
-def build_gcs_credentials(
-    *,
-    access_token: Optional[str] = None,
-    scopes: Optional[Sequence[str]] = None,
-    validate: bool = True,
-) -> Credentials:
-    """
-    Builds Google OAuth2 credentials for GCS from a delegated access token.
-    Args:
-        access_token: Optional OAuth2 access token.
-        validate: Whether to validate token validity before creating credentials.
-    Return: A Google Credentials object.
-    """
-
-    scopes = list(scopes or GCS_API_CONFIG.read_write_scopes)
-
-    if access_token:
-        if validate:
-            validate_access_token(access_token, scopes)
-        return Credentials(token=access_token, scopes=scopes)
-
-    raise RuntimeError(
-        "No GCS credentials available. Provide a delegated user access token header."
-    )
-
-
 def validate_access_token(
-    access_token: str, required_scopes: Optional[Sequence[str]] = None
-) -> dict[str, Any]:
-    """
-    Validates an OAuth access token against Google's tokeninfo endpoint.
-    Args:
-        access_token: The OAuth2 access token to validate.
-    Return: The token info payload when token is valid.
-    """
+    access_token: str,
+    required_scopes: Sequence[str],
+) -> Dict[str, Any]:
+    """Validates a delegated OAuth token using Google's tokeninfo endpoint."""
     try:
-        with httpx.Client() as client:
+        with httpx.Client(timeout=10) as client:
             response = client.get(
                 GCS_AUTH_CONFIG.google_token_info_url_v3,
                 params={"access_token": access_token},
-                timeout=10,
             )
-    except Exception as exc:
-        raise AuthenticationError(f"Failed to reach token validation endpoint: {exc}")
+    except Exception as exc:  # pragma: no cover - defensive network path
+        raise AuthenticationError(f"OAuth token validation failed: {exc}") from exc
 
     if response.status_code != 200:
         try:
@@ -379,42 +343,30 @@ def validate_access_token(
         raise AuthenticationError(f"Invalid OAuth token: {error_detail}")
 
     token_info = response.json()
-
-    if required_scopes:
-        token_scopes = set(token_info.get("scope", "").split())
-        token_scopes = _expand_storage_scopes(token_scopes)
-        missing = [scope for scope in required_scopes if scope not in token_scopes]
-        if missing:
-            raise AuthenticationError(
-                f"Token is missing required scopes: {', '.join(missing)}"
-            )
+    granted_scopes = set(token_info.get("scope", "").split())
+    allowed_scope_sets = [
+        set(required_scopes),
+        {GCS_API_CONFIG.cloud_platform_scope},
+    ]
+    if not any(scope_set.issubset(granted_scopes) for scope_set in allowed_scope_sets):
+        raise AuthenticationError(
+            "OAuth token is missing one of the required scopes: "
+            f"{', '.join(required_scopes)}"
+        )
 
     return token_info
 
 
-def _expand_storage_scopes(token_scopes: set[str]) -> set[str]:
-    """Expands broader Google Cloud / Storage scopes into compatible GCS equivalents."""
-
-    expanded_scopes = set(token_scopes)
-
-    if GCS_API_CONFIG.cloud_platform_scope in expanded_scopes:
-        expanded_scopes.update(
-            {
-                GCS_API_CONFIG.storage_read_only_scope,
-                GCS_API_CONFIG.storage_read_write_scope,
-                GCS_API_CONFIG.storage_full_control_scope,
-            }
+def build_gcs_credentials(
+    access_token: Optional[str],
+    scopes: Optional[Sequence[str]] = None,
+) -> Credentials:
+    """Builds delegated Google OAuth credentials for GCS operations."""
+    if not access_token:
+        raise AuthenticationError(
+            "Missing delegated OAuth access token for Google Cloud Storage."
         )
 
-    if GCS_API_CONFIG.storage_full_control_scope in expanded_scopes:
-        expanded_scopes.update(
-            {
-                GCS_API_CONFIG.storage_read_only_scope,
-                GCS_API_CONFIG.storage_read_write_scope,
-            }
-        )
-
-    if GCS_API_CONFIG.storage_read_write_scope in expanded_scopes:
-        expanded_scopes.add(GCS_API_CONFIG.storage_read_only_scope)
-
-    return expanded_scopes
+    requested_scopes = list(scopes or GCS_API_CONFIG.read_write_scopes)
+    validate_access_token(access_token, requested_scopes)
+    return Credentials(token=access_token, scopes=requested_scopes)

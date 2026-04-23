@@ -243,6 +243,39 @@ class GCSMCPConfig(BaseMCPConfig):
             ),  # In case this MCP Server uses a different Auth Resource ID than the general auth id defined in the AgentConfig
         ),
     ]
+    LANDING_ZONE_BUCKET: Annotated[
+        Optional[str],
+        Field(
+            default="kb-landing-zone",
+            description="Default Knowledge Base landing-zone bucket used for chat-upload transfers.",
+            validation_alias=AliasChoices(
+                "KB_LANDING_ZONE_BUCKET",
+                "LANDING_ZONE_BUCKET",
+            ),
+        ),
+    ]
+    LANDING_ZONE_PREFIX: Annotated[
+        str,
+        Field(
+            default="",
+            description="Optional object prefix applied to documents transferred into the landing zone.",
+            validation_alias=AliasChoices(
+                "KB_LANDING_ZONE_PREFIX",
+                "LANDING_ZONE_PREFIX",
+            ),
+        ),
+    ]
+    ARTIFACTS_DIR: Annotated[
+        str,
+        Field(
+            default="/tmp/research-agent-artifacts",
+            description="Local artifact-service root used by the ADK app for temporary chat uploads.",
+            validation_alias=AliasChoices(
+                "ADK_ARTIFACTS_DIR",
+                "ARTIFACTS_DIR",
+            ),
+        ),
+    ]
 
     @field_validator("OAUTH_SCOPES", mode="after")
     @classmethod

@@ -172,3 +172,26 @@ def test_gcs_mcp_config_accepts_service_specific_auth_id():
         config = GCSMCPConfig()
 
     assert config.GEMINI_GOOGLE_AUTH_ID == "gcs-auth-id"
+
+
+def test_gcs_mcp_config_landing_zone_defaults():
+    with patch.dict(os.environ, clear=True):
+        config = GCSMCPConfig()
+
+    assert config.LANDING_ZONE_BUCKET == "kb-landing-zone"
+    assert config.LANDING_ZONE_PREFIX == ""
+    assert config.ARTIFACTS_DIR == "/tmp/research-agent-artifacts"
+
+
+def test_gcs_mcp_config_landing_zone_env_aliases():
+    mock_env = {
+        "KB_LANDING_ZONE_BUCKET": "custom-landing-zone",
+        "KB_LANDING_ZONE_PREFIX": "raw/uploads",
+        "ADK_ARTIFACTS_DIR": "/var/tmp/adk-artifacts",
+    }
+    with patch.dict(os.environ, mock_env, clear=True):
+        config = GCSMCPConfig()
+
+    assert config.LANDING_ZONE_BUCKET == "custom-landing-zone"
+    assert config.LANDING_ZONE_PREFIX == "raw/uploads"
+    assert config.ARTIFACTS_DIR == "/var/tmp/adk-artifacts"

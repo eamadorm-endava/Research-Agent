@@ -65,6 +65,30 @@ class TestGCSManager(unittest.TestCase):
             b"\x00\x01", content_type="application/octet-stream"
         )
 
+    def test_upload_object_attaches_custom_metadata(self):
+        mock_bucket = MagicMock()
+        mock_blob = MagicMock()
+        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        mock_bucket.blob.return_value = mock_blob
+        mock_blob.name = "audit.txt"
+        mock_blob.content_type = "text/plain"
+
+        result = self.gcs_manager.create_object(
+            "test-bucket",
+            "audit.txt",
+            content="hello",
+            metadata={"user-email": "user@example.com", "project": "kb"},
+        )
+
+        self.assertEqual(result.name, "audit.txt")
+        self.assertEqual(
+            mock_blob.metadata,
+            {"user-email": "user@example.com", "project": "kb"},
+        )
+        mock_blob.upload_from_string.assert_called_with(
+            "hello", content_type="text/plain"
+        )
+
     @patch("os.path.exists")
     @patch("mimetypes.guess_type")
     def test_upload_object_local_path(self, mock_guess, mock_exists):

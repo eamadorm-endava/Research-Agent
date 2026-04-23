@@ -1,7 +1,10 @@
-from typing import Self
+from pathlib import Path
+from typing import Optional, Self
+
 from loguru import logger
 import vertexai
 from google.adk.agents import Agent
+from google.adk.artifacts.file_artifact_service import FileArtifactService
 from google.adk.models import Gemini
 from google.adk.planners import BuiltInPlanner
 from google.genai.types import (
@@ -39,6 +42,7 @@ class AgentBuilder:
         self.gcp_config = gcp_config
         self._mcp_builder = MCPToolsetBuilder(auth_config)
         self._tools = []
+        self._artifact_root_dir: Optional[Path] = None
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -81,6 +85,46 @@ class AgentBuilder:
             skill_toolset = get_skill_toolset(skill_name=name)
             self._tools.append(skill_toolset)
         return self
+
+    def with_tools(self, tools: list[object]) -> Self:
+        """Registers native ADK function tools alongside MCP and skill toolsets.
+
+        Args:
+            tools (list[object]): Tool callables or ADK tool instances to expose on the agent.
+
+        Returns:
+            Self: The builder instance for fluent chaining.
+        """
+        self._tools.extend(tools)
+        return self
+
+    def with_artifact_root_dir(self, root_dir: str | Path) -> Self:
+        """Configures the filesystem root used by the ADK artifact service.
+
+        Args:
+            root_dir (str | Path): Directory where temporary chat-upload artifacts are stored.
+
+        Returns:
+            Self: The builder instance for fluent chaining.
+        """
+        self._artifact_root_dir = Path(root_dir)
+        return self
+
+    def build_artifact_service(self, *_args, **_kwargs) -> FileArtifactService:
+        """Builds the filesystem-backed ADK artifact service.
+
+        Returns:
+            FileArtifactService: Artifact storage rooted at the configured directory.
+
+        Raises:
+            ValueError: If the artifact root directory has not been configured.
+        """
+        if self._artifact_root_dir is None:
+            raise ValueError(
+                "Artifact root directory is not configured. "
+                "Call with_artifact_root_dir() before building the artifact service."
+            )
+        return FileArtifactService(root_dir=self._artifact_root_dir)
 
     def _build_agent_settings(self) -> GenerateContentConfig:
         """Constructs the generative model configuration for the agent.

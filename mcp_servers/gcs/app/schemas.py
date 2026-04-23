@@ -1,4 +1,4 @@
-from typing import Annotated, Dict, Optional, Any, List, Literal
+from typing import Annotated, Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 from .config import GCS_SERVER_CONFIG
@@ -32,6 +32,16 @@ PROJECT_ID = Annotated[
         description=(
             "Optional GCP project ID for project-scoped bucket operations. "
             "When omitted, the server uses its configured default project."
+        ),
+    ),
+]
+OBJECT_METADATA = Annotated[
+    Dict[str, str],
+    Field(
+        default_factory=dict,
+        description=(
+            "Optional custom metadata to attach to the uploaded object. "
+            "Each entry becomes an x-goog-meta-* header in Cloud Storage."
         ),
     ),
 ]
@@ -95,6 +105,13 @@ class UploadObjectRequest(BaseRequest):
         Optional[str],
         Field(default=None, description="Inline text content to upload."),
     ]
+    content_base64: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Base64-encoded binary payload to upload.",
+        ),
+    ]
     local_path: Annotated[
         Optional[str],
         Field(default=None, description="Local path to upload from."),
@@ -103,16 +120,35 @@ class UploadObjectRequest(BaseRequest):
         Optional[str],
         Field(default=None, description="MIME type of the uploaded object."),
     ]
+    metadata: OBJECT_METADATA
 
     @model_validator(mode="after")
     def validate_content_source(self) -> "UploadObjectRequest":
-        if self.content is None and self.local_path is None:
-            raise ValueError("Either content or local_path must be provided.")
+        provided_sources = [
+            source
+            for source in (self.content, self.content_base64, self.local_path)
+            if source is not None
+        ]
+        if not provided_sources:
+            raise ValueError(
+                "One of content, content_base64, or local_path must be provided."
+            )
+        if len(provided_sources) > 1:
+            raise ValueError(
+                "Provide only one upload source: content, content_base64, or local_path."
+            )
         return self
 
 
 class UploadObjectResponse(UploadObjectRequest, BaseResponse):
-    pass
+    metadata: OBJECT_METADATA
+    user_email: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Email extracted from the delegated OAuth token, when available.",
+        ),
+    ]
 
 
 class ReadObjectRequest(BaseRequest):

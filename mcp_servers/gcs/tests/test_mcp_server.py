@@ -1,19 +1,25 @@
-import pytest
 import asyncio
-from unittest.mock import MagicMock, patch
+import base64
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from mcp_servers.gcs.app.mcp_server import (
-    _make_gcs_manager,
-    create_bucket,
-    list_objects,
-    list_buckets,
-    read_object,
-)
+import pytest
+
 from mcp_servers.gcs.app.config import GCS_API_CONFIG, GCS_SERVER_CONFIG
+from mcp_servers.gcs.app.mcp_server import (
+    _decode_email_from_bearer_token,
+    _make_gcs_manager,
+    _merge_upload_metadata,
+    create_bucket,
+    list_buckets,
+    list_objects,
+    read_object,
+    upload_object,
+)
 from mcp_servers.gcs.app.schemas import (
     CreateBucketRequest,
-    ListObjectsRequest,
     ListBucketsRequest,
+    ListObjectsRequest,
     ReadObjectRequest,
     UploadObjectRequest,
 )
@@ -47,6 +53,58 @@ def test_mcp_create_bucket_success(mock_gcs_manager):
 def test_mcp_upload_object_error_when_no_content_source():
     with pytest.raises(ValueError):
         UploadObjectRequest(bucket_name="my-gcs-bucket", object_name="file.txt")
+
+
+def test_mcp_upload_object_accepts_base64_binary_payload():
+    request = UploadObjectRequest(
+        bucket_name="my-gcs-bucket",
+        object_name="file.bin",
+        content_base64=base64.b64encode(b"abc123").decode("ascii"),
+        metadata={"project": "kb"},
+    )
+
+    assert request.content is None
+    assert request.local_path is None
+    assert request.content_base64 is not None
+
+
+def test_mcp_upload_object_success_injects_server_email_metadata(mock_gcs_manager):
+    mock_blob = MagicMock()
+    mock_blob.name = "landing/file.bin"
+    mock_blob.content_type = "application/pdf"
+    mock_blob.metadata = {
+        "project": "kb",
+        "user-email": "person@example.com",
+    }
+    mock_gcs_manager.create_object.return_value = mock_blob
+
+    request = UploadObjectRequest(
+        bucket_name="kb-landing-zone",
+        object_name="landing/file.bin",
+        content_base64=base64.b64encode(b"pdf-bytes").decode("ascii"),
+        content_type="application/pdf",
+        metadata={"project": "kb", "user-email": "spoofed@example.com"},
+    )
+
+    with patch(
+        "mcp_servers.gcs.app.mcp_server._extract_user_email_from_current_token",
+        new=AsyncMock(return_value="person@example.com"),
+    ):
+        result = asyncio.run(upload_object(request))
+
+    assert result.execution_status == "success"
+    assert result.user_email == "person@example.com"
+    assert result.metadata["user-email"] == "person@example.com"
+
+    mock_gcs_manager.create_object.assert_called_once()
+    args = mock_gcs_manager.create_object.call_args.args
+    assert args[0] == "kb-landing-zone"
+    assert args[1] == "landing/file.bin"
+    assert args[2] == b"pdf-bytes"
+    assert args[3] is None
+    assert args[4] == "application/pdf"
+    assert args[5]["project"] == "kb"
+    assert args[5]["user-email"] == "person@example.com"
 
 
 def test_mcp_list_objects_success(mock_gcs_manager):
@@ -135,3 +193,28 @@ def test_make_gcs_manager_uses_context_token_and_configured_scopes():
     mock_manager.assert_called_once_with(
         "creds", default_project=GCS_SERVER_CONFIG.default_project_id
     )
+
+
+def test_decode_email_from_bearer_token_reads_email_claim():
+    payload = (
+        base64.urlsafe_b64encode(
+            json.dumps({"email": "person@example.com"}).encode("utf-8")
+        )
+        .decode("ascii")
+        .rstrip("=")
+    )
+    token = f"header.{payload}.signature"
+
+    assert _decode_email_from_bearer_token(token) == "person@example.com"
+
+
+def test_merge_upload_metadata_overrides_user_email_with_server_value():
+    merged = _merge_upload_metadata(
+        {"project": "kb", "user-email": "spoofed@example.com"},
+        "person@example.com",
+    )
+
+    assert merged == {
+        "project": "kb",
+        "user-email": "person@example.com",
+    }

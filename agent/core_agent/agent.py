@@ -1,4 +1,5 @@
 from vertexai import agent_engines
+
 from .builder import AgentBuilder
 from .config import (
     GCP_CONFIG,
@@ -9,6 +10,8 @@ from .config import (
     GCS_MCP_CONFIG,
     GOOGLE_AUTH_CONFIG,
 )
+from .plugins import ArtifactTrackingSaveFilesPlugin
+from .tools import transfer_uploaded_artifact_to_landing_zone
 
 mcp_servers_to_mount = [
     BIGQUERY_MCP_CONFIG,
@@ -21,7 +24,12 @@ skills_to_mount = [
     "meeting-summary",
 ]
 
-root_agent = (
+native_tools_to_mount = [
+    transfer_uploaded_artifact_to_landing_zone,
+]
+
+
+agent_builder = (
     AgentBuilder(
         agent_config=AGENT_CONFIG,
         gcp_config=GCP_CONFIG,
@@ -29,7 +37,14 @@ root_agent = (
     )
     .with_skills(skills_to_mount)
     .with_mcp_servers(mcp_servers_to_mount)
-    .build()
+    .with_tools(native_tools_to_mount)
+    .with_artifact_root_dir(GCS_MCP_CONFIG.ARTIFACTS_DIR)
 )
 
-app = agent_engines.AdkApp(agent=root_agent)
+root_agent = agent_builder.build()
+
+app = agent_engines.AdkApp(
+    agent=root_agent,
+    plugins=[ArtifactTrackingSaveFilesPlugin()],
+    artifact_service_builder=agent_builder.build_artifact_service,
+)

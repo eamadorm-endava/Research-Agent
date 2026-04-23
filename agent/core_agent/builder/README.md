@@ -36,6 +36,7 @@ root_agent = (
 - Creates an internal `MCPToolsetBuilder` for MCP server construction
 - Accumulates tools (MCP toolsets + skill toolsets) via fluent method calls
 - Assembles the final `Agent` with model, planner, instructions, and tools
+- Can configure and build a filesystem-backed ADK artifact service for temporary chat uploads
 
 **Private helpers:**
 | Method | Purpose |
@@ -43,6 +44,8 @@ root_agent = (
 | `_build_agent_settings()` | Maps `AgentConfig` fields to `GenerateContentConfig` |
 | `_build_retry_options()` | Configures HTTP retry logic (attempts, backoff) |
 | `_build_planner()` | Initializes the `BuiltInPlanner` with thinking budget |
+| `with_artifact_root_dir()` | Configures the filesystem root used for ADK chat-upload artifacts |
+| `build_artifact_service()` | Builds a `FileArtifactService` for `AdkApp` artifact persistence |
 
 ---
 

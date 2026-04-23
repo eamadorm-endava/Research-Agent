@@ -52,10 +52,14 @@ def test_agent_builder_fluent_chaining(mock_vertex_client, mock_configs):
         mock_mcp_build.return_value = MagicMock()
 
         # Test chaining
-        result = builder.with_skills(["skill1"]).with_mcp_servers([BigQueryMCPConfig()])
+        result = (
+            builder.with_skills(["skill1"])
+            .with_mcp_servers([BigQueryMCPConfig()])
+            .with_tools([MagicMock()])
+        )
 
         assert result is builder
-        assert len(builder._tools) == 2
+        assert len(builder._tools) == 3
 
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
@@ -80,6 +84,42 @@ def test_agent_builder_final_assembly(
 
     # Verify Agent was returned
     assert agent is mock_agent_class.return_value
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+@patch("agent.core_agent.builder.agent_builder.FileArtifactService")
+def test_agent_builder_build_artifact_service(
+    mock_artifact_service, mock_vertex_client, mock_configs
+):
+    """Test that the builder creates a file-backed artifact service from its configured root."""
+    builder = AgentBuilder(
+        agent_config=mock_configs["agent"],
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    ).with_artifact_root_dir("/tmp/test-artifacts")
+
+    artifact_service = builder.build_artifact_service()
+
+    mock_artifact_service.assert_called_once()
+    assert (
+        str(mock_artifact_service.call_args.kwargs["root_dir"]) == "/tmp/test-artifacts"
+    )
+    assert artifact_service is mock_artifact_service.return_value
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+def test_agent_builder_build_artifact_service_requires_root_dir(
+    mock_vertex_client, mock_configs
+):
+    """Test that artifact service creation fails until a root directory is configured."""
+    builder = AgentBuilder(
+        agent_config=mock_configs["agent"],
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    )
+
+    with pytest.raises(ValueError, match="Artifact root directory is not configured"):
+        builder.build_artifact_service()
 
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
