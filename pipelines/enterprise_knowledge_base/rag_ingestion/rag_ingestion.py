@@ -67,13 +67,18 @@ class RAGIngestion:
         return chunks_list
 
     def stage_chunks_bq(self, chunks_list: list[dict]) -> None:
-        """Performs a streaming insert of the dictionary list into BigQuery."""
+        """Stages chunks into BigQuery using batch load to bypass streaming buffer."""
         if not chunks_list:
             return
             
-        errors = self.bq_client.insert_rows_json(self.table_id, chunks_list)
-        if errors:
-            raise RuntimeError(f"BigQuery insertion errors: {errors}")
+        job_config = bigquery.LoadJobConfig(
+            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+        )
+        try:
+            job = self.bq_client.load_table_from_json(chunks_list, self.table_id, job_config=job_config)
+            job.result()
+        except Exception as e:
+            raise RuntimeError(f"BigQuery insertion errors: {e}")
 
     def move_blob_to_processed(self, gcs_uri: str) -> str:
         """Moves a blob from the ingested/ prefix to the processed/ prefix."""
@@ -99,3 +104,36 @@ class RAGIngestion:
             self.stage_chunks_bq(chunks)
             self.move_blob_to_processed(gcs_uri)
         return len(chunks)
+
+    def generate_embeddings(self, gcs_uri: str) -> bool:
+        """Vectorizes staged chunks by joining with metadata and updating via BQML."""
+        model_id = self.table_id.replace("documents_chunks", "multimodal_embedding_model")
+        metadata_id = self.table_id.replace("documents_chunks", "documents_metadata")
+        query = f"""
+            UPDATE `{self.table_id}` AS target
+            SET embedding = source.ml_generate_embedding_result
+            FROM (
+              SELECT * FROM ML.GENERATE_EMBEDDING(
+                MODEL `{model_id}`,
+                (
+                  SELECT c.chunk_id, CONCAT(
+                    'Domain: ', IFNULL(m.domain, 'Unknown'), '\\n',
+                    'Description: ', IFNULL(m.description, 'None'), '\\n',
+                    'Content: ', IFNULL(c.chunk_data, '')
+                  ) AS content
+                  FROM `{self.table_id}` c
+                  LEFT JOIN `{metadata_id}` m ON c.gcs_uri = m.gcs_uri
+                  WHERE c.gcs_uri = @gcs_uri AND (c.embedding IS NULL OR ARRAY_LENGTH(c.embedding) = 0)
+                )
+              )
+            ) AS source
+            WHERE target.chunk_id = source.chunk_id;
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("gcs_uri", "STRING", gcs_uri)]
+        )
+        try:
+            self.bq_client.query(query, job_config=job_config).result()
+            return True
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate embeddings: {e}")

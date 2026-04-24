@@ -103,3 +103,36 @@ def test_move_blob_to_processed_no_ingested(mock_storage):
     assert result == "gs://test-bucket/other/test.pdf"
     mock_bucket.copy_blob.assert_not_called()
     mock_blob.delete.assert_not_called()
+
+def test_generate_embeddings(mock_storage, mock_bq):
+    ingestion = RAGIngestion(project_id="test-project")
+    mock_bq_client = mock_bq.return_value
+    mock_query_job = MagicMock()
+    mock_bq_client.query.return_value = mock_query_job
+
+    result = ingestion.generate_embeddings("gs://test-bucket/test.pdf")
+
+    assert result is True
+    mock_bq_client.query.assert_called_once()
+    args, kwargs = mock_bq_client.query.call_args
+    query_str = args[0]
+    
+    assert "UPDATE `test-project.knowledge_base.documents_chunks` AS target" in query_str
+    assert "MODEL `test-project.knowledge_base.multimodal_embedding_model`" in query_str
+    assert "LEFT JOIN `test-project.knowledge_base.documents_metadata` m" in query_str
+    
+    job_config = kwargs.get("job_config")
+    assert job_config is not None
+    assert len(job_config.query_parameters) == 1
+    assert job_config.query_parameters[0].name == "gcs_uri"
+    assert job_config.query_parameters[0].value == "gs://test-bucket/test.pdf"
+
+def test_generate_embeddings_failure(mock_storage, mock_bq):
+    ingestion = RAGIngestion(project_id="test-project")
+    mock_bq_client = mock_bq.return_value
+    mock_bq_client.query.side_effect = Exception("BQ Error")
+
+    with pytest.raises(RuntimeError) as exc_info:
+        ingestion.generate_embeddings("gs://test-bucket/test.pdf")
+
+    assert "Failed to generate embeddings: BQ Error" in str(exc_info.value)
