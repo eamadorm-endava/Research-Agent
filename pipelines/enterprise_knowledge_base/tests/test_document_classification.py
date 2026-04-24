@@ -12,6 +12,7 @@ from pipelines.enterprise_knowledge_base.document_classification.bq_service.sche
 )
 from pipelines.enterprise_knowledge_base.document_classification.schemas import (
     IngestMetadataBQRequest,
+    RunResponse,
 )
 
 
@@ -221,3 +222,145 @@ def test_deterministic_doc_id_consistency(pipeline, mock_bq):
     assert id1 == id2
     assert isinstance(id1, str)
     assert len(id1) > 0
+
+
+def test_run_orchestrates_full_pipeline_successfully(
+    pipeline, mock_gcs, mock_dlp, mock_gemini, mock_bq
+):
+    """Verifies that the run method executes all stages and returns the final status."""
+    landing_uri = "gs://landing/doc.pdf"
+
+    # 1. Mock Metadata
+    mock_gcs.get_blob_metadata.return_value = DocumentMetadata(
+        filename="doc.pdf",
+        mime_type="application/pdf",
+        project_name="p1",
+        uploader_email="u1@e.com",
+        proposed_domain="it",
+        trust_level="wip",
+    )
+
+    # 2. Mock DLP
+    mock_dlp.inspect_gcs_file.return_value = "job1"
+    mock_dlp.wait_for_job.return_value = []  # No findings
+    mock_dlp.mask_content.return_value = b"masked"
+    mock_gcs.upload_blob_bytes.return_value = "gs://landing/doc_masked.pdf"
+
+    # 3. Mock Gemini
+    mock_gemini.classify_document.return_value = ContextualClassificationResponse(
+        final_classification_tier=1,
+        confidence=1.0,
+        final_domain="it",
+        file_description="desc",
+    )
+
+    # 4. Mock Routing
+    mock_gcs.copy_blob.return_value = True
+
+    # 5. Mock BQ
+    mock_bq.get_latest_version.return_value = GetLatestVersionResponse(
+        current_version=0
+    )
+    mock_bq.insert_metadata.return_value = True
+
+    result = pipeline.run(landing_uri)
+
+    assert isinstance(result, RunResponse)
+    assert result.final_domain == "it"
+    assert result.final_security_tier == 1
+    # Should return original destination URI because no masking occurred
+    assert result.final_sanitized_uri == "gs://kb-it/public/p1/u1/doc.pdf"
+
+    # Verify sequence
+    mock_gcs.get_blob_metadata.assert_called()
+    mock_dlp.inspect_gcs_file.assert_called_with(landing_uri)
+    mock_gemini.classify_document.assert_called()
+    mock_gcs.copy_blob.assert_called()
+    mock_bq.insert_metadata.assert_called()
+
+
+def test_run_performs_cleanup_on_failure(pipeline, mock_gcs, mock_dlp, mock_gemini):
+    """Verifies that intermediate masked files are deleted if the pipeline fails."""
+    landing_uri = "gs://landing/doc.pdf"
+    masked_uri = "gs://landing/doc_masked.pdf"
+
+    mock_gcs.get_blob_metadata.return_value = DocumentMetadata(
+        filename="doc.txt",
+        mime_type="text/plain",
+        proposed_domain="hr",
+        trust_level="published",
+    )
+    mock_dlp.inspect_gcs_file.return_value = "job1"
+    mock_dlp.wait_for_job.return_value = ["US_SOCIAL_SECURITY_NUMBER"]  # Findings found
+    mock_gcs.download_blob_bytes.return_value = b"bytes"
+    mock_dlp.mask_content.return_value = b"masked"
+    mock_gcs.upload_blob_bytes.return_value = masked_uri
+
+    # Fail at Gemini
+    mock_gemini.classify_document.side_effect = Exception("Gemini Down")
+
+    with pytest.raises(Exception, match="Gemini Down"):
+        pipeline.run(landing_uri)
+
+    # Verify cleanup
+    mock_gcs.delete_blob.assert_any_call(masked_uri)
+
+    # Verify original was NOT deleted (since failure happened before routing)
+    # Actually file_routing deletes it, but we failed before that.
+    # We should check that delete_blob was NOT called for landing_uri.
+    # Note: delete_blob might be called for masked_uri.
+
+    calls = [call.args[0] for call in mock_gcs.delete_blob.call_args_list]
+    assert landing_uri not in calls
+
+
+def test_run_returns_masked_uri_when_sanitized(
+    pipeline, mock_gcs, mock_dlp, mock_gemini, mock_bq
+):
+    """Verifies that the run method returns the masked URI if it exists."""
+    landing_uri = "gs://landing/secret.txt"
+    masked_landing_uri = "gs://landing/secret_masked.txt"
+
+    # 1. Mock Metadata
+    mock_gcs.get_blob_metadata.return_value = DocumentMetadata(
+        filename="secret.txt",
+        mime_type="text/plain",
+        project_name="top-secret",
+        uploader_email="admin@gov.com",
+        proposed_domain="executives",
+        trust_level="archived",
+    )
+
+    # 2. Mock DLP (Findings found)
+    mock_dlp.inspect_gcs_file.return_value = "job-secret"
+    mock_dlp.wait_for_job.return_value = ["US_SOCIAL_SECURITY_NUMBER"]
+    mock_gcs.download_blob_bytes.return_value = b"raw pdf content"
+    mock_dlp.mask_image_content.return_value = b"masked image"
+    mock_gcs.upload_blob_bytes.return_value = masked_landing_uri
+
+    # 3. Mock Gemini
+    mock_gemini.classify_document.return_value = ContextualClassificationResponse(
+        final_classification_tier=5,
+        confidence=0.95,
+        final_domain="executives",
+        file_description="Secret doc.",
+    )
+
+    # 4. Mock Routing
+    mock_gcs.copy_blob.return_value = True
+
+    # 5. Mock BQ
+    mock_bq.get_latest_version.return_value = GetLatestVersionResponse(
+        current_version=1
+    )
+    mock_bq.insert_metadata.return_value = True
+
+    result = pipeline.run(landing_uri)
+
+    assert result.final_domain == "executives"
+    assert result.final_security_tier == 5
+    # Should return the final destination of the MASKED file
+    assert (
+        result.final_sanitized_uri
+        == "gs://kb-executives/strictly-confidential/top-secret/admin/secret_masked.txt"
+    )
