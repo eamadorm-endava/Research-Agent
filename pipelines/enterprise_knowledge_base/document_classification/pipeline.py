@@ -1,22 +1,34 @@
 from typing import Optional
 import fitz  # PyMuPDF
+import uuid
+from datetime import datetime, timezone
 from loguru import logger
 from .config import EKB_CONFIG
-from .dlp_service import DLPService
-from .gcs_service import GCSService
-from .gemini_service import GeminiService
+from .gcs_service.service import GCSService
+from .dlp_service.service import DLPService
+from .gemini_service.service import GeminiService
+from .bq_service.service import BQService
+from .gcs_service.schemas import DocumentMetadata
+from .dlp_service.schemas import DLPTriggerResponse
+from .gemini_service.schemas import ContextualClassificationResponse
+from .bq_service.schemas import (
+    BQMetadataRecord,
+    GetLatestVersionRequest,
+    DeprecateVersionsRequest,
+)
 from .schemas import (
-    DocumentMetadata,
-    DLPTriggerResponse,
-    ContextualClassificationResponse,
+    FileRoutingRequest,
+    FileRoutingResponse,
+    IngestMetadataBQRequest,
+    RunResponse,
 )
 
 
 class ClassificationPipeline:
     """The core logic for Step 01 and Step 02 of the Document Classification Pipeline.
 
-    This class is stateless and handles metadata extraction, security masking,
-    and LLM-based contextual classification. It adheres to the 60-line method limit.
+    This class handles metadata extraction, security masking, LLM-based classification,
+    and document versioning persistence.
     """
 
     def __init__(self) -> None:
@@ -28,6 +40,81 @@ class ClassificationPipeline:
         self.dlp = DLPService()
         self.gcs = GCSService()
         self.gemini = GeminiService()
+        self.bq = BQService()
+
+    def run(self, landing_zone_original_uri: str) -> RunResponse:
+        """Orchestrates the sequential execution of the classification pipeline.
+
+        Args:
+            landing_zone_original_uri (str): The initial URI of the document in GCS.
+
+        Returns:
+            RunResponse: Summary of the final classification and routing state.
+        """
+        logger.info(f"Starting pipeline orchestration for: {landing_zone_original_uri}")
+        sanitized_landing_uri: Optional[str] = None
+
+        try:
+            # 1. Extract Metadata
+            blob_metadata = self._get_blob_metadata(landing_zone_original_uri)
+
+            # 2. DLP Gate
+            dlp_resp = self.dlp_trigger(landing_zone_original_uri)
+            sanitized_landing_uri = dlp_resp.sanitized_gcs_uri
+
+            # 3. Contextual Classification
+            llm_resp = self.contextual_classification(
+                sanitized_url=sanitized_landing_uri,
+                proposed_classification_tier=dlp_resp.proposed_classification_tier,
+                proposed_domain=blob_metadata.proposed_domain,
+                trust_level=blob_metadata.trust_level,
+            )
+
+            # 4. File Routing
+            routing_req = FileRoutingRequest(
+                original_landing_uri=landing_zone_original_uri,
+                sanitized_landing_uri=sanitized_landing_uri,
+                final_domain=llm_resp.final_domain,
+                final_security_tier=llm_resp.final_classification_tier,
+                project_name=blob_metadata.project_name or "unknown",
+                uploader_email=blob_metadata.uploader_email or "unknown",
+            )
+            routing_resp = self.file_routing(routing_req)
+
+            # 5. Persistence
+            persistence_req = IngestMetadataBQRequest(
+                final_original_uri=routing_resp.final_original_uri,
+                final_sanitized_uri=routing_resp.final_sanitized_uri,
+                llm_classification=llm_resp,
+                blob_metadata=blob_metadata,
+            )
+            self.ingest_metadata_bq(persistence_req)
+
+            logger.info(
+                f"Pipeline completed successfully for: {landing_zone_original_uri}"
+            )
+            return RunResponse(
+                final_sanitized_uri=routing_resp.final_sanitized_uri
+                or routing_resp.final_original_uri,
+                final_security_tier=llm_resp.final_classification_tier,
+                final_domain=llm_resp.final_domain,
+            )
+
+        except Exception as e:
+            logger.error(f"Pipeline failed for {landing_zone_original_uri}: {str(e)}")
+            # Cleanup intermediate artifacts if they exist in landing zone
+            if (
+                sanitized_landing_uri
+                and sanitized_landing_uri != landing_zone_original_uri
+            ):
+                logger.warning(
+                    f"Cleaning up intermediate file: {sanitized_landing_uri}"
+                )
+                try:
+                    self.gcs.delete_blob(sanitized_landing_uri)
+                except Exception as cleanup_err:
+                    logger.error(f"Cleanup failed: {str(cleanup_err)}")
+            raise e
 
     def contextual_classification(
         self,
@@ -37,9 +124,6 @@ class ClassificationPipeline:
         trust_level: Optional[str],
     ) -> ContextualClassificationResponse:
         """Performs Phase 2 classification using Gemini 2.5 Flash.
-
-        This method leverages the multimodal capabilities of Gemini to reason over
-        the document content and return a final security verdict.
 
         Args:
             sanitized_url (str): URI of the (masked) document to classify.
@@ -63,7 +147,6 @@ class ClassificationPipeline:
 
     def dlp_trigger(self, landing_zone_original_uri: str) -> DLPTriggerResponse:
         """Triggers DLP scanning and performs masking if high-risk data is found.
-        This is the main entry point for the Phase 1 security gate.
 
         Args:
             landing_zone_original_uri (str): URI of the original document.
@@ -107,16 +190,8 @@ class ClassificationPipeline:
         return self.gcs.get_blob_metadata(original_uri)
 
     def _determine_tier(self, findings: list[str]) -> Optional[int]:
-        """Internal helper to map DLP findings to EKB Tiers.
-
-        Args:
-            findings (list[str]): List of detected InfoType names.
-
-        Returns:
-            Optional[int]: 4, 5, or None if no high-risk data found.
-        """
+        """Internal helper to map DLP findings to EKB Tiers."""
         logger.debug(f"Determining risk tier from findings: {findings}")
-        # Tier 5: Critical Risk
         if any(
             finding in EKB_CONFIG.TIER_5_INFOTYPES
             or finding in EKB_CONFIG.TIER_5_DOCUMENT_TYPES
@@ -125,7 +200,6 @@ class ClassificationPipeline:
         ):
             return 5
 
-        # Tier 4: High Risk
         if any(
             finding in EKB_CONFIG.TIER_4_DOCUMENT_TYPES
             or finding in EKB_CONFIG.TIER_4_INFOTYPES
@@ -137,16 +211,7 @@ class ClassificationPipeline:
         return None
 
     def _mask_pdf_locally(self, original_bytes: bytes, requires_context: bool) -> bytes:
-        """Splits PDF into images, redacts via DLP Image API, and merges back.
-        Uses the Split-Redact-Merge pattern to bypass direct PDF redaction limits.
-
-        Args:
-            original_bytes (bytes): The raw PDF bytes.
-            requires_context (bool): Whether to mask contextual PII.
-
-        Returns:
-            bytes: The redacted PDF bytes.
-        """
+        """Splits PDF into images, redacts via DLP Image API, and merges back."""
         logger.debug("Executing native Split-Redact-Merge on PDF buffer.")
         doc = fitz.open(stream=original_bytes, filetype="pdf")
         redacted_images = []
@@ -156,7 +221,6 @@ class ClassificationPipeline:
                 pixmap = page.get_pixmap(dpi=300)
                 image_buffer = pixmap.tobytes("png")
 
-                # Send single page to DLP Image Redactor
                 masked_img_bytes = self.dlp.mask_image_content(
                     image_buffer, "image/png", requires_context
                 )
@@ -167,14 +231,7 @@ class ClassificationPipeline:
         return self._merge_images_to_pdf(redacted_images)
 
     def _merge_images_to_pdf(self, image_list: list[bytes]) -> bytes:
-        """Helper to reconstruct a PDF from sanitized image buffers.
-
-        Args:
-            image_list (list[bytes]): List of raw PNG bytes.
-
-        Returns:
-            bytes: The merged PDF buffer.
-        """
+        """Helper to reconstruct a PDF from sanitized image buffers."""
         logger.debug(f"Merging {len(image_list)} sanitized pages into PDF.")
         output_document = fitz.open()
         try:
@@ -188,15 +245,7 @@ class ClassificationPipeline:
             output_document.close()
 
     def _mask_and_save(self, source_uri: str, requires_context: bool = False) -> str:
-        """Downloads, masks, and uploads a de-identified copy of the source.
-
-        Args:
-            source_uri (str): URI of the original document.
-            requires_context (bool): Instructs to mask contextual PII.
-
-        Returns:
-            str: URI of the masked document in GCS.
-        """
+        """Downloads, masks, and uploads a de-identified copy of the source."""
         logger.debug(f"Applying masking to: {source_uri} (Context: {requires_context})")
         filename_parts = source_uri.rsplit(".", 1)
         base_name = filename_parts[0]
@@ -219,3 +268,99 @@ class ClassificationPipeline:
         except Exception as e:
             logger.error(f"Redaction failed: {str(e)}")
             raise e
+
+    def file_routing(self, request: FileRoutingRequest) -> FileRoutingResponse:
+        """Routes the original and masked files to the domain-specific bucket."""
+        logger.info(
+            f"Routing files for domain: {request.final_domain}, Tier: {request.final_security_tier}"
+        )
+        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(
+            request.final_security_tier, "unknown"
+        )
+        filename = request.original_landing_uri.split("/")[-1]
+        uploader_prefix = request.uploader_email.split("@")[0]
+
+        dest_base = f"gs://kb-{request.final_domain}/{tier_label}/{request.project_name}/{uploader_prefix}/"
+        final_original_uri = f"{dest_base}{filename}"
+
+        # 1. Copy Original
+        self.gcs.copy_blob(request.original_landing_uri, final_original_uri)
+
+        # 2. Copy Masked (if exists)
+        final_sanitized_uri = None
+        if (
+            request.sanitized_landing_uri
+            and request.sanitized_landing_uri != request.original_landing_uri
+        ):
+            sanitized_filename = request.sanitized_landing_uri.split("/")[-1]
+            final_sanitized_uri = f"{dest_base}{sanitized_filename}"
+            self.gcs.copy_blob(request.sanitized_landing_uri, final_sanitized_uri)
+
+        # 3. Cleanup Landing Zone
+        self.gcs.delete_blob(request.original_landing_uri)
+        if (
+            request.sanitized_landing_uri
+            and request.sanitized_landing_uri != request.original_landing_uri
+        ):
+            self.gcs.delete_blob(request.sanitized_landing_uri)
+
+        return FileRoutingResponse(
+            final_original_uri=final_original_uri,
+            final_sanitized_uri=final_sanitized_uri,
+        )
+
+    def ingest_metadata_bq(self, request: IngestMetadataBQRequest) -> bool:
+        """Persists the document metadata into BQ with versioning logic.
+
+        Args:
+            request (IngestMetadataBQRequest): The metadata and classification context.
+
+        Returns:
+            bool: True if insertion was successful.
+        """
+        logger.info(
+            f"Persisting versioned metadata to BQ for: {request.final_original_uri}"
+        )
+
+        # 1. Generate Deterministic ID
+        project_id = request.blob_metadata.project_name or "unknown"
+        filename = request.blob_metadata.filename
+        gcs_uri = request.final_original_uri
+
+        identity_key = f"{project_id}/{filename}/{gcs_uri}"
+        doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, identity_key))
+
+        # 2. Handle Versioning
+        version_req = GetLatestVersionRequest(document_id=doc_id)
+        version_resp = self.bq.get_latest_version(version_req)
+
+        if version_resp.current_version > 0:
+            logger.info(
+                f"Found existing version {version_resp.current_version}. Deprecating..."
+            )
+            self.bq.deprecate_old_versions(DeprecateVersionsRequest(document_id=doc_id))
+            new_version = version_resp.current_version + 1
+        else:
+            new_version = 1
+
+        # 3. Map Tier to Label
+        tier_int = request.llm_classification.final_classification_tier
+        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(tier_int, f"tier-{tier_int}")
+
+        record = BQMetadataRecord(
+            document_id=doc_id,
+            gcs_uri=gcs_uri,
+            filename=filename,
+            classification_tier=tier_label,
+            domain=request.llm_classification.final_domain,
+            confidence_score=request.llm_classification.confidence,
+            trust_level=request.blob_metadata.trust_level or "unknown",
+            project_id=project_id,
+            uploader_email=request.blob_metadata.uploader_email or "unknown",
+            description=request.llm_classification.file_description,
+            version=new_version,
+            latest=True,
+            ingested_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+        return self.bq.insert_metadata(record)

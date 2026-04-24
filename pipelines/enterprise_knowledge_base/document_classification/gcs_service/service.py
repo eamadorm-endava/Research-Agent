@@ -83,6 +83,42 @@ class GCSService:
         blob.upload_from_string(data, content_type=content_type)
         return gcs_uri
 
+    def copy_blob(self, source_uri: str, destination_uri: str) -> str:
+        """Copies a blob from a source URI to a destination URI.
+
+        Args:
+            source_uri (str): Source GCS URI.
+            destination_uri (str): Destination GCS URI.
+
+        Returns:
+            str: The destination URI.
+        """
+        logger.info(f"Copying blob from {source_uri} to {destination_uri}")
+        src_parts = self._parse_uri(source_uri)
+        dst_parts = self._parse_uri(destination_uri)
+
+        src_bucket = self.client.bucket(src_parts["bucket_name"])
+        src_blob = src_bucket.blob(src_parts["blob_name"])
+        dst_bucket = self.client.bucket(dst_parts["bucket_name"])
+
+        src_bucket.copy_blob(src_blob, dst_bucket, dst_parts["blob_name"])
+        return destination_uri
+
+    def delete_blob(self, gcs_uri: str) -> None:
+        """Deletes a blob from GCS.
+
+        Args:
+            gcs_uri (str): GCS URI of the blob to delete.
+
+        Returns:
+            None
+        """
+        logger.info(f"Deleting blob: {gcs_uri}")
+        uri_parts = self._parse_uri(gcs_uri)
+        bucket = self.client.bucket(uri_parts["bucket_name"])
+        blob = bucket.blob(uri_parts["blob_name"])
+        blob.delete()
+
     def _parse_uri(self, gcs_uri: str) -> dict[str, str]:
         """Helper to split gs://bucket/path into dictionary components.
         Ensures the URI follows the expected gs:// protocol format.

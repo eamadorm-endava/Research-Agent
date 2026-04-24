@@ -180,5 +180,35 @@ class EKBConfig(BaseSettings):
         ),
     ]
 
+    BQ_DATASET: Annotated[
+        str,
+        Field(
+            default="knowledge_base",
+            description="The BigQuery dataset for metadata storage.",
+        ),
+    ]
+
+    BQ_TABLE: Annotated[
+        str,
+        Field(
+            default="documents_metadata",
+            description="The BigQuery table for metadata storage.",
+        ),
+    ]
+
+    TIER_TO_LABEL: Annotated[
+        dict[int, str],
+        Field(
+            default={
+                1: "public",
+                2: "internal-use-only",
+                3: "client-confidential",
+                4: "confidential",
+                5: "strictly-confidential",
+            },
+            description="Mapping from numeric tiers to URL-friendly string labels.",
+        ),
+    ]
+
 
 EKB_CONFIG = EKBConfig()
