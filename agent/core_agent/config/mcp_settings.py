@@ -188,3 +188,24 @@ class OneDriveMCPConfig(BaseMCPConfig):
             ),
         ),
     ]
+
+
+class AtlassianMCPConfig(BaseMCPConfig):
+    """Configuration for the Atlassian (Jira & Confluence) MCP server."""
+
+    URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8085",
+            description="Atlassian MCP Server URL",
+            validation_alias="ATLASSIAN_URL",
+        ),
+    ]
+    ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="Atlassian MCP Server Endpoint",
+            validation_alias="ATLASSIAN_ENDPOINT",
+        ),
+    ]
