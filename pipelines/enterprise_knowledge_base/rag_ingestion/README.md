@@ -52,8 +52,10 @@ This module is managed under the `rag_pipeline` dependency group in `pyproject.t
 |---|---|
 | `__init__.py` | Exposes the `RAGIngestion` class. |
 | `rag_ingestion.py` | Contains the `RAGIngestion` class. Adheres to strict 60-line method limits and handles all parsing, chunking, and BQ insertion logic. |
+| `main.py` | Cloud Function HTTP entry point that wraps the `KBIngestionPipeline` orchestrator. |
+| `cloudbuild.yaml` | Cloud Build CI/CD configuration to test, lint (enforce 60-statement limit), and deploy via Terraform. |
 | `../../tests/test_rag_ingestion.py` | Contains isolated Mock-based Pytest unit and integration tests. |
-| `../../../notebooks/enterprise_knowledge_base/rag_ingestion/rag_verification.ipynb` | A Jupyter Notebook for Stage 1 prototyping and manual verification of the end-to-end BQ insertion. |
+| `../../../notebooks/enterprise_knowledge_base/rag_ingestion/rag_verification.ipynb` | A Jupyter Notebook for testing the pipeline end-to-end, including Cloud Function HTTP endpoint invocation. |
 
 ## Manual Testing via Notebook
 
@@ -83,4 +85,17 @@ To manually test the RAG Ingestion pipeline and verify BigQuery insertions using
 
 5. **Verify in BigQuery**:
    - Run the final cell in the notebook to query the `knowledge_base.documents_chunks` table. 
-   - Verify that the `chunk_data` contains the parsed text, `structural_metadata` contains the page number, and the `embedding` array is empty (`[]`).
+   - Verify that the `chunk_data` contains the parsed text, `structural_metadata` contains the page number, and the `embedding` array is empty (`[]`) or populated if vectorization ran.
+
+## Automated Deployment (Cloud Function)
+
+The `RAGIngestion` module is deployed as a fully automated HTTP-triggered **Cloud Function v2** via Terraform. It is wrapped by the `KBIngestionPipeline` orchestrator (`orchestrator.py`), which ensures that Document Classification runs successfully before RAG ingestion begins.
+
+1. **Deployment Architecture**:
+   - Deployed using Cloud Foundation Fabric (CFF) Terraform modules in `terraform/rag_ingestion_resources/`.
+   - The Cloud Function executes as a dedicated service account (`rag-ingestion-sa`) with least-privilege IAM roles.
+   - Triggered securely; unauthenticated invocation is blocked.
+2. **CI/CD Pipeline**:
+   - Fully automated through Cloud Build (`cloudbuild.yaml`).
+   - Triggered on PRs and merges to the `main` branch.
+   - Enforces a 60-statements-per-method limit using `pylint`.

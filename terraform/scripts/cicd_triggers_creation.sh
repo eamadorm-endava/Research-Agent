@@ -112,4 +112,9 @@ create_trigger "drive-mcp-server-services-apply" "push" "terraform/drive_mcp_ser
 create_trigger "calendar-mcp-server-services-plan" "pr" "terraform/google_calendar_mcp_server_resources" "terraform/google_calendar_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_calendar/**"
 create_trigger "calendar-mcp-server-services-apply" "push" "terraform/google_calendar_mcp_server_resources" "terraform/google_calendar_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_calendar/**"
 
+# --- Enterprise Knowledge Base (RAG Ingestion) Triggers ---
+# CI/CD for RAG Ingestion pipeline
+create_trigger "rag-ingestion-services-plan" "pr" "terraform/rag_ingestion_resources" "pipelines/enterprise_knowledge_base/rag_ingestion/cloudbuild.yaml" "pipelines/enterprise_knowledge_base/**"
+create_trigger "rag-ingestion-services-apply" "push" "terraform/rag_ingestion_resources" "pipelines/enterprise_knowledge_base/rag_ingestion/cloudbuild.yaml" "pipelines/enterprise_knowledge_base/**"
+
 echo "Done. All AI Agent and MCP triggers are created (or already existed)."

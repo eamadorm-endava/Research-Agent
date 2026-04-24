@@ -1,0 +1,41 @@
+steps:
+  # 1. Install dependencies and run tests
+  - name: 'python:3.12-slim'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install uv
+        uv pip install -r pipelines/enterprise_knowledge_base/rag_ingestion/requirements.txt --system
+        # Assuming tests are in tests/
+        if [ -d "pipelines/enterprise_knowledge_base/tests" ]; then
+          pip install pytest pytest-asyncio pytest-mock
+          pytest pipelines/enterprise_knowledge_base/tests/
+        fi
+
+  # 2. Enforce 60-lines-per-method via automated linting
+  - name: 'python:3.12-slim'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install pylint
+        # R0915 is too-many-statements. Setting it to 60 as a proxy for lines-per-method.
+        pylint --disable=all --enable=R0915 --max-statements=60 pipelines/enterprise_knowledge_base/rag_ingestion/*.py pipelines/enterprise_knowledge_base/document_classification/*.py pipelines/enterprise_knowledge_base/orchestrator.py
+
+  # 3. Terraform deploy
+  - name: 'hashicorp/terraform:1.5'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        # In Cloud Build, default workspace is the root of the repo
+        # Copy main.py and requirements.txt to root so terraform archive_file can package it easily
+        cp pipelines/enterprise_knowledge_base/rag_ingestion/main.py ./main.py
+        cp pipelines/enterprise_knowledge_base/rag_ingestion/requirements.txt ./requirements.txt
+        cd terraform/rag_ingestion_resources
+        terraform init
+        terraform apply -auto-approve
+
+options:
+  logging: CLOUD_LOGGING_ONLY

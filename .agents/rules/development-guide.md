@@ -8,6 +8,10 @@ description: "Development lifecycle protocols: Stage 1 (Prototyping/Notebooks) v
 
 This guide defines the mandatory lifecycle for developing, verifying, and promoting deployable components in the Research-Agent project.
 
+## Core Operational Rules
+- **Resource Deletion**: NEVER delete any GCP resources, databases, infrastructure files, or structural components without explicit user confirmation first.
+- **Manual Command Execution**: When a command or bash script needs to be executed (e.g., `gcloud` commands, terraform commands, or `.sh` execution scripts), DO NOT execute it automatically. You must provide the exact command to the user so they can execute it in their own terminal and provide you with feedback on the result.
+
 ## The Two-Issue Strategy
 Every deployable feature (e.g., `smae_engine`, `nutrient_agent`) must be split into **two distinct GitHub issues**:
 1. **Issue Part A**: Stage 1 - Prototyping & Scripting.

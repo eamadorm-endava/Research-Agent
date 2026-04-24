@@ -163,3 +163,15 @@ run-classification-tests:
 verify-classification-ci:
 	$(MAKE) run-classification-precommit
 	$(MAKE) run-classification-tests
+
+### RAG Ingestion Pipeline Commands ###
+
+run-rag-precommit:
+	uvx pre-commit run --files pipelines/enterprise_knowledge_base/rag_ingestion/**/*
+
+run-rag-tests:
+	uv run --group rag_pipeline pytest pipelines/enterprise_knowledge_base/tests/
+
+verify-rag-ci:
+	$(MAKE) run-rag-precommit
+	$(MAKE) run-rag-tests

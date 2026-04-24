@@ -50,4 +50,19 @@ bq query --use_legacy_sql=false \
   ingested_at TIMESTAMP
 );"
 
+echo "Creating BigQuery table knowledge_base.documents_chunks..."
+bq query --use_legacy_sql=false \
+"CREATE TABLE IF NOT EXISTS \`$PROJECT_ID.$DATASET.documents_chunks\` (
+  chunk_id STRING,
+  document_id STRING,
+  chunk_data STRING,
+  gcs_uri STRING,
+  filename STRING,
+  structural_metadata JSON,
+  page_number INT64,
+  embedding ARRAY<FLOAT64>,
+  created_at TIMESTAMP,
+  vectorized_at TIMESTAMP
+);"
+
 echo "Resources created successfully."
