@@ -24,5 +24,5 @@ class BQMetadataRecord(BaseModel):
     uploader_email: Annotated[str, Field(description="Uploader's email address.")]
     description: Annotated[str, Field(description="AI-generated content summary.")]
     version: Annotated[int, Field(description="Incremental version number.", default=1)]
-    is_latest: Annotated[bool, Field(description="Whether this is the latest version.")]
+    latest: Annotated[bool, Field(description="Whether this is the latest version.")]
     ingested_at: Annotated[str, Field(description="ISO 8601 ingestion timestamp.")]

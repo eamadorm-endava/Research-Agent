@@ -200,7 +200,7 @@ Low-confidence results are surfaced through BigQuery queries rather than physica
 | `uploader_email` | `STRING` | Account that uploaded the file |
 | `description` | `STRING` | AI Summary (Generated via Gemini) |
 | `version` | `INT64` | Incremental version number |
-| `is_latest` | `BOOL` | Flag for the current active version |
+| `latest` | `BOOL` | Flag for the current active version |
 | `ingested_at` | `TIMESTAMP` | ISO 8601 timestamp |
 
 ### 7.2 Chunks Table (`documents_chunks`)

@@ -303,7 +303,7 @@ class ClassificationPipeline:
             uploader_email=request.blob_metadata.uploader_email or "unknown",
             description=request.llm_classification.file_description,
             version=1,
-            is_latest=True,
+            latest=True,
             ingested_at=datetime.now(timezone.utc).isoformat(),
         )
 

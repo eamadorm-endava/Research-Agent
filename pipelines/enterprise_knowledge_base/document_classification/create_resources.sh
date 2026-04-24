@@ -46,7 +46,7 @@ if bq show "${PROJECT_ID}:${DATASET_NAME}.${TABLE_NAME}" >/dev/null 2>&1; then
 else
     # Schema matches Design.md + Issue #114 requirements
     bq mk --table "${PROJECT_ID}:${DATASET_NAME}.${TABLE_NAME}" \
-    document_id:STRING,gcs_uri:STRING,filename:STRING,classification_tier:INT64,domain:STRING,confidence_score:FLOAT64,trust_level:STRING,project_id:STRING,uploader_email:STRING,description:STRING,version:INT64,is_latest:BOOL,ingested_at:TIMESTAMP
+    document_id:STRING,gcs_uri:STRING,filename:STRING,classification_tier:INT64,domain:STRING,confidence_score:FLOAT64,trust_level:STRING,project_id:STRING,uploader_email:STRING,description:STRING,version:INT64,latest:BOOL,ingested_at:TIMESTAMP
     echo "Table created."
 fi
 

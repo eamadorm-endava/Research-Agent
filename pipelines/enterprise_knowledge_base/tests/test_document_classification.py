@@ -377,5 +377,5 @@ def test_metadata_bq_inserts_correct_record(pipeline, mock_bq):
     assert record_model.classification_tier == 5
     assert record_model.domain == "hr"
     assert record_model.uploader_email == "admin@hr.com"
-    assert record_model.is_latest is True
+    assert record_model.latest is True
     assert record_model.document_id is not None
