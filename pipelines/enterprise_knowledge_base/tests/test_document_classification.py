@@ -11,7 +11,7 @@ from pipelines.enterprise_knowledge_base.document_classification.bq_service.sche
     GetLatestVersionResponse,
 )
 from pipelines.enterprise_knowledge_base.document_classification.schemas import (
-    MetadataBQRequest,
+    IngestMetadataBQRequest,
 )
 
 
@@ -108,9 +108,9 @@ def test_dlp_trigger_with_findings_returns_masked(pipeline, mock_dlp, mock_gcs):
     assert result.proposed_classification_tier == 5
 
 
-def test_metadata_bq_versioning_first_upload(pipeline, mock_bq):
+def test_ingest_metadata_bq_versioning_first_upload(pipeline, mock_bq):
     """Verifies version 1 is assigned on the first upload of a document."""
-    request = MetadataBQRequest(
+    request = IngestMetadataBQRequest(
         final_original_uri="gs://kb-hr/strictly-confidential/hr-data/admin/record.pdf",
         final_sanitized_uri=None,
         llm_classification=ContextualClassificationResponse(
@@ -134,7 +134,7 @@ def test_metadata_bq_versioning_first_upload(pipeline, mock_bq):
         current_version=0
     )
 
-    pipeline.metadata_bq(request)
+    pipeline.ingest_metadata_bq(request)
 
     # Capture record
     args, _ = mock_bq.insert_metadata.call_args
@@ -146,9 +146,9 @@ def test_metadata_bq_versioning_first_upload(pipeline, mock_bq):
     mock_bq.deprecate_old_versions.assert_not_called()
 
 
-def test_metadata_bq_versioning_increment(pipeline, mock_bq):
+def test_ingest_metadata_bq_versioning_increment(pipeline, mock_bq):
     """Verifies version is incremented and old versions deprecated on re-upload."""
-    request = MetadataBQRequest(
+    request = IngestMetadataBQRequest(
         final_original_uri="gs://kb-hr/confidential/hr-data/admin/record.pdf",
         final_sanitized_uri=None,
         llm_classification=ContextualClassificationResponse(
@@ -172,7 +172,7 @@ def test_metadata_bq_versioning_increment(pipeline, mock_bq):
         current_version=2
     )
 
-    pipeline.metadata_bq(request)
+    pipeline.ingest_metadata_bq(request)
 
     # Capture record
     args, _ = mock_bq.insert_metadata.call_args
@@ -186,7 +186,7 @@ def test_metadata_bq_versioning_increment(pipeline, mock_bq):
 
 def test_deterministic_doc_id_consistency(pipeline, mock_bq):
     """Verifies that the same natural key results in the same document_id."""
-    request = MetadataBQRequest(
+    request = IngestMetadataBQRequest(
         final_original_uri="gs://kb-it/public/proj/user/doc.txt",
         final_sanitized_uri=None,
         llm_classification=ContextualClassificationResponse(
@@ -208,13 +208,13 @@ def test_deterministic_doc_id_consistency(pipeline, mock_bq):
         current_version=0
     )
 
-    pipeline.metadata_bq(request)
+    pipeline.ingest_metadata_bq(request)
     args1, _ = mock_bq.insert_metadata.call_args
     id1 = args1[0].document_id
 
     # Reset mock and run again with same data
     mock_bq.insert_metadata.reset_mock()
-    pipeline.metadata_bq(request)
+    pipeline.ingest_metadata_bq(request)
     args2, _ = mock_bq.insert_metadata.call_args
     id2 = args2[0].document_id
 

@@ -19,7 +19,7 @@ from .bq_service.schemas import (
 from .schemas import (
     FileRoutingRequest,
     FileRoutingResponse,
-    MetadataBQRequest,
+    IngestMetadataBQRequest,
 )
 
 
@@ -234,11 +234,11 @@ class ClassificationPipeline:
             final_sanitized_uri=final_sanitized_uri,
         )
 
-    def metadata_bq(self, request: MetadataBQRequest) -> bool:
+    def ingest_metadata_bq(self, request: IngestMetadataBQRequest) -> bool:
         """Persists the document metadata into BQ with versioning logic.
 
         Args:
-            request (MetadataBQRequest): The metadata and classification context.
+            request (IngestMetadataBQRequest): The metadata and classification context.
 
         Returns:
             bool: True if insertion was successful.

@@ -30,8 +30,8 @@ class FileRoutingResponse(BaseModel):
     ]
 
 
-class MetadataBQRequest(BaseModel):
-    """Request schema for the metadata_bq method."""
+class IngestMetadataBQRequest(BaseModel):
+    """Request schema for the ingest_metadata_bq method."""
 
     final_original_uri: Annotated[str, Field(description="Final original URI.")]
     final_sanitized_uri: Annotated[
