@@ -45,9 +45,10 @@ flowchart TD
     end
 
     subgraph VECTOR["3 Vectorization (RAG) — Cloud Run"]
-        CLEAN -- Programmatic POST --> N["BigQuery ML: Document Chunking & Vectorization"]
-        N --> O["BigQuery documents_chunks Table"]
-        O --> P["AI Agent: ekb_semantic_search (OAuth Restricted)"]
+        CLEAN -- Programmatic POST --> N["RAGIngestion: Chunking & Deduplication"]
+        N -- "ingested/ → processed/" --> O["BigQuery documents_chunks Table"]
+        O --> P["BigQuery ML: Generate Embeddings"]
+        P --> Q["AI Agent: ekb_semantic_search (OAuth Restricted)"]
     end
 ```
 

@@ -37,7 +37,7 @@ The entry point for Phase 1.
 ## Usage Example
 ```python
 pipeline = ClassificationPipeline()
-response = pipeline.dlp_trigger("gs://landing_zone/payroll_report.pdf")
+response = pipeline.dlp_trigger("gs://ag-core-dev-fdx7-kb-landing-zone/payroll_report.pdf")
 
 if response.proposed_classification_tier >= 4:
     print(f"Sensitive document detected. Processing masked version: {response.sanitized_gcs_uri}")

@@ -3,7 +3,7 @@
 
 set -e
 
-BUCKET_NAME="enterprise_knowledgebase_landing_zone"
+BUCKET_NAME="ag-core-dev-fdx7-kb-landing-zone"
 
 echo "Deleting landing zone bucket and its contents: ${BUCKET_NAME}..."
 if gsutil ls -b "gs://${BUCKET_NAME}" >/dev/null 2>&1; then

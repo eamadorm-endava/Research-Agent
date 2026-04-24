@@ -4,7 +4,7 @@
 set -e
 
 PROJECT_ID=$(gcloud config get-value project)
-BUCKET_NAME="enterprise_knowledgebase_landing_zone"
+BUCKET_NAME="ag-core-dev-fdx7-kb-landing-zone"
 LOCATION="us-central1"
 
 echo "Enabling required APIs..."
@@ -17,5 +17,10 @@ else
     gcloud storage buckets create "gs://${BUCKET_NAME}" --location="${LOCATION}" --project="${PROJECT_ID}"
     echo "Bucket created."
 fi
+
+echo "Creating subdirectories..."
+# Creating 0-byte objects to represent folders
+echo -n "" | gcloud storage cp - "gs://${BUCKET_NAME}/ingested/"
+echo -n "" | gcloud storage cp - "gs://${BUCKET_NAME}/processed/"
 
 echo "Infrastructure setup complete."
