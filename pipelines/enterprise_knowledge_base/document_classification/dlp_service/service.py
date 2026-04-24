@@ -2,7 +2,7 @@ import time
 from typing import Union
 from google.cloud import dlp_v2
 from loguru import logger
-from .config import EKB_CONFIG
+from ..config import EKB_CONFIG
 
 
 class DLPService:

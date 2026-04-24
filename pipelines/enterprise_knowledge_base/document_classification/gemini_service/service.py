@@ -3,7 +3,7 @@ from typing import Optional
 from google import genai
 from google.genai import types
 from loguru import logger
-from .config import EKB_CONFIG
+from ..config import EKB_CONFIG
 from .schemas import ContextualClassificationResponse
 
 

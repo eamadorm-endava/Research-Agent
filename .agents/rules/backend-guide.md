@@ -45,6 +45,17 @@ All backend development must strictly adhere to these Python-specific protocols:
   - **Two-Layer Depth**: Limit nested hints to two levels (e.g., `dict[str, list]`).
   - **Modern Syntax**: Use `Self`, `Optional`, and `Union` from `typing`.
   - **No String Hints**: Never use string forward references for types.
+ 
+ ### Service Packaging & Structure
+ For complex components or pipelines, organize logic into domain-specific sub-packages using the following standards:
+ - **Folder Naming**: Use the `_service` suffix for all service folders (e.g., `bq_service`, `gcs_service`, `dlp_service`).
+ - **Internal Structure**:
+   - `service.py`: Contains the main service class implementation.
+   - `schemas.py`: Contains the Pydantic models (`Request`, `Response`, etc.) specific to that service.
+ - **Imports**:
+   - Use **Relative Imports** exclusively within the component (e.g., `from .schemas import ...`).
+   - **Maximum Depth**: Limit upper-level relative imports to a maximum of one level (`..`). For example, `from ..config import ...` is allowed, but `from ...base import ...` is strictly forbidden.
+ - **Configuration**: Keep a centralized `config.py` at the root of the component to be shared across sub-services.
 
 ### Implementation Example
 ```python
