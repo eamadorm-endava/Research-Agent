@@ -20,6 +20,7 @@ from .schemas import (
     FileRoutingRequest,
     FileRoutingResponse,
     IngestMetadataBQRequest,
+    RunResponse,
 )
 
 
@@ -40,6 +41,80 @@ class ClassificationPipeline:
         self.gcs = GCSService()
         self.gemini = GeminiService()
         self.bq = BQService()
+
+    def run(self, landing_zone_original_uri: str) -> RunResponse:
+        """Orchestrates the sequential execution of the classification pipeline.
+
+        Args:
+            landing_zone_original_uri (str): The initial URI of the document in GCS.
+
+        Returns:
+            RunResponse: Summary of the final classification and routing state.
+        """
+        logger.info(f"Starting pipeline orchestration for: {landing_zone_original_uri}")
+        sanitized_landing_uri: Optional[str] = None
+
+        try:
+            # 1. Extract Metadata
+            blob_metadata = self._get_blob_metadata(landing_zone_original_uri)
+
+            # 2. DLP Gate
+            dlp_resp = self.dlp_trigger(landing_zone_original_uri)
+            sanitized_landing_uri = dlp_resp.sanitized_gcs_uri
+
+            # 3. Contextual Classification
+            llm_resp = self.contextual_classification(
+                sanitized_url=sanitized_landing_uri,
+                proposed_classification_tier=dlp_resp.proposed_classification_tier,
+                proposed_domain=blob_metadata.proposed_domain,
+                trust_level=blob_metadata.trust_level,
+            )
+
+            # 4. File Routing
+            routing_req = FileRoutingRequest(
+                original_landing_uri=landing_zone_original_uri,
+                sanitized_landing_uri=sanitized_landing_uri,
+                final_domain=llm_resp.final_domain,
+                final_security_tier=llm_resp.final_classification_tier,
+                project_name=blob_metadata.project_name or "unknown",
+                uploader_email=blob_metadata.uploader_email or "unknown",
+            )
+            routing_resp = self.file_routing(routing_req)
+
+            # 5. Persistence
+            persistence_req = IngestMetadataBQRequest(
+                final_original_uri=routing_resp.final_original_uri,
+                final_sanitized_uri=routing_resp.final_sanitized_uri,
+                llm_classification=llm_resp,
+                blob_metadata=blob_metadata,
+            )
+            self.ingest_metadata_bq(persistence_req)
+
+            logger.info(
+                f"Pipeline completed successfully for: {landing_zone_original_uri}"
+            )
+            return RunResponse(
+                final_sanitized_uri=routing_resp.final_sanitized_uri
+                or routing_resp.final_original_uri,
+                final_security_tier=llm_resp.final_classification_tier,
+                final_domain=llm_resp.final_domain,
+            )
+
+        except Exception as e:
+            logger.error(f"Pipeline failed for {landing_zone_original_uri}: {str(e)}")
+            # Cleanup intermediate artifacts if they exist in landing zone
+            if (
+                sanitized_landing_uri
+                and sanitized_landing_uri != landing_zone_original_uri
+            ):
+                logger.warning(
+                    f"Cleaning up intermediate file: {sanitized_landing_uri}"
+                )
+                try:
+                    self.gcs.delete_blob(sanitized_landing_uri)
+                except Exception as cleanup_err:
+                    logger.error(f"Cleanup failed: {str(cleanup_err)}")
+            raise e
 
     def contextual_classification(
         self,

@@ -44,3 +44,18 @@ class IngestMetadataBQRequest(BaseModel):
     blob_metadata: Annotated[
         DocumentMetadata, Field(description="Metadata extracted from GCS.")
     ]
+
+
+class RunResponse(BaseModel):
+    """Schema for the final response of the pipeline orchestration."""
+
+    final_sanitized_uri: Annotated[
+        str,
+        Field(
+            description="Final URI of the sanitized doc. Defaults to original if no masking occurred."
+        ),
+    ]
+    final_security_tier: Annotated[
+        int, Field(description="The definitive security tier.")
+    ]
+    final_domain: Annotated[str, Field(description="The validated target domain.")]
