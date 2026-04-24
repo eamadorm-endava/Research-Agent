@@ -13,7 +13,7 @@ from pipelines.enterprise_knowledge_base.rag_ingestion import (
 def mock_config():
     """Mock the RAG_CONFIG to avoid environment dependency."""
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.service.RAG_CONFIG"
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.RAG_CONFIG"
     ) as mock:
         mock.PROJECT_ID = "test-project"
         mock.BQ_DATASET = "knowledge_base"
@@ -23,13 +23,14 @@ def mock_config():
         mock.CHUNK_OVERLAP = 100
         mock.GCS_INGESTED_PREFIX = "ingested/"
         mock.GCS_PROCESSED_PREFIX = "processed/"
+        mock.RAG_STAGING_BUCKET = "test-staging-bucket"
         yield mock
 
 
 @pytest.fixture
 def mock_storage():
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.service.storage.Client"
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.storage.Client"
     ) as mock:
         yield mock
 
@@ -37,7 +38,7 @@ def mock_storage():
 @pytest.fixture
 def mock_bq():
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.service.bigquery.Client"
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.bigquery.Client"
     ) as mock:
         mock_client = mock.return_value
         mock_query_job = MagicMock()
@@ -49,7 +50,7 @@ def mock_bq():
 @pytest.fixture
 def mock_fitz():
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.service.fitz.open"
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.fitz.open"
     ) as mock:
         mock_doc = MagicMock()
         mock_page = MagicMock()
@@ -67,15 +68,15 @@ def test_ingest_document_success(mock_storage, mock_bq, mock_fitz):
 
     assert response.chunk_count > 0
     assert response.execution_status == "SUCCESS"
-    assert response.processed_uri == "gs://test-bucket/processed/test.pdf"
+    assert response.processed_uri == "gs://test-bucket/ingested/test.pdf"
 
     # Verify BQ calls
     mock_bq_client = mock_bq.return_value
     mock_bq_client.load_table_from_json.assert_called_once()
 
-    # Verify GCS calls
+    # Verify GCS calls (should be 2 copies: Domain -> Staging, Staging Ingested -> Staging Processed)
     mock_bucket = mock_storage.return_value.bucket.return_value
-    mock_bucket.copy_blob.assert_called_once()
+    assert mock_bucket.copy_blob.call_count == 2
 
 
 def test_ingest_document_already_processed(mock_storage, mock_bq, mock_fitz):

@@ -12,16 +12,30 @@ from loguru import logger
 
 
 class KBIngestionPipeline:
-    """Orchestrates the ingestion, classification, and vectorization of documents."""
+    """Orchestrates the ingestion, classification, and vectorization of documents.
+
+    This class serves as the central entry point for the EKB pipeline, coordinating
+    the sequential execution of security classification and semantic indexing.
+    """
 
     def __init__(self, project_id: str):
+        """Initializes the orchestrator with required sub-services.
+
+        Args:
+            project_id: str -> The GCP Project ID for all operations.
+        """
         self.project_id = project_id
         self.classification_pipeline = ClassificationPipeline()
         self.rag_pipeline = RAGIngestion()
 
-    def trigger_pipeline(self, gcs_uri: str) -> None:
-        """
-        Orchestrates the entire ingestion process.
+    def run(self, gcs_uri: str) -> None:
+        """Orchestrates the entire ingestion process end-to-end.
+
+        Args:
+            gcs_uri: str -> The initial landing URI of the document.
+
+        Returns:
+            None
         """
         logger.info(f"Triggering KB Ingestion Pipeline for: {gcs_uri}")
 
@@ -54,8 +68,8 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
-    project_id = sys.argv[1]
-    gcs_uri = sys.argv[2]
+    proj_id = sys.argv[1]
+    input_uri = sys.argv[2]
 
-    pipeline = KBIngestionPipeline(project_id)
-    pipeline.trigger_pipeline(gcs_uri)
+    pipeline = KBIngestionPipeline(proj_id)
+    pipeline.run(input_uri)

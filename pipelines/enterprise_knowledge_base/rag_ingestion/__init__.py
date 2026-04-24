@@ -1,4 +1,4 @@
-from .service import RAGIngestion
+from .pipeline import RAGIngestion
 from .schemas import (
     IngestDocumentRequest,
     IngestDocumentResponse,

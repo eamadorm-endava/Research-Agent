@@ -24,6 +24,14 @@ class RAGConfig(BaseSettings):
         ),
     ]
 
+    RAG_STAGING_BUCKET: Annotated[
+        str,
+        Field(
+            default="ag-core-dev-fdx7-rag-staging",
+            description="Dedicated GCS bucket for RAG ingestion staging lifecycle.",
+        ),
+    ]
+
     BQ_DATASET: Annotated[
         str,
         Field(
