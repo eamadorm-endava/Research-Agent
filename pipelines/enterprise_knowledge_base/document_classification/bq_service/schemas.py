@@ -11,7 +11,8 @@ class BQMetadataRecord(BaseModel):
     ]
     filename: Annotated[str, Field(description="The original filename.")]
     classification_tier: Annotated[
-        int, Field(description="Numeric classification tier (1-5).")
+        str,
+        Field(description="String classification label (public, confidential, etc.)."),
     ]
     domain: Annotated[str, Field(description="The business domain (it, hr, etc.).")]
     confidence_score: Annotated[
@@ -26,3 +27,33 @@ class BQMetadataRecord(BaseModel):
     version: Annotated[int, Field(description="Incremental version number.", default=1)]
     latest: Annotated[bool, Field(description="Whether this is the latest version.")]
     ingested_at: Annotated[str, Field(description="ISO 8601 ingestion timestamp.")]
+
+
+class GetLatestVersionRequest(BaseModel):
+    """Request schema to find the current version of a document."""
+
+    document_id: Annotated[
+        str, Field(description="Deterministic UUID for the document.")
+    ]
+
+
+class GetLatestVersionResponse(BaseModel):
+    """Response schema containing the current version."""
+
+    current_version: Annotated[
+        int, Field(description="Highest version found in BQ, or 0 if none.")
+    ]
+
+
+class DeprecateVersionsRequest(BaseModel):
+    """Request schema to mark old records as not latest."""
+
+    document_id: Annotated[
+        str, Field(description="Deterministic UUID for the document.")
+    ]
+
+
+class DeprecateVersionsResponse(BaseModel):
+    """Response schema for the deprecation operation."""
+
+    updated_count: Annotated[int, Field(description="Number of rows updated.")]
