@@ -3,40 +3,59 @@ Placeholder orchestrator for the Enterprise Knowledge Base ingestion pipeline.
 """
 
 import sys
-from pipelines.enterprise_knowledge_base.rag_ingestion import RAGIngestion
+from .rag_ingestion import (
+    RAGIngestion,
+    IngestDocumentRequest,
+)
+from .document_classification.pipeline import ClassificationPipeline
+from loguru import logger
+
 
 class KBIngestionPipeline:
     """Orchestrates the ingestion, classification, and vectorization of documents."""
-    
+
     def __init__(self, project_id: str):
         self.project_id = project_id
-        self.rag_pipeline = RAGIngestion(project_id=self.project_id)
+        self.classification_pipeline = ClassificationPipeline()
+        self.rag_pipeline = RAGIngestion()
 
     def trigger_pipeline(self, gcs_uri: str) -> None:
         """
-        Executes the staging and vectorization pipeline for a given document.
+        Orchestrates the entire ingestion process.
         """
-        print(f"Triggering pipeline for {gcs_uri}...")
-        
-        # 1. Parse, chunk, and stage into BigQuery
-        chunk_count = self.rag_pipeline.run_staging(gcs_uri)
-        print(f"Successfully staged {chunk_count} chunks.")
-        
-        # 2. Programmatically trigger vectorization via BQML
-        if chunk_count > 0:
-            print("Initiating BigQuery ML vectorization...")
-            self.rag_pipeline.generate_embeddings(gcs_uri)
-            print("Vectorization complete.")
+        logger.info(f"Triggering KB Ingestion Pipeline for: {gcs_uri}")
+
+        # 1. Execute Classification Pipeline
+        logger.info("Step 1: Running Document Classification...")
+        class_resp = self.classification_pipeline.run(gcs_uri)
+        logger.info(f"Classification complete. Domain: {class_resp.final_domain}")
+
+        # 2. Execute end-to-end RAG pipeline
+        logger.info(
+            f"Step 2: Running RAG Ingestion for {class_resp.final_sanitized_uri}..."
+        )
+        ingest_req = IngestDocumentRequest(gcs_uri=class_resp.final_sanitized_uri)
+        ingest_resp = self.rag_pipeline.run(ingest_req)
+
+        if "SUCCESS" in ingest_resp.execution_status:
+            logger.info(
+                f"Pipeline finished successfully. Chunks: {ingest_resp.chunk_count}"
+            )
         else:
-            print("No chunks to vectorize.")
+            logger.warning(
+                f"Pipeline finished with status: {ingest_resp.execution_status}"
+            )
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: uv run python -m pipelines.enterprise_knowledge_base.orchestrator <project_id> <gcs_uri>")
+        print(
+            "Usage: uv run python -m pipelines.enterprise_knowledge_base.orchestrator <project_id> <gcs_uri>"
+        )
         sys.exit(1)
-        
+
     project_id = sys.argv[1]
     gcs_uri = sys.argv[2]
-    
+
     pipeline = KBIngestionPipeline(project_id)
     pipeline.trigger_pipeline(gcs_uri)
