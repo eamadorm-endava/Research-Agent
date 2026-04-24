@@ -10,6 +10,7 @@ from .config import (
     CALENDAR_MCP_CONFIG,
     DRIVE_MCP_CONFIG,
     GCS_MCP_CONFIG,
+    ATLASSIAN_MCP_CONFIG,
     GOOGLE_AUTH_CONFIG,
 )
 
@@ -38,6 +39,7 @@ research_agent = (
             DRIVE_MCP_CONFIG,
             CALENDAR_MCP_CONFIG,
             GCS_MCP_CONFIG,
+            ATLASSIAN_MCP_CONFIG,
         ]
     )
     .with_native_tools(

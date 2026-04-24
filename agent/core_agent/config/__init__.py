@@ -16,11 +16,13 @@ from .mcp_settings import (
     CALENDAR_MCP_CONFIG,
     DRIVE_MCP_CONFIG,
     GCS_MCP_CONFIG,
+    ATLASSIAN_MCP_CONFIG,
     BaseMCPConfig,
     BigQueryMCPConfig,
     CalendarMCPConfig,
     DriveMCPConfig,
     GCSMCPConfig,
+    AtlassianMCPConfig,
 )
 
 __all__ = [
@@ -35,6 +37,7 @@ __all__ = [
     "CalendarMCPConfig",
     "DriveMCPConfig",
     "GCSMCPConfig",
+    "AtlassianMCPConfig",
     "GCP_CONFIG",
     "COORDINATOR_CONFIG",
     "RESEARCH_AGENT_CONFIG",
@@ -44,4 +47,5 @@ __all__ = [
     "DRIVE_MCP_CONFIG",
     "CALENDAR_MCP_CONFIG",
     "GCS_MCP_CONFIG",
+    "ATLASSIAN_MCP_CONFIG",
 ]

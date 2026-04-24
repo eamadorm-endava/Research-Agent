@@ -269,3 +269,28 @@ BIGQUERY_MCP_CONFIG = BigQueryMCPConfig()
 DRIVE_MCP_CONFIG = DriveMCPConfig()
 CALENDAR_MCP_CONFIG = CalendarMCPConfig()
 GCS_MCP_CONFIG = GCSMCPConfig()
+
+
+class AtlassianMCPConfig(BaseMCPConfig):
+    """Configuration for the Atlassian (Jira & Confluence) MCP server."""
+
+    URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8085",
+            description="Atlassian MCP Server URL",
+            validation_alias="ATLASSIAN_URL",
+        ),
+    ]
+    ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="Atlassian MCP Server Endpoint",
+            validation_alias="ATLASSIAN_ENDPOINT",
+        ),
+    ]
+
+
+ATLASSIAN_MCP_CONFIG = AtlassianMCPConfig()
+
