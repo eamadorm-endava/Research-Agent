@@ -51,3 +51,31 @@ Since Cloud DLP does not natively redact binary PDF content, we implement the **
 - **Auth**: Operates under the **delegated OAuth context** of the end-user.
 - **Routing**: Successful scans trigger the `KBIngestionPipeline` orchestrator to move files to domain buckets (e.g., `gs://kb-it/`, `gs://kb-hr/`).
 - **Standards**: NIST SP 800-171 CUI handling requirements.
+
+## 5. Package Structure
+
+The component is organized into modular service packages, following the project's backend best practices:
+
+```text
+document_classification/
+├── bq_service/             # BigQuery metadata persistence
+│   ├── service.py          # Streaming insert implementation
+│   └── schemas.py          # BQMetadataRecord
+├── dlp_service/            # Cloud DLP inspection and masking
+│   ├── service.py          # Logic for PDF Split-Redact-Merge
+│   └── schemas.py          # DLPTriggerResponse
+├── gcs_service/            # GCS blob management and metadata extraction
+│   ├── service.py          # file routing, copy, and delete helpers
+│   └── schemas.py          # DocumentMetadata (GCS attributes)
+├── gemini_service/         # Contextual AI classification
+│   ├── service.py          # Multimodal Gemini 2.5 Flash reasoning
+│   └── schemas.py          # ContextualClassificationResponse
+├── config.py               # Shared component configuration
+├── pipeline.py             # ClassificationPipeline orchestrator
+└── schemas.py              # Orchestrator-level Request/Response models
+ ```
+
+ ### Design Principles
+ 1. **Modular Services**: Each service is self-contained with its own schemas.
+ 2. **Relative Imports**: Internal communication uses relative imports (`from .gcs_service.service import ...`) limited to one level of depth (`..`).
+ 3. **Pydantic Validation**: All service boundaries are enforced via Pydantic Request/Response models.
