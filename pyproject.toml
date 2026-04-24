@@ -75,12 +75,6 @@ rag_pipeline = [
     "pymupdf>=1.24.1",
     "langchain-text-splitters>=0.3.0",
 ]
-rag_pipeline = [
-    "google-cloud-storage>=2.14.0",
-    "google-cloud-bigquery>=3.20.0",
-    "pymupdf>=1.24.1",
-    "langchain-text-splitters>=0.3.0",
-]
 
 [tool.pytest.ini_options]
 pythonpath = [
