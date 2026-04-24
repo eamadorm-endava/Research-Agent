@@ -44,9 +44,29 @@ fi
 if bq show "${PROJECT_ID}:${DATASET_NAME}.${TABLE_NAME}" >/dev/null 2>&1; then
     echo "Table ${TABLE_NAME} already exists."
 else
-    # Schema matches Design.md + Issue #114 requirements
-    bq mk --table "${PROJECT_ID}:${DATASET_NAME}.${TABLE_NAME}" \
-    document_id:STRING,gcs_uri:STRING,filename:STRING,classification_tier:INT64,domain:STRING,confidence_score:FLOAT64,trust_level:STRING,project_id:STRING,uploader_email:STRING,description:STRING,version:INT64,latest:BOOL,ingested_at:TIMESTAMP
+    echo "Creating table with REQUIRED schema..."
+    
+    # Create temporary schema file
+    cat <<EOF > schema.json
+[
+  {"name": "document_id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "gcs_uri", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "filename", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "classification_tier", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "domain", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "confidence_score", "type": "FLOAT64", "mode": "REQUIRED"},
+  {"name": "trust_level", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "project_id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "uploader_email", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "description", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "version", "type": "INT64", "mode": "REQUIRED"},
+  {"name": "latest", "type": "BOOL", "mode": "REQUIRED"},
+  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "REQUIRED"}
+]
+EOF
+
+    bq mk --table "${PROJECT_ID}:${DATASET_NAME}.${TABLE_NAME}" schema.json
+    rm schema.json
     echo "Table created."
 fi
 
