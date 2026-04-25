@@ -183,8 +183,12 @@ class RAGIngestion:
         model_id = self.table_id.replace(
             RAG_CONFIG.BQ_CHUNKS_TABLE, "multimodal_embedding_model"
         )
+        # Ensure IDs use dot notation and are backticked
+        model_id = model_id.replace(":", ".")
+        table_id = self.table_id.replace(":", ".")
+
         query = f"""
-            UPDATE `{self.table_id}` AS target
+            UPDATE `{table_id}` AS target
             SET 
               target.embedding = source.ml_generate_embedding_result,
               target.vectorized_at = CURRENT_TIMESTAMP()
@@ -193,14 +197,16 @@ class RAGIngestion:
                 MODEL `{model_id}`,
                 (
                   SELECT c.chunk_id, c.chunk_data AS content
-                  FROM `{self.table_id}` c
+                  FROM `{table_id}` c
                   WHERE NORMALIZE(c.gcs_uri) = NORMALIZE(@gcs_uri)
                 )
               )
               WHERE ml_generate_embedding_status = ''
             ) AS source
-            WHERE target.chunk_id = source.chunk_id;
+            WHERE target.chunk_id = source.chunk_id
+              AND NORMALIZE(target.gcs_uri) = NORMALIZE(@gcs_uri);
         """
+        logger.debug(f"Executing BQ ML Query: {query}")
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
                 bigquery.ScalarQueryParameter("gcs_uri", "STRING", gcs_uri)
