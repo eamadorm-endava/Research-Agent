@@ -1,14 +1,11 @@
-"""
-Placeholder orchestrator for the Enterprise Knowledge Base ingestion pipeline.
-"""
-
 import sys
-from .rag_ingestion import (
-    RAGIngestion,
-    IngestDocumentRequest,
-)
-from .document_classification.pipeline import ClassificationPipeline
 from loguru import logger
+
+from .document_classification import ClassificationPipeline
+from .rag_ingestion import (
+    IngestDocumentRequest,
+    RAGIngestion,
+)
 
 
 class KBIngestionPipeline:
@@ -46,9 +43,12 @@ class KBIngestionPipeline:
 
         # 2. Execute end-to-end RAG pipeline
         logger.info(
-            f"Step 2: Running RAG Ingestion for {class_resp.final_sanitized_uri}..."
+            f"Step 2: Running RAG Ingestion for {class_resp.final_original_uri}..."
         )
-        ingest_req = IngestDocumentRequest(gcs_uri=class_resp.final_sanitized_uri)
+        ingest_req = IngestDocumentRequest(
+            gcs_uri=class_resp.final_original_uri,
+            original_uri=class_resp.final_original_uri,
+        )
         ingest_resp = self.rag_pipeline.run(ingest_req)
 
         if "SUCCESS" in ingest_resp.execution_status:

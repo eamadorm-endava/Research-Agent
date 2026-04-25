@@ -1,4 +1,5 @@
 import json
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -33,9 +34,14 @@ class RAGIngestion:
         self.storage_client = storage.Client(project=RAG_CONFIG.PROJECT_ID)
         self.bq_client = bigquery.Client(project=RAG_CONFIG.PROJECT_ID)
         self.table_id = f"{RAG_CONFIG.PROJECT_ID}.{RAG_CONFIG.BQ_DATASET}.{RAG_CONFIG.BQ_CHUNKS_TABLE}"
+        logger.info(
+            f"Initialized RAGIngestion | CHUNK_SIZE: {RAG_CONFIG.CHUNK_SIZE} | OVERLAP: {RAG_CONFIG.CHUNK_OVERLAP}"
+        )
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=RAG_CONFIG.CHUNK_SIZE,
             chunk_overlap=RAG_CONFIG.CHUNK_OVERLAP,
+            separators=["\n\n", "\n", ". ", " ", ""],
+            is_separator_regex=False,
         )
 
     def run(self, request: IngestDocumentRequest) -> IngestDocumentResponse:
@@ -54,7 +60,10 @@ class RAGIngestion:
 
         # 2. Vectorize if chunks were found
         if ingest_resp.chunk_count > 0:
-            embed_req = GenerateEmbeddingsRequest(gcs_uri=ingest_resp.processed_uri)
+            embed_req = GenerateEmbeddingsRequest(
+                gcs_uri=ingest_resp.processed_uri,
+                expected_chunk_count=ingest_resp.chunk_count,
+            )
             embed_resp = self.generate_embeddings(embed_req)
 
             if not embed_resp.success:
@@ -75,17 +84,23 @@ class RAGIngestion:
             IngestDocumentResponse -> Summary of the ingestion results.
         """
         logger.info(f"Starting ingestion for document: {request.gcs_uri}")
+        # Determine the URI to record in BQ (Original vs Sanitized)
+        record_uri = request.original_uri or request.gcs_uri
+        execution_id = str(uuid.uuid4())[:8]
 
         try:
-            # 1. Staging Copy (Domain -> RAG Staging)
+            # 1. Idempotency: Clear existing chunks for this URI to prevent contamination
+            self._clear_existing_chunks(record_uri)
+
+            # 2. Staging Copy (Domain -> RAG Staging with Unique Path)
             filename = request.gcs_uri.split("/")[-1]
-            staging_uri = f"gs://{RAG_CONFIG.RAG_STAGING_BUCKET}/{RAG_CONFIG.GCS_INGESTED_PREFIX}{filename}"
+            staging_path = f"{RAG_CONFIG.GCS_INGESTED_PREFIX}{execution_id}/{filename}"
+            staging_uri = f"gs://{RAG_CONFIG.RAG_STAGING_BUCKET}/{staging_path}"
+
             self._copy_to_staging(request.gcs_uri, staging_uri)
 
             # 2. Parse and chunk (Read from staging, record Domain URI)
-            chunks = self._process_document(
-                read_uri=staging_uri, record_uri=request.gcs_uri
-            )
+            chunks = self._process_document(read_uri=staging_uri, record_uri=record_uri)
             chunk_count = len(chunks)
 
             # 3. Stage to BigQuery
@@ -98,7 +113,7 @@ class RAGIngestion:
 
             return IngestDocumentResponse(
                 chunk_count=chunk_count,
-                processed_uri=request.gcs_uri,  # Still report Domain URI as the primary ref
+                processed_uri=record_uri,  # Report the Domain URI as the primary ref
                 execution_status="SUCCESS",
             )
 
@@ -129,27 +144,22 @@ class RAGIngestion:
         model_id = self.table_id.replace(
             RAG_CONFIG.BQ_CHUNKS_TABLE, "multimodal_embedding_model"
         )
-        metadata_id = self.table_id.replace(
-            RAG_CONFIG.BQ_CHUNKS_TABLE, RAG_CONFIG.BQ_METADATA_TABLE
-        )
 
         query = f"""
             UPDATE `{self.table_id}` AS target
-            SET embedding = source.ml_generate_embedding_result
+            SET 
+              target.embedding = source.ml_generate_embedding_result,
+              target.vectorized_at = CURRENT_TIMESTAMP()
             FROM (
               SELECT * FROM ML.GENERATE_EMBEDDING(
                 MODEL `{model_id}`,
                 (
-                  SELECT c.chunk_id, CONCAT(
-                    'Domain: ', IFNULL(m.domain, 'Unknown'), '\\n',
-                    'Description: ', IFNULL(m.description, 'None'), '\\n',
-                    'Content: ', IFNULL(c.chunk_data, '')
-                  ) AS content
+                  SELECT c.chunk_id, c.chunk_data AS content
                   FROM `{self.table_id}` c
-                  LEFT JOIN `{metadata_id}` m ON c.gcs_uri = m.gcs_uri
-                  WHERE c.gcs_uri = @gcs_uri AND (c.embedding IS NULL OR ARRAY_LENGTH(c.embedding) = 0)
+                  WHERE NORMALIZE(c.gcs_uri) = NORMALIZE(@gcs_uri)
                 )
               )
+              WHERE ml_generate_embedding_status = ''
             ) AS source
             WHERE target.chunk_id = source.chunk_id;
         """
@@ -159,13 +169,81 @@ class RAGIngestion:
             ]
         )
 
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                job = self.bq_client.query(query, job_config=job_config)
+                job.result()
+                affected_rows = job.num_dml_affected_rows
+
+                # Validation: Did we vectorize what we expected?
+                if request.expected_chunk_count > 0:
+                    if affected_rows >= request.expected_chunk_count:
+                        logger.info(
+                            f"Successfully generated embeddings for ALL chunks: {request.gcs_uri}. "
+                            f"Rows affected: {affected_rows} (Attempt {attempt + 1})"
+                        )
+                        return GenerateEmbeddingsResponse(
+                            success=True,
+                            execution_status=f"SUCCESS: {affected_rows} rows vectorized",
+                        )
+                    else:
+                        logger.warning(
+                            f"Partial vectorization on attempt {attempt + 1}: "
+                            f"Got {affected_rows}/{request.expected_chunk_count}. Retrying..."
+                        )
+                elif affected_rows > 0:
+                    logger.info(
+                        f"Successfully generated embeddings (Attempt {attempt + 1}). "
+                        f"Rows affected: {affected_rows}"
+                    )
+                    return GenerateEmbeddingsResponse(
+                        success=True,
+                        execution_status=f"SUCCESS: {affected_rows} rows vectorized",
+                    )
+
+                logger.warning(
+                    f"No rows affected on attempt {attempt + 1}. Retrying in 5s..."
+                )
+                time.sleep(5)
+            except Exception as e:
+                logger.error(
+                    f"Embedding generation attempt {attempt + 1} failed: {str(e)}"
+                )
+                if attempt == max_retries - 1:
+                    return GenerateEmbeddingsResponse(
+                        success=False, execution_status=str(e)
+                    )
+                time.sleep(5)
+
+        return GenerateEmbeddingsResponse(
+            success=False,
+            execution_status="FAILED: No rows were vectorized after retries.",
+        )
+
+    def _clear_existing_chunks(self, gcs_uri: str) -> None:
+        """Deletes all chunks associated with a specific GCS URI.
+
+        Args:
+            gcs_uri: str -> The URI to clear from the chunks table.
+
+        Returns:
+            None -> No return value.
+        """
+        query = f"DELETE FROM `{self.table_id}` WHERE NORMALIZE(gcs_uri) = NORMALIZE(@gcs_uri)"
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("gcs_uri", "STRING", gcs_uri)
+            ]
+        )
         try:
-            self.bq_client.query(query, job_config=job_config).result()
-            logger.info(f"Successfully generated embeddings for: {request.gcs_uri}")
-            return GenerateEmbeddingsResponse(success=True, execution_status="SUCCESS")
+            job = self.bq_client.query(query, job_config=job_config)
+            job.result()
+            logger.info(
+                f"Cleared {job.num_dml_affected_rows} existing chunks for: {gcs_uri}"
+            )
         except Exception as e:
-            logger.error(f"Embedding generation failed: {str(e)}")
-            return GenerateEmbeddingsResponse(success=False, execution_status=str(e))
+            logger.warning(f"Failed to clear existing chunks: {str(e)}")
 
     def _process_document(self, read_uri: str, record_uri: str) -> list[DocumentChunk]:
         """Downloads, parses, and chunks a document into BQ-compatible objects.

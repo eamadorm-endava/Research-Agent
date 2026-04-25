@@ -31,7 +31,16 @@ class DocumentChunk(BaseModel):
 class IngestDocumentRequest(BaseModel):
     """Request schema for ingesting a document."""
 
-    gcs_uri: Annotated[str, Field(description="GCS URI of the PDF to ingest")]
+    gcs_uri: Annotated[
+        str, Field(description="GCS URI of the PDF to ingest (Sanitized)")
+    ]
+    original_uri: Annotated[
+        Optional[str],
+        Field(
+            description="The original GCS URI for BQ metadata joining. Defaults to gcs_uri.",
+            default=None,
+        ),
+    ]
 
 
 class IngestDocumentResponse(BaseModel):
@@ -52,6 +61,9 @@ class GenerateEmbeddingsRequest(BaseModel):
     """Request schema for generating embeddings."""
 
     gcs_uri: Annotated[str, Field(description="GCS URI of the document to vectorize")]
+    expected_chunk_count: Annotated[
+        int, Field(description="Number of chunks expected to be vectorized", default=0)
+    ]
 
 
 class GenerateEmbeddingsResponse(BaseModel):

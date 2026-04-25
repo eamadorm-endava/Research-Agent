@@ -94,6 +94,7 @@ class ClassificationPipeline:
                 f"Pipeline completed successfully for: {landing_zone_original_uri}"
             )
             return RunResponse(
+                final_original_uri=routing_resp.final_original_uri,
                 final_sanitized_uri=routing_resp.final_sanitized_uri
                 or routing_resp.final_original_uri,
                 final_security_tier=llm_resp.final_classification_tier,
@@ -247,10 +248,14 @@ class ClassificationPipeline:
     def _mask_and_save(self, source_uri: str, requires_context: bool = False) -> str:
         """Downloads, masks, and uploads a de-identified copy of the source."""
         logger.debug(f"Applying masking to: {source_uri} (Context: {requires_context})")
+        # Create a unique intermediate path in the landing zone
         filename_parts = source_uri.rsplit(".", 1)
         base_name = filename_parts[0]
         ext = f".{filename_parts[1]}" if len(filename_parts) > 1 else ""
-        masked_uri = f"{base_name}_masked{ext}"
+
+        # Add a unique execution ID to the intermediate file name
+        execution_id = str(uuid.uuid4())[:8]
+        masked_uri = f"{base_name}_{execution_id}_masked{ext}"
 
         document_metadata = self.gcs.get_blob_metadata(source_uri)
         try:
