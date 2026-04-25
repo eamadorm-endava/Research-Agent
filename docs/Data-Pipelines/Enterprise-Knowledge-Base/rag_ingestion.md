@@ -1,36 +1,45 @@
-# Module: RAG Ingestion Pipeline
+# RAG Ingestion Module
 
-## Overview
-The `RAGIngestion` class is responsible for the final stage of the Enterprise Knowledge Base ingestion process. It takes documents that have been successfully classified and routed to their domain buckets, parses them, and chunks their text in alignment with the target embedding model's token limits. These chunks are then staged in BigQuery (`knowledge_base.documents_chunks`) awaiting vectorization via BQML.
+This module handles the automated ingestion of documents into the Enterprise Knowledge Base (EKB).
 
-## Key Features
-- **Deduplication Validation**: Uses `uuid5` on the document's `gcs_uri` to generate a 100% deterministic `document_id`. Queries BigQuery to ensure the document hasn't already been ingested to prevent duplicating chunks, throwing a `FileExistsError` if a match is found.
-- **Deterministic Chunking**: Utilizes `RecursiveCharacterTextSplitter` from `langchain-text-splitters` configured to 1000 tokens per chunk to strictly align with LLM embedding limits.
-- **PDF Parsing**: Implements `PyMuPDF` (fitz) to accurately extract text and structural layout (including page numbers).
-- **Streaming Insertion**: Uses the BigQuery `insert_rows_json` API for high-speed, programmatic streaming of text chunks to the database.
+## Core Responsibilities
+- **Parsing**: Extracts text from PDFs using `PyMuPDF` (fitz).
+- **Chunking**: Splits text into semantic chunks using `RecursiveCharacterTextSplitter`.
+- **Staging**: Loads chunks into BigQuery using Load Jobs.
+- **Vectorization**: Generates embeddings using BigQuery ML (`multimodalembedding`).
 
-## Components
+## Technical Configuration
+The module is configured via `RAGConfig` in `pipelines/enterprise_knowledge_base/rag_ingestion/config.py`.
 
-### `RAGIngestion`
-Located in `pipelines/enterprise_knowledge_base/rag_ingestion/rag_ingestion.py`.
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `CHUNK_SIZE` | 1000 | Max characters per chunk (Model limit: 1024). |
+| `CHUNK_OVERLAP` | 150 | Overlapping characters between chunks (15%). |
+| `BQ_DATASET` | `knowledge_base` | Target BigQuery dataset. |
+| `BQ_CHUNKS_TABLE` | `documents_chunks` | Table for storing vectorized chunks. |
 
-#### Methods:
-- `process_document(gcs_uri)`: Downloads a document from GCS, parses its contents page-by-page, and returns a structural list of dictionaries adhering to the strict `documents_chunks` schema.
-- `run_staging(gcs_uri)`: Orchestrates the pipeline and returns the count of successful chunks processed.
+## Process Flow
+1. **Idempotency Check**: Clears existing chunks for the target URI before processing.
+2. **Parsing**: Extracts raw text page-by-page from the source PDF.
+3. **Recursive Chunking**: Applies hierarchical splitting (`\n\n`, `\n`, `. `, ` `) to maintain context.
+4. **BQ Staging**: Uses `load_table_from_json` to bypass the streaming buffer and ensure immediate DML availability.
+5. **ML Vectorization**: Triggers `ML.GENERATE_EMBEDDING` via an `UPDATE` query on the loaded rows.
 
-## Architecture Alignment (Vectorization Phase)
-This module aligns with the "Vectorization (RAG)" phase defined in `Design.md`.
-Instead of generating the embeddings in-memory during this pipeline, it purposefully leaves the `embedding` array empty (`[]`) and `vectorized_at` as `None`. This delegates the actual heavy compute vectorization to BigQuery ML (`BQML`), satisfying the exact architectural design for latency and cost optimization.
+## Best Practices & Lessons Learned
 
-## Usage Example
-```python
-from pipelines.enterprise_knowledge_base.rag_ingestion import RAGIngestion
+### 1. The 1,024 Character Limit
+The `multimodalembedding` model has a strict **1,024 character limit** for the input text. 
+> [!IMPORTANT]
+> Always use a "Pure Content" strategy. Do not inject metadata (like Domain or Description) into the embedding input field, as this often pushes the total length over the limit and causes vectorization failures.
 
-# Initialize the pipeline
-ingestion = RAGIngestion(project_id="ag-core-dev-fdx7")
+### 2. Streaming Buffer Conflicts
+Standard BigQuery insertions (`insert_rows_json`) place data in a streaming buffer that is **read-only** for DML updates (like `UPDATE ... SET embedding = ...`) for up to 90 minutes.
+> [!TIP]
+> Always use `load_table_from_json` (Load Jobs). This writes directly to managed storage, making the rows immediately available for vectorization.
 
-# Process and stage a document
-chunk_count = ingestion.run_staging("gs://kb-it/client-confidential/project-alpha/architecture.pdf")
+### 3. URI Normalization
+Use `NORMALIZE(gcs_uri)` in all BigQuery SQL queries to handle hidden spaces or different Unicode representations of file paths.
 
-print(f"Successfully chunked and staged {chunk_count} segments to BigQuery.")
-```
+## Troubleshooting
+- **0 affected rows in UPDATE**: Check if the data is stuck in the streaming buffer (if Load Jobs were not used).
+- **INVALID_ARGUMENT (1024 chars)**: Verify that `chunk_data` is strictly under the limit and that no prefixes are being added in the SQL query.
