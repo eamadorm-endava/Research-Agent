@@ -1,6 +1,7 @@
 import json
 import time
 import uuid
+from typing import Optional
 from datetime import datetime, timezone
 
 import fitz  # PyMuPDF
@@ -140,11 +141,48 @@ class RAGIngestion:
             GenerateEmbeddingsResponse -> Result of the vectorization job.
         """
         logger.info(f"Triggering embedding generation for: {request.gcs_uri}")
+        max_retries = 3
 
+        for attempt in range(max_retries):
+            try:
+                affected_rows = self._execute_embedding_query(request.gcs_uri)
+                validation = self._validate_embedding_results(
+                    request, affected_rows, attempt
+                )
+                if validation:
+                    return validation
+
+                logger.warning(
+                    f"No rows affected on attempt {attempt + 1}. Retrying in 5s..."
+                )
+                time.sleep(5)
+            except Exception as e:
+                logger.error(
+                    f"Embedding generation attempt {attempt + 1} failed: {str(e)}"
+                )
+                if attempt == max_retries - 1:
+                    return GenerateEmbeddingsResponse(
+                        success=False, execution_status=str(e)
+                    )
+                time.sleep(5)
+
+        return GenerateEmbeddingsResponse(
+            success=False,
+            execution_status="FAILED: No rows were vectorized after retries.",
+        )
+
+    def _execute_embedding_query(self, gcs_uri: str) -> int:
+        """Executes the BigQuery ML UPDATE query.
+
+        Args:
+            gcs_uri: str -> The document URI to vectorize.
+
+        Returns:
+            int -> Number of affected rows.
+        """
         model_id = self.table_id.replace(
             RAG_CONFIG.BQ_CHUNKS_TABLE, "multimodal_embedding_model"
         )
-
         query = f"""
             UPDATE `{self.table_id}` AS target
             SET 
@@ -165,61 +203,51 @@ class RAGIngestion:
         """
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
-                bigquery.ScalarQueryParameter("gcs_uri", "STRING", request.gcs_uri)
+                bigquery.ScalarQueryParameter("gcs_uri", "STRING", gcs_uri)
             ]
         )
+        job = self.bq_client.query(query, job_config=job_config)
+        job.result()
+        return int(job.num_dml_affected_rows)
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                job = self.bq_client.query(query, job_config=job_config)
-                job.result()
-                affected_rows = job.num_dml_affected_rows
+    def _validate_embedding_results(
+        self, request: GenerateEmbeddingsRequest, affected_rows: int, attempt: int
+    ) -> Optional[GenerateEmbeddingsResponse]:
+        """Validates the results of the embedding generation.
 
-                # Validation: Did we vectorize what we expected?
-                if request.expected_chunk_count > 0:
-                    if affected_rows >= request.expected_chunk_count:
-                        logger.info(
-                            f"Successfully generated embeddings for ALL chunks: {request.gcs_uri}. "
-                            f"Rows affected: {affected_rows} (Attempt {attempt + 1})"
-                        )
-                        return GenerateEmbeddingsResponse(
-                            success=True,
-                            execution_status=f"SUCCESS: {affected_rows} rows vectorized",
-                        )
-                    else:
-                        logger.warning(
-                            f"Partial vectorization on attempt {attempt + 1}: "
-                            f"Got {affected_rows}/{request.expected_chunk_count}. Retrying..."
-                        )
-                elif affected_rows > 0:
-                    logger.info(
-                        f"Successfully generated embeddings (Attempt {attempt + 1}). "
-                        f"Rows affected: {affected_rows}"
-                    )
-                    return GenerateEmbeddingsResponse(
-                        success=True,
-                        execution_status=f"SUCCESS: {affected_rows} rows vectorized",
-                    )
+        Args:
+            request: GenerateEmbeddingsRequest -> Original request.
+            affected_rows: int -> Rows updated in BQ.
+            attempt: int -> Current retry attempt (0-indexed).
 
+        Returns:
+            Optional[GenerateEmbeddingsResponse] -> Result if successful, else None.
+        """
+        if request.expected_chunk_count > 0:
+            if affected_rows >= request.expected_chunk_count:
+                logger.info(
+                    f"Successfully generated embeddings for ALL chunks: {request.gcs_uri}. "
+                    f"Rows affected: {affected_rows} (Attempt {attempt + 1})"
+                )
+                return GenerateEmbeddingsResponse(
+                    success=True,
+                    execution_status=f"SUCCESS: {affected_rows} rows vectorized",
+                )
+            elif affected_rows > 0:
                 logger.warning(
-                    f"No rows affected on attempt {attempt + 1}. Retrying in 5s..."
+                    f"Partial vectorization on attempt {attempt + 1}: "
+                    f"Got {affected_rows}/{request.expected_chunk_count}. Retrying..."
                 )
-                time.sleep(5)
-            except Exception as e:
-                logger.error(
-                    f"Embedding generation attempt {attempt + 1} failed: {str(e)}"
-                )
-                if attempt == max_retries - 1:
-                    return GenerateEmbeddingsResponse(
-                        success=False, execution_status=str(e)
-                    )
-                time.sleep(5)
-
-        return GenerateEmbeddingsResponse(
-            success=False,
-            execution_status="FAILED: No rows were vectorized after retries.",
-        )
+        elif affected_rows > 0:
+            logger.info(
+                f"Successfully generated embeddings (Attempt {attempt + 1}). "
+                f"Rows affected: {affected_rows}"
+            )
+            return GenerateEmbeddingsResponse(
+                success=True,
+                execution_status=f"SUCCESS: {affected_rows} rows vectorized",
+            )
+        return None
 
     def _clear_existing_chunks(self, gcs_uri: str) -> None:
         """Deletes all chunks associated with a specific GCS URI.
