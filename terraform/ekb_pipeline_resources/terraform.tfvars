@@ -9,12 +9,9 @@ agent_service_account_email = "adk-agent@ag-core-dev-fdx7.iam.gserviceaccount.co
 
 apis_to_enable = {
   "ag-core-dev-fdx7" = [
-    "storage.googleapis.com",
     "run.googleapis.com",
-    "artifactregistry.googleapis.com",
     "dlp.googleapis.com",
-    "aiplatform.googleapis.com",
-    "bigquery.googleapis.com"
+    "aiplatform.googleapis.com"
   ],
 }
 
