@@ -48,7 +48,10 @@ module "ekb_pipeline_cloud_run" {
 
   # IAM for invocation (Authenticated only)
   iam = {
-    "roles/run.invoker" = ["group:${var.developers_group_email}"]
+    "roles/run.invoker" = [
+      "group:${var.developers_group_email}",
+      "serviceAccount:${var.agent_service_account_email}"
+    ]
   }
 
   service_account_config = {

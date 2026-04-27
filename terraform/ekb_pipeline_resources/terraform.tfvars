@@ -1,8 +1,9 @@
 ################ Project configuration ################
 
-project_id             = "ag-core-dev-fdx7"
-main_region            = "us-central1"
-developers_group_email = "gcu_latam_team_devs@endava.com"
+project_id                  = "ag-core-dev-fdx7"
+main_region                 = "us-central1"
+developers_group_email      = "gcu_latam_team_devs@endava.com"
+agent_service_account_email = "adk-agent@ag-core-dev-fdx7.iam.gserviceaccount.com"
 
 ################ APIs to enable ################
 

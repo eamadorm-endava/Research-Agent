@@ -13,6 +13,11 @@ variable "developers_group_email" {
   type        = string
 }
 
+variable "agent_service_account_email" {
+  description = "The email of the Agent's Service Account that will be granted the Run Invoker role."
+  type        = string
+}
+
 variable "apis_to_enable" {
   description = "Service APIs to enable, mapped by project ID."
   type        = map(list(string))
