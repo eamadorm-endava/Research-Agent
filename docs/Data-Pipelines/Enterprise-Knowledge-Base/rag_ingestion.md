@@ -37,8 +37,8 @@ Standard BigQuery insertions (`insert_rows_json`) place data in a streaming buff
 > [!TIP]
 > Always use `load_table_from_json` (Load Jobs). This writes directly to managed storage, making the rows immediately available for vectorization.
 
-### 3. URI Normalization
-Use `NORMALIZE(gcs_uri)` in all BigQuery SQL queries to handle hidden spaces or different Unicode representations of file paths.
+### 3. URI Normalization & Deterministic IDs
+Use `NORMALIZE(gcs_uri)` in all BigQuery SQL queries to handle hidden spaces or different Unicode representations of file paths. The pipeline relies on a deterministic UUIDv5 generated from the NFC-normalized GCS URI to ensure `document_id` consistency between the `documents_metadata` and `documents_chunks` tables.
 
 ## Troubleshooting
 - **0 affected rows in UPDATE**: Check if the data is stuck in the streaming buffer (if Load Jobs were not used).

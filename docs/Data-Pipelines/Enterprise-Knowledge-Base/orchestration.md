@@ -1,6 +1,6 @@
 # Document Classification Orchestration
 
-The `ClassificationPipeline.run()` method serves as the central entry point for the Enterprise Knowledge Base document processing workflow. It orchestrates multiple specialized services to transform a raw document into a classified, secured, and versioned asset.
+The `KBIngestionPipeline.run()` method serves as the master entry point for the Enterprise Knowledge Base document processing workflow. It orchestrates both the `ClassificationPipeline` and the `RAGIngestion` service to transform a raw document into a classified, secured, and vectorized asset.
 
 ## Workflow Overview
 
@@ -10,7 +10,8 @@ The orchestration follows a strictly sequential flow:
 2.  **DLP Gate**: Scans the document for sensitive data (PII, secrets). If high-risk content is found, it creates a de-identified/masked version.
 3.  **Contextual Classification**: Uses Gemini (Vertex AI) to analyze the (possibly masked) document and determine its final security tier and business domain.
 4.  **File Routing**: Moves the original and masked files from the landing zone to the final domain-specific buckets based on the classification results.
-5.  **Persistence**: Records the final URIs, classification metadata, and versioning state in BigQuery.
+5.  **Metadata Persistence**: Records the final URIs, classification metadata, and versioning state in BigQuery.
+6.  **RAG Ingestion & Vectorization**: Parses the processed document into semantic chunks, stages them in BigQuery, and triggers ML vectorization.
 
 ## State Management
 
@@ -28,12 +29,15 @@ To ensure system resilience and data consistency:
 ## Usage Example
 
 ```python
-from pipelines.enterprise_knowledge_base import ClassificationPipeline
+from pipelines.enterprise_knowledge_base.orchestrator import KBIngestionPipeline
+from pipelines.enterprise_knowledge_base.schemas import OrchestratorRunRequest
 
-pipeline = ClassificationPipeline()
-result = pipeline.run("gs://landing-zone-bucket/new_upload.pdf")
+pipeline = KBIngestionPipeline(project_id="my-gcp-project")
+request = OrchestratorRunRequest(gcs_uri="gs://landing-zone-bucket/new_upload.pdf")
+result = pipeline.run(request)
 
 print(f"Final Domain: {result.final_domain}")
-print(f"Security Tier: {result.final_security_tier}")
-print(f"Sanitized URI: {result.final_sanitized_uri}") # Returns masked file if exists, else original destination
+print(f"Security Tier: {result.security_tier}")
+print(f"Processed URI: {result.gcs_uri}")
+print(f"Chunks Vectorized: {result.chunks_generated}")
 ```
