@@ -1,86 +1,78 @@
-# RAG Ingestion Pipeline
+# EKB RAG Ingestion & Vectorization Pipeline (Phase 2)
 
-## Overview
-The `RAGIngestion` component is the final stage of the Enterprise Knowledge Base (EKB) ingestion process. It is responsible for taking unstructured documents that have been classified and routed, parsing their structural data (like text and page numbers), and splitting them into precise chunks. These chunks are securely staged in BigQuery where they await vectorization by BigQuery ML (BQML), enabling the Gemini Enterprise AI Agent to perform Semantic Search.
+This service implements **Phase 2** of the Enterprise Knowledge Base (EKB) pipeline. It handles the semantic decomposition of documents into searchable units and generates high-dimensional vector embeddings for AI-powered retrieval (RAG).
 
-## End-to-End Workflow & Architecture
+## 1. Role in the EKB Architecture
 
-The ingestion and vectorization lifecycle follows a strict sequence to ensure security and compliance before data is ever made searchable:
+As the second stage of the `KBIngestionPipeline`, this component takes the **Original URI** (the unmasked, secured document) and prepares it for semantic search. It transforms static files into a queryable knowledge graph.
 
-### 1. Human-in-the-Loop Ingestion (The AI Agent)
-The journey begins when a user uploads a document (like a PDF) directly to the **Gemini Enterprise AI Agent** chat interface.
-* The Agent triggers the **Ingestion Metadata Skill** to ask the user clarifying questions (Project, Draft/Published status).
-* Using the **end-user's delegated OAuth token**, the Agent writes the document to the landing zone bucket (`gs://ag-core-dev-fdx7-kb-landing-zone`) and attaches the answers as custom GCS metadata.
+### Pipeline Workflow
+1. **Idempotency Check**: Cleans up any existing chunks for the document URI to prevent duplicates.
+2. **Recursive Chunking**: Hierarchically splits text to maintain semantic context across chunks.
+3. **High-Performance Staging**: Uses BigQuery Load Jobs to ensure data is immediately available for vectorization.
+4. **Vectorization**: Generates embeddings using the `multimodalembedding` model via BigQuery ML.
 
-### 2. The Security Gate: Cloud DLP (Phase 1)
-The orchestrator triggers the `DLPService`.
-* Cloud DLP deterministically scans the document for highly sensitive data (SSNs, APIs, strategic keywords).
-* **"Mask-First" Rule:** If flagged as **Tier 4** (Confidential) or **Tier 5** (Strictly Confidential), DLP generates a heavily redacted `_masked` copy in the landing zone.
+---
 
-### 3. Contextual AI Classification (Phase 2)
-The orchestrator passes the document to Gemini 2.5 Flash.
-* For Tier 4/5, Gemini *only* reads the safe `_masked` version.
-* Gemini outputs a structured verdict containing the final **Classification Tier**, the **Business Domain** (e.g., HR, Finance, IT), and an AI-generated summary.
+## 2. High-Performance Design Patterns
 
-### 4. Routing and Metadata Extraction
-The orchestrator physically moves the **original (unmasked)** file into a highly restricted, domain-specific GCS bucket (e.g., `gs://kb-it/Tier-4/`). 
-* The temporary `_masked` file is permanently deleted from the landing zone.
-* A record of the file's metadata and AI summary is written to the `knowledge_base.documents_metadata` table in BigQuery.
+To ensure reliability and speed, this pipeline implements several critical design patterns:
 
-### 5. Extraction & Chunking (This Module)
-Once safely stored in its domain bucket, the orchestrator triggers the `RAGIngestion` class.
-* **Deduplication Check**: The module generates a highly deterministic UUID hash (using `uuid5`) based on the GCS URI, and queries BigQuery to guarantee the document hasn't been processed before. If it has, the ingestion is instantly aborted.
-* The module downloads the file and uses `PyMuPDF` to parse the text page-by-page.
-* It passes the text through the `RecursiveCharacterTextSplitter`, which breaks the document down into precise, overlapping **1,000-token chunks** (perfectly aligned with downstream LLM embedding limits).
+### Bypassing the Streaming Buffer
+Standard BigQuery streaming (`insert_rows_json`) creates a read-only buffer that blocks DML updates for up to 90 minutes. This pipeline uses **Load Jobs** (`load_table_from_json`), which writes directly to managed storage.
+- **Benefit**: Rows are available for the `UPDATE` vectorization query **immediately**.
 
-### 6. BigQuery Staging & BQML Vectorization
-The module packages each chunk into a strict dictionary format (capturing the chunk text, source page number, UUID, and GCS URI) and executes a high-speed streaming insert into the `knowledge_base.documents_chunks` BigQuery table. 
-* **The Vectorization Handoff:** The module intentionally leaves the `embedding` vector as an empty array (`[]`). The pipeline delegates the actual heavy compute to **BigQuery ML (BQML)**, which natively executes an embedding model against the raw chunk text right inside the database.
-* **Lifecycle State Change**: Upon successful insertion into BigQuery, the `RAGIngestion` module will move the physical file from the `ingested/` subdirectory to the `processed/` subdirectory within its bucket, ensuring no duplicate processing.
+### Pure Content Vectorization
+The `multimodalembedding` model has a strict **1,024 character limit**.
+- **Strategy**: We vectorize **only** the raw text chunk (`chunk_data`). Metadata (Domain, Title, Description) is stored in separate columns for filtering but is excluded from the embedding input to prevent length overflows and maximize context window.
 
-## Requirements
+### Ghost URI Prevention
+To handle subtle encoding or trailing space differences in GCS URIs, all BigQuery operations use `NORMALIZE(gcs_uri)`. This ensures that the ingestion and vectorization steps always target the same binary record.
 
-This module is managed under the `rag_pipeline` dependency group in `pyproject.toml`. It requires the following packages:
-- `google-cloud-storage`: For downloading the document bytes from GCS.
-- `google-cloud-bigquery`: For performing streaming JSON inserts (`insert_rows_json`) to the `documents_chunks` table.
-- `pymupdf` (fitz): For highly accurate PDF text and page extraction.
-- `langchain-text-splitters`: Provides the `RecursiveCharacterTextSplitter` to ensure chunks align perfectly with token limits.
+---
 
-## Files
+## 3. Configuration
 
-| File | Description |
-|---|---|
-| `__init__.py` | Exposes the `RAGIngestion` class. |
-| `rag_ingestion.py` | Contains the `RAGIngestion` class. Adheres to strict 60-line method limits and handles all parsing, chunking, and BQ insertion logic. |
-| `../../tests/test_rag_ingestion.py` | Contains isolated Mock-based Pytest unit and integration tests. |
-| `../../../notebooks/enterprise_knowledge_base/rag_ingestion/rag_verification.ipynb` | A Jupyter Notebook for Stage 1 prototyping and manual verification of the end-to-end BQ insertion. |
+Managed via `RAGConfig` in `config.py`.
 
-## Manual Testing via Notebook
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `CHUNK_SIZE` | 1000 | Max characters per chunk (safely under 1024 limit). |
+| `CHUNK_OVERLAP` | 150 | Overlapping characters between chunks (15% recommended). |
+| `BQ_CHUNKS_TABLE` | `documents_chunks` | Target table for vectorized units. |
+| `RAG_STAGING_BUCKET` | `*-rag-staging` | Temporary bucket for file processing. |
 
-To manually test the RAG Ingestion pipeline and verify BigQuery insertions using the provided Stage 1 notebook, follow these steps:
+---
 
-1. **Authenticate**: Ensure you are authenticated with Google Cloud and have Application Default Credentials set:
-   ```bash
-   gcloud auth application-default login
-   gcloud config set project ag-core-dev-fdx7
-   ```
+## 4. Package Structure
 
-2. **Upload a Sample Document**: Upload a test PDF to the newly created landing zone bucket. You can do this via the GCP Console or CLI:
-   ```bash
-   gsutil cp path/to/local/sample.pdf gs://ag-core-dev-fdx7-kb-landing-zone/sample.pdf
-   ```
+```text
+rag_ingestion/
+├── tests/                  # Regression suite (limits, SQL, staging)
+├── config.py               # Component configuration (BaseSettings)
+├── pipeline.py             # RAGIngestion orchestrator
+├── schemas.py              # Pydantic Request/Response models
+└── README.md               # This documentation
+```
 
-3. **Open the Notebook**: Launch the notebook environment using the project's dependency manager.
-   ```bash
-   uv run --group rag_pipeline jupyter notebook notebooks/enterprise_knowledge_base/rag_ingestion/rag_verification.ipynb
-   ```
-   *(Alternatively, open the `.ipynb` file directly in your IDE like VS Code and select the `uv` virtual environment as your kernel).*
+### Key Logic Components
+- **`RecursiveCharacterTextSplitter`**: Configured with separators `["\n\n", "\n", ". ", " ", ""]` to prioritize paragraph and sentence boundaries.
+- **`GenerateEmbeddingsRequest`**: Specifically designed to validate and track the expected chunk count before triggering ML jobs.
 
-4. **Execute the Pipeline**:
-   - In the notebook, locate the `GCS_URI` variable and update it to match your uploaded file: 
-     `GCS_URI = "gs://ag-core-dev-fdx7-kb-landing-zone/sample.pdf"`
-   - Uncomment the execution lines (`count = ingestion.run_staging(GCS_URI)`) and run the cell. You should see an output indicating how many chunks were staged.
+---
 
-5. **Verify in BigQuery**:
-   - Run the final cell in the notebook to query the `knowledge_base.documents_chunks` table. 
-   - Verify that the `chunk_data` contains the parsed text, `structural_metadata` contains the page number, and the `embedding` array is empty (`[]`).
+## 5. Operations & Verification
+
+### Running Tests
+```bash
+uv run pytest pipelines/enterprise_knowledge_base/rag_ingestion/tests/
+```
+
+### Verification Query
+To check the vectorization status of a document:
+```sql
+SELECT gcs_uri, count(*) as chunks, countif(array_length(embedding) > 0) as vectorized
+FROM `knowledge_base.documents_chunks`
+WHERE NORMALIZE(gcs_uri) = NORMALIZE('gs://your-bucket/your-file.pdf')
+GROUP BY gcs_uri
+```

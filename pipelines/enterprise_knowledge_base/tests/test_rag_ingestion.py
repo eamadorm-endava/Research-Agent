@@ -1,26 +1,57 @@
-import json
 from unittest.mock import MagicMock, patch
+
 import pytest
 
-from pipelines.enterprise_knowledge_base.rag_ingestion import RAGIngestion
+from pipelines.enterprise_knowledge_base.rag_ingestion import (
+    GenerateEmbeddingsRequest,
+    IngestDocumentRequest,
+    RAGIngestion,
+)
+
+
+@pytest.fixture(autouse=True)
+def mock_config():
+    """Mock the RAG_CONFIG to avoid environment dependency."""
+    with patch(
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.RAG_CONFIG"
+    ) as mock:
+        mock.PROJECT_ID = "test-project"
+        mock.BQ_DATASET = "knowledge_base"
+        mock.BQ_CHUNKS_TABLE = "documents_chunks"
+        mock.BQ_METADATA_TABLE = "documents_metadata"
+        mock.CHUNK_SIZE = 1000
+        mock.CHUNK_OVERLAP = 100
+        mock.GCS_INGESTED_PREFIX = "ingested/"
+        mock.GCS_PROCESSED_PREFIX = "processed/"
+        mock.RAG_STAGING_BUCKET = "test-staging-bucket"
+        yield mock
+
 
 @pytest.fixture
 def mock_storage():
-    with patch("pipelines.enterprise_knowledge_base.rag_ingestion.rag_ingestion.storage.Client") as mock:
+    with patch(
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.storage.Client"
+    ) as mock:
         yield mock
+
 
 @pytest.fixture
 def mock_bq():
-    with patch("pipelines.enterprise_knowledge_base.rag_ingestion.rag_ingestion.bigquery.Client") as mock:
+    with patch(
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.bigquery.Client"
+    ) as mock:
         mock_client = mock.return_value
         mock_query_job = MagicMock()
         mock_query_job.result.return_value = []
         mock_client.query.return_value = mock_query_job
         yield mock
 
+
 @pytest.fixture
 def mock_fitz():
-    with patch("pipelines.enterprise_knowledge_base.rag_ingestion.rag_ingestion.fitz.open") as mock:
+    with patch(
+        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.fitz.open"
+    ) as mock:
         mock_doc = MagicMock()
         mock_page = MagicMock()
         mock_page.get_text.return_value = "This is a test document. " * 100
@@ -28,111 +59,68 @@ def mock_fitz():
         mock.return_value = mock_doc
         yield mock
 
-def test_process_document(mock_storage, mock_bq, mock_fitz):
-    ingestion = RAGIngestion(project_id="test-project")
-    chunks = ingestion.process_document("gs://test-bucket/test.pdf")
-    
-    assert len(chunks) > 0
-    first_chunk = chunks[0]
-    
-    expected_keys = {
-        "chunk_id", "document_id", "chunk_data", "gcs_uri", "filename", 
-        "structural_metadata", "page_number", "embedding", 
-        "created_at", "vectorized_at"
-    }
-    assert set(first_chunk.keys()) == expected_keys
-    assert first_chunk["gcs_uri"] == "gs://test-bucket/test.pdf"
-    assert first_chunk["filename"] == "test.pdf"
-    assert first_chunk["page_number"] == 1
-    assert first_chunk["embedding"] == []
-    assert first_chunk["vectorized_at"] is None
 
-def test_process_document_already_processed(mock_storage, mock_bq, mock_fitz):
-    ingestion = RAGIngestion(project_id="test-project")
+def test_ingest_document_success(mock_storage, mock_bq, mock_fitz):
+    service = RAGIngestion()
+    request = IngestDocumentRequest(gcs_uri="gs://test-bucket/ingested/test.pdf")
+
+    response = service.ingest_document(request)
+
+    assert response.chunk_count > 0
+    assert response.execution_status == "SUCCESS"
+    assert response.processed_uri == "gs://test-bucket/ingested/test.pdf"
+
+    # Verify BQ calls
+    mock_bq_client = mock_bq.return_value
+    mock_bq_client.load_table_from_json.assert_called_once()
+
+    # Verify GCS calls (should be 2 copies: Domain -> Staging, Staging Ingested -> Staging Processed)
+    mock_bucket = mock_storage.return_value.bucket.return_value
+    assert mock_bucket.copy_blob.call_count == 2
+
+
+def test_ingest_document_already_processed(mock_storage, mock_bq, mock_fitz):
+    service = RAGIngestion()
     mock_bq_client = mock_bq.return_value
     mock_query_job = MagicMock()
     mock_query_job.result.return_value = [{"dummy": 1}]
     mock_bq_client.query.return_value = mock_query_job
-    
-    with pytest.raises(FileExistsError):
-        ingestion.process_document("gs://test-bucket/test.pdf")
 
-def test_stage_chunks_bq(mock_storage, mock_bq):
-    ingestion = RAGIngestion(project_id="test-project")
+    request = IngestDocumentRequest(gcs_uri="gs://test-bucket/ingested/test.pdf")
+    response = service.ingest_document(request)
+
+    assert response.chunk_count == 0
+    assert response.execution_status == "SKIPPED_ALREADY_PROCESSED"
+    assert response.processed_uri == "gs://test-bucket/ingested/test.pdf"
+
+
+def test_generate_embeddings_success(mock_bq):
+    service = RAGIngestion()
+    request = GenerateEmbeddingsRequest(gcs_uri="gs://test-bucket/processed/test.pdf")
+
+    response = service.generate_embeddings(request)
+
+    assert response.success is True
+    assert response.execution_status == "SUCCESS"
+
     mock_bq_client = mock_bq.return_value
-    mock_bq_client.insert_rows_json.return_value = []
-    
-    test_chunks = [{"chunk_id": "123", "chunk_data": "test"}]
-    ingestion.stage_chunks_bq(test_chunks)
-    
-    mock_bq_client.insert_rows_json.assert_called_once_with(
-        "test-project.knowledge_base.documents_chunks", 
-        test_chunks
-    )
-
-def test_run_staging(mock_storage, mock_bq, mock_fitz):
-    ingestion = RAGIngestion(project_id="test-project")
-    mock_bq_client = mock_bq.return_value
-    mock_bq_client.insert_rows_json.return_value = []
-    
-    mock_bucket = mock_storage.return_value.bucket.return_value
-    
-    count = ingestion.run_staging("gs://test-bucket/ingested/test.pdf")
-    assert count > 0
-    mock_bq_client.insert_rows_json.assert_called_once()
-    mock_bucket.copy_blob.assert_called_once()
-
-def test_move_blob_to_processed(mock_storage):
-    ingestion = RAGIngestion(project_id="test-project")
-    mock_bucket = mock_storage.return_value.bucket.return_value
-    mock_blob = mock_bucket.blob.return_value
-    
-    result = ingestion.move_blob_to_processed("gs://test-bucket/ingested/test.pdf")
-    
-    assert result == "gs://test-bucket/processed/test.pdf"
-    mock_bucket.copy_blob.assert_called_once_with(mock_blob, mock_bucket, "processed/test.pdf")
-    mock_blob.delete.assert_called_once()
-
-def test_move_blob_to_processed_no_ingested(mock_storage):
-    ingestion = RAGIngestion(project_id="test-project")
-    mock_bucket = mock_storage.return_value.bucket.return_value
-    mock_blob = mock_bucket.blob.return_value
-    
-    result = ingestion.move_blob_to_processed("gs://test-bucket/other/test.pdf")
-    
-    assert result == "gs://test-bucket/other/test.pdf"
-    mock_bucket.copy_blob.assert_not_called()
-    mock_blob.delete.assert_not_called()
-
-def test_generate_embeddings(mock_storage, mock_bq):
-    ingestion = RAGIngestion(project_id="test-project")
-    mock_bq_client = mock_bq.return_value
-    mock_query_job = MagicMock()
-    mock_bq_client.query.return_value = mock_query_job
-
-    result = ingestion.generate_embeddings("gs://test-bucket/test.pdf")
-
-    assert result is True
     mock_bq_client.query.assert_called_once()
     args, kwargs = mock_bq_client.query.call_args
     query_str = args[0]
-    
-    assert "UPDATE `test-project.knowledge_base.documents_chunks` AS target" in query_str
-    assert "MODEL `test-project.knowledge_base.multimodal_embedding_model`" in query_str
-    assert "LEFT JOIN `test-project.knowledge_base.documents_metadata` m" in query_str
-    
-    job_config = kwargs.get("job_config")
-    assert job_config is not None
-    assert len(job_config.query_parameters) == 1
-    assert job_config.query_parameters[0].name == "gcs_uri"
-    assert job_config.query_parameters[0].value == "gs://test-bucket/test.pdf"
 
-def test_generate_embeddings_failure(mock_storage, mock_bq):
-    ingestion = RAGIngestion(project_id="test-project")
+    assert (
+        "UPDATE `test-project.knowledge_base.documents_chunks` AS target" in query_str
+    )
+    assert "MODEL `test-project.knowledge_base.multimodal_embedding_model`" in query_str
+
+
+def test_generate_embeddings_failure(mock_bq):
+    service = RAGIngestion()
     mock_bq_client = mock_bq.return_value
     mock_bq_client.query.side_effect = Exception("BQ Error")
 
-    with pytest.raises(RuntimeError) as exc_info:
-        ingestion.generate_embeddings("gs://test-bucket/test.pdf")
+    request = GenerateEmbeddingsRequest(gcs_uri="gs://test-bucket/processed/test.pdf")
+    response = service.generate_embeddings(request)
 
-    assert "Failed to generate embeddings: BQ Error" in str(exc_info.value)
+    assert response.success is False
+    assert "BQ Error" in response.execution_status

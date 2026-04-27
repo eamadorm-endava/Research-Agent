@@ -49,6 +49,9 @@ class IngestMetadataBQRequest(BaseModel):
 class RunResponse(BaseModel):
     """Schema for the final response of the pipeline orchestration."""
 
+    final_original_uri: Annotated[
+        str, Field(description="Final URI of the original doc in domain bucket.")
+    ]
     final_sanitized_uri: Annotated[
         str,
         Field(
