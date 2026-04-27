@@ -18,6 +18,7 @@ from ..config import GCS_MCP_CONFIG
 from ..security import get_ge_oauth_token, get_id_token
 
 _ARTIFACT_STATE_KEY = "latest_uploaded_artifacts"
+_PENDING_ARTIFACT_DELTA_KEY = "save_files_as_artifacts_plugin:pending_delta"
 
 
 def _coerce_bytes(blob_data: Any) -> bytes:
@@ -38,43 +39,88 @@ def _coerce_bytes(blob_data: Any) -> bytes:
     raise TypeError(f"Unsupported artifact payload type: {type(blob_data)!r}")
 
 
+def _dedupe_artifact_names(*groups: list[str]) -> list[str]:
+    """Returns artifact names in priority order without duplicates."""
+    deduped: list[str] = []
+    for group in groups:
+        for name in group:
+            normalized = str(name).strip()
+            if normalized and normalized not in deduped:
+                deduped.append(normalized)
+    return deduped
+
+
+def _get_pending_artifact_names(tool_context: ToolContext) -> list[str]:
+    """Returns artifact names saved by the upload plugin during the current turn."""
+    pending_delta = tool_context.state.get(_PENDING_ARTIFACT_DELTA_KEY) or {}
+    if not isinstance(pending_delta, dict):
+        return []
+    return [
+        str(name)
+        for name in pending_delta.keys()
+        if name is not None and str(name).strip()
+    ]
+
+
 async def _load_uploaded_artifact(
     tool_context: ToolContext,
     artifact_name: Optional[str],
 ) -> tuple[str, Any]:
     """Resolves and loads the target artifact for landing-zone transfer."""
-    available_artifacts = await tool_context.list_artifacts()
-    if not available_artifacts:
+    available_artifacts = [
+        str(name) for name in (await tool_context.list_artifacts()) if str(name).strip()
+    ]
+    tracked_artifacts = [
+        str(name)
+        for name in (tool_context.state.get(_ARTIFACT_STATE_KEY) or [])
+        if name is not None and str(name).strip()
+    ]
+    pending_artifacts = _get_pending_artifact_names(tool_context)
+
+    known_artifacts = _dedupe_artifact_names(
+        available_artifacts,
+        tracked_artifacts,
+        pending_artifacts,
+    )
+    if not known_artifacts and not artifact_name:
         raise ValueError(
             "No uploaded artifacts are available in this session. "
             "Upload a document before calling the landing-zone transfer tool."
         )
 
-    tracked_artifacts = tool_context.state.get(_ARTIFACT_STATE_KEY) or []
+    candidate_artifacts: list[str]
     if artifact_name:
-        selected_artifact = artifact_name
-    elif tracked_artifacts:
-        selected_artifact = tracked_artifacts[-1]
-    elif len(available_artifacts) == 1:
-        selected_artifact = available_artifacts[0]
+        candidate_artifacts = [artifact_name]
     else:
+        priority_candidates = []
+        if tracked_artifacts:
+            priority_candidates.append(tracked_artifacts[-1])
+        if pending_artifacts:
+            priority_candidates.append(pending_artifacts[-1])
+        if len(available_artifacts) == 1:
+            priority_candidates.append(available_artifacts[0])
+
+        candidate_artifacts = _dedupe_artifact_names(
+            priority_candidates, known_artifacts
+        )
+
+    if not candidate_artifacts:
         raise ValueError(
             "Multiple artifacts are available in this session. "
             "Provide artifact_name explicitly to choose one. "
-            f"Available artifacts: {', '.join(sorted(available_artifacts))}"
+            f"Available artifacts: {', '.join(sorted(known_artifacts))}"
         )
 
-    if selected_artifact not in available_artifacts:
-        raise ValueError(
-            f"Artifact '{selected_artifact}' is not available in this session. "
-            f"Available artifacts: {', '.join(sorted(available_artifacts))}"
-        )
+    for candidate in candidate_artifacts:
+        artifact_part = await tool_context.load_artifact(candidate)
+        if artifact_part is not None:
+            return candidate, artifact_part
 
-    artifact_part = await tool_context.load_artifact(selected_artifact)
-    if artifact_part is None:
-        raise ValueError(f"Artifact '{selected_artifact}' could not be loaded.")
-
-    return selected_artifact, artifact_part
+    available_hint = ", ".join(sorted(known_artifacts)) if known_artifacts else "none"
+    raise ValueError(
+        f"Artifact '{candidate_artifacts[0]}' could not be loaded. "
+        f"Known artifacts: {available_hint}"
+    )
 
 
 def _extract_artifact_payload(
