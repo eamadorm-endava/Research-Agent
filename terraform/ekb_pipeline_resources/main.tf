@@ -72,3 +72,44 @@ module "ekb_pipeline_cloud_run" {
     module.enable_apis
   ]
 }
+
+################ BigQuery ML Model ################
+
+resource "google_bigquery_connection" "vertex_ai_connection" {
+  connection_id = "vertex_ai_connection"
+  project       = var.project_id
+  location      = var.main_region
+  friendly_name = "Connection for Vertex AI embeddings"
+  cloud_resource {}
+}
+
+resource "google_project_iam_member" "connection_ai_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_bigquery_connection.vertex_ai_connection.cloud_resource[0].service_account_id}"
+}
+
+resource "google_bigquery_job" "create_multimodal_model" {
+  job_id   = "create_model_${replace(timestamp(), "[: -]", "")}"
+  project  = var.project_id
+  location = var.main_region
+
+  query {
+    query          = <<EOF
+      CREATE OR REPLACE MODEL `knowledge_base.multimodal_embedding_model`
+      REMOTE WITH CONNECTION `${var.project_id}.${var.main_region}.${google_bigquery_connection.vertex_ai_connection.connection_id}`
+      OPTIONS (ENDPOINT = 'multimodalembedding@001');
+EOF
+    use_legacy_sql = false
+  }
+
+  lifecycle {
+    ignore_changes = [job_id]
+  }
+
+  depends_on = [
+    google_bigquery_connection.vertex_ai_connection,
+    google_project_iam_member.connection_ai_user,
+    module.enable_apis
+  ]
+}
