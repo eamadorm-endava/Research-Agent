@@ -54,6 +54,9 @@ ROLES=(
     "roles/aiplatform.admin" # To deploy the agent to Agent Engine
     "roles/secretmanager.secretAccessor" # To access secrets in Secret Manager
     "roles/discoveryengine.admin" # To create Auth resources and register agents in Gemini Enterprise
+    "roles/dlp.admin" # To manage DLP templates and jobs
+    "roles/bigquery.admin" # To manage BigQuery datasets and tables
+    "roles/storage.admin" # To manage GCS buckets
 )
 
 for ROLE in "${ROLES[@]}"; do
