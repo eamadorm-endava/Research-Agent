@@ -1,6 +1,7 @@
 from typing import Optional
 import fitz  # PyMuPDF
 import uuid
+import unicodedata
 from datetime import datetime, timezone
 from loguru import logger
 from .config import EKB_CONFIG
@@ -332,8 +333,9 @@ class ClassificationPipeline:
         filename = request.blob_metadata.filename
         gcs_uri = request.final_original_uri
 
-        identity_key = f"{project_id}/{filename}/{gcs_uri}"
-        doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, identity_key))
+        doc_id = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, unicodedata.normalize("NFC", gcs_uri))
+        )
 
         # 2. Handle Versioning
         version_req = GetLatestVersionRequest(document_id=doc_id)
