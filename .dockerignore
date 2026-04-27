@@ -1,0 +1,18 @@
+# Exclude tests and Dockerfiles from the image
+**/tests/
+**/Dockerfile
+**/.pytest_cache/
+**/__pycache__/
+
+# Exclude git and environment files
+.git/
+.venv/
+.env
+.gitignore
+.dockerignore
+
+# Exclude large PDF/doc artifacts used for testing
+*.pdf
+*.docx
+*.doc
+*.ipynb
