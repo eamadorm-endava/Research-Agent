@@ -12,7 +12,8 @@ COPY pyproject.toml uv.lock ./
 RUN uv export --group classification_pipeline --group rag_pipeline --no-dev --no-hashes | uv pip install --system -r -
 
 # Copy the necessary pipeline code
-COPY pipelines/ ./pipelines/
+COPY pipelines/__init__.py ./pipelines/
+COPY pipelines/enterprise_knowledge_base/ ./pipelines/enterprise_knowledge_base/
 
 # Expose the port for Cloud Run
 EXPOSE 8080
