@@ -9,7 +9,7 @@ RUN pip install uv
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies globally in the system environment
-RUN uv pip install --system -r pyproject.toml
+RUN uv export --group ekb_pipeline --no-dev --no-hashes | uv pip install --system -r -
 
 # Copy the entire pipelines directory and local packages needed
 COPY pipelines/ ./pipelines/
