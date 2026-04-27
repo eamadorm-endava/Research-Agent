@@ -2,10 +2,12 @@ import sys
 from loguru import logger
 
 from .document_classification import ClassificationPipeline
+from .document_classification.config import EKB_CONFIG
 from .rag_ingestion import (
     IngestDocumentRequest,
     RAGIngestion,
 )
+from .schemas import OrchestratorRunRequest, OrchestratorRunResponse
 
 
 class KBIngestionPipeline:
@@ -25,20 +27,20 @@ class KBIngestionPipeline:
         self.classification_pipeline = ClassificationPipeline()
         self.rag_pipeline = RAGIngestion()
 
-    def run(self, gcs_uri: str) -> None:
+    def run(self, request: OrchestratorRunRequest) -> OrchestratorRunResponse:
         """Orchestrates the entire ingestion process end-to-end.
 
         Args:
-            gcs_uri: str -> The initial landing URI of the document.
+            request: OrchestratorRunRequest -> The request containing the landing URI.
 
         Returns:
-            None
+            OrchestratorRunResponse -> Results of the pipeline execution.
         """
-        logger.info(f"Triggering KB Ingestion Pipeline for: {gcs_uri}")
+        logger.info(f"Triggering KB Ingestion Pipeline for: {request.gcs_uri}")
 
         # 1. Execute Classification Pipeline
         logger.info("Step 1: Running Document Classification...")
-        class_resp = self.classification_pipeline.run(gcs_uri)
+        class_resp = self.classification_pipeline.run(request.gcs_uri)
         logger.info(f"Classification complete. Domain: {class_resp.final_domain}")
 
         # 2. Execute end-to-end RAG pipeline
@@ -60,6 +62,17 @@ class KBIngestionPipeline:
                 f"Pipeline finished with status: {ingest_resp.execution_status}"
             )
 
+        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(
+            class_resp.final_security_tier, "unknown"
+        )
+
+        return OrchestratorRunResponse(
+            gcs_uri=class_resp.final_original_uri,
+            chunks_generated=ingest_resp.chunk_count,
+            final_domain=class_resp.final_domain,
+            security_tier=tier_label,
+        )
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
@@ -72,4 +85,6 @@ if __name__ == "__main__":
     input_uri = sys.argv[2]
 
     pipeline = KBIngestionPipeline(proj_id)
-    pipeline.run(input_uri)
+    run_req = OrchestratorRunRequest(gcs_uri=input_uri)
+    response = pipeline.run(run_req)
+    print(response.model_dump_json(indent=2))

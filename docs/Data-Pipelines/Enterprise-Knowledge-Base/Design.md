@@ -162,12 +162,12 @@ Documents are routed to domain-specific buckets with the following internal stru
 
 **Folder Structure within each bucket:**
 ```
-/{tier}/
-  {project_name}/
+/{project_name}/
+  {tier}/
     {uploader_email_prefix}/
       {filename}
 ```
-*Example: `gs://kb-it/client-confidential/project-alpha/maria.gutierrez/architecture.pdf`*
+*Example: `gs://kb-it/project-alpha/client-confidential/maria.gutierrez/architecture.pdf`*
 
 ### Security Rationale: IAM & Group-Based ACLs
 Access to domain buckets is managed via **Google Groups** mapped to `project` and `tier`.

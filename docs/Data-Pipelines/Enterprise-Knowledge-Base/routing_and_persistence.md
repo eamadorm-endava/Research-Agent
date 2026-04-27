@@ -8,7 +8,7 @@ The routing logic is authoritative and follows the classification verdict produc
 
 ### Destination Path Construction
 The target URI is constructed as follows:
-`gs://kb-{domain}/{tier_label}/{project_name}/{uploader_email_prefix}/{filename}`
+`gs://kb-{domain}/{project_name}/{tier_label}/{uploader_email_prefix}/{filename}`
 
 - **domain**: One of the valid business domains (`it`, `finance`, `hr`, etc.).
 - **tier_label**: The slugified version of the security tier (e.g., `strictly-confidential` for Tier 5).
@@ -29,7 +29,7 @@ Metadata is stored in the `knowledge_base` dataset, `documents_metadata` table.
 
 | Field | Type | Description |
 |---|---|---|
-| `document_id` | `STRING` | Unique UUID for the document record. |
+| `document_id` | `STRING` | Deterministic UUID (UUIDv5 of `NORMALIZE(NFC, gcs_uri)`) linking metadata and chunks. |
 | `gcs_uri` | `STRING` | The URI of the original document in the domain bucket (used for search/RAG). |
 | `filename` | `STRING` | Original filename. |
 | `classification_tier` | `INT64` | Numeric classification tier (1-5). |

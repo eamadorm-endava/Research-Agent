@@ -112,7 +112,7 @@ def test_dlp_trigger_with_findings_returns_masked(pipeline, mock_dlp, mock_gcs):
 def test_ingest_metadata_bq_versioning_first_upload(pipeline, mock_bq):
     """Verifies version 1 is assigned on the first upload of a document."""
     request = IngestMetadataBQRequest(
-        final_original_uri="gs://kb-hr/strictly-confidential/hr-data/admin/record.pdf",
+        final_original_uri="gs://kb-hr/hr-data/strictly-confidential/admin/record.pdf",
         final_sanitized_uri=None,
         llm_classification=ContextualClassificationResponse(
             final_classification_tier=5,
@@ -150,7 +150,7 @@ def test_ingest_metadata_bq_versioning_first_upload(pipeline, mock_bq):
 def test_ingest_metadata_bq_versioning_increment(pipeline, mock_bq):
     """Verifies version is incremented and old versions deprecated on re-upload."""
     request = IngestMetadataBQRequest(
-        final_original_uri="gs://kb-hr/confidential/hr-data/admin/record.pdf",
+        final_original_uri="gs://kb-hr/hr-data/confidential/admin/record.pdf",
         final_sanitized_uri=None,
         llm_classification=ContextualClassificationResponse(
             final_classification_tier=4,
@@ -269,7 +269,7 @@ def test_run_orchestrates_full_pipeline_successfully(
     assert result.final_domain == "it"
     assert result.final_security_tier == 1
     # Should return original destination URI because no masking occurred
-    assert result.final_sanitized_uri == "gs://kb-it/public/p1/u1/doc.pdf"
+    assert result.final_sanitized_uri == "gs://kb-it/p1/public/u1/doc.pdf"
 
     # Verify sequence
     mock_gcs.get_blob_metadata.assert_called()
@@ -362,5 +362,5 @@ def test_run_returns_masked_uri_when_sanitized(
     # Should return the final destination of the MASKED file
     assert (
         result.final_sanitized_uri
-        == "gs://kb-executives/strictly-confidential/top-secret/admin/secret_masked.txt"
+        == "gs://kb-executives/top-secret/strictly-confidential/admin/secret_masked.txt"
     )

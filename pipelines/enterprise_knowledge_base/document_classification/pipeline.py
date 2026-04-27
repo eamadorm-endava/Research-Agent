@@ -1,6 +1,7 @@
 from typing import Optional
 import fitz  # PyMuPDF
 import uuid
+import unicodedata
 from datetime import datetime, timezone
 from loguru import logger
 from .config import EKB_CONFIG
@@ -285,7 +286,7 @@ class ClassificationPipeline:
         filename = request.original_landing_uri.split("/")[-1]
         uploader_prefix = request.uploader_email.split("@")[0]
 
-        dest_base = f"gs://kb-{request.final_domain}/{tier_label}/{request.project_name}/{uploader_prefix}/"
+        dest_base = f"gs://kb-{request.final_domain}/{request.project_name}/{tier_label}/{uploader_prefix}/"
         final_original_uri = f"{dest_base}{filename}"
 
         # 1. Copy Original
@@ -332,8 +333,9 @@ class ClassificationPipeline:
         filename = request.blob_metadata.filename
         gcs_uri = request.final_original_uri
 
-        identity_key = f"{project_id}/{filename}/{gcs_uri}"
-        doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, identity_key))
+        doc_id = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, unicodedata.normalize("NFC", gcs_uri))
+        )
 
         # 2. Handle Versioning
         version_req = GetLatestVersionRequest(document_id=doc_id)

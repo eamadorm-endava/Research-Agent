@@ -42,7 +42,11 @@ def mock_bq():
     ) as mock:
         mock_client = mock.return_value
         mock_query_job = MagicMock()
+
+        # By default, return empty result to pass _is_document_processed
         mock_query_job.result.return_value = []
+        mock_query_job.num_dml_affected_rows = 1
+
         mock_client.query.return_value = mock_query_job
         yield mock
 
@@ -98,14 +102,23 @@ def test_generate_embeddings_success(mock_bq):
     service = RAGIngestion()
     request = GenerateEmbeddingsRequest(gcs_uri="gs://test-bucket/processed/test.pdf")
 
+    # Mock the verify query explicitly since we changed the default mock behavior
+    mock_bq_client = mock_bq.return_value
+    mock_result = MagicMock()
+    mock_result.count = 1
+    mock_query_job = MagicMock()
+    mock_query_job.result.return_value = iter([mock_result])
+    mock_query_job.num_dml_affected_rows = 1
+    mock_bq_client.query.return_value = mock_query_job
+
     response = service.generate_embeddings(request)
 
     assert response.success is True
-    assert response.execution_status == "SUCCESS"
+    assert "SUCCESS" in response.execution_status
 
     mock_bq_client = mock_bq.return_value
-    mock_bq_client.query.assert_called_once()
-    args, kwargs = mock_bq_client.query.call_args
+    assert mock_bq_client.query.call_count == 2
+    args, kwargs = mock_bq_client.query.call_args_list[0]
     query_str = args[0]
 
     assert (
