@@ -8,7 +8,7 @@ The routing logic is authoritative and follows the classification verdict produc
 
 ### Destination Path Construction
 The target URI is constructed as follows:
-`gs://kb-{domain}/{tier_label}/{project_name}/{uploader_email_prefix}/{filename}`
+`gs://kb-{domain}/{project_name}/{tier_label}/{uploader_email_prefix}/{filename}`
 
 - **domain**: One of the valid business domains (`it`, `finance`, `hr`, etc.).
 - **tier_label**: The slugified version of the security tier (e.g., `strictly-confidential` for Tier 5).
