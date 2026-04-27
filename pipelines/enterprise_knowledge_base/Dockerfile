@@ -9,14 +9,14 @@ RUN pip install uv
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies globally in the system environment
-RUN uv export --group ekb_pipeline --no-dev --no-hashes | uv pip install --system -r -
+RUN uv export --group classification_pipeline --group rag_pipeline --no-dev --no-hashes | uv pip install --system -r -
 
-# Copy the entire pipelines directory and local packages needed
-COPY pipelines/ ./pipelines/
-COPY mcp_servers/ ./mcp_servers/
+# Copy the necessary pipeline code
+COPY pipelines/enterprise_knowledge_base/ ./pipelines/enterprise_knowledge_base/
+RUN touch pipelines/__init__.py
 
 # Expose the port for Cloud Run
 EXPOSE 8080
 
 # Run the FastAPI app using uvicorn
-CMD ["uv", "run", "uvicorn", "pipelines.enterprise_knowledge_base.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "pipelines.enterprise_knowledge_base.main:app", "--host", "0.0.0.0", "--port", "8080"]

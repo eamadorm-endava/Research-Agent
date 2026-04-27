@@ -64,18 +64,22 @@ mcp_calendar = [
     "pydantic-settings>=2.13.1",
     "python-dateutil>=2.9.0.post0",
 ]
-ekb_pipeline = [
+classification_pipeline = [
     "google-cloud-dlp>=3.36.0",
     "google-genai>=0.1.0",
     "google-cloud-storage>=2.14.0",
     "google-cloud-bigquery>=3.20.0",
-    "pymupdf>=1.24.1",
-    "langchain-text-splitters>=0.3.0",
     "loguru>=0.7.3",
     "fastapi>=0.135.1",
     "uvicorn>=0.41.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+]
+rag_pipeline = [
+    "google-cloud-storage>=2.14.0",
+    "google-cloud-bigquery>=3.20.0",
+    "pymupdf>=1.24.1",
+    "langchain-text-splitters>=0.3.0",
 ]
 
 [tool.pytest.ini_options]
