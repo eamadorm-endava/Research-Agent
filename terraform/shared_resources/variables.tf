@@ -18,3 +18,9 @@ variable "artifact_registry_region" {
   type        = string
   default     = null
 }
+
+variable "apis_to_enable" {
+  description = "Service APIs to enable, mapped by project ID."
+  type        = map(list(string))
+  default     = {}
+}

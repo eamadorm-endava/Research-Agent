@@ -42,7 +42,16 @@ module "ekb_pipeline_cloud_run" {
   containers = {
     ekb-pipeline = {
       image = "${local.cloud_run_image}:${var.ekb_pipeline_cloud_run_image_tag}"
-      env   = var.ekb_pipeline_cloud_run_env
+      env = merge(var.ekb_pipeline_cloud_run_env, {
+        PROJECT_ID = var.project_id
+      })
+    }
+  }
+
+  service_config = {
+    timeout = "3600s"
+    scaling = {
+      max_instance_count = 10
     }
   }
 

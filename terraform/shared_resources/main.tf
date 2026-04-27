@@ -6,6 +6,11 @@ locals {
   artifact_registry_region = coalesce(var.artifact_registry_region, var.main_region)
 }
 
+module "enable_apis" {
+  source           = "../base_modules/api-manager"
+  project_services = var.apis_to_enable
+}
+
 module "artifact_registry" {
   source     = "../base_modules/artifact-registry"
   project_id = var.project_id
@@ -17,6 +22,8 @@ module "artifact_registry" {
       standard = {}
     }
   }
+
+  depends_on = [module.enable_apis]
 }
 
 resource "google_bigquery_dataset" "knowledge_base" {
@@ -96,6 +103,70 @@ resource "google_bigquery_table" "documents_chunks" {
 EOF
 }
 
+resource "google_bigquery_table" "documents_metadata" {
+  dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
+  table_id   = "documents_metadata"
+
+  schema = <<EOF
+[
+  {
+    "name": "document_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "UUID of the document (deterministic from URI)"
+  },
+  {
+    "name": "gcs_uri",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Original GCS URI"
+  },
+  {
+    "name": "classification_tier",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Numeric tier (1-5)"
+  },
+  {
+    "name": "classification_label",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Friendly label (public, confidential, etc)"
+  },
+  {
+    "name": "business_domain",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Detected domain (finance, hr, etc)"
+  },
+  {
+    "name": "pii_detected",
+    "type": "BOOLEAN",
+    "mode": "REQUIRED",
+    "description": "True if any PII was found"
+  },
+  {
+    "name": "pii_types",
+    "type": "STRING",
+    "mode": "REPEATED",
+    "description": "List of infotypes found"
+  },
+  {
+    "name": "summary",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Contextual summary from Gemini"
+  },
+  {
+    "name": "created_at",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "Time of classification"
+  }
+]
+EOF
+}
+
 resource "google_storage_bucket" "kb_landing_zone" {
   name          = "${var.project_id}-kb-landing-zone"
   location      = var.main_region
@@ -114,4 +185,65 @@ resource "google_storage_bucket_object" "processed_folder" {
   name    = "processed/"
   content = "placeholder"
   bucket  = google_storage_bucket.kb_landing_zone.name
+}
+
+resource "google_storage_bucket" "rag_staging" {
+  name          = "${var.project_id}-rag-staging"
+  location      = var.main_region
+  force_destroy = true
+
+  uniform_bucket_level_access = true
+}
+
+resource "google_storage_bucket_object" "rag_ingested_folder" {
+  name    = "ingested/"
+  content = "placeholder"
+  bucket  = google_storage_bucket.rag_staging.name
+}
+
+resource "google_storage_bucket_object" "rag_processed_folder" {
+  name    = "processed/"
+  content = "placeholder"
+  bucket  = google_storage_bucket.rag_staging.name
+}
+
+################ BigQuery ML Model ################
+
+resource "google_bigquery_connection" "vertex_ai_connection" {
+  connection_id = "vertex_ai_connection"
+  project       = var.project_id
+  location      = var.main_region
+  friendly_name = "Connection for Vertex AI embeddings"
+  cloud_resource {}
+}
+
+resource "google_project_iam_member" "connection_ai_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_bigquery_connection.vertex_ai_connection.cloud_resource[0].service_account_id}"
+}
+
+resource "google_bigquery_job" "create_multimodal_model" {
+  job_id   = "create_model_${replace(timestamp(), "[: -]", "")}"
+  project  = var.project_id
+  location = var.main_region
+
+  query {
+    query          = <<EOF
+      CREATE OR REPLACE MODEL `${google_bigquery_dataset.knowledge_base.dataset_id}.multimodal_embedding_model`
+      REMOTE WITH CONNECTION `${var.project_id}.${var.main_region}.${google_bigquery_connection.vertex_ai_connection.connection_id}`
+      OPTIONS (ENDPOINT = 'multimodalembedding@001');
+EOF
+    use_legacy_sql = false
+  }
+
+  lifecycle {
+    ignore_changes = [job_id]
+  }
+
+  depends_on = [
+    google_bigquery_dataset.knowledge_base,
+    google_bigquery_connection.vertex_ai_connection,
+    google_project_iam_member.connection_ai_user
+  ]
 }
