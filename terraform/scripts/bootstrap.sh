@@ -157,13 +157,13 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
 
 # 8. One-time shared resources apply (Artifact Registry owner state)
 if [[ "$APPLY_SHARED_RESOURCES" == "true" ]]; then
-    echo "Applying one-time shared resources (Artifact Registry)..."
+    echo "Applying one-time shared resources (Artifact Registry, BQ, GCS)..."
     pushd "$REPO_ROOT/terraform/shared_resources" >/dev/null
     terraform init -reconfigure \
         -backend-config="bucket=${BUCKET_NAME}" \
         -backend-config="prefix=terraform/state/shared-resources"
-    terraform plan
-    terraform apply -auto-approve
+    terraform plan -var="project_id=$PROJECT_ID"
+    terraform apply -auto-approve -var="project_id=$PROJECT_ID"
     popd >/dev/null
 else
     echo "Skipping shared_resources apply (APPLY_SHARED_RESOURCES=${APPLY_SHARED_RESOURCES})."
@@ -171,6 +171,11 @@ fi
 
 # 9. Create Cloud Build Triggers
 echo "Executing trigger setup (cicd_triggers_creation.sh)..."
+PROJECT_ID="$PROJECT_ID" \
+SA_NAME="$SA_NAME" \
+SA_EMAIL="$SA_EMAIL" \
+GITHUB_REGION="$GITHUB_REGION" \
+GITHUB_CONNECTION_NAME="$GITHUB_CONNECTION_NAME" \
 bash "$SCRIPT_DIR/cicd_triggers_creation.sh"
 
 echo "Triggers created successfully!"

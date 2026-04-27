@@ -5,14 +5,14 @@ set -euo pipefail
 # One-time Cloud Build trigger setup for AI Agent and MCP servers (BQ + GCS + Drive).
 # It is safe to re-run: existing triggers are detected and skipped.
 
-PROJECT_ID="${PROJECT_ID:-ag-core-dev-fdx7}"
+PROJECT_ID="${PROJECT_ID:?PROJECT_ID environment variable is required}"
 PROJECT_NUMBER="${PROJECT_NUMBER:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')}"
 
 SA_NAME="${SA_NAME:-terraform-sa-gemini-project}"
 SA_EMAIL="${SA_EMAIL:-${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com}"
 
 GITHUB_REGION="${GITHUB_REGION:-us-central1}"
-GITHUB_CONNECTION_NAME="${GITHUB_CONNECTION_NAME:-eamadorm-github}"
+GITHUB_CONNECTION_NAME="${GITHUB_CONNECTION_NAME:?GITHUB_CONNECTION_NAME environment variable is required}"
 REPOSITORY_SLUG="${REPOSITORY_SLUG:-eamadorm-endava-Research-Agent}"
 
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
