@@ -142,6 +142,50 @@ def _extract_artifact_payload(
     return file_name, artifact_bytes, mime_type or "application/octet-stream"
 
 
+def _read_context_value(source: Any, *names: str) -> Optional[str]:
+    """Safely reads string metadata from ADK context/session objects or dicts."""
+    if source is None:
+        return None
+
+    for name in names:
+        value = None
+        if isinstance(source, dict):
+            value = source.get(name)
+        else:
+            value = getattr(source, name, None)
+
+        if value is not None and str(value).strip():
+            return str(value)
+
+    return None
+
+
+def _build_user_identity_context(tool_context: ToolContext) -> Optional[dict[str, str]]:
+    """Builds non-secret ADK identity metadata without assuming context attrs."""
+    session = getattr(tool_context, "session", None)
+    invocation_context = getattr(tool_context, "_invocation_context", None)
+
+    identity_context = {
+        "adk_user_id": (
+            _read_context_value(tool_context, "user_id")
+            or _read_context_value(session, "user_id")
+            or _read_context_value(invocation_context, "user_id")
+        ),
+        "adk_session_id": (
+            _read_context_value(tool_context, "session_id")
+            or _read_context_value(session, "id", "session_id")
+            or _read_context_value(invocation_context, "session_id")
+        ),
+        "adk_app_name": (
+            _read_context_value(tool_context, "app_name")
+            or _read_context_value(session, "app_name")
+            or _read_context_value(invocation_context, "app_name")
+        ),
+    }
+
+    return {key: value for key, value in identity_context.items() if value}
+
+
 def _build_object_name(file_name: str, explicit_object_name: Optional[str]) -> str:
     """Determines the final destination object name in the landing zone."""
     if explicit_object_name:
@@ -377,11 +421,7 @@ async def transfer_uploaded_artifact_to_landing_zone(
         "content_base64": base64.b64encode(artifact_bytes).decode("ascii"),
         "content_type": mime_type,
         "metadata": metadata,
-        "user_identity_context": {
-            "adk_user_id": tool_context.user_id,
-            "adk_session_id": tool_context.session_id,
-            "adk_app_name": tool_context.app_name,
-        },
+        "user_identity_context": _build_user_identity_context(tool_context),
     }
 
     logger.info(

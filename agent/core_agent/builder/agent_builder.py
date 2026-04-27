@@ -13,6 +13,7 @@ from google.genai.types import (
     ThinkingConfig,
 )
 
+from ..callbacks import persist_uploaded_files_as_artifacts
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill_toolset
@@ -185,6 +186,7 @@ class AgentBuilder:
             instruction=self.agent_config.AGENT_INSTRUCTION,
             tools=self._tools,
             planner=self._build_planner(),
+            before_model_callback=persist_uploaded_files_as_artifacts,
         )
 
         return root_agent
