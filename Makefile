@@ -23,6 +23,7 @@ verify-all-ci:
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
+	$(MAKE) verify-ekb-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -152,14 +153,23 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
 
-### Document Classification Pipeline Commands ###
+### EKB Pipeline Commands ###
 
-run-classification-precommit:
-	uvx pre-commit run --files pipelines/enterprise_knowledge_base/**/*
+run-ekb-precommit:
+	uvx ruff check pipelines/enterprise_knowledge_base
+	uvx ruff format --check pipelines/enterprise_knowledge_base
 
-run-classification-tests:
-	uv run --group classification_pipeline pytest pipelines/enterprise_knowledge_base/tests/
+run-ekb-tests:
+	uv run pytest pipelines/enterprise_knowledge_base/tests/
 
-verify-classification-ci:
-	$(MAKE) run-classification-precommit
-	$(MAKE) run-classification-tests
+build-ekb-image:
+	docker build -t ekb-pipeline-test -f pipelines/enterprise_knowledge_base/Dockerfile .
+
+verify-ekb-ci:
+	$(MAKE) run-ekb-precommit
+	$(MAKE) run-ekb-tests
+	$(MAKE) build-ekb-image
+	$(MAKE) test-ekb-terraform
+
+test-ekb-terraform:
+	cd terraform/ekb_pipeline_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate

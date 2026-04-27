@@ -112,4 +112,8 @@ create_trigger "drive-mcp-server-services-apply" "push" "terraform/drive_mcp_ser
 create_trigger "calendar-mcp-server-services-plan" "pr" "terraform/google_calendar_mcp_server_resources" "terraform/google_calendar_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_calendar/**"
 create_trigger "calendar-mcp-server-services-apply" "push" "terraform/google_calendar_mcp_server_resources" "terraform/google_calendar_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_calendar/**"
 
-echo "Done. All AI Agent and MCP triggers are created (or already existed)."
+# EKB Pipeline triggers
+create_trigger "ekb-pipeline-services-plan" "pr" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-ci.yaml" "pipelines/enterprise_knowledge_base/**"
+create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"
+
+echo "Done. All AI Agent, MCP and EKB triggers are created (or already existed)."
