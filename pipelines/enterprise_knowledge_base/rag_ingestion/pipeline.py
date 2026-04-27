@@ -1,5 +1,6 @@
 import json
 import time
+import unicodedata
 import uuid
 from typing import Optional
 from datetime import datetime, timezone
@@ -86,7 +87,7 @@ class RAGIngestion:
         """
         logger.info(f"Starting ingestion for document: {request.gcs_uri}")
         # Determine the URI to record in BQ (Original vs Sanitized)
-        record_uri = request.original_uri or request.gcs_uri
+        record_uri = self._normalize_uri(request.original_uri or request.gcs_uri)
         execution_id = str(uuid.uuid4())[:8]
 
         try:
@@ -141,6 +142,7 @@ class RAGIngestion:
             GenerateEmbeddingsResponse -> Result of the vectorization job.
         """
         logger.info(f"Triggering embedding generation for: {request.gcs_uri}")
+        request.gcs_uri = self._normalize_uri(request.gcs_uri)
         max_retries = 3
 
         for attempt in range(max_retries):
@@ -149,12 +151,21 @@ class RAGIngestion:
                 validation = self._validate_embedding_results(
                     request, affected_rows, attempt
                 )
-                if validation:
-                    return validation
+                if validation and validation.success:
+                    # Final safety check: Verify that embeddings are actually in BQ
+                    if self._verify_embeddings_persist(
+                        request.gcs_uri, request.expected_chunk_count
+                    ):
+                        return validation
+                    else:
+                        logger.warning(
+                            f"Verification failed on attempt {attempt + 1}: Embeddings not yet visible. Retrying..."
+                        )
 
-                logger.warning(
-                    f"No rows affected on attempt {attempt + 1}. Retrying in 5s..."
-                )
+                if not validation:
+                    logger.warning(
+                        f"No rows affected on attempt {attempt + 1}. Retrying in 5s..."
+                    )
                 time.sleep(5)
             except Exception as e:
                 logger.error(
@@ -255,6 +266,39 @@ class RAGIngestion:
             )
         return None
 
+    def _verify_embeddings_persist(self, gcs_uri: str, expected_count: int) -> bool:
+        """Performs a definitive SELECT to verify embeddings are present in BQ.
+
+        Args:
+            gcs_uri: str -> The document URI to verify.
+            expected_count: int -> Min number of vectorized chunks expected.
+
+        Returns:
+            bool -> True if embeddings are found and non-empty.
+        """
+        query = f"""
+            SELECT COUNT(*) as count
+            FROM `{self.table_id}`
+            WHERE NORMALIZE(gcs_uri) = NORMALIZE(@gcs_uri)
+              AND embedding IS NOT NULL
+              AND ARRAY_LENGTH(embedding) > 0
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("gcs_uri", "STRING", gcs_uri)
+            ]
+        )
+        try:
+            results = self.bq_client.query(query, job_config=job_config).result()
+            count = next(results).count
+            logger.info(
+                f"Verified {count}/{expected_count} chunks have embeddings in BigQuery."
+            )
+            return count >= expected_count
+        except Exception as e:
+            logger.warning(f"Embedding verification query failed: {str(e)}")
+            return False
+
     def _clear_existing_chunks(self, gcs_uri: str) -> None:
         """Deletes all chunks associated with a specific GCS URI.
 
@@ -264,6 +308,7 @@ class RAGIngestion:
         Returns:
             None -> No return value.
         """
+        gcs_uri = self._normalize_uri(gcs_uri)
         query = f"DELETE FROM `{self.table_id}` WHERE NORMALIZE(gcs_uri) = NORMALIZE(@gcs_uri)"
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
@@ -413,7 +458,18 @@ class RAGIngestion:
         Returns:
             str -> The generated UUID string.
         """
-        return str(uuid.uuid5(uuid.NAMESPACE_URL, gcs_uri))
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, self._normalize_uri(gcs_uri)))
+
+    def _normalize_uri(self, uri: str) -> str:
+        """Ensures consistent Unicode normalization (NFC) for all GCS URIs.
+
+        Args:
+            uri: str -> The URI to normalize.
+
+        Returns:
+            str -> Normalized URI.
+        """
+        return unicodedata.normalize("NFC", uri)
 
     def _is_document_processed(self, document_id: str) -> bool:
         """Checks if the document ID already exists in the chunks table.
