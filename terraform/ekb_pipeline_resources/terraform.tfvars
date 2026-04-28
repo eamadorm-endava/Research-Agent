@@ -24,10 +24,7 @@ ekb_pipeline_iam_project_roles = {
   "ag-core-dev-fdx7" = [
     "roles/dlp.admin",
     "roles/aiplatform.user",
-    "roles/storage.objectAdmin",
-    "roles/bigquery.dataEditor",
     "roles/bigquery.jobUser",
-    "roles/bigquery.connectionAdmin",
     "roles/logging.logWriter"
   ]
 }
