@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from pipelines.enterprise_knowledge_base.rag_ingestion.pipeline import RAGIngestion
-from pipelines.enterprise_knowledge_base.rag_ingestion.schemas import DocumentChunk
+from pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline import RAGIngestion
+from pipelines.enterprise_knowledge_base.app.rag_ingestion.schemas import DocumentChunk
 
 
 @pytest.fixture

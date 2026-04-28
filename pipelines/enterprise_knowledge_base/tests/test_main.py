@@ -2,13 +2,13 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from pipelines.enterprise_knowledge_base.main import app
-from pipelines.enterprise_knowledge_base.schemas import OrchestratorRunResponse
+from pipelines.enterprise_knowledge_base.app.main import app
+from pipelines.enterprise_knowledge_base.app.schemas import OrchestratorRunResponse
 
 client = TestClient(app)
 
 
-@patch("pipelines.enterprise_knowledge_base.main.KBIngestionPipeline.run")
+@patch("pipelines.enterprise_knowledge_base.app.main.KBIngestionPipeline.run")
 def test_ingest_document_success(mock_run):
     """
     Test the happy path: the endpoint successfully triggers the orchestrator
@@ -40,7 +40,7 @@ def test_ingest_document_success(mock_run):
     assert run_arg.gcs_uri == "gs://landing-zone-bucket/file.pdf"
 
 
-@patch("pipelines.enterprise_knowledge_base.main.KBIngestionPipeline.run")
+@patch("pipelines.enterprise_knowledge_base.app.main.KBIngestionPipeline.run")
 def test_ingest_document_failure(mock_run):
     """
     Test the failure mode: the orchestrator raises an exception,

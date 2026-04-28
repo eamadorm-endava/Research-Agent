@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pipelines.enterprise_knowledge_base.rag_ingestion import (
+from pipelines.enterprise_knowledge_base.app.rag_ingestion import (
     GenerateEmbeddingsRequest,
     IngestDocumentRequest,
     RAGIngestion,
@@ -13,7 +13,7 @@ from pipelines.enterprise_knowledge_base.rag_ingestion import (
 def mock_config():
     """Mock the RAG_CONFIG to avoid environment dependency."""
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.RAG_CONFIG"
+        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.RAG_CONFIG"
     ) as mock:
         mock.PROJECT_ID = "test-project"
         mock.BQ_DATASET = "knowledge_base"
@@ -30,7 +30,7 @@ def mock_config():
 @pytest.fixture
 def mock_storage():
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.storage.Client"
+        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.storage.Client"
     ) as mock:
         yield mock
 
@@ -38,7 +38,7 @@ def mock_storage():
 @pytest.fixture
 def mock_bq():
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.bigquery.Client"
+        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.bigquery.Client"
     ) as mock:
         mock_client = mock.return_value
         mock_query_job = MagicMock()
@@ -54,7 +54,7 @@ def mock_bq():
 @pytest.fixture
 def mock_fitz():
     with patch(
-        "pipelines.enterprise_knowledge_base.rag_ingestion.pipeline.fitz.open"
+        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.fitz.open"
     ) as mock:
         mock_doc = MagicMock()
         mock_page = MagicMock()

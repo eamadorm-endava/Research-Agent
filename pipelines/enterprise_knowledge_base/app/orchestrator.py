@@ -77,7 +77,7 @@ class KBIngestionPipeline:
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print(
-            "Usage: uv run python -m pipelines.enterprise_knowledge_base.orchestrator <project_id> <gcs_uri>"
+            "Usage: uv run python -m pipelines.enterprise_knowledge_base.app.orchestrator <project_id> <gcs_uri>"
         )
         sys.exit(1)
 
