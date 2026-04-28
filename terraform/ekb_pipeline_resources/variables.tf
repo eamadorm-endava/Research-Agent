@@ -18,7 +18,7 @@ variable "agent_service_account_email" {
   type        = string
 }
 
-variable "apis_to_enable" {
+variable "project_services" {
   description = "Service APIs to enable, mapped by project ID."
   type        = map(list(string))
   default     = {}

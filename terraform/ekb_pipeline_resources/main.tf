@@ -5,7 +5,7 @@ data "google_project" "project" {
 ################ APIs ################
 module "enable_apis" {
   source           = "../base_modules/api-manager"
-  project_services = var.apis_to_enable
+  project_services = var.project_services
 }
 
 ################ Service Accounts ################

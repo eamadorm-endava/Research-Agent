@@ -7,7 +7,7 @@ agent_service_account_email = "adk-agent@ag-core-dev-fdx7.iam.gserviceaccount.co
 
 ################ APIs to enable ################
 
-apis_to_enable = {
+project_services = {
   "ag-core-dev-fdx7" = [
     "run.googleapis.com",
     "dlp.googleapis.com",
