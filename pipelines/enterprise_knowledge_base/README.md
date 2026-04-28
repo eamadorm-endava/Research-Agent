@@ -37,27 +37,43 @@ The following APIs must be enabled:
 ## Security & Permissions
 
 ### Service Account (SA) Requirements
-The pipeline requires a Service Account with the following minimum IAM roles:
+The pipeline operates on a **least-privilege model**, using resource-level bindings where possible.
 
-#### 1. Pipeline Execution SA
-Used by the Cloud Run/Function or local orchestrator.
-- `roles/dlp.user`: To scan and mask PII.
-- `roles/storage.objectAdmin`: To manage files across landing, staging, and domain buckets.
-- `roles/bigquery.dataEditor`: To insert records into BQ tables.
+#### 1. Pipeline Execution SA (`ekb-pipeline-sa`)
+Used by the Cloud Run service or local orchestrator.
+
+**Project Level Roles:**
+- `roles/dlp.admin`: To manage inspection jobs.
 - `roles/bigquery.jobUser`: To run BQ Load Jobs and queries.
-- `roles/aiplatform.user`: To invoke Gemini for classification.
+- `roles/aiplatform.user`: To invoke Gemini and Vertex AI.
+- `roles/logging.logWriter`: For container logs.
+
+**Resource Level Roles:**
+- `roles/storage.objectAdmin`: Granted ONLY on Landing, RAG Staging, and Domain buckets.
+- `roles/bigquery.dataEditor`: Granted ONLY on the `knowledge_base` dataset.
+- `roles/bigquery.connectionUser`: Granted on the `vertex_ai_connection` to allow BQML queries.
 
 #### 2. BigQuery Connection SA
 Automatically created when provisioning the BigQuery Cloud Resource Connection.
-- `roles/aiplatform.user`: **Required** to allow BQML to call Vertex AI embedding models.
+- `roles/aiplatform.user`: **Required** at the project level to allow BQML to call Vertex AI embedding models.
 
-### IAM Setup Command
-```bash
-# Granting Vertex AI access to the BQ Connection SA
-gcloud projects add-iam-policy-binding ${PROJECT_ID} \
-  --member="serviceAccount:${CONNECTION_SA_EMAIL}" \
-  --role="roles/aiplatform.user"
-```
+---
+
+## Configuration
+
+### Environment Variables
+The following variables are required for the Cloud Run deployment (configured via Terraform):
+
+| Variable | Description |
+| :--- | :--- |
+| `PROJECT_ID` | The GCP Project ID. |
+| `GEMINI_LOCATION` | The region for Vertex AI (e.g., `us-central1`). |
+| `BQ_DATASET` | Name of the metadata dataset. |
+| `BQ_TABLE` | Main metadata table name. |
+| `BQ_CHUNKS_TABLE` | Table for storing document chunks. |
+| `BQ_METADATA_TABLE` | (Duplicate of BQ_TABLE) for backward compatibility. |
+| `RAG_STAGING_BUCKET` | The bucket name for the RAG staging area. |
+| `GEMINI_MODEL` | (Optional) Defaults to `gemini-2.5-flash`. |
 
 ---
 
