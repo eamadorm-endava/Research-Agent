@@ -96,17 +96,19 @@ resource "google_project_iam_member" "connection_ai_user" {
 }
 
 resource "google_bigquery_job" "create_multimodal_model" {
-  job_id   = "create_model_${replace(timestamp(), "[: -]", "")}"
+  job_id   = "create_model_${formatdate("YYYYMMDDhhmmss", timestamp())}"
   project  = var.project_id
   location = var.main_region
 
   query {
-    query          = <<EOF
+    query              = <<EOF
       CREATE OR REPLACE MODEL `knowledge_base.multimodal_embedding_model`
       REMOTE WITH CONNECTION `${var.project_id}.${var.main_region}.${google_bigquery_connection.vertex_ai_connection.connection_id}`
       OPTIONS (ENDPOINT = 'multimodalembedding@001');
 EOF
-    use_legacy_sql = false
+    use_legacy_sql     = false
+    create_disposition = ""
+    write_disposition  = ""
   }
 
   lifecycle {
