@@ -135,7 +135,7 @@ class EKBConfig(BaseSettings):
     GEMINI_MODEL: Annotated[
         str,
         Field(
-            default="gemini-1.5-flash",
+            default="gemini-2.5-flash",
             description="The Gemini model to use for contextual classification.",
         ),
     ]

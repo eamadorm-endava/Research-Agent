@@ -43,15 +43,13 @@ module "ekb_pipeline_cloud_run" {
     ekb-pipeline = {
       image = "${local.cloud_run_image}:${var.ekb_pipeline_cloud_run_image_tag}"
       env = merge(var.ekb_pipeline_cloud_run_env, {
-        PROJECT_ID            = var.project_id
-        GOOGLE_CLOUD_PROJECT  = var.project_id
-        GEMINI_LOCATION       = var.main_region
-        GOOGLE_CLOUD_LOCATION = var.main_region
-        BQ_DATASET            = google_bigquery_dataset.knowledge_base.dataset_id
-        BQ_TABLE              = google_bigquery_table.documents_metadata.table_id
-        BQ_CHUNKS_TABLE       = google_bigquery_table.documents_chunks.table_id
-        BQ_METADATA_TABLE     = google_bigquery_table.documents_metadata.table_id
-        RAG_STAGING_BUCKET    = google_storage_bucket.rag_staging.name
+        PROJECT_ID         = var.project_id
+        GEMINI_LOCATION    = var.main_region
+        BQ_DATASET         = google_bigquery_dataset.knowledge_base.dataset_id
+        BQ_TABLE           = google_bigquery_table.documents_metadata.table_id
+        BQ_CHUNKS_TABLE    = google_bigquery_table.documents_chunks.table_id
+        BQ_METADATA_TABLE  = google_bigquery_table.documents_metadata.table_id
+        RAG_STAGING_BUCKET = google_storage_bucket.rag_staging.name
       })
     }
   }
