@@ -47,8 +47,6 @@ for BUCKET in "${BUCKETS[@]}"; do
   fi
 done
 
-echo "Initializing landing zone subdirectories..."
-echo -n "" | gcloud storage cp - "gs://${PROJECT_ID}-kb-landing-zone/ingested/"
 
 echo "--------------------------------------------------------"
 echo "3. Setting up BigQuery Connection & ML Models..."
@@ -85,18 +83,18 @@ echo "--------------------------------------------------------"
 cat <<EOF > metadata_schema.json
 [
   {"name": "document_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique UUID for the document"},
-  {"name": "gcs_uri", "type": "STRING", "mode": "REQUIRED", "description": "Final GCS URI in the domain bucket"},
+  {"name": "gcs_uri", "type": "STRING", "mode": "REQUIRED", "description": "Final GCS URI in the domain bucket (Original)"},
   {"name": "filename", "type": "STRING", "mode": "REQUIRED", "description": "The original filename"},
-  {"name": "classification_tier", "type": "STRING", "mode": "NULLABLE", "description": "Security tier label"},
-  {"name": "domain", "type": "STRING", "mode": "NULLABLE", "description": "Business domain"},
-  {"name": "confidence_score", "type": "FLOAT64", "mode": "NULLABLE", "description": "Classification confidence"},
-  {"name": "trust_level", "type": "STRING", "mode": "NULLABLE", "description": "Document trust maturity"},
-  {"name": "project_id", "type": "STRING", "mode": "NULLABLE", "description": "Associated project ID"},
-  {"name": "uploader_email", "type": "STRING", "mode": "NULLABLE", "description": "Uploader email address"},
-  {"name": "description", "type": "STRING", "mode": "NULLABLE", "description": "AI-generated summary"},
-  {"name": "version", "type": "INT64", "mode": "NULLABLE", "description": "Incremental version number"},
-  {"name": "latest", "type": "BOOL", "mode": "NULLABLE", "description": "Latest version flag"},
-  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "ISO timestamp of ingestion"}
+  {"name": "classification_tier", "type": "STRING", "mode": "REQUIRED", "description": "String classification label (public, confidential, etc.)"},
+  {"name": "domain", "type": "STRING", "mode": "REQUIRED", "description": "The business domain (it, hr, etc.)"},
+  {"name": "confidence_score", "type": "FLOAT64", "mode": "REQUIRED", "description": "AI classifier confidence (0.0 - 1.0)"},
+  {"name": "trust_level", "type": "STRING", "mode": "REQUIRED", "description": "Trust maturity (published, wip, archived)"},
+  {"name": "project_id", "type": "STRING", "mode": "REQUIRED", "description": "Project identifier"},
+  {"name": "uploader_email", "type": "STRING", "mode": "REQUIRED", "description": "Uploader's email address"},
+  {"name": "description", "type": "STRING", "mode": "REQUIRED", "description": "AI-generated content summary"},
+  {"name": "version", "type": "INTEGER", "mode": "REQUIRED", "description": "Incremental version number"},
+  {"name": "latest", "type": "BOOLEAN", "mode": "REQUIRED", "description": "Whether this is the latest version"},
+  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "ISO 8601 ingestion timestamp"}
 ]
 EOF
 
@@ -113,15 +111,15 @@ fi
 cat <<EOF > chunks_schema.json
 [
   {"name": "chunk_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique UUID for the chunk"},
-  {"name": "document_id", "type": "STRING", "mode": "REQUIRED", "description": "Parent document UUID"},
-  {"name": "chunk_data", "type": "STRING", "mode": "NULLABLE", "description": "Text content of the chunk"},
-  {"name": "gcs_uri", "type": "STRING", "mode": "NULLABLE", "description": "Original GCS URI (Domain)"},
-  {"name": "filename", "type": "STRING", "mode": "NULLABLE", "description": "Source filename"},
-  {"name": "structural_metadata", "type": "STRING", "mode": "NULLABLE", "description": "JSON metadata (page, etc.)"},
-  {"name": "page_number", "type": "INT64", "mode": "NULLABLE", "description": "Source page number"},
-  {"name": "embedding", "type": "FLOAT64", "mode": "REPEATED", "description": "Semantic vector embedding"},
-  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "Creation timestamp"},
-  {"name": "vectorized_at", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "Vectorization timestamp"}
+  {"name": "document_id", "type": "STRING", "mode": "REQUIRED", "description": "Deterministic UUID for the document"},
+  {"name": "chunk_data", "type": "STRING", "mode": "REQUIRED", "description": "Text content of the chunk"},
+  {"name": "gcs_uri", "type": "STRING", "mode": "REQUIRED", "description": "Original GCS URI of the document"},
+  {"name": "filename", "type": "STRING", "mode": "REQUIRED", "description": "Basename of the file"},
+  {"name": "structural_metadata", "type": "JSON", "mode": "REQUIRED", "description": "Structured page info, layout data, etc."},
+  {"name": "page_number", "type": "INTEGER", "mode": "REQUIRED", "description": "Page number where the chunk was found"},
+  {"name": "embedding", "type": "FLOAT64", "mode": "REPEATED", "description": "Vector embedding (empty initially)"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "ISO timestamp of creation"},
+  {"name": "vectorized_at", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "ISO timestamp of vectorization"}
 ]
 EOF
 
