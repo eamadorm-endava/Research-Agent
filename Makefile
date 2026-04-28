@@ -5,6 +5,7 @@ DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
 GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
 CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
+ARTIFACT_BUCKET?=ai_agent_landing_zone
 ### General Commands ###
 
 gcloud-auth:
@@ -44,7 +45,7 @@ test-agent:
 
 run-ui-agent:
 	cd agent && \
-	uv run --group ai-agent adk web --port 8000
+	uv run --group ai-agent adk web --port 8000 --artifact_service_uri gs://$(ARTIFACT_BUCKET)
 
 deploy-agent:
 	uv export \
