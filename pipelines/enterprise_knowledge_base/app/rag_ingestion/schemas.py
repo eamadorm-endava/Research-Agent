@@ -13,7 +13,7 @@ class DocumentChunk(BaseModel):
     gcs_uri: Annotated[str, Field(description="Original GCS URI of the document")]
     filename: Annotated[str, Field(description="Basename of the file")]
     structural_metadata: Annotated[
-        str, Field(description="JSON string with page info, etc.")
+        dict, Field(description="Structured page info, layout data, etc.")
     ]
     page_number: Annotated[
         int, Field(description="Page number where the chunk was found")

@@ -71,9 +71,9 @@ resource "google_bigquery_table" "documents_chunks" {
   },
   {
     "name": "structural_metadata",
-    "type": "STRING",
+    "type": "JSON",
     "mode": "REQUIRED",
-    "description": "JSON string with page info, etc."
+    "description": "Structured page info, layout data, etc."
   },
   {
     "name": "page_number",
