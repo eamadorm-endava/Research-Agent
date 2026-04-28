@@ -4,16 +4,14 @@ from typing import Annotated
 
 
 class GCPConfig(BaseSettings):
+    """Holds configuration values for GCP services, enabling future cloud provider portability."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
     )
-    """
-    Class that holds configuration values for GCP services. Allowing to, in any future, change the
-    cloud provider or the way to access the secrets.
-    """
 
     PROJECT_ID: Annotated[
         str,
@@ -47,16 +45,14 @@ class GCPConfig(BaseSettings):
 
 
 class AgentConfig(BaseSettings):
+    """Holds configuration values for the ADK agent: model, generation, retry, and system prompt."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
     )
-    """
-    Class that holds configuration values for the agent, it requires to assign
-    parameters after initialization.
-    """
 
     MODEL_NAME: Annotated[
         str,
@@ -259,15 +255,14 @@ class AgentConfig(BaseSettings):
 
 
 class GoogleAuthConfig(BaseSettings):
+    """Holds shared Google OAuth 2.0 credentials used across all MCP server connections."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
     )
-    """
-    Class that holds configuration values for generic Shared Google OAuth infrastructure credentials.
-    """
 
     GOOGLE_OAUTH_CLIENT_ID: Annotated[
         str,

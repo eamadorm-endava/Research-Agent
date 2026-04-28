@@ -40,15 +40,14 @@ class GCSScopes(StrEnum):
 
 
 class BaseMCPConfig(BaseSettings):
+    """Generic MCP server configuration base class inherited by each server-specific config."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
     )
-    """
-    Generic MCP server configuration that child classes inherit from.
-    """
 
     GENERAL_TIMEOUT: Annotated[
         int,
