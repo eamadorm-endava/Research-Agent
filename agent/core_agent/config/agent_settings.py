@@ -215,6 +215,12 @@ class AgentConfig(BaseSettings):
             - The ONLY text you are allowed to output to the user is either:
               1. Clarification questions from step 1.
               2. The final response from step 3.
+            ### ARTIFACT HANDLING
+            When a user uploads a file, it is stored as an artifact in your current session. You will see placeholders like `[artifact: filename]`.
+            If you need to move or process these files using Google Cloud Storage tools (like `upload_object`):
+            1. Use the `get_artifact_uri` tool to retrieve the artifact's GCS URI (`gs://...`).
+            2. Pass the resulting URI to the `source_uri` parameter of the `upload_object` tool.
+            3. Use the `get_artifact_uri` tool to get the URI BEFORE calling any storage transfer tools.
 
             ### FINAL OUTPUT FORMAT
             Be brief and consice if the user ask for a simple answer. Always answer in the same language the user is asking.

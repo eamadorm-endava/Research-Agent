@@ -12,6 +12,8 @@ from .config import (
 
 from google.adk.apps.app import App
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
+from google.adk.tools import load_artifacts
+from .internal_tools.artifact_tools import GetArtifactUriTool
 
 mcp_servers_to_mount = [
     BIGQUERY_MCP_CONFIG,
@@ -32,6 +34,7 @@ root_agent = (
     )
     .with_skills(skills_to_mount)
     .with_mcp_servers(mcp_servers_to_mount)
+    .with_internal_tools([GetArtifactUriTool(), load_artifacts])
     .build()
 )
 

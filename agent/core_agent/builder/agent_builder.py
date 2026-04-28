@@ -13,6 +13,8 @@ from google.genai.types import (
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill_toolset
+from typing import Callable
+from google.adk.tools import BaseTool, FunctionTool
 
 
 class AgentBuilder:
@@ -65,6 +67,23 @@ class AgentBuilder:
                 prod_execution=self.gcp_config.PROD_EXECUTION,
             )
             self._tools.append(mcp_toolset)
+        return self
+
+    def with_internal_tools(self, tools: list[BaseTool | Callable]) -> Self:
+        """Registers native ADK tools or functions to the agent.
+        Converts functions to FunctionTools if necessary.
+
+        Args:
+            tools (list[BaseTool | Callable]): List of tools or functions to add.
+
+        Returns:
+            Self: The builder instance.
+        """
+        for tool in tools:
+            if not isinstance(tool, BaseTool):
+                # Wrap simple functions as FunctionTools
+                tool = FunctionTool(fn=tool)
+            self._tools.append(tool)
         return self
 
     def with_skills(self, skill_names: list[str]) -> Self:
