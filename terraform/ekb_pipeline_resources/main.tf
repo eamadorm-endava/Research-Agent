@@ -124,6 +124,7 @@ EOF
 ################ EKB Infrastructure (Migrated) ################
 
 resource "google_bigquery_dataset" "knowledge_base" {
+  project       = var.project_id
   dataset_id    = "knowledge_base"
   friendly_name = "knowledge_base"
   description   = "Enterprise Knowledge Base dataset"
@@ -133,6 +134,7 @@ resource "google_bigquery_dataset" "knowledge_base" {
 }
 
 resource "google_bigquery_table" "documents_chunks" {
+  project    = var.project_id
   dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
   table_id   = "documents_chunks"
 
@@ -203,6 +205,7 @@ EOF
 }
 
 resource "google_bigquery_table" "documents_metadata" {
+  project    = var.project_id
   dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
   table_id   = "documents_metadata"
 
@@ -291,6 +294,7 @@ EOF
 }
 
 resource "google_storage_bucket" "kb_landing_zone" {
+  project       = var.project_id
   name          = "${var.project_id}-kb-landing-zone"
   location      = var.main_region
   force_destroy = true
@@ -300,6 +304,7 @@ resource "google_storage_bucket" "kb_landing_zone" {
 }
 
 resource "google_storage_bucket" "rag_staging" {
+  project       = var.project_id
   name          = "${var.project_id}-rag-staging"
   location      = var.main_region
   force_destroy = true
@@ -323,6 +328,7 @@ locals {
 resource "google_storage_bucket" "kb_domain_buckets" {
   for_each = toset(local.kb_domains)
 
+  project       = var.project_id
   name          = "kb-${each.value}"
   location      = var.main_region
   force_destroy = true
@@ -335,6 +341,7 @@ resource "google_storage_bucket" "kb_domain_buckets" {
 
 # BQ Dataset Access
 resource "google_bigquery_dataset_iam_member" "ekb_sa_bq_editor" {
+  project    = var.project_id
   dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${module.ekb-pipeline-service-account.email}"

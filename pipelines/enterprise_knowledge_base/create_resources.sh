@@ -2,7 +2,7 @@
 # create_resources.sh - Unified Infrastructure Setup for EKB Pipeline
 set -e
 
-PROJECT_ID=$1
+PROJECT_ID="${1:-ag-core-dev-fdx7}"
 LOCATION="us-central1"
 DATASET="knowledge_base"
 CONNECTION_NAME="vertex_ai_connection"
@@ -66,8 +66,8 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="roles/aiplatform.user" \
   --condition=None
 
-echo "Sleeping for 10 seconds to allow IAM propagation..."
-sleep 10
+echo "Sleeping for 30 seconds to allow IAM propagation..."
+sleep 30
 
 echo "Creating BigQuery remote model: multimodal_embedding_model..."
 bq query --use_legacy_sql=false \

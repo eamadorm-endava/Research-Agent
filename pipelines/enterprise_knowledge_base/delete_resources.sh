@@ -2,7 +2,7 @@
 # delete_resources.sh - Unified Infrastructure Teardown for EKB Pipeline
 set -e
 
-PROJECT_ID=$1
+PROJECT_ID="ag-core-dev-fdx7"
 LOCATION="us-central1"
 DATASET="knowledge_base"
 CONNECTION_NAME="vertex_ai_connection"
