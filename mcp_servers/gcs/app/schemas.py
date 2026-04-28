@@ -89,25 +89,62 @@ class UpdateBucketLabelsResponse(UpdateBucketLabelsRequest, BaseResponse):
 
 
 class UploadObjectRequest(BaseRequest):
-    bucket_name: BUCKET_NAME
-    object_name: OBJECT_NAME
+    bucket_name: Optional[BUCKET_NAME] = Field(
+        default=None, description="The GCS bucket name."
+    )
+    object_name: Optional[OBJECT_NAME] = Field(
+        default=None, description="The object (blob) name/path in the bucket."
+    )
+    source_uri: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="The GCS URI of the source artifact (e.g. gs://bucket/object).",
+        ),
+    ]
+    destination_uri: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="The full GCS destination path (e.g. gs://target-bucket/landing/file.pdf or gs://target-bucket/folder/).",
+        ),
+    ]
     content: Annotated[
         Optional[str],
         Field(default=None, description="Inline text content to upload."),
     ]
     local_path: Annotated[
         Optional[str],
-        Field(default=None, description="Local path to upload from."),
+        Field(default=None, description="Local path to upload from (deprecated)."),
     ]
     content_type: Annotated[
         Optional[str],
         Field(default=None, description="MIME type of the uploaded object."),
     ]
+    metadata: Annotated[
+        Optional[Dict[str, str]],
+        Field(
+            default=None,
+            description="Optional custom metadata tags to apply to the object.",
+        ),
+    ]
 
     @model_validator(mode="after")
     def validate_content_source(self) -> "UploadObjectRequest":
-        if self.content is None and self.local_path is None:
-            raise ValueError("Either content or local_path must be provided.")
+        if self.content is None and self.local_path is None and self.source_uri is None:
+            raise ValueError(
+                "Either content, local_path, or source_uri must be provided."
+            )
+
+        if self.destination_uri:
+            # Basic validation for GCS URI format
+            if not self.destination_uri.startswith("gs://"):
+                raise ValueError("destination_uri must start with 'gs://'")
+        elif not self.bucket_name:
+            raise ValueError(
+                "bucket_name must be provided if destination_uri is not specified."
+            )
+
         return self
 
 

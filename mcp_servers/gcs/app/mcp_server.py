@@ -29,10 +29,17 @@ from .schemas import (
     ListObjectsResponse,
     ListBucketsRequest,
     ListBucketsResponse,
+    AuthenticationError,
 )
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+class GoogleAccessToken(AccessToken):
+    """Extends AccessToken with user email for auditability."""
+
+    email: Optional[str] = None
 
 
 class GoogleGcsTokenVerifier(TokenVerifier):
@@ -42,16 +49,17 @@ class GoogleGcsTokenVerifier(TokenVerifier):
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    GCS_AUTH_CONFIG.google_token_info_url,
+                    GCS_AUTH_CONFIG.google_token_info_url_v3,
                     params={"access_token": token},
                     timeout=10,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    return AccessToken(
+                    return GoogleAccessToken(
                         token=token,
                         client_id=data.get("aud", "unknown"),
                         scopes=data.get("scope", "").split(),
+                        email=data.get("email"),
                     )
         except Exception:
             pass
@@ -163,50 +171,83 @@ async def update_bucket_labels(
 @mcp.tool()
 async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     """
-    Uploads a file (blob) to a specified GCS bucket.
-    Supports providing content directly as a string or specifying a local file path.
+    Uploads or copies a file (blob) to a specified GCS bucket.
+    Supports providing content directly, local paths (deprecated), or GCS source URIs.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        object_name (str): The name/path of the object to create in GCS.
-        content (str, optional): The string content to upload.
-        local_path (str, optional): The local file path to upload.
-        content_type (str, optional): The MIME type of the file. Auto-detected if not provided.
+        bucket_name (str, optional): The name of the bucket.
+        object_name (str, optional): The name/path of the object to create in GCS.
+        destination_uri (str, optional): Full GCS path (gs://bucket/path/).
+        source_uri (str, optional): GCS source URI for copies.
+        content (str, optional): Inline string content.
+        content_type (str, optional): MIME type.
+        metadata (Dict[str, str], optional): Custom metadata tags.
 
     Returns:
-        str: Success message with the object name.
+        UploadObjectResponse: Structured response with status.
     """
     logger.info(
-        f"Tool call: upload_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
+        f"Tool call: upload_object(bucket_name={request.bucket_name}, "
+        f"object_name={request.object_name}, destination_uri={request.destination_uri})"
     )
     try:
+        # Identity extraction
+        token_obj = get_access_token()
+        if not isinstance(token_obj, GoogleAccessToken) or not token_obj.email:
+            raise AuthenticationError(
+                "Mandatory user identity (email) not found in OAuth token. "
+                "Audit metadata injection is required for landing-zone uploads."
+            )
+
         gcs_manager = _make_gcs_manager()
+
+        # Resolve destination
+        final_bucket = request.bucket_name
+        final_object = request.object_name
+
+        if request.destination_uri:
+            final_bucket, final_object = gcs_manager.parse_gcs_uri(
+                request.destination_uri
+            )
+
+        if not final_bucket:
+            raise ValueError("Destination bucket could not be resolved.")
+
         blob = await asyncio.to_thread(
             gcs_manager.create_object,
-            request.bucket_name,
-            request.object_name,
-            request.content,
-            request.local_path,
-            request.content_type,
+            bucket_name=final_bucket,
+            object_name=final_object,
+            content=request.content,
+            local_path=request.local_path,
+            content_type=request.content_type,
+            source_uri=request.source_uri,
+            metadata=request.metadata,
+            user_email=token_obj.email,
         )
         return UploadObjectResponse(
-            bucket_name=request.bucket_name,
+            bucket_name=final_bucket,
             object_name=blob.name,
+            destination_uri=request.destination_uri,
+            source_uri=request.source_uri,
             content=request.content,
             local_path=request.local_path,
             content_type=blob.content_type,
+            metadata=blob.metadata,
             execution_status="success",
             execution_message=(
-                f"Successfully uploaded object: {blob.name} to bucket: {request.bucket_name}"
+                f"Successfully processed object: {blob.name} in bucket: {final_bucket}"
             ),
         )
     except Exception as e:
         return UploadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
+            destination_uri=request.destination_uri,
+            source_uri=request.source_uri,
             content=request.content,
             local_path=request.local_path,
             content_type=request.content_type,
+            metadata=request.metadata,
             execution_status="error",
             execution_message=_format_execution_error(e),
         )
