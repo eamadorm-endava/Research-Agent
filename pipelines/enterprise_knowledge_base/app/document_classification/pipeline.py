@@ -286,7 +286,7 @@ class ClassificationPipeline:
         filename = request.original_landing_uri.split("/")[-1]
         uploader_prefix = request.uploader_email.split("@")[0]
 
-        dest_base = f"gs://{EKB_CONFIG.PROJECT_ID}-kb-{request.final_domain}/{request.project_name}/{tier_label}/{uploader_prefix}/"
+        dest_base = f"gs://kb-{request.final_domain}/{request.project_name}/{tier_label}/{uploader_prefix}/"
         final_original_uri = f"{dest_base}{filename}"
 
         # 1. Copy Original
