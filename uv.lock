@@ -2954,15 +2954,10 @@ ai-agent = [
     { name = "pydantic-settings" },
 ]
 classification-pipeline = [
-    { name = "fastapi" },
     { name = "google-cloud-bigquery" },
     { name = "google-cloud-dlp" },
     { name = "google-cloud-storage" },
     { name = "google-genai" },
-    { name = "loguru" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "uvicorn" },
 ]
 dev = [
     { name = "click" },
@@ -2975,6 +2970,14 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-mock" },
+]
+ekb-integration = [
+    { name = "fastapi" },
+    { name = "loguru" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pymupdf" },
+    { name = "uvicorn" },
 ]
 mcp-bq = [
     { name = "google-cloud-bigquery" },
@@ -3012,7 +3015,6 @@ rag-pipeline = [
     { name = "google-cloud-bigquery" },
     { name = "google-cloud-storage" },
     { name = "langchain-text-splitters" },
-    { name = "pymupdf" },
 ]
 
 [package.metadata]
@@ -3032,15 +3034,10 @@ ai-agent = [
     { name = "pydantic-settings", specifier = ">=2.13.1" },
 ]
 classification-pipeline = [
-    { name = "fastapi", specifier = ">=0.135.1" },
     { name = "google-cloud-bigquery", specifier = ">=3.20.0" },
     { name = "google-cloud-dlp", specifier = ">=3.36.0" },
     { name = "google-cloud-storage", specifier = ">=2.14.0" },
     { name = "google-genai", specifier = ">=0.1.0" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pydantic-settings", specifier = ">=2.13.1" },
-    { name = "uvicorn", specifier = ">=0.41.0" },
 ]
 dev = [
     { name = "click", specifier = ">=8.3.1" },
@@ -3053,6 +3050,14 @@ dev = [
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", specifier = ">=0.23.5" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
+]
+ekb-integration = [
+    { name = "fastapi", specifier = ">=0.135.1" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pydantic-settings", specifier = ">=2.13.1" },
+    { name = "pymupdf", specifier = ">=1.24.1" },
+    { name = "uvicorn", specifier = ">=0.41.0" },
 ]
 mcp-bq = [
     { name = "google-cloud-bigquery", specifier = ">=3.20.0" },
@@ -3090,7 +3095,6 @@ rag-pipeline = [
     { name = "google-cloud-bigquery", specifier = ">=3.20.0" },
     { name = "google-cloud-storage", specifier = ">=2.14.0" },
     { name = "langchain-text-splitters", specifier = ">=0.3.0" },
-    { name = "pymupdf", specifier = ">=1.24.1" },
 ]
 
 [[package]]

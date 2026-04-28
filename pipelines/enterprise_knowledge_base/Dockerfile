@@ -9,7 +9,7 @@ RUN pip install uv
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies globally in the system environment
-RUN uv export --group classification_pipeline --group rag_pipeline --no-dev --no-hashes | uv pip install --system -r -
+RUN uv export --group classification_pipeline --group rag_pipeline --group ekb-integration --no-dev --no-hashes | uv pip install --system -r -
 
 # Copy the necessary pipeline code
 COPY pipelines/__init__.py ./pipelines/

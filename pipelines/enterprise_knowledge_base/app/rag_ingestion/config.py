@@ -11,7 +11,7 @@ class RAGConfig(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env", "../../.env", "../../../.env", "../../../../.env"],
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -19,7 +19,7 @@ class RAGConfig(BaseSettings):
     PROJECT_ID: Annotated[
         str,
         Field(
-            default="ag-core-dev-fdx7",
+            default="mock-project-id",
             description="GCP Project ID to use for BigQuery and GCS.",
         ),
     ]
@@ -27,7 +27,7 @@ class RAGConfig(BaseSettings):
     RAG_STAGING_BUCKET: Annotated[
         str,
         Field(
-            default="ag-core-dev-fdx7-rag-staging",
+            default="mock-rag-staging-bucket",
             description="Dedicated GCS bucket for RAG ingestion staging lifecycle.",
         ),
     ]
@@ -35,7 +35,7 @@ class RAGConfig(BaseSettings):
     BQ_DATASET: Annotated[
         str,
         Field(
-            default="knowledge_base",
+            default="mock-dataset",
             description="The BigQuery dataset for storing document chunks.",
         ),
     ]
@@ -43,7 +43,7 @@ class RAGConfig(BaseSettings):
     BQ_CHUNKS_TABLE: Annotated[
         str,
         Field(
-            default="documents_chunks",
+            default="mock-chunks-table",
             description="The BigQuery table for storing document chunks.",
         ),
     ]
@@ -51,7 +51,7 @@ class RAGConfig(BaseSettings):
     BQ_METADATA_TABLE: Annotated[
         str,
         Field(
-            default="documents_metadata",
+            default="mock-metadata-table",
             description="The BigQuery table for joining with metadata.",
         ),
     ]

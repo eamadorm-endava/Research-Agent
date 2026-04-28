@@ -8,10 +8,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # --- Configuration ---
 
-#service accounts and IAM roles
-PROJECT_ID="ag-core-dev-fdx7"
-SA_NAME="terraform-sa-gemini-project"
-SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+#service accounts and IAM roles (exported for use in sub-scripts)
+export PROJECT_ID="ag-core-dev-fdx7"
+export SA_NAME="terraform-sa-gemini-project"
+export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 USER_EMAIL="emmanuel.amador@endava.com"
 DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com" # Update with your email or group
 
@@ -19,12 +19,12 @@ DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com" # Update with your email 
 BUCKET_NAME="${PROJECT_ID}-terraform-state" #GCS Bucket to storage terraform state
 LOCATION="us-central1"
 
-# GitHub
+# GitHub (exported for use in sub-scripts)
 REPO_NAME="Research-Agent"
 REPO_OWNER="eamadorm-endava"
 BRANCH_NAME="" # Your specific development branch
-GITHUB_REGION="us-central1"
-GITHUB_CONNECTION_NAME="eamadorm-github"
+export GITHUB_REGION="us-central1"
+export GITHUB_CONNECTION_NAME="eamadorm-github"
 APPLY_SHARED_RESOURCES="${APPLY_SHARED_RESOURCES:-true}"
 
 echo "Starting bootstrap for project: $PROJECT_ID"
@@ -54,6 +54,9 @@ ROLES=(
     "roles/aiplatform.admin" # To deploy the agent to Agent Engine
     "roles/secretmanager.secretAccessor" # To access secrets in Secret Manager
     "roles/discoveryengine.admin" # To create Auth resources and register agents in Gemini Enterprise
+    "roles/dlp.admin" # To manage DLP templates and jobs
+    "roles/bigquery.admin" # To manage BigQuery datasets and tables
+    "roles/storage.admin" # To manage GCS buckets
 )
 
 for ROLE in "${ROLES[@]}"; do
@@ -154,13 +157,13 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
 
 # 8. One-time shared resources apply (Artifact Registry owner state)
 if [[ "$APPLY_SHARED_RESOURCES" == "true" ]]; then
-    echo "Applying one-time shared resources (Artifact Registry)..."
+    echo "Applying one-time shared resources (Artifact Registry, BQ, GCS)..."
     pushd "$REPO_ROOT/terraform/shared_resources" >/dev/null
     terraform init -reconfigure \
         -backend-config="bucket=${BUCKET_NAME}" \
         -backend-config="prefix=terraform/state/shared-resources"
-    terraform plan
-    terraform apply -auto-approve
+    terraform plan -var="project_id=$PROJECT_ID"
+    terraform apply -auto-approve -var="project_id=$PROJECT_ID"
     popd >/dev/null
 else
     echo "Skipping shared_resources apply (APPLY_SHARED_RESOURCES=${APPLY_SHARED_RESOURCES})."
