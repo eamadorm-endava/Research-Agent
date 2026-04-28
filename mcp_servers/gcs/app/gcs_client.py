@@ -5,6 +5,7 @@ import mimetypes
 import os
 import httpx
 import google.auth
+from google.auth.credentials import Credentials as BaseCredentials
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
@@ -39,16 +40,26 @@ class GCSManager:
     and provides methods for bucket and object management.
     """
 
-    def __init__(self, creds: Credentials, default_project: Optional[str] = None):
+    def __init__(
+        self,
+        creds: Optional[BaseCredentials] = None,
+        default_project: Optional[str] = None,
+    ):
         self.creds = creds
         self.default_project = default_project or detect_default_project_id()
         try:
             self.client = storage.Client(
                 credentials=self.creds, project=self.default_project
             )
+            credential_source = (
+                "delegated user credentials"
+                if self.creds is not None
+                else "runtime ADC credentials"
+            )
             logger.info(
-                "GCS client initialized successfully using delegated user credentials "
-                f"(Project: {self.client.project})."
+                "GCS client initialized successfully using %s (Project: %s).",
+                credential_source,
+                self.client.project,
             )
         except GoogleCloudError as e:
             logger.error(f"Failed to initialize GCS Client: {e}")

@@ -185,7 +185,11 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
         f"Tool call: upload_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
-        gcs_manager = _make_gcs_manager()
+        # Landing-zone ingestion is a server-side storage operation. The bearer
+        # token authenticates the caller to the MCP server and is retained for
+        # audit metadata, but the GCS write should use the GCS MCP server
+        # runtime identity instead of the caller OAuth token.
+        gcs_manager = _make_gcs_manager(use_delegated_user_credentials=False)
         user_email = await _extract_user_email_from_current_token()
         merged_metadata = _merge_upload_metadata(request.metadata, user_email)
         content_payload = _decode_upload_content(request)
@@ -443,8 +447,17 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
         )
 
 
-def _make_gcs_manager() -> GCSManager:
-    """Creates a GCS manager using the delegated user token from MCP context."""
+def _make_gcs_manager(use_delegated_user_credentials: bool = True) -> GCSManager:
+    """Creates a GCS manager for storage operations.
+
+    Interactive GCS tools keep the existing delegated-user behavior. The
+    landing-zone upload path opts out so the storage write uses the GCS MCP
+    server runtime ADC identity, while the caller token is still used for MCP
+    authentication and audit metadata.
+    """
+    if not use_delegated_user_credentials:
+        return GCSManager(default_project=GCS_SERVER_CONFIG.default_project_id)
+
     access_token = _get_current_token()
     creds = build_gcs_credentials(
         access_token=access_token,
