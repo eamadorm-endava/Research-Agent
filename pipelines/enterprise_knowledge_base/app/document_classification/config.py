@@ -19,7 +19,7 @@ class EKBConfig(BaseSettings):
     PROJECT_ID: Annotated[
         str,
         Field(
-            default="ag-core-dev-fdx7",
+            default="your-project-id",
             description="GCP Project ID to use for DLP and BigQuery.",
         ),
     ]

@@ -29,13 +29,13 @@ echo "--------------------------------------------------------"
 BUCKETS=(
   "${PROJECT_ID}-kb-landing-zone"
   "${PROJECT_ID}-rag-staging"
-  "${PROJECT_ID}-kb-it"
-  "${PROJECT_ID}-kb-finance"
-  "${PROJECT_ID}-kb-hr"
-  "${PROJECT_ID}-kb-legal"
-  "${PROJECT_ID}-kb-operations"
-  "${PROJECT_ID}-kb-sales"
-  "${PROJECT_ID}-kb-executives"
+  "kb-it"
+  "kb-finance"
+  "kb-hr"
+  "kb-legal"
+  "kb-operations"
+  "kb-sales"
+  "kb-executives"
 )
 
 for BUCKET in "${BUCKETS[@]}"; do
