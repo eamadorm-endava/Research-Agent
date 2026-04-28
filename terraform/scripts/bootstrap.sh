@@ -9,9 +9,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # --- Configuration ---
 
 #service accounts and IAM roles
-PROJECT_ID="ag-core-dev-fdx7"
-SA_NAME="terraform-sa-gemini-project"
-SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+export PROJECT_ID="ag-core-dev-fdx7"
+export SA_NAME="terraform-sa-gemini-project"
+export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 USER_EMAIL="emmanuel.amador@endava.com"
 DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com" # Update with your email or group
 
@@ -23,8 +23,8 @@ LOCATION="us-central1"
 REPO_NAME="Research-Agent"
 REPO_OWNER="eamadorm-endava"
 BRANCH_NAME="" # Your specific development branch
-GITHUB_REGION="us-central1"
-GITHUB_CONNECTION_NAME="eamadorm-github"
+export GITHUB_REGION="us-central1"
+export GITHUB_CONNECTION_NAME="eamadorm-github"
 APPLY_SHARED_RESOURCES="${APPLY_SHARED_RESOURCES:-true}"
 
 echo "Starting bootstrap for project: $PROJECT_ID"
@@ -171,11 +171,6 @@ fi
 
 # 9. Create Cloud Build Triggers
 echo "Executing trigger setup (cicd_triggers_creation.sh)..."
-PROJECT_ID="$PROJECT_ID" \
-SA_NAME="$SA_NAME" \
-SA_EMAIL="$SA_EMAIL" \
-GITHUB_REGION="$GITHUB_REGION" \
-GITHUB_CONNECTION_NAME="$GITHUB_CONNECTION_NAME" \
 bash "$SCRIPT_DIR/cicd_triggers_creation.sh"
 
 echo "Triggers created successfully!"
