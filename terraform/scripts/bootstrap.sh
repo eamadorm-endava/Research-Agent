@@ -8,7 +8,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # --- Configuration ---
 
-#service accounts and IAM roles
+#service accounts and IAM roles (exported for use in sub-scripts)
 export PROJECT_ID="ag-core-dev-fdx7"
 export SA_NAME="terraform-sa-gemini-project"
 export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -19,7 +19,7 @@ DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com" # Update with your email 
 BUCKET_NAME="${PROJECT_ID}-terraform-state" #GCS Bucket to storage terraform state
 LOCATION="us-central1"
 
-# GitHub
+# GitHub (exported for use in sub-scripts)
 REPO_NAME="Research-Agent"
 REPO_OWNER="eamadorm-endava"
 BRANCH_NAME="" # Your specific development branch
