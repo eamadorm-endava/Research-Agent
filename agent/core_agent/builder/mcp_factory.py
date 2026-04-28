@@ -16,22 +16,25 @@ class MCPToolsetBuilder:
     Strictly separates local ADK-managed OAuth from production Gemini Enterprise-managed OAuth.
     """
 
-    def __init__(self, auth_config: GoogleAuthConfig):
+    def __init__(self, auth_config: GoogleAuthConfig) -> None:
+        """Stores the shared Google OAuth configuration used when building local auth schemes.
+
+        Args:
+            auth_config: GoogleAuthConfig -> Shared OAuth credentials for local development mode.
+        """
         self.auth_config = auth_config
 
     def _get_local_auth_params(
         self, mcp_config: BaseMCPConfig, prod_execution: bool
     ) -> dict[str, Union[OAuth2, AuthCredential, None]]:
-        """Builds ADK-native OAuth schemes only for local execution with servers requiring OAuth.
-        In production, these parameters are omitted as Gemini Enterprise handles the flow.
+        """Builds ADK-native OAuth schemes for local execution only; returns empty params in production.
 
         Args:
-            mcp_config (BaseMCPConfig): The MCP server configuration instance.
-            prod_execution (bool): Flag indicating if the execution is in production mode.
+            mcp_config: BaseMCPConfig -> The MCP server configuration instance.
+            prod_execution: bool -> Flag indicating if the execution is in production mode.
 
         Returns:
-            dict[str, Union[OAuth2, AuthCredential, None]]: A dictionary containing 'auth_scheme'
-                and 'auth_credential' (both Optional).
+            dict[str, Union[OAuth2, AuthCredential, None]] -> Keys: 'auth_scheme', 'auth_credential'.
         """
         logger.debug(
             f"Evaluating local auth params for {mcp_config.__class__.__name__} (prod={prod_execution})"
@@ -66,30 +69,28 @@ class MCPToolsetBuilder:
     def _get_header_provider_function(
         self, mcp_config: BaseMCPConfig, prod_execution: bool
     ) -> Callable[[ReadonlyContext], dict[str, str]]:
-        """Creates a runtime header provider function that injects security and auth tokens into MCP requests.
+        """Creates a closure that injects security and auth tokens into MCP request headers at runtime.
 
-        Reasoning: ADK's McpToolset expects a provider signature of (ReadonlyContext) -> dict.
-        Since we need the builder-time configuration (mcp_config, prod_execution) to generate
-        correct headers, we use a closure to 'capture' these variables in the provider scope.
+        Uses a closure to capture builder-time config so the returned function satisfies
+        the ADK signature: (ReadonlyContext) -> dict[str, str].
 
         Args:
-            mcp_config (BaseMCPConfig): The MCP server configuration instance.
-            prod_execution (bool): Flag indicating if the execution is in production mode.
+            mcp_config: BaseMCPConfig -> The MCP server configuration instance.
+            prod_execution: bool -> Flag indicating if the execution is in production mode.
 
         Returns:
-            Callable[[ReadonlyContext], dict[str, str]]: A closure that ADK will call at runtime.
+            Callable[[ReadonlyContext], dict[str, str]] -> Runtime header provider for McpToolset.
         """
         logger.debug(f"Constructing header provider closure for {mcp_config.URL}")
 
         def header_provider(ctx: ReadonlyContext) -> dict[str, str]:
-            """Generates runtime HTTP headers using the captured configuration and current context.
-            Injected into every tool call sent to the target MCP server.
+            """Generates runtime HTTP headers for every tool call sent to the target MCP server.
 
             Args:
-                ctx (ReadonlyContext): The runtime context provided by ADK.
+                ctx: ReadonlyContext -> The runtime context provided by ADK.
 
             Returns:
-                dict[str, str]: A dictionary containing security and authorization headers.
+                dict[str, str] -> Security and authorization headers for the MCP request.
             """
             logger.debug(f"Generating runtime headers for {mcp_config.URL}")
             # Always include X-Serverless-Authorization for Cloud Run security layer
@@ -111,15 +112,14 @@ class MCPToolsetBuilder:
         return header_provider
 
     def build(self, mcp_config: BaseMCPConfig, prod_execution: bool) -> McpToolset:
-        """Assembles and returns the final McpToolset configured for the target environment.
-        Uses the internal helper methods to construct auth params and header providers.
+        """Assembles and returns a fully configured McpToolset for the target execution environment.
 
         Args:
-            mcp_config (BaseMCPConfig): The configuration payload for the MCP server.
-            prod_execution (bool): Flag indicating if the execution is in production mode.
+            mcp_config: BaseMCPConfig -> Configuration payload for the MCP server.
+            prod_execution: bool -> Flag indicating if the execution is in production mode.
 
         Returns:
-            McpToolset: The fully constructed MCP toolset instance.
+            McpToolset -> The fully constructed MCP toolset instance.
         """
         logger.info(
             f"Building {mcp_config.__class__.__name__} MCP Toolset (prod={prod_execution})"
@@ -132,7 +132,7 @@ class MCPToolsetBuilder:
             ),
             header_provider=self._get_header_provider_function(
                 mcp_config, prod_execution
-            ),  # self._get_header_provider_function returns a function with a signature of (ReadonlyContext) -> dict
+            ),
             auth_scheme=auth_params["auth_scheme"],
             auth_credential=auth_params["auth_credential"],
         )

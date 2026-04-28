@@ -26,16 +26,12 @@ class AgentBuilder:
         gcp_config: GCPConfig,
         auth_config: GoogleAuthConfig,
     ) -> None:
-        """Initializes the AgentBuilder with necessary configurations.
-        Sets up the GCP environment and the internal MCP toolset builder.
+        """Initializes the AgentBuilder, configures the VertexAI client, and sets up the MCP toolset builder.
 
         Args:
-            agent_config (AgentConfig): Core agent behavioral settings.
-            gcp_config (GCPConfig): Google Cloud Platform project settings.
-            auth_config (GoogleAuthConfig): Shared authentication parameters.
-
-        Returns:
-            None
+            agent_config: AgentConfig -> Core agent behavioural settings.
+            gcp_config: GCPConfig -> Google Cloud Platform project settings.
+            auth_config: GoogleAuthConfig -> Shared authentication parameters.
         """
         self.agent_config = agent_config
         self.gcp_config = gcp_config
@@ -52,14 +48,13 @@ class AgentBuilder:
         )
 
     def with_mcp_servers(self, mcp_configs: list[BaseMCPConfig]) -> Self:
-        """Registers multiple MCP servers to the agent's toolset.
-        Uses the internal builder to construct validated ADK toolsets.
+        """Registers multiple MCP servers to the agent's toolset via the internal MCPToolsetBuilder.
 
         Args:
-            mcp_configs (list[BaseMCPConfig]): List of MCP server configurations.
+            mcp_configs: list[BaseMCPConfig] -> List of MCP server configurations to mount.
 
         Returns:
-            Self: The builder instance for fluent chaining.
+            Self -> The builder instance for fluent chaining.
         """
         for config in mcp_configs:
             mcp_toolset = self._mcp_builder.build(
@@ -70,31 +65,28 @@ class AgentBuilder:
         return self
 
     def with_internal_tools(self, tools: list[BaseTool | Callable]) -> Self:
-        """Registers native ADK tools or functions to the agent.
-        Converts functions to FunctionTools if necessary.
+        """Registers native ADK tools or callables to the agent, wrapping plain functions in FunctionTool.
 
         Args:
-            tools (list[BaseTool | Callable]): List of tools or functions to add.
+            tools: list[BaseTool | Callable] -> List of tools or callables to add.
 
         Returns:
-            Self: The builder instance.
+            Self -> The builder instance for fluent chaining.
         """
         for tool in tools:
             if not isinstance(tool, BaseTool):
-                # Wrap simple functions as FunctionTools
                 tool = FunctionTool(fn=tool)
             self._tools.append(tool)
         return self
 
     def with_skills(self, skill_names: list[str]) -> Self:
-        """Adds business logic skills to the agent by their component names.
-        Loads skill toolsets from the predefined agent skills directory.
+        """Loads and registers ADK skill toolsets from the agent/skills/ directory by folder name.
 
         Args:
-            skill_names (list[str]): Names of the skills to mount. Its the name of the folder in the skills directory.
+            skill_names: list[str] -> Names of the skill directories to load.
 
         Returns:
-            Self: The builder instance for fluent chaining.
+            Self -> The builder instance for fluent chaining.
         """
         for name in skill_names:
             skill_toolset = get_skill_toolset(skill_name=name)
@@ -102,11 +94,10 @@ class AgentBuilder:
         return self
 
     def _build_agent_settings(self) -> GenerateContentConfig:
-        """Constructs the generative model configuration for the agent.
-        Maps internal pydantic settings to the Google GenAI schema.
+        """Constructs the generative model configuration by mapping Pydantic settings to the GenAI schema.
 
         Returns:
-            GenerateContentConfig: Validated model configuration.
+            GenerateContentConfig -> Validated model configuration for the Gemini model.
         """
         return GenerateContentConfig(
             temperature=self.agent_config.TEMPERATURE,
@@ -117,11 +108,10 @@ class AgentBuilder:
         )
 
     def _build_retry_options(self) -> HttpRetryOptions:
-        """Constructs the HTTP retry strategy for model interactions.
-        Defines attempts and backoff parameters from agent settings.
+        """Constructs the HTTP retry strategy from agent config, defining attempts and backoff parameters.
 
         Returns:
-            HttpRetryOptions: Configured retry logic for the Gemini model.
+            HttpRetryOptions -> Configured retry logic for the Gemini model.
         """
         return HttpRetryOptions(
             attempts=self.agent_config.RETRY_ATTEMPTS,
@@ -131,11 +121,10 @@ class AgentBuilder:
         )
 
     def _build_planner(self) -> BuiltInPlanner:
-        """Initializes the agent's reasoning planner with thinking configurations.
-        Configures the thinking budget and thought tracking behavior.
+        """Initializes the agent's reasoning planner with the configured thinking budget.
 
         Returns:
-            BuiltInPlanner: The reasoning core for the agent.
+            BuiltInPlanner -> The reasoning core for the agent.
         """
         return BuiltInPlanner(
             thinking_config=ThinkingConfig(
@@ -145,10 +134,10 @@ class AgentBuilder:
         )
 
     def build(self) -> Agent:
-        """
-        Assembles the agent instance that will be used in the application.
+        """Assembles and returns the fully configured ADK Agent from all registered tools and settings.
+
         Returns:
-            Agent: The executable agent instance.
+            Agent -> The executable agent instance.
         """
         root_agent = Agent(
             model=Gemini(
