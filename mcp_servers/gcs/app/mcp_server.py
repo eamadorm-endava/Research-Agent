@@ -171,27 +171,25 @@ async def update_bucket_labels(
 @mcp.tool()
 async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     """
-    Uploads or copies a file (blob) to a specified GCS bucket.
-    Supports providing content directly, local paths (deprecated), or GCS source URIs.
+    Transfers an artifact from the agent landing zone to a specified destination bucket and path.
+    Automatically derives the object name from the source URI if not provided.
 
     Args:
-        bucket_name (str, optional): The name of the bucket.
-        object_name (str, optional): The name/path of the object to create in GCS.
-        destination_uri (str, optional): Full GCS path (gs://bucket/path/).
-        source_uri (str, optional): GCS source URI for copies.
-        content (str, optional): Inline string content.
-        content_type (str, optional): MIME type.
-        metadata (Dict[str, str], optional): Custom metadata tags.
+        source_uri (str): The GCS URI of the source artifact.
+        destination_bucket (str): The target GCS bucket name.
+        destination_path (str): Internal bucket path (e.g. 'landing/v1/').
+        object_name (str, optional): Optional name for the object (without extension).
+        metadata (Dict[str, str | int | float], optional): Custom metadata tags.
 
     Returns:
         UploadObjectResponse: Structured response with status.
     """
     logger.info(
-        f"Tool call: upload_object(bucket_name={request.bucket_name}, "
-        f"object_name={request.object_name}, destination_uri={request.destination_uri})"
+        f"Tool call: upload_object(source_uri={request.source_uri}, "
+        f"destination_bucket={request.destination_bucket}, destination_path={request.destination_path})"
     )
     try:
-        # Identity extraction
+        # Identity extraction for audit metadata
         token_obj = get_access_token()
         if not isinstance(token_obj, GoogleAccessToken) or not token_obj.email:
             raise AuthenticationError(
@@ -199,54 +197,61 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
                 "Audit metadata injection is required for landing-zone uploads."
             )
 
-        gcs_manager = _make_gcs_manager()
+        # Authority selection: Use SA only if both source and destination are internal pipeline buckets
+        source_bucket = request.source_uri.split("/")[2]
+        use_sa = _is_internal_pipeline_bucket(
+            request.destination_bucket
+        ) and _is_internal_pipeline_bucket(source_bucket)
 
-        # Resolve destination
-        final_bucket = request.bucket_name
-        final_object = request.object_name
+        gcs_manager = _make_gcs_manager(use_delegated_credentials=not use_sa)
 
-        if request.destination_uri:
-            final_bucket, final_object = gcs_manager.parse_gcs_uri(
-                request.destination_uri
-            )
+        # Derive object name if not provided
+        final_object_name = request.object_name
+        if not final_object_name:
+            # Extract filename from source_uri (gs://bucket/path/to/file.pdf -> file.pdf)
+            source_filename = request.source_uri.split("/")[-1]
+            # Strip extension (file.pdf -> file)
+            final_object_name = source_filename.split(".")[0]
 
-        if not final_bucket:
-            raise ValueError("Destination bucket could not be resolved.")
+        # Construct final destination path
+        # Ensure destination_path ends with / if it doesn't already
+        base_path = request.destination_path
+        if not base_path.endswith("/"):
+            base_path += "/"
+
+        full_destination_name = f"{base_path}{final_object_name}"
+
+        # Cast metadata values to strings (GCS requirements)
+        final_metadata = None
+        if request.metadata:
+            final_metadata = {k: str(v) for k, v in request.metadata.items()}
 
         blob = await asyncio.to_thread(
             gcs_manager.create_object,
-            bucket_name=final_bucket,
-            object_name=final_object,
-            content=request.content,
-            local_path=request.local_path,
-            content_type=request.content_type,
+            bucket_name=request.destination_bucket,
+            object_name=full_destination_name,
             source_uri=request.source_uri,
-            metadata=request.metadata,
+            metadata=final_metadata,
             user_email=token_obj.email,
         )
+
         return UploadObjectResponse(
-            bucket_name=final_bucket,
-            object_name=blob.name,
-            destination_uri=request.destination_uri,
             source_uri=request.source_uri,
-            content=request.content,
-            local_path=request.local_path,
-            content_type=blob.content_type,
+            destination_bucket=request.destination_bucket,
+            destination_path=request.destination_path,
+            object_name=blob.name,
             metadata=blob.metadata,
             execution_status="success",
             execution_message=(
-                f"Successfully processed object: {blob.name} in bucket: {final_bucket}"
+                f"Successfully transferred artifact to: gs://{request.destination_bucket}/{blob.name}"
             ),
         )
     except Exception as e:
         return UploadObjectResponse(
-            bucket_name=request.bucket_name,
-            object_name=request.object_name,
-            destination_uri=request.destination_uri,
             source_uri=request.source_uri,
-            content=request.content,
-            local_path=request.local_path,
-            content_type=request.content_type,
+            destination_bucket=request.destination_bucket,
+            destination_path=request.destination_path,
+            object_name=request.object_name,
             metadata=request.metadata,
             execution_status="error",
             execution_message=_format_execution_error(e),
@@ -256,49 +261,55 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
 @mcp.tool()
 async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
     """
-    Downloads a specific file (blob) from a bucket and returns its contents.
-    Ideal for reading configuration or documentation files stored in GCS.
+    Retrieves metadata and canonical GCS URI for an object.
+    The agent should use the returned gcs_uri to import the object as a session artifact
+    for multi-modal analysis (Images, PDF, Audio, etc.).
 
     Args:
         bucket_name (str): The name of the bucket.
         object_name (str): The name/path of the object to read.
 
     Returns:
-        str: The content of the object (decoded as UTF-8 if possible).
+        ReadObjectResponse: Metadata and GCS URI.
     """
     logger.info(
         f"Tool call: read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
-        gcs_manager = _make_gcs_manager()
-        content_bytes = await asyncio.to_thread(
-            gcs_manager.download_object_as_bytes,
-            request.bucket_name,
-            request.object_name,
-        )
-        decoded = None
-        is_binary = False
-        try:
-            decoded = content_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            is_binary = True
+        # Authority selection: Use SA if bucket is internal
+        use_sa = _is_internal_pipeline_bucket(request.bucket_name)
+        gcs_manager = _make_gcs_manager(use_delegated_credentials=not use_sa)
+
+        # Retrieve blob metadata
+        bucket = await asyncio.to_thread(gcs_manager.get_bucket, request.bucket_name)
+        blob = await asyncio.to_thread(bucket.get_blob, request.object_name)
+
+        if not blob:
+            raise ValueError(
+                f"Object {request.object_name} not found in bucket {request.bucket_name}."
+            )
 
         return ReadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
-            content=decoded,
-            size_bytes=len(content_bytes),
-            is_binary=is_binary,
+            gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
+            size_bytes=blob.size,
+            content_type=blob.content_type,
+            metadata=blob.metadata,
             execution_status="success",
-            execution_message="Object read successfully.",
+            execution_message=(
+                "Object metadata retrieved successfully. "
+                "Use the provided gcs_uri to import this object as a session artifact."
+            ),
         )
     except Exception as e:
         return ReadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
-            content=None,
+            gcs_uri=None,
             size_bytes=0,
-            is_binary=False,
+            content_type=None,
+            metadata=None,
             execution_status="error",
             execution_message=_format_execution_error(e),
         )
@@ -469,8 +480,32 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
         )
 
 
-def _make_gcs_manager() -> GCSManager:
-    """Creates a GCS manager using the delegated user token from MCP context."""
+def _is_internal_pipeline_bucket(bucket_name: str) -> bool:
+    """Checks if a bucket belongs to the trusted internal ingestion pipeline.
+
+    Args:
+        bucket_name (str): The name of the GCS bucket.
+
+    Returns:
+        bool: True if the bucket is part of the internal pipeline.
+    """
+    return bucket_name in GCS_SERVER_CONFIG.internal_pipeline_buckets
+
+
+def _make_gcs_manager(use_delegated_credentials: bool = True) -> GCSManager:
+    """Creates a GCS manager using either delegated user tokens or server ADC.
+
+    Args:
+        use_delegated_credentials (bool): Whether to use the caller's OAuth token.
+            If False, the server's own identity (Service Account) is used.
+
+    Returns:
+        GCSManager: Initialized manager instance.
+    """
+    if not use_delegated_credentials:
+        logger.info("Using GCS MCP Server identity (ADC) for storage operation.")
+        return GCSManager(default_project=GCS_SERVER_CONFIG.default_project_id)
+
     access_token = _get_current_token()
     creds = build_gcs_credentials(
         access_token=access_token,

@@ -89,40 +89,31 @@ class UpdateBucketLabelsResponse(UpdateBucketLabelsRequest, BaseResponse):
 
 
 class UploadObjectRequest(BaseRequest):
-    bucket_name: Optional[BUCKET_NAME] = Field(
-        default=None, description="The GCS bucket name."
-    )
-    object_name: Optional[OBJECT_NAME] = Field(
-        default=None, description="The object (blob) name/path in the bucket."
-    )
     source_uri: Annotated[
+        str,
+        Field(
+            description="The GCS URI of the source artifact (e.g. gs://bucket/object) from the ai_agent_landing_zone.",
+        ),
+    ]
+    destination_bucket: Annotated[
+        BUCKET_NAME,
+        Field(description="The target GCS bucket name."),
+    ]
+    destination_path: Annotated[
+        str,
+        Field(
+            description="Internal bucket path where the object will be stored (e.g. 'landing/v1/').",
+        ),
+    ]
+    object_name: Annotated[
         Optional[str],
         Field(
             default=None,
-            description="The GCS URI of the source artifact (e.g. gs://bucket/object).",
+            description="Optional object name. If not provided, it will be derived from the source_uri filename (without extension).",
         ),
-    ]
-    destination_uri: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            description="The full GCS destination path (e.g. gs://target-bucket/landing/file.pdf or gs://target-bucket/folder/).",
-        ),
-    ]
-    content: Annotated[
-        Optional[str],
-        Field(default=None, description="Inline text content to upload."),
-    ]
-    local_path: Annotated[
-        Optional[str],
-        Field(default=None, description="Local path to upload from (deprecated)."),
-    ]
-    content_type: Annotated[
-        Optional[str],
-        Field(default=None, description="MIME type of the uploaded object."),
     ]
     metadata: Annotated[
-        Optional[Dict[str, str]],
+        Optional[Dict[str, str | int | float]],
         Field(
             default=None,
             description="Optional custom metadata tags to apply to the object.",
@@ -130,21 +121,9 @@ class UploadObjectRequest(BaseRequest):
     ]
 
     @model_validator(mode="after")
-    def validate_content_source(self) -> "UploadObjectRequest":
-        if self.content is None and self.local_path is None and self.source_uri is None:
-            raise ValueError(
-                "Either content, local_path, or source_uri must be provided."
-            )
-
-        if self.destination_uri:
-            # Basic validation for GCS URI format
-            if not self.destination_uri.startswith("gs://"):
-                raise ValueError("destination_uri must start with 'gs://'")
-        elif not self.bucket_name:
-            raise ValueError(
-                "bucket_name must be provided if destination_uri is not specified."
-            )
-
+    def validate_request(self) -> "UploadObjectRequest":
+        if not self.source_uri.startswith("gs://"):
+            raise ValueError("source_uri must start with 'gs://'")
         return self
 
 
@@ -158,17 +137,21 @@ class ReadObjectRequest(BaseRequest):
 
 
 class ReadObjectResponse(ReadObjectRequest, BaseResponse):
-    content: Annotated[
+    gcs_uri: Annotated[
         Optional[str],
-        Field(default=None, description="UTF-8 decoded content when applicable."),
+        Field(default=None, description="The canonical GCS URI of the object."),
     ]
     size_bytes: Annotated[
         int,
         Field(default=0, description="Object payload size in bytes."),
     ]
-    is_binary: Annotated[
-        bool,
-        Field(default=False, description="True when content is binary/non UTF-8."),
+    content_type: Annotated[
+        Optional[str],
+        Field(default=None, description="The MIME type of the object."),
+    ]
+    metadata: Annotated[
+        Optional[Dict[str, str]],
+        Field(default=None, description="The object's metadata tags."),
     ]
 
 

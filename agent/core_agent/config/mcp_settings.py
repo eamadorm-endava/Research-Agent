@@ -35,6 +35,8 @@ class GCSScopes(StrEnum):
     """
 
     CLOUD_PLATFORM = "https://www.googleapis.com/auth/cloud-platform"
+    OPENID = "openid"
+    EMAIL = "https://www.googleapis.com/auth/userinfo.email"
 
 
 class BaseMCPConfig(BaseSettings):
@@ -227,7 +229,11 @@ class GCSMCPConfig(BaseMCPConfig):
     OAUTH_SCOPES: Annotated[
         Union[dict[str, str], list[GCSScopes]],
         Field(
-            default=[GCSScopes.CLOUD_PLATFORM],
+            default=[
+                GCSScopes.CLOUD_PLATFORM,
+                GCSScopes.OPENID,
+                GCSScopes.EMAIL,
+            ],
             description="OAuth scopes requested by the agent.",
             validation_alias="GCS_OAUTH_SCOPES",  # validation_alias is used to map the environment variable to the field
         ),

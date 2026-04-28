@@ -31,7 +31,8 @@ async def test_token_verifier_extracts_email():
 @pytest.mark.asyncio
 async def test_upload_object_requires_email():
     request = UploadObjectRequest(
-        bucket_name="test-bucket",
+        destination_bucket="test-bucket",
+        destination_path="raw/",
         object_name="test.txt",
         source_uri="gs://source-bucket/source.txt",
     )
@@ -48,7 +49,9 @@ async def test_upload_object_requires_email():
 @pytest.mark.asyncio
 async def test_upload_object_resolves_destination_uri():
     request = UploadObjectRequest(
-        destination_uri="gs://dest-bucket/folder/target.txt",
+        destination_bucket="dest-bucket",
+        destination_path="folder/",
+        object_name="target.txt",
         source_uri="gs://source-bucket/source.txt",
     )
 
@@ -65,14 +68,13 @@ async def test_upload_object_resolves_destination_uri():
         patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make_manager,
     ):
         mock_manager = MagicMock(spec=GCSManager)
-        mock_manager.parse_gcs_uri.return_value = ("dest-bucket", "folder/target.txt")
         mock_manager.create_object = MagicMock(return_value=mock_blob)
         mock_make_manager.return_value = mock_manager
 
         response = await upload_object(request)
 
         assert response.execution_status == "success"
-        assert response.bucket_name == "dest-bucket"
+        assert response.destination_bucket == "dest-bucket"
         assert response.object_name == "folder/target.txt"
         mock_manager.create_object.assert_called_once()
         _, kwargs = mock_manager.create_object.call_args

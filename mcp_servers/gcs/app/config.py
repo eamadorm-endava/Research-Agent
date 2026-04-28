@@ -156,6 +156,14 @@ class GcsServerConfig(GcsMcpConfigBase):
             description="Whether the Starlette app should run in debug mode.",
         ),
     ]
+    internal_pipeline_buckets: Annotated[
+        list[str],
+        Field(
+            default=["ai_agent_landing_zone", "ag-core-dev-fdx7-kb-landing-zone"],
+            validation_alias="INTERNAL_PIPELINE_BUCKETS",
+            description="List of buckets where Service Account authority is allowed for ingestion tasks.",
+        ),
+    ]
 
 
 GCS_API_CONFIG = GcsApiConfig()

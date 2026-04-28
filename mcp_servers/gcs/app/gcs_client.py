@@ -39,7 +39,9 @@ class GCSManager:
     and provides methods for bucket and object management.
     """
 
-    def __init__(self, creds: Credentials, default_project: Optional[str] = None):
+    def __init__(
+        self, creds: Optional[Credentials] = None, default_project: Optional[str] = None
+    ):
         self.creds = creds
         self.default_project = default_project or detect_default_project_id()
         try:
