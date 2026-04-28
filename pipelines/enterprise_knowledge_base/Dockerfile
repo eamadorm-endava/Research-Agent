@@ -13,10 +13,10 @@ RUN uv export --group classification_pipeline --group rag_pipeline --no-dev --no
 
 # Copy the necessary pipeline code
 COPY pipelines/__init__.py ./pipelines/
-COPY pipelines/enterprise_knowledge_base/ ./pipelines/enterprise_knowledge_base/
+COPY pipelines/enterprise_knowledge_base/app/ ./pipelines/enterprise_knowledge_base/app/
 
 # Expose the port for Cloud Run
 EXPOSE 8080
 
 # Run the FastAPI app using uvicorn
-CMD ["uvicorn", "pipelines.enterprise_knowledge_base.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "pipelines.enterprise_knowledge_base.app.main:app", "--host", "0.0.0.0", "--port", "8080"]

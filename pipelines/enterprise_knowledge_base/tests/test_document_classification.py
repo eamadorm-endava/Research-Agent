@@ -1,16 +1,16 @@
 import pytest
 from unittest.mock import patch
-from pipelines.enterprise_knowledge_base import ClassificationPipeline
-from pipelines.enterprise_knowledge_base.document_classification.gcs_service.schemas import (
+from pipelines.enterprise_knowledge_base.app import ClassificationPipeline
+from pipelines.enterprise_knowledge_base.app.document_classification.gcs_service.schemas import (
     DocumentMetadata,
 )
-from pipelines.enterprise_knowledge_base.document_classification.gemini_service.schemas import (
+from pipelines.enterprise_knowledge_base.app.document_classification.gemini_service.schemas import (
     ContextualClassificationResponse,
 )
-from pipelines.enterprise_knowledge_base.document_classification.bq_service.schemas import (
+from pipelines.enterprise_knowledge_base.app.document_classification.bq_service.schemas import (
     GetLatestVersionResponse,
 )
-from pipelines.enterprise_knowledge_base.document_classification.schemas import (
+from pipelines.enterprise_knowledge_base.app.document_classification.schemas import (
     IngestMetadataBQRequest,
     RunResponse,
 )
@@ -20,7 +20,7 @@ from pipelines.enterprise_knowledge_base.document_classification.schemas import 
 def mock_gcs():
     """Fixture providing a mock GCSService."""
     with patch(
-        "pipelines.enterprise_knowledge_base.document_classification.pipeline.GCSService"
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.GCSService"
     ) as mock:
         yield mock.return_value
 
@@ -29,7 +29,7 @@ def mock_gcs():
 def mock_dlp():
     """Fixture providing a mock DLPService."""
     with patch(
-        "pipelines.enterprise_knowledge_base.document_classification.pipeline.DLPService"
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.DLPService"
     ) as mock:
         yield mock.return_value
 
@@ -38,7 +38,7 @@ def mock_dlp():
 def mock_gemini():
     """Fixture providing a mock GeminiService."""
     with patch(
-        "pipelines.enterprise_knowledge_base.document_classification.pipeline.GeminiService"
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.GeminiService"
     ) as mock:
         yield mock.return_value
 
@@ -47,7 +47,7 @@ def mock_gemini():
 def mock_bq():
     """Fixture providing a mock BQService."""
     with patch(
-        "pipelines.enterprise_knowledge_base.document_classification.pipeline.BQService"
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.BQService"
     ) as mock:
         yield mock.return_value
 
