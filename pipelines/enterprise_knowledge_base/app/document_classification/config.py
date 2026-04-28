@@ -19,7 +19,7 @@ class EKBConfig(BaseSettings):
     PROJECT_ID: Annotated[
         str,
         Field(
-            default="your-project-id",
+            default="mock-project-id",
             description="GCP Project ID to use for DLP and BigQuery.",
         ),
     ]
@@ -143,7 +143,7 @@ class EKBConfig(BaseSettings):
     GEMINI_LOCATION: Annotated[
         str,
         Field(
-            default="us-central1",
+            default="mock-location",
             description="The GCP location for the Gemini model.",
         ),
     ]
@@ -183,7 +183,7 @@ class EKBConfig(BaseSettings):
     BQ_DATASET: Annotated[
         str,
         Field(
-            default="knowledge_base",
+            default="mock-dataset",
             description="The BigQuery dataset for metadata storage.",
         ),
     ]
@@ -191,7 +191,7 @@ class EKBConfig(BaseSettings):
     BQ_TABLE: Annotated[
         str,
         Field(
-            default="documents_metadata",
+            default="mock-table",
             description="The BigQuery table for metadata storage.",
         ),
     ]
