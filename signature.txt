@@ -1,1 +1,0 @@
-Agent: (self, /, **data: 'Any') -> 'None'
