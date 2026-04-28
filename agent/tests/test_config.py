@@ -16,9 +16,9 @@ from agent.core_agent.config import (
 
 
 def test_gcp_config_defaults():
-    """Test that GCPConfig initialises with default values if no env vars are set."""
+    """Test that GCPConfig initialises with code-defined defaults when no env vars or env file are present."""
     with patch.dict(os.environ, clear=True):
-        config = GCPConfig()
+        config = GCPConfig(_env_file=None)
         assert config.PROJECT_ID == "dummy-gcp-project-id"
         assert config.REGION == "dummy-gcp-region"
         assert config.PROD_EXECUTION is True
