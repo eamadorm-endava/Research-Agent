@@ -349,6 +349,15 @@ resource "google_bigquery_dataset_iam_member" "ekb_sa_bq_editor" {
   member     = "serviceAccount:${module.ekb-pipeline-service-account.email}"
 }
 
+# BQ Connection Access (for ML.GENERATE_EMBEDDING)
+resource "google_bigquery_connection_iam_member" "ekb_sa_connection_user" {
+  project       = var.project_id
+  location      = var.main_region
+  connection_id = google_bigquery_connection.vertex_ai_connection.connection_id
+  role          = "roles/bigquery.connectionUser"
+  member        = "serviceAccount:${module.ekb-pipeline-service-account.email}"
+}
+
 # GCS Bucket Access (Landing Zone)
 resource "google_storage_bucket_iam_member" "ekb_sa_landing_admin" {
   bucket = google_storage_bucket.kb_landing_zone.name
