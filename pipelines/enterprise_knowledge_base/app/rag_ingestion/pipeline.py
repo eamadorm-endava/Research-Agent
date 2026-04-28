@@ -1,3 +1,4 @@
+import json
 import time
 import unicodedata
 import uuid
@@ -361,7 +362,9 @@ class RAGIngestion:
                         chunk_data=chunk_text,
                         gcs_uri=record_uri,
                         filename=filename,
-                        structural_metadata={"title": filename, "page": page_num},
+                        structural_metadata=json.dumps(
+                            {"title": filename, "page": page_num}
+                        ),
                         page_number=page_num,
                         created_at=datetime.now(timezone.utc).isoformat(),
                     )
