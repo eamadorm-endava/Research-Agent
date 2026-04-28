@@ -37,6 +37,13 @@ class GCPConfig(BaseSettings):
             validation_alias=AliasChoices("PROD_EXECUTION", "IS_DEPLOYED"),
         ),
     ]
+    ARTIFACT_BUCKET: Annotated[
+        str,
+        Field(
+            default="ai_agent_landing_zone",
+            description="GCS Bucket where the user-uploaded artifacts will be stored.",
+        ),
+    ]
 
 
 class AgentConfig(BaseSettings):

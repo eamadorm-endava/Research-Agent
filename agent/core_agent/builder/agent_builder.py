@@ -141,6 +141,7 @@ class AgentBuilder:
             instruction=self.agent_config.AGENT_INSTRUCTION,
             tools=self._tools,
             planner=self._build_planner(),
+            artifact_bucket=self.gcp_config.ARTIFACT_BUCKET,
         )
 
         return root_agent
