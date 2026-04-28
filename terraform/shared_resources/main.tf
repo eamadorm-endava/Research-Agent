@@ -246,7 +246,7 @@ locals {
 resource "google_storage_bucket" "kb_domain_buckets" {
   for_each = toset(local.kb_domains)
 
-  name          = "kb-${each.value}"
+  name          = "${var.project_id}-kb-${each.value}"
   location      = var.main_region
   force_destroy = true
 
