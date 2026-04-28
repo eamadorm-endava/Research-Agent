@@ -199,17 +199,6 @@ resource "google_storage_bucket" "kb_landing_zone" {
   uniform_bucket_level_access = true
 }
 
-resource "google_storage_bucket_object" "ingested_folder" {
-  name    = "ingested/"
-  content = "placeholder"
-  bucket  = google_storage_bucket.kb_landing_zone.name
-}
-
-resource "google_storage_bucket_object" "processed_folder" {
-  name    = "processed/"
-  content = "placeholder"
-  bucket  = google_storage_bucket.kb_landing_zone.name
-}
 
 resource "google_storage_bucket" "rag_staging" {
   name          = "${var.project_id}-rag-staging"
@@ -219,17 +208,6 @@ resource "google_storage_bucket" "rag_staging" {
   uniform_bucket_level_access = true
 }
 
-resource "google_storage_bucket_object" "rag_ingested_folder" {
-  name    = "ingested/"
-  content = "placeholder"
-  bucket  = google_storage_bucket.rag_staging.name
-}
-
-resource "google_storage_bucket_object" "rag_processed_folder" {
-  name    = "processed/"
-  content = "placeholder"
-  bucket  = google_storage_bucket.rag_staging.name
-}
 
 locals {
   kb_domains = [
