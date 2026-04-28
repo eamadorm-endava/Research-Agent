@@ -13,7 +13,7 @@ from .config import (
 from google.adk.apps.app import App
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from google.adk.tools import load_artifacts
-from .internal_tools.artifact_tools import (
+from .internal_tools import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
 )

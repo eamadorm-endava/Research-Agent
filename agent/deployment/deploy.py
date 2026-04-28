@@ -1,21 +1,28 @@
 # Check https://docs.cloud.google.com/python/docs/reference/vertexai/latest
 # and https://googlecloudplatform.github.io/agent-starter-pack/guide/development-guide.html
+import asyncio
+import datetime
+import importlib
+import inspect
+from typing import Any, Optional
+
+import click
 import vertexai
+from loguru import logger
 from vertexai._genai import _agent_engines_utils
 from vertexai._genai.types import AgentEngine, AgentEngineConfig
-from typing import Optional, Any
-import click
-import logging
-import importlib
-import datetime
-import inspect
-import asyncio
 
 
 def generate_class_methods_from_agent(agent_instance: Any) -> list[dict[str, Any]]:
-    """Generate method specifications with schemas from agent's register_operations().
+    """Generates method specifications with schemas from the agent's register_operations().
 
     See: https://docs.cloud.google.com/agent-builder/agent-engine/use/custom#supported-operations
+
+    Args:
+        agent_instance: Any -> The deployed agent instance to introspect.
+
+    Returns:
+        list[dict[str, Any]] -> Serialised method specs for the AgentEngineConfig.
     """
     registered_operations = _agent_engines_utils._get_registered_operations(
         agent=agent_instance
@@ -24,14 +31,20 @@ def generate_class_methods_from_agent(agent_instance: Any) -> list[dict[str, Any
         agent=agent_instance,
         operations=registered_operations,
     )
-    class_methods_list = [
+    return [
         _agent_engines_utils._to_dict(method_spec) for method_spec in class_methods_spec
     ]
-    return class_methods_list
 
 
 def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
-    """Parse key-value pairs from a comma-separated KEY=VALUE string."""
+    """Parses a comma-separated KEY=VALUE string into a dictionary.
+
+    Args:
+        kv_string: Optional[str] -> Comma-separated key-value pairs (e.g., "KEY1=VAL1,KEY2=VAL2").
+
+    Returns:
+        dict[str, str] -> Parsed key-value pairs, skipping malformed entries with a warning.
+    """
     result = {}
     if kv_string:
         for pair in kv_string.split(","):
@@ -39,7 +52,7 @@ def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
                 key, value = pair.split("=", 1)
                 result[key.strip()] = value.strip()
             else:
-                logging.warning(f"Skipping malformed key-value pair: {pair}")
+                logger.warning(f"Skipping malformed key-value pair: {pair}")
     return result
 
 
@@ -131,7 +144,7 @@ def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
     help="Number of worker processes (default: 1)",
 )
 def deploy_agent_engine_app(
-    project: str | None,
+    project: Optional[str],
     location: str,
     display_name: str,
     description: str,
@@ -139,8 +152,8 @@ def deploy_agent_engine_app(
     entrypoint_module: str,
     entrypoint_object: str,
     requirements_file: str,
-    set_env_vars: str | None,
-    service_account: str | None,
+    set_env_vars: Optional[str],
+    service_account: Optional[str],
     min_instances: int,
     max_instances: int,
     cpu: str,
@@ -148,23 +161,40 @@ def deploy_agent_engine_app(
     container_concurrency: int,
     num_workers: int,
 ) -> AgentEngine:
-    """
-    Deploy the agent engine app to VertexAI
-    """
-    logging.basicConfig(level=logging.INFO)
+    """Deploys or updates the agent application on Vertex AI Agent Engine.
 
-    # Parse CLI env vars
+    Creates a new Agent Engine resource if none with the given display_name exists,
+    or updates the existing one. Injects telemetry env vars by default.
+
+    Args:
+        project: Optional[str] -> GCP project ID; defaults to application default credentials.
+        location: str -> GCP region for deployment.
+        display_name: str -> Human-readable name for the Agent Engine resource.
+        description: str -> Short description of the agent.
+        source_packages: tuple[str, ...] -> Local package paths to bundle and upload.
+        entrypoint_module: str -> Python module path for the agent entrypoint.
+        entrypoint_object: str -> Name of the app object at module level.
+        requirements_file: str -> Path to the requirements.txt file.
+        set_env_vars: Optional[str] -> Comma-separated KEY=VALUE environment variables.
+        service_account: Optional[str] -> Service account email for the Agent Engine.
+        min_instances: int -> Minimum number of running instances.
+        max_instances: int -> Maximum number of running instances.
+        cpu: str -> CPU limit per instance.
+        memory: str -> Memory limit per instance.
+        container_concurrency: int -> Maximum concurrent requests per container.
+        num_workers: int -> Number of worker processes.
+
+    Returns:
+        AgentEngine -> The created or updated remote Agent Engine resource.
+    """
     env_vars = parse_key_value_pairs(set_env_vars)
 
-    # Set deployment-specific environment variables
     env_vars["GOOGLE_CLOUD_REGION"] = location
     env_vars["NUM_WORKERS"] = str(num_workers)
 
-    # Enable telemetry by default for Agent Engine
     env_vars.setdefault("GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY", "true")
     env_vars.setdefault("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "true")
 
-    # Log deployment parameters
     click.echo("\n Deployment Parameters:")
     params = [
         ("Project", project),
@@ -189,17 +219,14 @@ def deploy_agent_engine_app(
     )
     vertexai.init(project=project, location=location)
 
-    # Dynamically import the agent instance to generate class_methods
-    logging.info(f"Importing {entrypoint_module}.{entrypoint_object}")
+    logger.info(f"Importing {entrypoint_module}.{entrypoint_object}")
     module = importlib.import_module(entrypoint_module)
     agent_instance = getattr(module, entrypoint_object)
 
-    # If the agent_instance is a coroutine, await it to get the actual instance
     if inspect.iscoroutine(agent_instance):
-        logging.info(f"Detected coroutine, awaiting {entrypoint_object}...")
+        logger.info(f"Detected coroutine, awaiting {entrypoint_object}...")
         agent_instance = asyncio.run(agent_instance)
 
-    # Generate class methods spec from register_operations
     class_methods_list = generate_class_methods_from_agent(agent_instance)
 
     config = AgentEngineConfig(
@@ -219,7 +246,6 @@ def deploy_agent_engine_app(
         agent_framework="google-adk",
     )
 
-    # Check if an agent with this name already exists
     existing_agents = list(client.agent_engines.list())
     matching_agents = [
         agent
@@ -227,7 +253,6 @@ def deploy_agent_engine_app(
         if agent.api_resource.display_name == display_name
     ]
 
-    # Deploy the agent (create or update)
     action = "Updating" if matching_agents else "Creating"
     click.echo(f"\n🚀 {action} agent: {display_name} (this can take 3-5 minutes)...")
 
@@ -244,7 +269,7 @@ def deploy_agent_engine_app(
         "is_a2a": False,
         "deployment_timestamp": datetime.datetime.now().isoformat(),
     }
-    logging.info(metadata)
+    logger.info(metadata)
 
     return remote_agent
 
