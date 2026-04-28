@@ -71,29 +71,18 @@ def test_mcp_list_buckets_success(mock_gcs_manager):
     mock_gcs_manager.list_buckets.assert_called_once_with("my-", "test-project")
 
 
-def test_mcp_read_object_authorized_user_success(mock_gcs_manager):
-    # Mocking bucket and blob for metadata retrieval
-    mock_bucket = MagicMock()
-    mock_blob = MagicMock()
-    mock_blob.size = 1024
-    mock_blob.content_type = "text/plain"
-    mock_blob.metadata = {"test": "val"}
+def test_mcp_list_objects_authorized_user_success(mock_gcs_manager):
+    mock_gcs_manager.list_blobs.return_value = ["docs/a.txt", "docs/b.txt"]
 
-    mock_gcs_manager.get_bucket.return_value = mock_bucket
-    mock_bucket.get_blob.return_value = mock_blob
-
-    request = ReadObjectRequest(bucket_name="allowed-bucket", object_name="docs/a.txt")
-    result = asyncio.run(read_object(request))
+    request = ListObjectsRequest(bucket_name="allowed-bucket", prefix="docs/")
+    result = asyncio.run(list_objects(request))
 
     assert result.execution_status == "success"
-    assert result.gcs_uri == "gs://allowed-bucket/docs/a.txt"
-    assert result.size_bytes == 1024
-    assert result.content_type == "text/plain"
-    assert result.metadata == {"test": "val"}
+    assert result.objects == ["docs/a.txt", "docs/b.txt"]
 
 
 def test_mcp_read_object_unauthorized_user_permission_denied(mock_gcs_manager):
-    mock_gcs_manager.get_bucket.side_effect = Exception(
+    mock_gcs_manager.download_object_as_bytes.side_effect = Exception(
         "403 Forbidden: caller does not have storage.objects.get access"
     )
 
@@ -105,9 +94,9 @@ def test_mcp_read_object_unauthorized_user_permission_denied(mock_gcs_manager):
 
 
 def test_mcp_read_object_not_found_normalized_message(mock_gcs_manager):
-    mock_bucket = MagicMock()
-    mock_gcs_manager.get_bucket.return_value = mock_bucket
-    mock_bucket.get_blob.return_value = None
+    mock_gcs_manager.download_object_as_bytes.side_effect = Exception(
+        "404 No such object: restricted-bucket/missing.txt"
+    )
 
     request = ReadObjectRequest(
         bucket_name="restricted-bucket",

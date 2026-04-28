@@ -29,17 +29,10 @@ from .schemas import (
     ListObjectsResponse,
     ListBucketsRequest,
     ListBucketsResponse,
-    AuthenticationError,
 )
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-
-class GoogleAccessToken(AccessToken):
-    """Extends AccessToken with user email for auditability."""
-
-    email: Optional[str] = None
 
 
 class GoogleGcsTokenVerifier(TokenVerifier):
@@ -49,17 +42,16 @@ class GoogleGcsTokenVerifier(TokenVerifier):
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    GCS_AUTH_CONFIG.google_token_info_url_v3,
+                    GCS_AUTH_CONFIG.google_token_info_url,
                     params={"access_token": token},
                     timeout=10,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    return GoogleAccessToken(
+                    return AccessToken(
                         token=token,
                         client_id=data.get("aud", "unknown"),
                         scopes=data.get("scope", "").split(),
-                        email=data.get("email"),
                     )
         except Exception:
             pass
@@ -171,88 +163,50 @@ async def update_bucket_labels(
 @mcp.tool()
 async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     """
-    Transfers an artifact from the agent landing zone to a specified destination bucket and path.
-    Automatically derives the object name from the source URI if not provided.
+    Uploads a file (blob) to a specified GCS bucket.
+    Supports providing content directly as a string or specifying a local file path.
 
     Args:
-        source_uri (str): The GCS URI of the source artifact.
-        destination_bucket (str): The target GCS bucket name.
-        destination_path (str): Internal bucket path (e.g. 'landing/v1/').
-        object_name (str, optional): Optional name for the object (without extension).
-        metadata (Dict[str, str | int | float], optional): Custom metadata tags.
+        bucket_name (str): The name of the bucket.
+        object_name (str): The name/path of the object to create in GCS.
+        content (str, optional): The string content to upload.
+        local_path (str, optional): The local file path to upload.
+        content_type (str, optional): The MIME type of the file. Auto-detected if not provided.
 
     Returns:
-        UploadObjectResponse: Structured response with status.
+        str: Success message with the object name.
     """
     logger.info(
-        f"Tool call: upload_object(source_uri={request.source_uri}, "
-        f"destination_bucket={request.destination_bucket}, destination_path={request.destination_path})"
+        f"Tool call: upload_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
-        # Identity extraction for audit metadata
-        token_obj = get_access_token()
-        if not isinstance(token_obj, GoogleAccessToken) or not token_obj.email:
-            raise AuthenticationError(
-                "Mandatory user identity (email) not found in OAuth token. "
-                "Audit metadata injection is required for landing-zone uploads."
-            )
-
-        # Authority selection: Use SA only if both source and destination are internal pipeline buckets
-        source_bucket = request.source_uri.split("/")[2]
-        use_sa = _is_internal_pipeline_bucket(
-            request.destination_bucket
-        ) and _is_internal_pipeline_bucket(source_bucket)
-
-        gcs_manager = _make_gcs_manager(use_delegated_credentials=not use_sa)
-
-        # Derive object name if not provided
-        final_object_name = request.object_name
-        if not final_object_name:
-            # Extract filename from source_uri (gs://bucket/path/to/file.pdf -> file.pdf)
-            source_filename = request.source_uri.split("/")[-1]
-            # Strip extension (file.pdf -> file)
-            final_object_name = source_filename.split(".")[0]
-
-        # Construct final destination path
-        # Ensure destination_path ends with / if it doesn't already
-        base_path = request.destination_path
-        if not base_path.endswith("/"):
-            base_path += "/"
-
-        full_destination_name = f"{base_path}{final_object_name}"
-
-        # Cast metadata values to strings (GCS requirements)
-        final_metadata = None
-        if request.metadata:
-            final_metadata = {k: str(v) for k, v in request.metadata.items()}
-
+        gcs_manager = _make_gcs_manager()
         blob = await asyncio.to_thread(
             gcs_manager.create_object,
-            bucket_name=request.destination_bucket,
-            object_name=full_destination_name,
-            source_uri=request.source_uri,
-            metadata=final_metadata,
-            user_email=token_obj.email,
+            request.bucket_name,
+            request.object_name,
+            request.content,
+            request.local_path,
+            request.content_type,
         )
-
         return UploadObjectResponse(
-            source_uri=request.source_uri,
-            destination_bucket=request.destination_bucket,
-            destination_path=request.destination_path,
+            bucket_name=request.bucket_name,
             object_name=blob.name,
-            metadata=blob.metadata,
+            content=request.content,
+            local_path=request.local_path,
+            content_type=blob.content_type,
             execution_status="success",
             execution_message=(
-                f"Successfully transferred artifact to: gs://{request.destination_bucket}/{blob.name}"
+                f"Successfully uploaded object: {blob.name} to bucket: {request.bucket_name}"
             ),
         )
     except Exception as e:
         return UploadObjectResponse(
-            source_uri=request.source_uri,
-            destination_bucket=request.destination_bucket,
-            destination_path=request.destination_path,
+            bucket_name=request.bucket_name,
             object_name=request.object_name,
-            metadata=request.metadata,
+            content=request.content,
+            local_path=request.local_path,
+            content_type=request.content_type,
             execution_status="error",
             execution_message=_format_execution_error(e),
         )
@@ -261,55 +215,49 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
 @mcp.tool()
 async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
     """
-    Retrieves metadata and canonical GCS URI for an object.
-    The agent should use the returned gcs_uri to import the object as a session artifact
-    for multi-modal analysis (Images, PDF, Audio, etc.).
+    Downloads a specific file (blob) from a bucket and returns its contents.
+    Ideal for reading configuration or documentation files stored in GCS.
 
     Args:
         bucket_name (str): The name of the bucket.
         object_name (str): The name/path of the object to read.
 
     Returns:
-        ReadObjectResponse: Metadata and GCS URI.
+        str: The content of the object (decoded as UTF-8 if possible).
     """
     logger.info(
         f"Tool call: read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
-        # Authority selection: Use SA if bucket is internal
-        use_sa = _is_internal_pipeline_bucket(request.bucket_name)
-        gcs_manager = _make_gcs_manager(use_delegated_credentials=not use_sa)
-
-        # Retrieve blob metadata
-        bucket = await asyncio.to_thread(gcs_manager.get_bucket, request.bucket_name)
-        blob = await asyncio.to_thread(bucket.get_blob, request.object_name)
-
-        if not blob:
-            raise ValueError(
-                f"Object {request.object_name} not found in bucket {request.bucket_name}."
-            )
+        gcs_manager = _make_gcs_manager()
+        content_bytes = await asyncio.to_thread(
+            gcs_manager.download_object_as_bytes,
+            request.bucket_name,
+            request.object_name,
+        )
+        decoded = None
+        is_binary = False
+        try:
+            decoded = content_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            is_binary = True
 
         return ReadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
-            gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
-            size_bytes=blob.size,
-            content_type=blob.content_type,
-            metadata=blob.metadata,
+            content=decoded,
+            size_bytes=len(content_bytes),
+            is_binary=is_binary,
             execution_status="success",
-            execution_message=(
-                "Object metadata retrieved successfully. "
-                "Use the provided gcs_uri to import this object as a session artifact."
-            ),
+            execution_message="Object read successfully.",
         )
     except Exception as e:
         return ReadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
-            gcs_uri=None,
+            content=None,
             size_bytes=0,
-            content_type=None,
-            metadata=None,
+            is_binary=False,
             execution_status="error",
             execution_message=_format_execution_error(e),
         )
@@ -480,32 +428,8 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
         )
 
 
-def _is_internal_pipeline_bucket(bucket_name: str) -> bool:
-    """Checks if a bucket belongs to the trusted internal ingestion pipeline.
-
-    Args:
-        bucket_name (str): The name of the GCS bucket.
-
-    Returns:
-        bool: True if the bucket is part of the internal pipeline.
-    """
-    return bucket_name in GCS_SERVER_CONFIG.internal_pipeline_buckets
-
-
-def _make_gcs_manager(use_delegated_credentials: bool = True) -> GCSManager:
-    """Creates a GCS manager using either delegated user tokens or server ADC.
-
-    Args:
-        use_delegated_credentials (bool): Whether to use the caller's OAuth token.
-            If False, the server's own identity (Service Account) is used.
-
-    Returns:
-        GCSManager: Initialized manager instance.
-    """
-    if not use_delegated_credentials:
-        logger.info("Using GCS MCP Server identity (ADC) for storage operation.")
-        return GCSManager(default_project=GCS_SERVER_CONFIG.default_project_id)
-
+def _make_gcs_manager() -> GCSManager:
+    """Creates a GCS manager using the delegated user token from MCP context."""
     access_token = _get_current_token()
     creds = build_gcs_credentials(
         access_token=access_token,

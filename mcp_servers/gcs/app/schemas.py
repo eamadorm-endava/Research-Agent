@@ -89,41 +89,25 @@ class UpdateBucketLabelsResponse(UpdateBucketLabelsRequest, BaseResponse):
 
 
 class UploadObjectRequest(BaseRequest):
-    source_uri: Annotated[
-        str,
-        Field(
-            description="The GCS URI of the source artifact (e.g. gs://bucket/object) from the ai_agent_landing_zone.",
-        ),
-    ]
-    destination_bucket: Annotated[
-        BUCKET_NAME,
-        Field(description="The target GCS bucket name."),
-    ]
-    destination_path: Annotated[
-        str,
-        Field(
-            description="Internal bucket path where the object will be stored (e.g. 'landing/v1/').",
-        ),
-    ]
-    object_name: Annotated[
+    bucket_name: BUCKET_NAME
+    object_name: OBJECT_NAME
+    content: Annotated[
         Optional[str],
-        Field(
-            default=None,
-            description="Optional object name. If not provided, it will be derived from the source_uri filename (without extension).",
-        ),
+        Field(default=None, description="Inline text content to upload."),
     ]
-    metadata: Annotated[
-        Optional[Dict[str, str | int | float]],
-        Field(
-            default=None,
-            description="Optional custom metadata tags to apply to the object.",
-        ),
+    local_path: Annotated[
+        Optional[str],
+        Field(default=None, description="Local path to upload from."),
+    ]
+    content_type: Annotated[
+        Optional[str],
+        Field(default=None, description="MIME type of the uploaded object."),
     ]
 
     @model_validator(mode="after")
-    def validate_request(self) -> "UploadObjectRequest":
-        if not self.source_uri.startswith("gs://"):
-            raise ValueError("source_uri must start with 'gs://'")
+    def validate_content_source(self) -> "UploadObjectRequest":
+        if self.content is None and self.local_path is None:
+            raise ValueError("Either content or local_path must be provided.")
         return self
 
 
@@ -137,21 +121,17 @@ class ReadObjectRequest(BaseRequest):
 
 
 class ReadObjectResponse(ReadObjectRequest, BaseResponse):
-    gcs_uri: Annotated[
+    content: Annotated[
         Optional[str],
-        Field(default=None, description="The canonical GCS URI of the object."),
+        Field(default=None, description="UTF-8 decoded content when applicable."),
     ]
     size_bytes: Annotated[
         int,
         Field(default=0, description="Object payload size in bytes."),
     ]
-    content_type: Annotated[
-        Optional[str],
-        Field(default=None, description="The MIME type of the object."),
-    ]
-    metadata: Annotated[
-        Optional[Dict[str, str]],
-        Field(default=None, description="The object's metadata tags."),
+    is_binary: Annotated[
+        bool,
+        Field(default=False, description="True when content is binary/non UTF-8."),
     ]
 
 

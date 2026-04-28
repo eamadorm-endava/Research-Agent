@@ -39,9 +39,7 @@ class GCSManager:
     and provides methods for bucket and object management.
     """
 
-    def __init__(
-        self, creds: Optional[Credentials] = None, default_project: Optional[str] = None
-    ):
+    def __init__(self, creds: Credentials, default_project: Optional[str] = None):
         self.creds = creds
         self.default_project = default_project or detect_default_project_id()
         try:
@@ -144,59 +142,23 @@ class GCSManager:
         content: Optional[Union[str, bytes]] = None,
         local_path: Optional[str] = None,
         content_type: Optional[str] = None,
-        source_uri: Optional[str] = None,
-        metadata: Optional[Dict[str, str]] = None,
-        user_email: Optional[str] = None,
     ) -> storage.Blob:
         """
-        Uploads or copies an object to a GCS bucket.
-        Supports string/bytes content, local file paths, or GCS-to-GCS copies.
+        Uploads an object to a GCS bucket. Supports string/bytes content or local file paths.
 
         Args:
             bucket_name: The name of the destination bucket.
             object_name: The name of the object to create in the bucket.
             content: Text or binary content to upload.
-            local_path: Path to a local file to upload (deprecated).
-            content_type: MIME type for the object.
-            source_uri: GCS URI of the source object (gs://bucket/object) for copying.
-            metadata: Custom metadata dictionary to apply to the object.
-            user_email: User email to inject as x-goog-meta-user-email.
+            local_path: Path to a local file to upload.
+            content_type: MIME type for the object. If not provided, it's auto-detected.
 
         Returns:
-            storage.Blob: The created or copied blob object.
+            storage.Blob: The created blob object.
         """
         try:
-            dest_bucket = self.get_bucket(bucket_name)
-            final_metadata = (metadata or {}).copy()
-            if user_email:
-                final_metadata["user-email"] = user_email
-
-            if source_uri:
-                # GCS-to-GCS Copy
-                source_bucket_name, source_object_name = self.parse_gcs_uri(source_uri)
-                source_bucket = self.get_bucket(source_bucket_name)
-                source_blob = source_bucket.blob(source_object_name)
-
-                # Ensure destination object name is determined
-                target_object_name = object_name
-                if target_object_name.endswith("/"):
-                    # Destination is a folder, append source filename
-                    filename = os.path.basename(source_object_name)
-                    target_object_name = os.path.join(target_object_name, filename)
-
-                blob = source_bucket.copy_blob(
-                    source_blob, dest_bucket, target_object_name
-                )
-                if final_metadata:
-                    blob.metadata = {**(blob.metadata or {}), **final_metadata}
-                    blob.patch()
-
-                logger.info(
-                    f"Object {source_uri} copied to gs://{bucket_name}/{target_object_name}."
-                )
-                return blob
-
-            blob = dest_bucket.blob(object_name)
+            bucket = self.get_bucket(bucket_name)
+            blob = bucket.blob(object_name)
 
             # Determine content type if not provided
             if not content_type:
@@ -204,9 +166,6 @@ class GCSManager:
                     content_type, _ = mimetypes.guess_type(local_path)
                 elif object_name:
                     content_type, _ = mimetypes.guess_type(object_name)
-
-            if final_metadata:
-                blob.metadata = final_metadata
 
             if local_path:
                 if not os.path.exists(local_path):
@@ -226,27 +185,14 @@ class GCSManager:
                     )
                 logger.info(f"Object {object_name} created in bucket {bucket_name}.")
             else:
-                raise ValueError(
-                    "Either content, local_path, or source_uri must be provided."
-                )
+                raise ValueError("Either content or local_path must be provided.")
 
             return blob
         except (GoogleCloudError, FileNotFoundError, ValueError) as e:
             logger.error(
-                f"Error creating/copying object {object_name} in bucket {bucket_name}: {e}"
+                f"Error creating object {object_name} in bucket {bucket_name}: {e}"
             )
             raise
-
-    @staticmethod
-    def parse_gcs_uri(uri: str) -> tuple[str, str]:
-        """Parses a gs:// URI into bucket and object name."""
-        if not uri.startswith("gs://"):
-            raise ValueError(f"Invalid GCS URI: {uri}")
-        path = uri[5:]
-        if "/" not in path:
-            return path, ""
-        bucket, obj = path.split("/", 1)
-        return bucket, obj
 
     def download_object_as_bytes(self, bucket_name: str, object_name: str) -> bytes:
         """
