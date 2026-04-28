@@ -160,7 +160,7 @@ run-ekb-precommit:
 	uvx ruff format --check pipelines/enterprise_knowledge_base
 
 run-ekb-tests:
-	uv run pytest pipelines/enterprise_knowledge_base/tests/
+	uv run --group classification_pipeline --group rag_pipeline --group ekb-integration pytest pipelines/enterprise_knowledge_base/tests/
 
 build-ekb-image:
 	docker build -t ekb-pipeline-test -f pipelines/enterprise_knowledge_base/Dockerfile .

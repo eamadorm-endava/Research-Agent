@@ -73,7 +73,6 @@ classification_pipeline = [
 rag_pipeline = [
     "google-cloud-storage>=2.14.0",
     "google-cloud-bigquery>=3.20.0",
-    "pymupdf>=1.24.1",
     "langchain-text-splitters>=0.3.0",
 ]
 ekb-integration = [
@@ -82,6 +81,7 @@ ekb-integration = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "loguru>=0.7.3",
+    "pymupdf>=1.24.1",
 ]
 
 [tool.pytest.ini_options]

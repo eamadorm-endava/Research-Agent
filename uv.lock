@@ -2976,6 +2976,7 @@ ekb-integration = [
     { name = "loguru" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pymupdf" },
     { name = "uvicorn" },
 ]
 mcp-bq = [
@@ -3014,7 +3015,6 @@ rag-pipeline = [
     { name = "google-cloud-bigquery" },
     { name = "google-cloud-storage" },
     { name = "langchain-text-splitters" },
-    { name = "pymupdf" },
 ]
 
 [package.metadata]
@@ -3056,6 +3056,7 @@ ekb-integration = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
+    { name = "pymupdf", specifier = ">=1.24.1" },
     { name = "uvicorn", specifier = ">=0.41.0" },
 ]
 mcp-bq = [
@@ -3094,7 +3095,6 @@ rag-pipeline = [
     { name = "google-cloud-bigquery", specifier = ">=3.20.0" },
     { name = "google-cloud-storage", specifier = ">=2.14.0" },
     { name = "langchain-text-splitters", specifier = ">=0.3.0" },
-    { name = "pymupdf", specifier = ">=1.24.1" },
 ]
 
 [[package]]
