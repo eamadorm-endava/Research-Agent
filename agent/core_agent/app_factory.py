@@ -10,19 +10,16 @@ def create_adk_app(
     agent: Annotated[BaseAgent, "The root ADK agent instance"],
     artifact_bucket: Annotated[str, "GCS bucket name for storing artifacts"],
     app_name: Annotated[str, "The name of the application"] = "research-agent",
-    enable_tracing: Annotated[bool, "Whether to enable Cloud Trace"] = False,
 ) -> AdkApp:
-    """
-    Constructs an AdkApp with GCS artifact storage and automatic file capture.
+    """Constructs an AdkApp with GCS artifact storage and automatic file capture.
 
     Args:
-        agent: BaseAgent -> The root ADK agent instance
-        artifact_bucket: str -> GCS bucket name for storing artifacts
-        app_name: str -> The name of the application
-        enable_tracing: bool -> Whether to enable Cloud Trace
+        agent: BaseAgent -> The root ADK agent instance.
+        artifact_bucket: str -> GCS bucket name for storing artifacts.
+        app_name: str -> The name of the application.
 
     Returns:
-        AdkApp -> Configured ADK application instance
+        AdkApp -> Configured ADK application instance.
     """
     logger.info(f"Creating AdkApp '{app_name}' with artifact bucket: {artifact_bucket}")
 
@@ -33,5 +30,4 @@ def create_adk_app(
             bucket_name=artifact_bucket
         ),
         plugins=[SaveFilesAsArtifactsPlugin()],
-        enable_tracing=enable_tracing,
     )

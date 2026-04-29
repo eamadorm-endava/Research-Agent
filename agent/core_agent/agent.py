@@ -54,7 +54,6 @@ if GCP_CONFIG.PROD_EXECUTION:
         agent=root_agent,
         artifact_bucket=GCP_CONFIG.ARTIFACT_BUCKET,
         app_name=AGENT_CONFIG.AGENT_NAME,
-        enable_tracing=AGENT_CONFIG.ENABLE_TRACING,
     )
 else:
     # Standard ADK App object used by the 'adk web' CLI for local development

@@ -156,13 +156,6 @@ class AgentConfig(BaseSettings):
             description="Indicates the thinking budget in tokens. 0 is DISABLED. -1 is AUTOMATIC. The default values and allowed ranges are model dependent.",
         ),
     ]
-    ENABLE_TRACING: Annotated[
-        bool,
-        Field(
-            default=False,
-            description="Whether to enable Cloud Trace for the agent application.",
-        ),
-    ]
     AGENT_INSTRUCTION: Annotated[
         str,
         Field(
