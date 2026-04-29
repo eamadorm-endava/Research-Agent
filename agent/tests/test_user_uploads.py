@@ -337,8 +337,8 @@ async def test_one_failed_part_does_not_prevent_other_parts_from_processing():
 # ─── ACL Grant ────────────────────────────────────────────────────────────────
 
 
-async def test_grants_uploader_owner_acl_on_successful_upload():
-    """Should grant OWNER ACL on the uploaded GCS object using the uploader's email."""
+async def test_grants_uploader_objectadmin_via_iam_on_successful_upload():
+    """Should grant roles/storage.objectAdmin via conditional IAM binding on upload."""
     plugin = GeminiEnterpriseFileIngestionPlugin()
     inline_part = _make_inline_part(
         display_name="report.pdf", mime_type="application/pdf"
@@ -349,25 +349,36 @@ async def test_grants_uploader_owner_acl_on_successful_upload():
     ctx.user_id = "uploader@example.com"
     msg = _make_user_message([inline_part])
 
+    mock_policy = MagicMock()
+    mock_policy.bindings = []
+
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
         mock_blob = MagicMock()
-        mock_client.return_value.bucket.return_value.get_blob.return_value = mock_blob
+        mock_blob.metadata = {}
+        mock_bucket = MagicMock()
+        mock_bucket.get_blob.return_value = mock_blob
+        mock_bucket.get_iam_policy.return_value = mock_policy
+        mock_client.return_value.bucket.return_value = mock_bucket
 
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
     mock_client.return_value.bucket.assert_called_once_with("landing-zone")
-    mock_client.return_value.bucket.return_value.get_blob.assert_called_once_with(
-        "report.pdf"
+    mock_bucket.get_blob.assert_called_once_with("report.pdf")
+    mock_bucket.get_iam_policy.assert_called_once_with(requested_policy_version=3)
+    mock_bucket.set_iam_policy.assert_called_once_with(mock_policy)
+    assert len(mock_policy.bindings) == 1
+    binding = mock_policy.bindings[0]
+    assert binding["role"] == "roles/storage.objectAdmin"
+    assert "user:uploader@example.com" in binding["members"]
+    assert binding["condition"]["expression"] == (
+        'resource.name == "projects/_/buckets/landing-zone/objects/report.pdf"'
     )
-    mock_blob.acl.user.assert_called_once_with("uploader@example.com")
-    mock_blob.acl.user.return_value.grant_owner.assert_called_once()
-    mock_blob.acl.save.assert_called_once()
     assert mock_blob.metadata["uploader"] == "uploader@example.com"
     mock_blob.patch.assert_called_once()
 
 
 async def test_acl_grant_failure_does_not_block_upload():
-    """Should complete the upload and return parts even when the ACL grant raises."""
+    """Should complete the upload and return parts even when the IAM grant fails."""
     plugin = GeminiEnterpriseFileIngestionPlugin()
     inline_part = _make_inline_part(display_name="file.png")
     ctx = _make_invocation_context(
@@ -377,8 +388,11 @@ async def test_acl_grant_failure_does_not_block_upload():
 
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
         mock_blob = MagicMock()
-        mock_blob.acl.save.side_effect = RuntimeError("UBLA enabled")
-        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+        mock_blob.metadata = {}
+        mock_bucket = MagicMock()
+        mock_bucket.get_blob.return_value = mock_blob
+        mock_bucket.get_iam_policy.side_effect = RuntimeError("IAM error")
+        mock_client.return_value.bucket.return_value = mock_bucket
 
         result = await plugin.on_user_message_callback(
             invocation_context=ctx, user_message=msg
@@ -406,8 +420,8 @@ async def test_acl_not_attempted_when_no_gcs_uri():
 # ─── Identity Verification ───────────────────────────────────────────────────
 
 
-async def test_grants_acl_to_user_id_from_context():
-    """Should grant OWNER ACL to the user_id provided in the invocation context."""
+async def test_grants_iam_objectadmin_to_user_id_from_context():
+    """Should grant roles/storage.objectAdmin to the user_id provided in the invocation context."""
     plugin = GeminiEnterpriseFileIngestionPlugin()
     inline_part = _make_inline_part(display_name="report.pdf")
     ctx = _make_invocation_context(
@@ -416,20 +430,62 @@ async def test_grants_acl_to_user_id_from_context():
     ctx.user_id = "emmanuel.amador@endava.com"
     msg = _make_user_message([inline_part])
 
+    mock_policy = MagicMock()
+    mock_policy.bindings = []
+
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
         mock_blob = MagicMock()
-        mock_client.return_value.bucket.return_value.get_blob.return_value = mock_blob
+        mock_blob.metadata = {}
+        mock_bucket = MagicMock()
+        mock_bucket.get_blob.return_value = mock_blob
+        mock_bucket.get_iam_policy.return_value = mock_policy
+        mock_client.return_value.bucket.return_value = mock_bucket
 
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
-    mock_blob.acl.user.assert_called_once_with("emmanuel.amador@endava.com")
-    mock_blob.acl.user.return_value.grant_owner.assert_called_once()
+    mock_bucket.get_iam_policy.assert_called_once_with(requested_policy_version=3)
+    assert len(mock_policy.bindings) == 1
+    assert "user:emmanuel.amador@endava.com" in mock_policy.bindings[0]["members"]
 
 
-async def test_grants_acl_on_existing_gcs_references_using_user_id():
-    """Should scan message parts for existing GCS URIs and grant ACL to the context user_id."""
+async def test_skips_duplicate_iam_binding_on_repeated_upload():
+    """Should not add a duplicate IAM binding when an identical one already exists."""
     plugin = GeminiEnterpriseFileIngestionPlugin()
-    # Message with no inline data but an existing GCS file_data part
+    inline_part = _make_inline_part(display_name="report.pdf")
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://landing-zone/report.pdf")
+    )
+    ctx.user_id = "user@example.com"
+    msg = _make_user_message([inline_part])
+
+    condition_expr = (
+        'resource.name == "projects/_/buckets/landing-zone/objects/report.pdf"'
+    )
+    existing_binding = {
+        "role": "roles/storage.objectAdmin",
+        "members": {"user:user@example.com"},
+        "condition": {"title": "uploader-object-access", "expression": condition_expr},
+    }
+    mock_policy = MagicMock()
+    mock_policy.bindings = [existing_binding]
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        mock_blob = MagicMock()
+        mock_blob.metadata = {}
+        mock_bucket = MagicMock()
+        mock_bucket.get_blob.return_value = mock_blob
+        mock_bucket.get_iam_policy.return_value = mock_policy
+        mock_client.return_value.bucket.return_value = mock_bucket
+
+        await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
+
+    mock_bucket.set_iam_policy.assert_not_called()
+    assert len(mock_policy.bindings) == 1
+
+
+async def test_grants_iam_objectadmin_on_existing_gcs_references():
+    """Should scan message parts for existing GCS URIs and grant IAM objectAdmin to the context user_id."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
     gcs_uri = "gs://pre-uploaded/file.pdf"
     gcs_part = MagicMock(spec=types.Part)
     gcs_part.inline_data = None
@@ -439,14 +495,21 @@ async def test_grants_acl_on_existing_gcs_references_using_user_id():
     ctx.user_id = "emmanuel.amador@endava.com"
     msg = _make_user_message([gcs_part])
 
+    mock_policy = MagicMock()
+    mock_policy.bindings = []
+
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
         mock_blob = MagicMock()
-        mock_client.return_value.bucket.return_value.get_blob.return_value = mock_blob
+        mock_blob.metadata = {}
+        mock_bucket = MagicMock()
+        mock_bucket.get_blob.return_value = mock_blob
+        mock_bucket.get_iam_policy.return_value = mock_policy
+        mock_client.return_value.bucket.return_value = mock_bucket
 
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
     mock_client.return_value.bucket.assert_called_once_with("pre-uploaded")
-    mock_client.return_value.bucket.return_value.get_blob.assert_called_once_with(
-        "file.pdf"
-    )
-    mock_blob.acl.user.assert_called_once_with("emmanuel.amador@endava.com")
+    mock_bucket.get_blob.assert_called_once_with("file.pdf")
+    mock_bucket.get_iam_policy.assert_called_once_with(requested_policy_version=3)
+    assert len(mock_policy.bindings) == 1
+    assert "user:emmanuel.amador@endava.com" in mock_policy.bindings[0]["members"]

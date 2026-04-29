@@ -242,11 +242,11 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
     async def _grant_uploader_object_acl(
         self, canonical_uri: str, user_email: str
     ) -> None:
-        """Grants the uploading user OWNER-level ACL on their uploaded GCS object.
+        """Grants roles/storage.objectAdmin to the uploader on their GCS object via IAM.
 
-        Uses Application Default Credentials (service account) to set per-object ACL,
-        giving the uploader storage.objectAdmin access over the specific file they uploaded.
-        Logs a warning without raising if the grant fails (e.g., uniform bucket-level access).
+        Uses a conditional IAM binding at the bucket level. This approach is
+        compatible with UBLA-enabled buckets (the expected landing zone configuration).
+        Logs a warning without raising to avoid blocking the upload flow on errors.
 
         Args:
             canonical_uri: str -> The canonical gs:// URI of the uploaded GCS object.
@@ -260,31 +260,89 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             bucket_name, object_name = object_path.split("/", 1)
             client = storage.Client()
             bucket = client.bucket(bucket_name)
-            blob = bucket.get_blob(object_name)
-
-            if not blob:
-                logger.warning(
-                    f"Blob not found for ACL/Metadata grant: {canonical_uri}"
-                )
-                return
 
             def _apply_updates() -> None:
-                # 1. Update ACL
-                blob.acl.reload()
-                blob.acl.user(user_email).grant_owner()
-                blob.acl.save()
-
-                # 2. Update Metadata
-                new_metadata = dict(blob.metadata or {})
-                new_metadata["uploader"] = user_email
-                blob.metadata = new_metadata
-                blob.patch()
+                blob = bucket.get_blob(object_name)
+                if not blob:
+                    raise ValueError(
+                        f"Blob not found for ACL/Metadata grant: {canonical_uri}"
+                    )
+                self._grant_iam_conditional_binding(
+                    bucket, bucket_name, object_name, user_email
+                )
+                self._stamp_uploader_metadata(blob, user_email)
 
             await asyncio.to_thread(_apply_updates)
             logger.info(
-                f"Successfully updated ACL and 'uploader' metadata on '{canonical_uri}' for: {user_email}"
+                f"Successfully granted objectAdmin and stamped metadata on '{canonical_uri}' for: {user_email}"
             )
         except Exception as exc:
             logger.warning(
-                f"Could not update ACL/Metadata on '{canonical_uri}' for '{user_email}': {exc}"
+                f"Could not grant objectAdmin on '{canonical_uri}' for '{user_email}': {exc}"
             )
+
+    def _grant_iam_conditional_binding(
+        self,
+        bucket: storage.Bucket,
+        bucket_name: str,
+        object_name: str,
+        user_email: str,
+    ) -> None:
+        """Adds a conditional IAM binding granting roles/storage.objectAdmin on a specific object.
+
+        Skips the update when an identical binding already exists to avoid policy bloat.
+        Requires IAM policy version 3 to support conditional bindings.
+
+        Args:
+            bucket: storage.Bucket -> The GCS bucket whose IAM policy is updated.
+            bucket_name: str -> Bucket name used to build the resource condition expression.
+            object_name: str -> Object path within the bucket.
+            user_email: str -> The user to receive the objectAdmin role.
+
+        Returns:
+            None
+        """
+        resource_name = f"projects/_/buckets/{bucket_name}/objects/{object_name}"
+        condition_expr = f'resource.name == "{resource_name}"'
+        policy = bucket.get_iam_policy(requested_policy_version=3)
+        policy.version = 3
+        already_granted = any(
+            b.get("role") == "roles/storage.objectAdmin"
+            and f"user:{user_email}" in b.get("members", set())
+            and (b.get("condition") or {}).get("expression") == condition_expr
+            for b in policy.bindings
+        )
+        if already_granted:
+            logger.debug(
+                f"IAM binding already exists for '{user_email}' on '{resource_name}'"
+            )
+            return
+        policy.bindings.append(
+            {
+                "role": "roles/storage.objectAdmin",
+                "members": {f"user:{user_email}"},
+                "condition": {
+                    "title": "uploader-object-access",
+                    "expression": condition_expr,
+                },
+            }
+        )
+        bucket.set_iam_policy(policy)
+        logger.info(
+            f"Granted roles/storage.objectAdmin to '{user_email}' on '{resource_name}'"
+        )
+
+    def _stamp_uploader_metadata(self, blob: storage.Blob, user_email: str) -> None:
+        """Records the uploader's email in the blob's custom metadata.
+
+        Args:
+            blob: storage.Blob -> The GCS blob to update.
+            user_email: str -> The uploader's email address to store.
+
+        Returns:
+            None
+        """
+        new_metadata = dict(blob.metadata or {})
+        new_metadata["uploader"] = user_email
+        blob.metadata = new_metadata
+        blob.patch()
