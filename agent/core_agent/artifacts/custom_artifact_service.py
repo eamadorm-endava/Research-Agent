@@ -173,18 +173,22 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
         logger.info(
             f"Automatically granting ACLs on newly saved artifact: {canonical_uri}"
         )
-        await self.grant_uploader_object_acl(canonical_uri, user_id)
+        await self.grant_uploader_object_acl(canonical_uri, user_id, app_name)
 
         return version
 
     async def grant_uploader_object_acl(
-        self, canonical_uri: str, user_email: str
+        self, canonical_uri: str, user_email: str, app_name: Optional[str] = None
     ) -> None:
-        """Grants roles/storage.objectAdmin to the uploader on their GCS object via IAM.
+        """Grants roles/storage.objectAdmin to the uploader on their GCS folder via IAM.
+
+        Optimizes permissions by using a folder-level 'startsWith' condition instead of
+        per-object bindings.
 
         Args:
             canonical_uri: str -> The canonical gs:// URI of the uploaded GCS object.
             user_email: str -> The email of the user who performed the upload.
+            app_name: Optional[str] -> The app name used to build the folder prefix.
         """
         try:
             object_path = canonical_uri[len("gs://") :]
@@ -195,6 +199,14 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
                 else storage.Client().bucket(bucket_name)
             )
 
+            # Determine the folder prefix for the user (e.g. core_agent/user@email.com/)
+            # If app_name is not provided, we fall back to the parent folder of the object
+            folder_prefix = (
+                f"{app_name}/{user_email}/"
+                if app_name
+                else object_name.rsplit("/", 2)[0] + "/"
+            )
+
             def _apply_updates() -> None:
                 blob = bucket.get_blob(object_name)
                 if not blob:
@@ -202,13 +214,13 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
                         f"Blob not found for ACL/Metadata grant: {canonical_uri}"
                     )
                 self._grant_iam_conditional_binding(
-                    bucket, bucket_name, object_name, user_email
+                    bucket, bucket_name, folder_prefix, user_email
                 )
                 self._stamp_uploader_metadata(blob, user_email)
 
             await asyncio.to_thread(_apply_updates)
             logger.info(
-                f"Successfully secured artifact '{canonical_uri}' for: {user_email}"
+                f"Successfully secured folder '{folder_prefix}' and artifact '{canonical_uri}' for: {user_email}"
             )
         except Exception as exc:
             logger.warning(
@@ -219,12 +231,12 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
         self,
         bucket: storage.Bucket,
         bucket_name: str,
-        object_name: str,
+        folder_prefix: str,
         user_email: str,
     ) -> None:
-        """Adds a conditional IAM binding granting roles/storage.objectAdmin on a specific object."""
-        resource_name = f"projects/_/buckets/{bucket_name}/objects/{object_name}"
-        condition_expr = f'resource.name == "{resource_name}"'
+        """Adds a conditional IAM binding granting roles/storage.objectAdmin on a specific user folder."""
+        resource_prefix = f"projects/_/buckets/{bucket_name}/objects/{folder_prefix}"
+        condition_expr = f'resource.name.startsWith("{resource_prefix}")'
         policy = bucket.get_iam_policy(requested_policy_version=3)
         policy.version = 3
 
@@ -236,6 +248,9 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
         )
 
         if already_granted:
+            logger.debug(
+                f"Folder-level IAM binding already exists for '{user_email}' on '{resource_prefix}'"
+            )
             return
 
         policy.bindings.append(
@@ -243,12 +258,15 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
                 "role": "roles/storage.objectAdmin",
                 "members": {f"user:{user_email}"},
                 "condition": {
-                    "title": "uploader-object-access",
+                    "title": "uploader-folder-access",
                     "expression": condition_expr,
                 },
             }
         )
         bucket.set_iam_policy(policy)
+        logger.info(
+            f"Granted folder-level roles/storage.objectAdmin to '{user_email}' on '{resource_prefix}'"
+        )
 
     def _stamp_uploader_metadata(self, blob: storage.Blob, user_email: str) -> None:
         """Records the uploader's email in the blob's custom metadata."""

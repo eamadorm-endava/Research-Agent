@@ -410,4 +410,4 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 logger.info(
                     f"Found existing GCS reference: {file_uri}. Requesting ACL grant for {user_identity}"
                 )
-                await grant_fn(file_uri, user_identity)
+                await grant_fn(file_uri, user_identity, invocation_context.app_name)
