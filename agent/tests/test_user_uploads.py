@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from google.genai import types
 
@@ -308,10 +308,78 @@ async def test_one_failed_part_does_not_prevent_other_parts_from_processing():
     ctx = _make_invocation_context(artifact_service=svc)
     msg = _make_user_message([failing_part, good_part])
 
-    result = await plugin.on_user_message_callback(
-        invocation_context=ctx, user_message=msg
-    )
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client"):
+        result = await plugin.on_user_message_callback(
+            invocation_context=ctx, user_message=msg
+        )
 
     assert result is not None
     assert result.parts[0] is failing_part
     assert len(result.parts) == 3  # original failing + placeholder + file_data for good
+
+
+# ─── ACL Grant ────────────────────────────────────────────────────────────────
+
+
+async def test_grants_uploader_owner_acl_on_successful_upload():
+    """Should grant OWNER ACL on the uploaded GCS object using the uploader's email."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    inline_part = _make_inline_part(
+        display_name="report.pdf", mime_type="application/pdf"
+    )
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://landing-zone/report.pdf")
+    )
+    ctx.user_id = "uploader@example.com"
+    msg = _make_user_message([inline_part])
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        mock_blob = MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
+
+    mock_client.return_value.bucket.assert_called_once_with("landing-zone")
+    mock_client.return_value.bucket.return_value.blob.assert_called_once_with(
+        "report.pdf"
+    )
+    mock_blob.acl.user.assert_called_once_with("uploader@example.com")
+    mock_blob.acl.user.return_value.grant_owner.assert_called_once()
+    mock_blob.acl.save.assert_called_once()
+
+
+async def test_acl_grant_failure_does_not_block_upload():
+    """Should complete the upload and return parts even when the ACL grant raises."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    inline_part = _make_inline_part(display_name="file.png")
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://landing-zone/file.png")
+    )
+    msg = _make_user_message([inline_part])
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        mock_blob = MagicMock()
+        mock_blob.acl.save.side_effect = RuntimeError("UBLA enabled")
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        result = await plugin.on_user_message_callback(
+            invocation_context=ctx, user_message=msg
+        )
+
+    assert result is not None
+    assert len(result.parts) == 2  # placeholder + file_data still returned
+
+
+async def test_acl_not_attempted_when_no_gcs_uri():
+    """Should skip ACL grant entirely when the canonical URI is unavailable."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    inline_part = _make_inline_part(display_name="file.png")
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version(canonical_uri=None)
+    )
+    msg = _make_user_message([inline_part])
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
+
+    mock_client.assert_not_called()
