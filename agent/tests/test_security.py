@@ -1,6 +1,49 @@
+import base64
+import json
 from unittest.mock import patch, MagicMock
 
-from agent.core_agent.security import get_id_token, get_ge_oauth_token
+from agent.core_agent.security import (
+    extract_user_email_from_token,
+    get_id_token,
+    get_ge_oauth_token,
+)
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+
+def _make_jwt_token(payload: dict) -> str:
+    """Build a minimal JWT-formatted string with the given payload for testing."""
+    header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
+    encoded = (
+        base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
+    )
+    return f"{header}.{encoded}.fakesignature"
+
+
+# ─── extract_user_email_from_token ────────────────────────────────────────────
+
+
+def test_extract_user_email_from_token_returns_email_from_valid_jwt():
+    """Should return the email claim when the token is a valid JWT containing one."""
+    token = _make_jwt_token({"email": "ge_user@company.com", "sub": "12345"})
+    assert extract_user_email_from_token(token) == "ge_user@company.com"
+
+
+def test_extract_user_email_from_token_returns_none_when_no_email_claim():
+    """Should return None when the JWT payload is valid but contains no email claim."""
+    token = _make_jwt_token({"sub": "12345", "name": "Test User"})
+    assert extract_user_email_from_token(token) is None
+
+
+def test_extract_user_email_from_token_returns_none_for_opaque_token():
+    """Should return None when the token is not in JWT format (lacks three dot-separated segments)."""
+    assert extract_user_email_from_token("opaque-access-token-12345") is None
+
+
+def test_extract_user_email_from_token_returns_none_for_invalid_base64_payload():
+    """Should return None gracefully when the JWT middle segment cannot be base64-decoded."""
+    assert extract_user_email_from_token("header.!!invalid!!.signature") is None
 
 
 @patch("google.oauth2.id_token.fetch_id_token")

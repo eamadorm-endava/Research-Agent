@@ -8,6 +8,9 @@ from google.cloud import storage
 from google.genai import types
 from loguru import logger
 
+from ..config import GCS_MCP_CONFIG
+from ..security import extract_user_email_from_token
+
 
 class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
     """Saves inline files from Gemini Enterprise user messages to GCS.
@@ -128,6 +131,11 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 await self._grant_uploader_object_acl(
                     gcs_part.file_data.file_uri, invocation_context.user_id
                 )
+                ge_user_email = self._extract_ge_user_email(invocation_context)
+                if ge_user_email:
+                    await self._grant_uploader_object_acl(
+                        gcs_part.file_data.file_uri, ge_user_email
+                    )
             return result
 
         except Exception as exc:
@@ -186,6 +194,32 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 display_name=filename,
             )
         )
+
+    def _extract_ge_user_email(
+        self, invocation_context: InvocationContext
+    ) -> Optional[str]:
+        """Extracts the Gemini Enterprise user email from the OAuth token in session state.
+
+        Reads the OAuth token injected by Gemini Enterprise under the GCS auth resource ID,
+        then decodes its JWT payload to retrieve the caller's email address.
+
+        Args:
+            invocation_context: InvocationContext -> The ADK invocation context with session state.
+
+        Returns:
+            Optional[str] -> The GE user's email, or None if the token is absent or unparseable.
+        """
+        try:
+            token = invocation_context.state.get(GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID)
+            if not token:
+                logger.debug(
+                    "No GE OAuth token in session state; skipping GE user ACL grant"
+                )
+                return None
+            return extract_user_email_from_token(token)
+        except Exception as exc:
+            logger.warning(f"Could not read GE OAuth token from session state: {exc}")
+            return None
 
     async def _grant_uploader_object_acl(
         self, canonical_uri: str, user_email: str

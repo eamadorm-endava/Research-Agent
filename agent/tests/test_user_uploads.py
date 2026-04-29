@@ -1,11 +1,28 @@
+import base64
+import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from google.genai import types
 
+from agent.core_agent.config import GCS_MCP_CONFIG
 from agent.core_agent.plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
 
 pytestmark = pytest.mark.asyncio
+
+
+# ─── JWT helper ───────────────────────────────────────────────────────────────
+
+
+def _make_jwt_token(email: str) -> str:
+    """Build a minimal JWT-formatted token string carrying an email claim for testing."""
+    header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
+    payload = (
+        base64.urlsafe_b64encode(json.dumps({"email": email}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    return f"{header}.{payload}.fakesignature"
 
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -383,3 +400,112 @@ async def test_acl_not_attempted_when_no_gcs_uri():
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
     mock_client.assert_not_called()
+
+
+# ─── GE User ACL Grant ────────────────────────────────────────────────────────
+
+
+async def test_grants_ge_user_acl_when_token_in_state_contains_email():
+    """Should grant OWNER ACL to both the SA (user_id) and the real GE user decoded from the JWT token.
+
+    Regression test: previously only the SA received ACL because invocation_context.user_id
+    holds the service account identity, not the Gemini Enterprise caller's email.
+    """
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    inline_part = _make_inline_part(
+        display_name="report.pdf", mime_type="application/pdf"
+    )
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://landing-zone/report.pdf")
+    )
+    ctx.user_id = "sa@project.iam.gserviceaccount.com"
+    ctx.state = {
+        GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID: _make_jwt_token("ge_user@company.com")
+    }
+    msg = _make_user_message([inline_part])
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        mock_blob = MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
+
+    assert mock_blob.acl.user.call_count == 2
+    granted_emails = [call.args[0] for call in mock_blob.acl.user.call_args_list]
+    assert "sa@project.iam.gserviceaccount.com" in granted_emails
+    assert "ge_user@company.com" in granted_emails
+
+
+async def test_grants_ge_user_acl_on_every_uploaded_file_not_only_first():
+    """Should grant OWNER ACL to the GE user on each file, including subsequent ones in the same message.
+
+    Regression test: the bug manifested as the GE user email being missing from the ACL
+    on the second and later files uploaded in a single turn.
+    """
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    part_a = _make_inline_part(display_name="a.png", mime_type="image/png")
+    part_b = _make_inline_part(display_name="b.pdf", mime_type="application/pdf")
+
+    svc = AsyncMock()
+    svc.save_artifact = AsyncMock(side_effect=[0, 1])
+    v_a = _make_artifact_version("gs://bucket/a.png")
+    v_b = _make_artifact_version("gs://bucket/b.pdf")
+    svc.get_artifact_version = AsyncMock(side_effect=[v_a, v_b])
+    ctx = _make_invocation_context(artifact_service=svc)
+    ctx.user_id = "sa@project.iam.gserviceaccount.com"
+    ctx.state = {
+        GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID: _make_jwt_token("ge_user@company.com")
+    }
+    msg = _make_user_message([part_a, part_b])
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        mock_blob = MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
+
+    # Two files × two ACL grants each = 4 total
+    assert mock_blob.acl.user.call_count == 4
+    granted_emails = [call.args[0] for call in mock_blob.acl.user.call_args_list]
+    assert granted_emails.count("sa@project.iam.gserviceaccount.com") == 2
+    assert granted_emails.count("ge_user@company.com") == 2
+
+
+async def test_skips_ge_user_acl_when_no_token_in_state():
+    """Should only grant OWNER ACL to the SA when no GE OAuth token is present in session state."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    inline_part = _make_inline_part(display_name="file.pdf")
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://landing-zone/file.pdf")
+    )
+    ctx.user_id = "sa@project.iam.gserviceaccount.com"
+    ctx.state = {}
+    msg = _make_user_message([inline_part])
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        mock_blob = MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
+
+    mock_blob.acl.user.assert_called_once_with("sa@project.iam.gserviceaccount.com")
+
+
+async def test_skips_ge_user_acl_when_token_is_not_jwt_format():
+    """Should only grant OWNER ACL to the SA when the GE token is opaque (not JWT-decodable)."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    inline_part = _make_inline_part(display_name="file.pdf")
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://landing-zone/file.pdf")
+    )
+    ctx.user_id = "sa@project.iam.gserviceaccount.com"
+    ctx.state = {GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID: "opaque-non-jwt-token"}
+    msg = _make_user_message([inline_part])
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+        mock_blob = MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
+
+    mock_blob.acl.user.assert_called_once_with("sa@project.iam.gserviceaccount.com")
