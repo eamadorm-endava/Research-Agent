@@ -85,21 +85,6 @@ class TestGetArtifactUriTool:
 
         ctx.get_artifact_version.assert_called_once_with(filename="file.pdf", version=2)
 
-    async def test_handles_nested_request_args_from_gemini(self):
-        """Edge case: Gemini may nest args under a 'request' key."""
-        tool = GetArtifactUriTool()
-        ctx = AsyncMock()
-        mock_version = MagicMock()
-        mock_version.canonical_uri = "gs://bucket/file.pdf"
-        ctx.get_artifact_version.return_value = mock_version
-
-        result = await tool.run_async(
-            args={"request": {"filename": "file.pdf"}}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "success"
-        assert result["gcs_uri"] == "gs://bucket/file.pdf"
-
     async def test_returns_error_on_malformed_args(self):
         """Failure mode: missing required 'filename' returns error dict instead of raising."""
         tool = GetArtifactUriTool()
@@ -337,23 +322,6 @@ class TestImportGcsToArtifactTool:
         assert result["execution_status"] == "error"
         assert result["gcs_uri"] is None
         assert "Network timeout" in result["execution_message"]
-
-    @patch("agent.core_agent.internal_tools.artifacts.tools.storage")
-    async def test_handles_nested_request_args_from_gemini(self, mock_storage):
-        """Edge case: Gemini may nest args under a 'request' key."""
-        blob = _make_mock_blob(b"data", "text/plain")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
-
-        result = await tool.run_async(
-            args={"request": {"gcs_uri": "gs://bucket/file.txt"}},
-            tool_context=ctx,
-        )
-
-        assert result["execution_status"] == "success"
 
     async def test_returns_error_on_malformed_args(self):
         """Failure mode: missing required 'gcs_uri' returns error dict instead of raising."""

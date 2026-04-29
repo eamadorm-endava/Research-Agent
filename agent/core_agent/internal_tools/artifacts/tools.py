@@ -69,8 +69,6 @@ class GetArtifactUriTool(BaseTool):
             dict -> Serialised GetArtifactUriResponse.
         """
         try:
-            if "request" in args and isinstance(args["request"], dict):
-                args = args["request"]
             request = GetArtifactUriRequest(**args)
             logger.info(f"Retrieving GCS URI for artifact: {request.filename}")
             artifact_version = await tool_context.get_artifact_version(
@@ -151,8 +149,6 @@ class ImportGcsToArtifactTool(BaseTool):
             dict -> Serialised ImportGcsToArtifactResponse.
         """
         try:
-            if "request" in args and isinstance(args["request"], dict):
-                args = args["request"]
             request = ImportGcsToArtifactRequest(**args)
             logger.info(f"Importing GCS object to artifact: {request.gcs_uri}")
             download = self._download_gcs_object(request)
