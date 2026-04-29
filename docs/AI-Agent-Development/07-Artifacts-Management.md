@@ -17,7 +17,18 @@ A chat-uploaded file does **not** begin its lifecycle as a relocatable GCS objec
 
 That makes an upload-oriented design the right first architectural direction.
 
+### The Gemini Enterprise Rendering Paradox
+
+A critical distinction exists between the ADK Web UI and the Gemini Enterprise UI regarding how they interact with stored artifacts:
+
+-   **ADK Web UI**: Displays artifacts saved strictly through the `save_artifact` method.
+-   **Gemini Enterprise UI**: Only displays files that are returned as inline types/Part objects.
+
+This creates a **functional overlap paradox**: using a standard `SaveFilesAsArtifactsPlugin` prevents the UI from displaying the file (as it strips the inline data), while keeping data inline leads to token exhaustion and redundant storage conflicts (Gemini UI saves Version 0, Plugin saves Version 1).
+
 However, that direction is not complete on its own. The current repository implementation exposes an MCP upload contract that is shaped around either string content or a server-local file path, which is narrower than the needs of a binary chat-upload workflow. As a result, the right architectural direction has been identified, but the current implementation surface does not yet fully realize it.
+
+For advanced details on recursive artifact prevention and the resolution of this paradox, see **[09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md)**.
 
 ---
 
