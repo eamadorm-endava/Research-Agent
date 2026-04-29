@@ -1,4 +1,4 @@
-# User Uploads ACL Plugin
+# 10 - User Uploads ACL Plugin
 
 ## Overview
 The `GeminiEnterpriseFileIngestionPlugin` intercepts user-uploaded files from Gemini Enterprise, persists them to Google Cloud Storage (GCS), and replaces the binary payload with a GCS-backed reference. 
