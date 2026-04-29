@@ -80,6 +80,6 @@ resource "google_storage_bucket" "artifact_bucket" {
 
 resource "google_storage_bucket_iam_member" "ai_agent_artifact_bucket_admin" {
   bucket = google_storage_bucket.artifact_bucket.name
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.admin"
   member = "serviceAccount:${module.ai-agent-service-account.email}"
 }
