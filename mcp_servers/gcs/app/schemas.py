@@ -1,4 +1,4 @@
-from typing import Annotated, Dict, Optional, Any, List, Literal
+from typing import Annotated, Dict, Optional, List, Literal, Union
 from pydantic import BaseModel, Field
 
 from .config import GCS_SERVER_CONFIG
@@ -112,7 +112,7 @@ class UploadObjectRequest(BaseRequest):
         ),
     ]
     metadata: Annotated[
-        Dict[str, Any],
+        Dict[str, Union[str, float, int]],
         Field(
             default_factory=dict,
             description=(
@@ -154,7 +154,7 @@ class UpdateObjectMetadataRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     object_name: OBJECT_NAME
     metadata: Annotated[
-        Dict[str, Any],
+        Dict[str, Union[str, float, int]],
         Field(description="Metadata to patch on the target object."),
     ]
 
