@@ -4,11 +4,11 @@ from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.plugins.base_plugin import BasePlugin
-from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from loguru import logger
 from vertexai.agent_engines import AdkApp
 
 from ..config import AgentConfig, GCPConfig
+from ..internal_tools import DeduplicatingArtifactPlugin
 
 
 class AppBuilder:
@@ -30,7 +30,7 @@ class AppBuilder:
         self.agent = agent
         self.gcp_config = gcp_config
         self.agent_config = agent_config
-        self._plugins = [SaveFilesAsArtifactsPlugin()]
+        self._plugins = [DeduplicatingArtifactPlugin()]
         logger.debug(
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
         )
@@ -50,12 +50,21 @@ class AppBuilder:
     def build(self) -> Union[AdkApp, App]:
         """Assembles and returns the application instance (AdkApp for PROD, App for LOCAL).
 
+        Always constructs a base App first, then wraps it in AdkApp for production so
+        both environments share an identical agent/plugin configuration.
+
         Returns:
             Union[AdkApp, App] -> The configured application instance ready to be served.
 
         Raises:
             ValueError: If required production configuration is missing.
         """
+        app = App(
+            name=self.agent_config.AGENT_NAME,
+            root_agent=self.agent,
+            plugins=self._plugins,
+        )
+
         if self.gcp_config.PROD_EXECUTION:
             if not self.gcp_config.ARTIFACT_BUCKET:
                 logger.error("ARTIFACT_BUCKET is required for production execution")
@@ -68,21 +77,14 @@ class AppBuilder:
                 f"in {self.gcp_config.REGION} with bucket: {self.gcp_config.ARTIFACT_BUCKET}"
             )
             return AdkApp(
-                agent=self.agent,
-                app_name=self.agent_config.AGENT_NAME,
+                app=app,
                 artifact_service_builder=lambda: GcsArtifactService(
                     bucket_name=self.gcp_config.ARTIFACT_BUCKET
                 ),
-                plugins=self._plugins,
-                # enable_tracing=self.agent_config.ENABLE_TRACING,
             )
 
         logger.info(
             f"Building App (Local) for '{self.agent_config.AGENT_NAME}'. "
             f"GCS artifact storage is provided via --artifact_service_uri at startup."
         )
-        return App(
-            name=self.agent_config.AGENT_NAME,
-            root_agent=self.agent,
-            plugins=self._plugins,
-        )
+        return app

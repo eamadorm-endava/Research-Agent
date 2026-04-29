@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from agent.core_agent.builder import AppBuilder
 from agent.core_agent.config import GCPConfig, AgentConfig
+from agent.core_agent.internal_tools import DeduplicatingArtifactPlugin
 from google.adk.agents import BaseAgent
 from google.adk.plugins.base_plugin import BasePlugin
 from vertexai.agent_engines import AdkApp
@@ -58,6 +59,19 @@ def test_app_builder_local_assembly(mock_agent, mock_configs):
 
     assert isinstance(app, App)
     assert app.name == "test_agent"
+
+
+def test_app_builder_default_plugin_is_deduplicating(mock_agent, mock_configs):
+    """Test that AppBuilder registers DeduplicatingArtifactPlugin by default."""
+    builder = AppBuilder(
+        agent=mock_agent,
+        gcp_config=mock_configs["gcp_local"],
+        agent_config=mock_configs["agent"],
+    )
+
+    app = builder.build()
+
+    assert any(isinstance(p, DeduplicatingArtifactPlugin) for p in app.plugins)
 
 
 def test_app_builder_with_plugins(mock_agent, mock_configs):

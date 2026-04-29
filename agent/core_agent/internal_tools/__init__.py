@@ -1,4 +1,5 @@
 from .artifacts import (
+    DeduplicatingArtifactPlugin,
     GetArtifactUriRequest,
     GetArtifactUriResponse,
     GetArtifactUriTool,
@@ -8,6 +9,7 @@ from .artifacts import (
 )
 
 __all__ = [
+    "DeduplicatingArtifactPlugin",
     "GetArtifactUriTool",
     "ImportGcsToArtifactTool",
     "GetArtifactUriRequest",
