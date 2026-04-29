@@ -5,7 +5,12 @@ from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.adk.planners import BuiltInPlanner
 from google.adk.tools import BaseTool, FunctionTool
-from google.genai.types import GenerateContentConfig, HttpRetryOptions, ThinkingConfig
+from google.genai.types import (
+    GenerateContentConfig,
+    HttpRetryOptions,
+    ModelArmorConfig,
+    ThinkingConfig,
+)
 from loguru import logger
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
@@ -89,62 +94,42 @@ class AgentBuilder:
             self._registered_tools.append(skill_toolset)
         return self
 
-    def _build_agent_settings(self) -> GenerateContentConfig:
-        """Constructs the generative model configuration by mapping Pydantic settings to the GenAI schema.
-
-        Returns:
-            GenerateContentConfig -> Validated model configuration for the Gemini model.
-        """
-        return GenerateContentConfig(
-            temperature=self.agent_config.TEMPERATURE,
-            top_p=self.agent_config.TOP_P,
-            top_k=self.agent_config.TOP_K,
-            max_output_tokens=self.agent_config.MAX_OUTPUT_TOKENS,
-            seed=self.agent_config.SEED,
-        )
-
-    def _build_retry_options(self) -> HttpRetryOptions:
-        """Constructs the HTTP retry strategy from agent config, defining attempts and backoff parameters.
-
-        Returns:
-            HttpRetryOptions -> Configured retry logic for the Gemini model.
-        """
-        return HttpRetryOptions(
-            attempts=self.agent_config.RETRY_ATTEMPTS,
-            initial_delay=self.agent_config.RETRY_INITIAL_DELAY,
-            exp_base=self.agent_config.RETRY_EXP_BASE,
-            max_delay=self.agent_config.RETRY_MAX_DELAY,
-        )
-
-    def _build_planner(self) -> BuiltInPlanner:
-        """Initializes the agent's reasoning planner with the configured thinking budget.
-
-        Returns:
-            BuiltInPlanner -> The reasoning core for the agent.
-        """
-        return BuiltInPlanner(
-            thinking_config=ThinkingConfig(
-                thinking_budget=self.agent_config.THINKING_BUDGET,
-                include_thoughts=self.agent_config.INCLUDE_THOUGHTS,
-            )
-        )
-
     def build(self) -> Agent:
         """Assembles and returns the fully configured ADK Agent from all registered tools and settings.
 
         Returns:
             Agent -> The executable agent instance.
         """
-        root_agent = Agent(
+        return Agent(
             model=Gemini(
                 model_name=self.agent_config.MODEL_NAME,
-                retry_options=self._build_retry_options(),
+                retry_options=HttpRetryOptions(
+                    attempts=self.agent_config.RETRY_ATTEMPTS,
+                    initial_delay=self.agent_config.RETRY_INITIAL_DELAY,
+                    exp_base=self.agent_config.RETRY_EXP_BASE,
+                    max_delay=self.agent_config.RETRY_MAX_DELAY,
+                ),
             ),
             name=self.agent_config.AGENT_NAME,
-            generate_content_config=self._build_agent_settings(),
+            generate_content_config=GenerateContentConfig(
+                temperature=self.agent_config.TEMPERATURE,
+                top_p=self.agent_config.TOP_P,
+                top_k=self.agent_config.TOP_K,
+                max_output_tokens=self.agent_config.MAX_OUTPUT_TOKENS,
+                seed=self.agent_config.SEED,
+                model_armor_config=ModelArmorConfig(
+                    prompt_template_name=self.agent_config.MODEL_ARMOR_TEMPLATE_ID,
+                    response_template_name=self.agent_config.MODEL_ARMOR_TEMPLATE_ID,
+                )
+                if self.agent_config.MODEL_ARMOR_TEMPLATE_ID
+                else None,
+            ),
             instruction=self.agent_config.AGENT_INSTRUCTION,
             tools=self._registered_tools,
-            planner=self._build_planner(),
+            planner=BuiltInPlanner(
+                thinking_config=ThinkingConfig(
+                    thinking_budget=self.agent_config.THINKING_BUDGET,
+                    include_thoughts=self.agent_config.INCLUDE_THOUGHTS,
+                )
+            ),
         )
-
-        return root_agent

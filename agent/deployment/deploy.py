@@ -211,8 +211,6 @@ def deploy_agent_engine_app(
     for name, value in params:
         click.echo(f"  {name}: {value}")
 
-    source_packages_list = list(source_packages)
-
     client = vertexai.Client(
         project=project,
         location=location,
@@ -232,7 +230,7 @@ def deploy_agent_engine_app(
     config = AgentEngineConfig(
         display_name=display_name,
         description=description,
-        source_packages=source_packages_list,
+        source_packages=list(source_packages),
         entrypoint_module=entrypoint_module,
         entrypoint_object=entrypoint_object,
         class_methods=class_methods_list,

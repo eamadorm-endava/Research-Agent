@@ -26,7 +26,6 @@ skills_to_mount = [
     "meeting-summary",
 ]
 
-# Build the root ADK agent
 root_agent = (
     AgentBuilder(
         agent_config=AGENT_CONFIG,
@@ -45,7 +44,6 @@ root_agent = (
     .build()
 )
 
-# Build and export the application (AdkApp for PROD, App for LOCAL)
 app = AppBuilder(
     agent=root_agent,
     gcp_config=GCP_CONFIG,

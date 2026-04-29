@@ -1,4 +1,4 @@
-from typing import Annotated, Self, Union
+from typing import Self, Union
 
 from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
@@ -16,7 +16,7 @@ class AppBuilder:
 
     def __init__(
         self,
-        agent: Annotated[BaseAgent, "The root ADK agent instance"],
+        agent: BaseAgent,
         gcp_config: GCPConfig,
         agent_config: AgentConfig,
     ) -> None:
