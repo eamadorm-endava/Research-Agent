@@ -105,6 +105,38 @@ sequenceDiagram
 | **Builder Complexity** | For a single-agent system, the full builder + factory pattern may feel over-engineered compared to a flat script. The value scales with the number of tools/configs |
 | **Private API Dependency** | Some tests rely on internal attributes of ADK classes (e.g., `_skills`, `_connection_params`), which may break on library upgrades |
 
+## Gemini Enterprise Artifact Lifecycle
+
+As documented in **[ADK Python Issue #4273](https://github.com/google/adk-python/issues/4273)**, Gemini Enterprise requires explicit manual handling for both file ingestion (from user uploads) and visual rendering (for tool outputs).
+
+The following diagram illustrates how the Research-Agent orchestrates this lifecycle:
+
+```mermaid
+graph TD
+    subgraph "1. Ingestion Phase (Plugin)"
+    A[User Uploads File] --> B{GE Ingestion Plugin}
+    B -->|Save| C[(GCS Artifact Store)]
+    B -->|Replace| D[GCS URI Reference]
+    end
+
+    subgraph "2. Execution Phase (Tools)"
+    D --> E[Agent reasoning]
+    E --> F[Tool Import/Export]
+    F -->|Save| C
+    F -->|Stash| G[Session State Queue]
+    end
+
+    subgraph "3. Rendering Phase (Callback)"
+    G --> H{Post-Turn Callback}
+    C -->|Load| H
+    H -->|Inline Part| I[Gemini UI Rendering]
+    end
+```
+
+1.  **Ingestion**: User uploads arrive as inline binary data. The `GeminiEnterpriseFileIngestionPlugin` persists them to GCS and replaces them with a `file_data` reference to save tokens and avoid redundant storage.
+2.  **Execution**: Tools perform their logic and save results to GCS. Because tools must return simple types (`str`/`dict`), they "stash" the filename in the session state.
+3.  **Rendering**: The `render_pending_artifacts` callback (registered as an `after_agent_callback`) loads the stashed artifacts from GCS and returns them as inline `types.Part` objects, which is the only format Gemini Enterprise can render visually.
+
 ## Integrated Tools
 
 The agent connects to backend services via **MCP servers** and exposes **ADK Skills**:

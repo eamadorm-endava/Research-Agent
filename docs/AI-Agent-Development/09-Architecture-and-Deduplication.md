@@ -54,7 +54,76 @@ self._registered_plugins = (
 
 ---
 
-## 4. Local Development Parity
+## 4. Post-Turn Rendering Pipeline (GE Compatibility)
+
+### The Challenge: Tool Response Limitations
+As documented in [ADK Python Issue #4273](https://github.com/google/adk-python/issues/4273), Gemini Enterprise only renders files that are returned directly in the final agent response as inline `types.Part` objects. 
+
+However, to maintain clean API schemas and prevent parsing errors, ADK tools must return simple types like `str` or `dict`. This creates a gap where files saved during a tool execution are stored in GCS but remain invisible to the user in the Gemini UI.
+
+### The Solution: The "Stash-and-Render" Pattern
+The Research-Agent implements a post-turn rendering pipeline using the `after_agent_callback`:
+
+1.  **Stash**: Tools (like `ImportGcsToArtifactTool`) perform their logic, save the result to the artifact store, and then "stash" the filename in the session state under the `pending_artifact_renders` key.
+2.  **Render**: After the agent completes its turn, the `render_pending_artifacts` callback executes. It retrieves all filenames from the stash, loads them from GCS as inline `types.Part` objects, and appends them to the final model response.
+
+---
+
+## 5. Gemini Enterprise File Ingestion
+
+### The Challenge: ADK vs. GE Ingestion
+Files uploaded directly in the Gemini Enterprise UI are sent as inline `Part` objects in the user message. Unlike the local ADK Web UI, Agent Engine deployments do not automatically persist these files to the agent's GCS bucket. 
+
+### The Solution: `GeminiEnterpriseFileIngestionPlugin`
+This custom plugin ensures that user-uploaded files are both persistent and referenceable by the agent:
+
+1.  **Intercept**: The plugin catches the `on_user_message_callback`.
+2.  **Persist**: It saves every inline binary part to the configured `GcsArtifactService`.
+3.  **Reference**: It replaces the heavy binary payload with a lightweight GCS URI reference (`file_data`), allowing the agent to "see" the file without consuming excessive input tokens on subsequent turns.
+
+---
+
+## 6. End-to-End GE Artifact Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User (Gemini UI)
+    participant GE as Gemini Enterprise Platform
+    participant A as ADK Agent
+    participant P as GE File Ingestion Plugin
+    participant T as Tools (e.g., GCS Import)
+    participant C as After Agent Callback
+
+    Note over U, GE: Turn Start
+    U->>GE: Uploads "report.pdf" + Message
+    GE->>A: Sends Content(parts=[Part(inline_data=...)])
+    
+    rect rgb(240, 240, 240)
+    Note right of P: Phase 1: Ingestion
+    A->>P: on_user_message_callback
+    P->>P: Save to GCS
+    P-->>A: Returns Content(parts=[Placeholder, GCS Reference])
+    end
+
+    A->>T: run_async()
+    T->>T: save_artifact("output.csv")
+    T->>T: Queue "output.csv" in session state
+    T-->>A: Returns status="success"
+
+    rect rgb(240, 240, 240)
+    Note right of C: Phase 2: Rendering
+    A->>C: render_pending_artifacts
+    C->>C: Load "output.csv" from GCS
+    C-->>A: Returns Content(parts=[Part(inline_data=...)])
+    end
+
+    A-->>GE: Final Response (Inline File Data)
+    GE-->>U: Renders CSV for download
+```
+
+---
+
+## 7. Local Development Parity
 
 While the code is unified, the local runner (`adk web`) often requires explicit CLI configuration to match Cloud behavior.
 
