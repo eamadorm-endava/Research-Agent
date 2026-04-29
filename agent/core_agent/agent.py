@@ -10,7 +10,7 @@ from .config import (
 )
 
 from google.adk.tools import load_artifacts
-from .internal_tools import (
+from .plugins import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
 )
@@ -35,7 +35,7 @@ root_agent = (
     )
     .with_skills(skills_to_mount)
     .with_mcp_servers(mcp_servers_to_mount)
-    .with_internal_tools(
+    .with_plugins(
         [
             GetArtifactUriTool(),
             ImportGcsToArtifactTool(),

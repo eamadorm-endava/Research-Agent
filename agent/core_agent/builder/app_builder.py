@@ -8,7 +8,7 @@ from loguru import logger
 from vertexai.agent_engines import AdkApp
 
 from ..config import AgentConfig, GCPConfig
-from ..internal_tools import DeduplicatingArtifactPlugin
+from ..plugins import DeduplicatingArtifactPlugin
 
 
 class AppBuilder:

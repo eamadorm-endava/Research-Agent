@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from agent.core_agent.builder import AppBuilder
 from agent.core_agent.config import GCPConfig, AgentConfig
-from agent.core_agent.internal_tools import DeduplicatingArtifactPlugin
+from agent.core_agent.plugins import DeduplicatingArtifactPlugin
 from google.adk.agents import BaseAgent
 from google.adk.plugins.base_plugin import BasePlugin
 from vertexai.agent_engines import AdkApp

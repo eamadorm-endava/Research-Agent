@@ -38,6 +38,8 @@ This lifecycle matters because it separates two different storage concerns:
 
 Those are not the same problem and should not be solved by the same primitive unless the architecture already guarantees that the file exists as a stable object in GCS.
 
+For advanced details on recursive artifact prevention in Gemini Enterprise, see **[09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md)**.
+
 ---
 
 ## Why the upload-oriented path is the correct initial direction

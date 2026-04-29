@@ -20,14 +20,15 @@ The deployable code is housed in `/agent`:
 ├── uv.lock                # Locked dependencies (managed by uv)
 └── agent/
     ├── core_agent/
-    │   ├── agent.py       # Entry point defining the `app` instance
-    │   ├── config.py      # Configuration logic
+    │   ├── agent.py       # Entry point utilizing AppBuilder
+    │   ├── builder/       # Centralized App and Agent builders
+    │   ├── config/        # Pydantic-based configuration package
     │   └── utils/         
     └── deployment/
         └── deploy.py      # Custom script for Agent Engine deployment
 ```
 
-> **Entry Point**: The deployment expects an application instance. In `agent/core_agent/agent.py`, the entry point is exposed as `app = agent_engines.AdkApp(agent=root_agent)`.
+> **Entry Point**: The deployment expects an application instance. In `agent/core_agent/agent.py`, the `app` instance is constructed via the `AppBuilder`, ensuring configuration parity between local and production environments.
 
 ## Production Deployment via CI/CD
 

@@ -60,7 +60,7 @@ class AgentBuilder:
             self._tools.append(mcp_toolset)
         return self
 
-    def with_internal_tools(self, tools: list[Union[BaseTool, Callable]]) -> Self:
+    def with_plugins(self, tools: list[Union[BaseTool, Callable]]) -> Self:
         """Registers native ADK tools or callables to the agent, wrapping plain functions in FunctionTool.
 
         Args:
