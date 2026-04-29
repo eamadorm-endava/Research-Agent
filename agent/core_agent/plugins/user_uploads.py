@@ -52,6 +52,8 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         logger.info(
             f"GeminiEnterpriseFileIngestionPlugin: Intercepted message with {len(user_message.parts)} part(s) from user: {invocation_context.user_id}"
         )
+        for idx, part in enumerate(user_message.parts):
+            self._log_part_summary(idx, part)
 
         # 1. Grant ACLs to any GCS references already present in the message (pre-uploaded by GE)
         await self._grant_acl_on_gcs_file_data(invocation_context, user_message.parts)
@@ -203,6 +205,42 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 display_name=filename,
             )
         )
+
+    def _log_part_summary(self, index: int, part: types.Part) -> None:
+        """Logs a human-readable summary of a single message part for diagnostics.
+
+        Truncates text to 120 characters, records mime_type and display_name for
+        inline_data, and logs the URI for file_data. Binary payloads are never logged.
+
+        Args:
+            index: int -> Zero-based position of the part in the message.
+            part: types.Part -> The part to summarise.
+
+        Returns:
+            None
+        """
+        inline = getattr(part, "inline_data", None)
+        file_data = getattr(part, "file_data", None)
+        text = getattr(part, "text", None)
+
+        if inline is not None:
+            data_len = len(inline.data) if inline.data else 0
+            logger.debug(
+                f"  part[{index}] inline_data — mime={inline.mime_type!r} "
+                f"display_name={inline.display_name!r} bytes={data_len}"
+            )
+        elif file_data is not None:
+            logger.debug(
+                f"  part[{index}] file_data  — uri={getattr(file_data, 'file_uri', None)!r} "
+                f"mime={getattr(file_data, 'mime_type', None)!r}"
+            )
+        elif text is not None:
+            preview = text[:120].replace("\n", "\\n")
+            logger.debug(
+                f"  part[{index}] text       — {preview!r}{'…' if len(text) > 120 else ''}"
+            )
+        else:
+            logger.debug(f"  part[{index}] unknown    — {type(part)}")
 
     async def _grant_acl_on_gcs_file_data(
         self, invocation_context: InvocationContext, parts: list[types.Part]
