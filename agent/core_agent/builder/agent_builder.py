@@ -1,4 +1,4 @@
-from typing import Callable, Self
+from typing import Callable, Self, Union
 
 import vertexai
 from google.adk.agents import Agent
@@ -60,11 +60,11 @@ class AgentBuilder:
             self._tools.append(mcp_toolset)
         return self
 
-    def with_internal_tools(self, tools: list[BaseTool | Callable]) -> Self:
+    def with_internal_tools(self, tools: list[Union[BaseTool, Callable]]) -> Self:
         """Registers native ADK tools or callables to the agent, wrapping plain functions in FunctionTool.
 
         Args:
-            tools: list[BaseTool | Callable] -> List of tools or callables to add.
+            tools: list[Union[BaseTool, Callable]] -> List of tools or callables to add.
 
         Returns:
             Self -> The builder instance for fluent chaining.

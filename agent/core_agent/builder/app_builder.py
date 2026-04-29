@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Self
+from typing import Annotated, Self, Union
 
 from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
@@ -34,11 +34,11 @@ class AppBuilder:
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
         )
 
-    def with_plugins(self, plugins: list[Any]) -> Self:
+    def with_plugins(self, plugins: list[object]) -> Self:
         """Registers additional ADK plugins to the application.
 
         Args:
-            plugins: list[Any] -> List of plugin instances to add.
+            plugins: list[object] -> List of plugin instances to add.
 
         Returns:
             Self -> The builder instance for fluent chaining.
@@ -46,13 +46,22 @@ class AppBuilder:
         self._plugins.extend(plugins)
         return self
 
-    def build(self) -> AdkApp | App:
+    def build(self) -> Union[AdkApp, App]:
         """Assembles and returns the application instance (AdkApp for PROD, App for LOCAL).
 
         Returns:
-            AdkApp | App -> The configured application instance ready to be served.
+            Union[AdkApp, App] -> The configured application instance ready to be served.
+
+        Raises:
+            ValueError: If required production configuration is missing.
         """
         if self.gcp_config.PROD_EXECUTION:
+            if not self.gcp_config.ARTIFACT_BUCKET:
+                logger.error("ARTIFACT_BUCKET is required for production execution")
+                raise ValueError(
+                    "ARTIFACT_BUCKET must be set when PROD_EXECUTION is True"
+                )
+
             logger.info(
                 f"Building AdkApp (Production) for '{self.agent_config.AGENT_NAME}' "
                 f"in {self.gcp_config.REGION} with bucket: {self.gcp_config.ARTIFACT_BUCKET}"
@@ -68,10 +77,14 @@ class AppBuilder:
             )
 
         logger.info(
-            f"Building App (Local) for '{self.agent_config.AGENT_NAME}' with {len(self._plugins)} plugins"
+            f"Building AdkApp (Local) for '{self.agent_config.AGENT_NAME}' with GCS artifacts"
         )
-        return App(
-            name=self.agent_config.AGENT_NAME,
-            root_agent=self.agent,
+        return AdkApp(
+            agent=self.agent,
+            app_name=self.agent_config.AGENT_NAME,
+            artifact_service_builder=lambda: GcsArtifactService(
+                bucket_name=self.gcp_config.ARTIFACT_BUCKET
+            ),
             plugins=self._plugins,
+            enable_tracing=self.agent_config.ENABLE_TRACING,
         )
