@@ -45,7 +45,7 @@ test-agent:
 
 run-ui-agent:
 	cd agent && \
-	uv run --group ai-agent adk web --port 8000
+	uv run --group ai-agent adk web --port 8000 --artifact_service_uri gs://$(ARTIFACT_BUCKET)
 
 deploy-agent:
 	uv export \
