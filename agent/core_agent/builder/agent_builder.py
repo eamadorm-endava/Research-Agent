@@ -118,8 +118,16 @@ class AgentBuilder:
                 max_output_tokens=self.agent_config.MAX_OUTPUT_TOKENS,
                 seed=self.agent_config.SEED,
                 model_armor_config=ModelArmorConfig(
-                    prompt_template_name=self.agent_config.MODEL_ARMOR_TEMPLATE_ID,
-                    response_template_name=self.agent_config.MODEL_ARMOR_TEMPLATE_ID,
+                    prompt_template_name=(
+                        f"projects/{self.gcp_config.PROJECT_ID}/locations/"
+                        f"{self.gcp_config.REGION}/templates/"
+                        f"{self.agent_config.MODEL_ARMOR_TEMPLATE_ID}"
+                    ),
+                    response_template_name=(
+                        f"projects/{self.gcp_config.PROJECT_ID}/locations/"
+                        f"{self.gcp_config.REGION}/templates/"
+                        f"{self.agent_config.MODEL_ARMOR_TEMPLATE_ID}"
+                    ),
                 )
                 if self.agent_config.MODEL_ARMOR_TEMPLATE_ID
                 else None,

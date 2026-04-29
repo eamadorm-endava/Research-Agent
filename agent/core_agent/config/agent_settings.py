@@ -104,7 +104,7 @@ class AgentConfig(BaseSettings):
         Optional[str],
         Field(
             default=None,
-            description="Full resource name of the Model Armor template used for both prompt and response screening (projects/{project}/locations/{location}/templates/{template}). When None, Model Armor screening is disabled.",
+            description="The final ID of the Model Armor template (e.g., 'security-template'). The full resource path (projects/.../templates/...) is constructed dynamically using the project and region settings. When None, Model Armor screening is disabled.",
         ),
     ]
     RETRY_ATTEMPTS: Annotated[
