@@ -14,4 +14,5 @@ We recommend reviewing these documents logically as they walk through building, 
 6. **[06-OAuth-Inside-Gemini-Enterprise.md](06-OAuth-Inside-Gemini-Enterprise.md)**: Detailed 5-step flow for secure OAuth integration in Gemini Enterprise.
 7. **[07-Artifacts-Management.md](07-Artifacts-Management.md)**: End-to-end management of session artifacts and multi-modal documents.
 8. **[08-GCS-Artifact-Transfer.md](08-GCS-Artifact-Transfer.md)**: Secure transfer of artifacts to the Enterprise Knowledge Base landing zone.
+9. **[09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md)**: Advanced App construction and recursive artifact prevention.
 
