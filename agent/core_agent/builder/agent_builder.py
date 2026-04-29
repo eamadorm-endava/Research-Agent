@@ -1,20 +1,16 @@
-from typing import Self
-from loguru import logger
+from typing import Callable, Self
+
 import vertexai
 from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.adk.planners import BuiltInPlanner
-from google.genai.types import (
-    GenerateContentConfig,
-    HttpRetryOptions,
-    ThinkingConfig,
-)
+from google.adk.tools import BaseTool, FunctionTool
+from google.genai.types import GenerateContentConfig, HttpRetryOptions, ThinkingConfig
+from loguru import logger
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill_toolset
-from typing import Callable
-from google.adk.tools import BaseTool, FunctionTool
 
 
 class AgentBuilder:
