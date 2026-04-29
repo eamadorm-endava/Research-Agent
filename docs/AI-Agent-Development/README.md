@@ -12,3 +12,6 @@ We recommend reviewing these documents logically as they walk through building, 
 4. **[04-Agent-Engine-Deployment.md](04-Agent-Engine-Deployment.md)**: Guide to building, testing, and deploying the Agent Engine.
 5. **[05-Gemini-Enterprise-Connection.md](05-Gemini-Enterprise-Connection.md)**: Connecting the deployed agent to Gemini Enterprise.
 6. **[06-OAuth-Inside-Gemini-Enterprise.md](06-OAuth-Inside-Gemini-Enterprise.md)**: Detailed 5-step flow for secure OAuth integration in Gemini Enterprise.
+7. **[07-Artifacts-Management.md](07-Artifacts-Management.md)**: End-to-end management of session artifacts and multi-modal documents.
+8. **[08-GCS-Artifact-Transfer.md](08-GCS-Artifact-Transfer.md)**: Secure transfer of artifacts to the Enterprise Knowledge Base landing zone.
+
