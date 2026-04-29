@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import AliasChoices, Field
-from typing import Annotated
+from typing import Annotated, Optional
 
 
 class GCPConfig(BaseSettings):
@@ -101,10 +101,10 @@ class AgentConfig(BaseSettings):
         ),
     ]
     MODEL_ARMOR_TEMPLATE_ID: Annotated[
-        str,
+        Optional[str],
         Field(
-            default="dummy-template-id",
-            description="Model Armor Template ID",
+            default=None,
+            description="Full resource name of the Model Armor template used for both prompt and response screening (projects/{project}/locations/{location}/templates/{template}). When None, Model Armor screening is disabled.",
         ),
     ]
     RETRY_ATTEMPTS: Annotated[
