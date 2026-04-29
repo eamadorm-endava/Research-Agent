@@ -35,19 +35,22 @@ In Gemini Enterprise, multi-modal files uploaded to the chat are re-transmitted 
 Research reveals a significant **functional overlap** between the Gemini Enterprise UI and the ADK's programmatic storage logic:
 1.  **Platform Ingestion**: When a user submits a file via the chat interface, Gemini Enterprise handles the initial ingestion internally, creating a reference (Version 0) within the system's managed storage.
 2.  **Plugin Redundancy**: If a standard `SaveFilesAsArtifactsPlugin` is enabled, it intercepts the message and attempts to save it again. Because the ADK artifact service is version-sensitive, it perceives this as a second save, immediately creating **Version 1** after the UI's **Version 0**.
-3.  **The Paradox**: Removing the plugin entirely in production (a common recommendation) solves the redundancy but can break local development workflows or custom tools that expect a unified artifact interface. Furthermore, keeping binary data inline to satisfy the UI's rendering requirements leads to token exhaustion.
+3.  **The Paradox**: Using programmatic saving plugins prevents the UI from displaying the file (as it strips the inline data), while keeping data inline leads to token exhaustion and redundant storage conflicts.
 
-### The Solution: DeduplicatingArtifactPlugin
-The `DeduplicatingArtifactPlugin` (located in `plugins/artifacts/plugin.py`) resolves this overlap by introducing a state-aware verification layer that works across both local and production environments.
+### The Solution: Conditional Plugin Registration
+The `AppBuilder` resolves this overlap by strictly isolating artifact persistence to the local development environment.
 
-#### Implementation Logic:
-1.  **Key Listing**: Before processing a message, it lists all existing artifact keys (filenames/hashes) for the current session.
-2.  **Identity Verification**: It compares incoming file display names or content-based hashes (SHA-256) against the stored keys.
-3.  **Conditional Save**: 
-    *   **If the file is already present** (e.g., saved by Gemini Enterprise UI as Version 0): It retrieves the `latest_version` and skips the redundant GCS write.
-    *   **If the file is new**: It performs a standard `save_artifact` call.
-4.  **Content Sanitization**: It strips the binary `inline_data` from the message parts and replaces it with a lightweight reference: `[Uploaded Artifact: "filename"]`. This prevents token bloat while keeping the UI's grounding reference intact.
-5.  **Deterministic Naming**: For files lacking a `display_name` (common in some UI paths), it generates a stable filename from the content hash, ensuring consistency across turns.
+#### Implementation Strategy:
+1.  **Production (PROD_EXECUTION=True)**: The application registers **zero** artifact plugins. This allows Gemini Enterprise to handle grounding and rendering natively, ensuring that uploaded files are displayed correctly and that only Version 0 exists in GCS.
+2.  **Local (PROD_EXECUTION=False)**: The application registers the standard `SaveFilesAsArtifactsPlugin`. This ensures that local development (via `adk web`) still allows the agent to interact with uploaded files as versioned artifacts.
+3.  **Sanitization via Grounding**: In production, the model relies on the platform's grounding logic rather than programmatic message interception, resolving the rendering paradox.
+
+#### Builder Configuration in `app_builder.py`:
+```python
+self._registered_plugins = (
+    [] if gcp_config.PROD_EXECUTION else [SaveFilesAsArtifactsPlugin()]
+)
+```
 
 ---
 

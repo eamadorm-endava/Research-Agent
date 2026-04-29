@@ -28,7 +28,7 @@ This creates a **functional overlap paradox**: using a standard `SaveFilesAsArti
 
 However, that direction is not complete on its own. The current repository implementation exposes an MCP upload contract that is shaped around either string content or a server-local file path, which is narrower than the needs of a binary chat-upload workflow. As a result, the right architectural direction has been identified, but the current implementation surface does not yet fully realize it.
 
-For advanced details on recursive artifact prevention and the resolution of this paradox, see **[09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md)**.
+For advanced details on recursive artifact prevention, conditional plugin registration, and the resolution of this paradox, see **[09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md)**.
 
 ---
 

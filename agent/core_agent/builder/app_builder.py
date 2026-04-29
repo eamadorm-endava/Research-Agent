@@ -4,11 +4,11 @@ from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.plugins.base_plugin import BasePlugin
+from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from loguru import logger
 from vertexai.agent_engines import AdkApp
 
 from ..config import AgentConfig, GCPConfig
-from ..plugins import DeduplicatingArtifactPlugin
 
 
 class AppBuilder:
@@ -30,7 +30,12 @@ class AppBuilder:
         self.agent = agent
         self.gcp_config = gcp_config
         self.agent_config = agent_config
-        self._registered_plugins = [DeduplicatingArtifactPlugin()]
+        # GE has its own file ingestion pipeline that runs before the agent.
+        # Adding any artifact plugin in production causes double-saves and
+        # prevents GE from rendering files inline.
+        self._registered_plugins = (
+            [] if gcp_config.PROD_EXECUTION else [SaveFilesAsArtifactsPlugin()]
+        )
         logger.debug(
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
         )

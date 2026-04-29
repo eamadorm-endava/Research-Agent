@@ -1,4 +1,3 @@
-from .plugin import DeduplicatingArtifactPlugin
 from .tools import GetArtifactUriTool, ImportGcsToArtifactTool
 from .schemas import (
     GetArtifactUriRequest,
@@ -8,7 +7,6 @@ from .schemas import (
 )
 
 __all__ = [
-    "DeduplicatingArtifactPlugin",
     "GetArtifactUriTool",
     "ImportGcsToArtifactTool",
     "GetArtifactUriRequest",

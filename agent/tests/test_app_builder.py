@@ -2,9 +2,9 @@ import pytest
 from unittest.mock import MagicMock
 from agent.core_agent.builder import AppBuilder
 from agent.core_agent.config import GCPConfig, AgentConfig
-from agent.core_agent.plugins import DeduplicatingArtifactPlugin
 from google.adk.agents import BaseAgent
 from google.adk.plugins.base_plugin import BasePlugin
+from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from vertexai.agent_engines import AdkApp
 from google.adk.apps.app import App
 
@@ -43,8 +43,6 @@ def test_app_builder_prod_assembly(mock_agent, mock_configs):
     app = builder.build()
 
     assert isinstance(app, AdkApp)
-    # Check that it was initialized with correct bucket and name
-    # AdkApp attributes might be internal, but we can verify it's the right class
 
 
 def test_app_builder_local_assembly(mock_agent, mock_configs):
@@ -61,8 +59,8 @@ def test_app_builder_local_assembly(mock_agent, mock_configs):
     assert app.name == "test_agent"
 
 
-def test_app_builder_default_plugin_is_deduplicating(mock_agent, mock_configs):
-    """Test that AppBuilder registers DeduplicatingArtifactPlugin by default."""
+def test_app_builder_local_default_plugin_is_save_files(mock_agent, mock_configs):
+    """Test that AppBuilder registers SaveFilesAsArtifactsPlugin by default in local mode."""
     builder = AppBuilder(
         agent=mock_agent,
         gcp_config=mock_configs["gcp_local"],
@@ -71,7 +69,24 @@ def test_app_builder_default_plugin_is_deduplicating(mock_agent, mock_configs):
 
     app = builder.build()
 
-    assert any(isinstance(p, DeduplicatingArtifactPlugin) for p in app.plugins)
+    assert any(isinstance(p, SaveFilesAsArtifactsPlugin) for p in app.plugins)
+
+
+def test_app_builder_prod_has_no_artifact_plugin(mock_agent, mock_configs):
+    """Test that AppBuilder registers no artifact plugin in production.
+
+    GE handles file ingestion itself; any artifact plugin would cause double-saves
+    and prevent GE from rendering files inline.
+    """
+    builder = AppBuilder(
+        agent=mock_agent,
+        gcp_config=mock_configs["gcp_prod"],
+        agent_config=mock_configs["agent"],
+    )
+
+    assert not any(
+        isinstance(p, SaveFilesAsArtifactsPlugin) for p in builder._registered_plugins
+    )
 
 
 def test_app_builder_with_plugins(mock_agent, mock_configs):
