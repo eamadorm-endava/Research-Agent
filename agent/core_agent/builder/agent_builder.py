@@ -32,7 +32,7 @@ class AgentBuilder:
         self.agent_config = agent_config
         self.gcp_config = gcp_config
         self._mcp_builder = MCPToolsetBuilder(auth_config)
-        self._tools = []
+        self._registered_tools = []
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -57,22 +57,22 @@ class AgentBuilder:
                 mcp_config=config,
                 prod_execution=self.gcp_config.PROD_EXECUTION,
             )
-            self._tools.append(mcp_toolset)
+            self._registered_tools.append(mcp_toolset)
         return self
 
-    def with_plugins(self, tools: list[Union[BaseTool, Callable]]) -> Self:
+    def with_native_tools(self, native_tools: list[Union[BaseTool, Callable]]) -> Self:
         """Registers native ADK tools or callables to the agent, wrapping plain functions in FunctionTool.
 
         Args:
-            tools: list[Union[BaseTool, Callable]] -> List of tools or callables to add.
+            native_tools: list[Union[BaseTool, Callable]] -> List of tools or callables to add.
 
         Returns:
             Self -> The builder instance for fluent chaining.
         """
-        for tool in tools:
+        for tool in native_tools:
             if not isinstance(tool, BaseTool):
                 tool = FunctionTool(fn=tool)
-            self._tools.append(tool)
+            self._registered_tools.append(tool)
         return self
 
     def with_skills(self, skill_names: list[str]) -> Self:
@@ -86,7 +86,7 @@ class AgentBuilder:
         """
         for name in skill_names:
             skill_toolset = get_skill_toolset(skill_name=name)
-            self._tools.append(skill_toolset)
+            self._registered_tools.append(skill_toolset)
         return self
 
     def _build_agent_settings(self) -> GenerateContentConfig:
@@ -143,7 +143,7 @@ class AgentBuilder:
             name=self.agent_config.AGENT_NAME,
             generate_content_config=self._build_agent_settings(),
             instruction=self.agent_config.AGENT_INSTRUCTION,
-            tools=self._tools,
+            tools=self._registered_tools,
             planner=self._build_planner(),
         )
 

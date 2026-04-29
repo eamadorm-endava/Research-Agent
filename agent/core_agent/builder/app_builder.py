@@ -30,7 +30,7 @@ class AppBuilder:
         self.agent = agent
         self.gcp_config = gcp_config
         self.agent_config = agent_config
-        self._plugins = [DeduplicatingArtifactPlugin()]
+        self._registered_plugins = [DeduplicatingArtifactPlugin()]
         logger.debug(
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
         )
@@ -44,7 +44,7 @@ class AppBuilder:
         Returns:
             Self -> The builder instance for fluent chaining.
         """
-        self._plugins.extend(plugins)
+        self._registered_plugins.extend(plugins)
         return self
 
     def build(self) -> Union[AdkApp, App]:
@@ -59,10 +59,10 @@ class AppBuilder:
         Raises:
             ValueError: If required production configuration is missing.
         """
-        app = App(
+        base_application = App(
             name=self.agent_config.AGENT_NAME,
             root_agent=self.agent,
-            plugins=self._plugins,
+            plugins=self._registered_plugins,
         )
 
         if self.gcp_config.PROD_EXECUTION:
@@ -77,7 +77,7 @@ class AppBuilder:
                 f"in {self.gcp_config.REGION} with bucket: {self.gcp_config.ARTIFACT_BUCKET}"
             )
             return AdkApp(
-                app=app,
+                app=base_application,
                 artifact_service_builder=lambda: GcsArtifactService(
                     bucket_name=self.gcp_config.ARTIFACT_BUCKET
                 ),
@@ -87,4 +87,4 @@ class AppBuilder:
             f"Building App (Local) for '{self.agent_config.AGENT_NAME}'. "
             f"GCS artifact storage is provided via --artifact_service_uri at startup."
         )
-        return app
+        return base_application

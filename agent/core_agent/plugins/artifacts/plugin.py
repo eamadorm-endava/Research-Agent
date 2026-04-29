@@ -58,15 +58,15 @@ class DeduplicatingArtifactPlugin(SaveFilesAsArtifactsPlugin):
                 user_message=user_message,
             )
 
-        new_parts = []
-        modified = False
+        processed_message_parts = []
+        has_artifact_modifications = False
 
-        for i, part in enumerate(user_message.parts):
-            if part.inline_data is None:
-                new_parts.append(part)
+        for message_part in user_message.parts:
+            if message_part.inline_data is None:
+                processed_message_parts.append(message_part)
                 continue
 
-            inline_data = part.inline_data
+            inline_data = message_part.inline_data
             file_name = inline_data.display_name or self._stable_name_from_content(
                 inline_data.data, inline_data.mime_type
             )
@@ -87,17 +87,19 @@ class DeduplicatingArtifactPlugin(SaveFilesAsArtifactsPlugin):
                         user_id=invocation_context.user_id,
                         session_id=invocation_context.session.id,
                         filename=file_name,
-                        artifact=copy.copy(part),
+                        artifact=copy.copy(message_part),
                     )
                     logger.info(
                         f"Saved new artifact '{file_name}' at version {version}."
                     )
                 except Exception as e:
                     logger.error(f"Failed to save artifact '{file_name}': {e}")
-                    new_parts.append(part)
+                    processed_message_parts.append(message_part)
                     continue
 
-            new_parts.append(types.Part(text=f'[Uploaded Artifact: "{display_name}"]'))
+            processed_message_parts.append(
+                types.Part(text=f'[Uploaded Artifact: "{display_name}"]')
+            )
 
             file_part = await self._build_file_reference_part(
                 invocation_context=invocation_context,
@@ -107,12 +109,12 @@ class DeduplicatingArtifactPlugin(SaveFilesAsArtifactsPlugin):
                 display_name=display_name,
             )
             if file_part:
-                new_parts.append(file_part)
+                processed_message_parts.append(file_part)
 
-            modified = True
+            has_artifact_modifications = True
 
-        if modified:
-            return types.Content(role=user_message.role, parts=new_parts)
+        if has_artifact_modifications:
+            return types.Content(role=user_message.role, parts=processed_message_parts)
         return None
 
     def _stable_name_from_content(

@@ -35,7 +35,7 @@ root_agent = (
     )
     .with_skills(skills_to_mount)
     .with_mcp_servers(mcp_servers_to_mount)
-    .with_plugins(
+    .with_native_tools(
         [
             GetArtifactUriTool(),
             ImportGcsToArtifactTool(),

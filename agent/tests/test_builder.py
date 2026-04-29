@@ -30,7 +30,7 @@ def test_agent_builder_initialization(mock_vertex_client, mock_configs):
     mock_vertex_client.assert_called_once_with(
         project="test-project", location="us-central1"
     )
-    assert builder._tools == []
+    assert builder._registered_tools == []
 
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
@@ -55,7 +55,7 @@ def test_agent_builder_fluent_chaining(mock_vertex_client, mock_configs):
         result = builder.with_skills(["skill1"]).with_mcp_servers([BigQueryMCPConfig()])
 
         assert result is builder
-        assert len(builder._tools) == 2
+        assert len(builder._registered_tools) == 2
 
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
@@ -83,7 +83,7 @@ def test_agent_builder_final_assembly(
 
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
-def test_agent_builder_empty_tools(mock_vertex_client, mock_configs):
+def test_agent_builder_empty_registered_tools(mock_vertex_client, mock_configs):
     """Test that an agent can be built even with no tools."""
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
