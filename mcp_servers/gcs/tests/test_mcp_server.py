@@ -8,6 +8,7 @@ from mcp_servers.gcs.app.mcp_server import (
     list_objects,
     list_buckets,
     read_object,
+    upload_object,
 )
 from mcp_servers.gcs.app.config import GCS_API_CONFIG, GCS_SERVER_CONFIG
 from mcp_servers.gcs.app.schemas import (
@@ -44,9 +45,77 @@ def test_mcp_create_bucket_success(mock_gcs_manager):
     )
 
 
-def test_mcp_upload_object_error_when_no_content_source():
+def test_mcp_upload_object_schema_validation():
+    # Valid request
+    UploadObjectRequest(
+        source_uri="gs://bucket/file.txt",
+        destination_bucket="target-bucket",
+    )
+
+    # Missing mandatory source_uri
     with pytest.raises(ValueError):
-        UploadObjectRequest(bucket_name="my-gcs-bucket", object_name="file.txt")
+        UploadObjectRequest(destination_bucket="target-bucket")
+
+
+def test_mcp_upload_object_success(mock_gcs_manager):
+    mock_blob = MagicMock()
+    mock_blob.name = "new_file.txt"
+    mock_gcs_manager.copy_object.return_value = mock_blob
+
+    # Mock token and email extraction
+    with (
+        patch("mcp_servers.gcs.app.mcp_server._get_current_token", return_value="tok"),
+        patch(
+            "mcp_servers.gcs.app.mcp_server._fetch_user_email",
+            return_value="user@example.com",
+        ),
+    ):
+        request = UploadObjectRequest(
+            source_uri="gs://landing/source.txt",
+            destination_bucket="kb-bucket",
+            name_of_the_file="renamed",
+        )
+        result = asyncio.run(upload_object(request))
+
+    assert result.execution_status == "success"
+    assert "Successfully ingested source.txt" in result.execution_message
+    assert result.gcs_uri == "gs://kb-bucket/new_file.txt"
+
+    # Verify metadata injection
+    mock_gcs_manager.copy_object.assert_called_once()
+    args, _ = mock_gcs_manager.copy_object.call_args
+    assert args[3]["uploader"] == "user@example.com"
+
+
+def test_mcp_upload_object_credential_switching():
+    # Test switching to SA for KB bucket
+    with (
+        patch("mcp_servers.gcs.app.mcp_server._get_current_token", return_value="tok"),
+        patch(
+            "mcp_servers.gcs.app.mcp_server._fetch_user_email",
+            return_value="user@example.com",
+        ),
+        patch("mcp_servers.gcs.app.mcp_server._make_sa_gcs_manager") as mock_sa_manager,
+        patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_user_manager,
+    ):
+        mock_sa_manager.return_value.copy_object.return_value.name = "saved.txt"
+        mock_user_manager.return_value.copy_object.return_value.name = "saved.txt"
+
+        # Case 1: KB Bucket -> Should use SA
+        request_kb = UploadObjectRequest(
+            source_uri="gs://land/file.txt",
+            destination_bucket=GCS_SERVER_CONFIG.kb_landing_zone,
+        )
+        asyncio.run(upload_object(request_kb))
+        mock_sa_manager.assert_called_once()
+
+        # Case 2: Other Bucket -> Should use OAuth
+        request_other = UploadObjectRequest(
+            source_uri="gs://land/file.txt",
+            destination_bucket="personal-bucket",
+        )
+        asyncio.run(upload_object(request_other))
+        mock_user_manager.assert_called_once()
 
 
 def test_mcp_list_objects_success(mock_gcs_manager):

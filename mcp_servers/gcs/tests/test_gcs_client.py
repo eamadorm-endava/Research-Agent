@@ -151,6 +151,36 @@ class TestGCSManager(unittest.TestCase):
             prefix="my-", project="test-project"
         )
 
+    def test_copy_object_success(self):
+        mock_source_bucket = MagicMock()
+        mock_dest_bucket = MagicMock()
+        mock_new_blob = MagicMock()
+
+        # Mock client to return appropriate buckets
+        self.mock_client_instance.bucket.side_effect = [
+            mock_source_bucket,
+            mock_dest_bucket,
+        ]
+        mock_source_bucket.copy_blob.return_value = mock_new_blob
+
+        source_uri = "gs://source-bucket/folder/file.txt"
+        dest_bucket_name = "dest-bucket"
+        dest_object_name = "new-folder/new-file.txt"
+
+        result = self.gcs_manager.copy_object(
+            source_uri, dest_bucket_name, dest_object_name
+        )
+
+        self.assertEqual(result, mock_new_blob)
+        # Verify internal GCS logic
+        self.mock_client_instance.bucket.assert_any_call("source-bucket")
+        self.mock_client_instance.bucket.assert_any_call("dest-bucket")
+        mock_source_bucket.copy_blob.assert_called_with(
+            mock_source_bucket.blob("folder/file.txt"),
+            mock_dest_bucket,
+            dest_object_name,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

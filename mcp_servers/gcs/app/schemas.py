@@ -1,5 +1,5 @@
 from typing import Annotated, Dict, Optional, Any, List, Literal
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from .config import GCS_SERVER_CONFIG
 
@@ -89,30 +89,45 @@ class UpdateBucketLabelsResponse(UpdateBucketLabelsRequest, BaseResponse):
 
 
 class UploadObjectRequest(BaseRequest):
-    bucket_name: BUCKET_NAME
-    object_name: OBJECT_NAME
-    content: Annotated[
-        Optional[str],
-        Field(default=None, description="Inline text content to upload."),
+    source_uri: Annotated[
+        str,
+        Field(
+            description="The source GCS URI (must start with gs://).",
+            pattern=r"^gs://.+$",
+        ),
     ]
-    local_path: Annotated[
+    destination_bucket: BUCKET_NAME
+    path_inside_destination_bucket: Annotated[
         Optional[str],
-        Field(default=None, description="Local path to upload from."),
+        Field(
+            default="",
+            description="Optional path/prefix inside the destination bucket. Do not include leading or trailing slashes.",
+        ),
     ]
-    content_type: Annotated[
+    name_of_the_file: Annotated[
         Optional[str],
-        Field(default=None, description="MIME type of the uploaded object."),
+        Field(
+            default=None,
+            description="Optional filename without extension. If not provided, the source filename is used.",
+        ),
+    ]
+    metadata: Annotated[
+        Dict[str, Any],
+        Field(
+            default_factory=dict,
+            description=(
+                "Optional metadata for the file. The 'uploader' field will be "
+                "automatically set to the user's email."
+            ),
+        ),
     ]
 
-    @model_validator(mode="after")
-    def validate_content_source(self) -> "UploadObjectRequest":
-        if self.content is None and self.local_path is None:
-            raise ValueError("Either content or local_path must be provided.")
-        return self
 
-
-class UploadObjectResponse(UploadObjectRequest, BaseResponse):
-    pass
+class UploadObjectResponse(BaseResponse):
+    gcs_uri: Annotated[
+        str,
+        Field(description="The new GCS URI of the uploaded file."),
+    ]
 
 
 class ReadObjectRequest(BaseRequest):

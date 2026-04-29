@@ -1,5 +1,5 @@
 import asyncio
-import logging
+from loguru import logger
 import re
 from typing import Optional
 
@@ -31,8 +31,7 @@ from .schemas import (
     ListBucketsResponse,
 )
 
-# Configure logging
-logger = logging.getLogger(__name__)
+# Configure logging is handled by loguru
 
 
 class GoogleGcsTokenVerifier(TokenVerifier):
@@ -162,51 +161,75 @@ async def update_bucket_labels(
 
 @mcp.tool()
 async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
-    """
-    Uploads a file (blob) to a specified GCS bucket.
-    Supports providing content directly as a string or specifying a local file path.
+    """Ingests a file from a GCS source URI into a destination bucket.
+    Automatically injects 'uploader' metadata from the user's identity and switches
+    credentials based on the destination bucket.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        object_name (str): The name/path of the object to create in GCS.
-        content (str, optional): The string content to upload.
-        local_path (str, optional): The local file path to upload.
-        content_type (str, optional): The MIME type of the file. Auto-detected if not provided.
+        request: UploadObjectRequest -> The ingestion request parameters.
 
     Returns:
-        str: Success message with the object name.
+        UploadObjectResponse -> The result of the ingestion including the new GCS URI.
     """
     logger.info(
-        f"Tool call: upload_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
+        f"Tool call: upload_object(source_uri={request.source_uri}, "
+        f"destination_bucket={request.destination_bucket})"
     )
     try:
-        gcs_manager = _make_gcs_manager()
+        # Extract user email for metadata
+        token = _get_current_token()
+        email = "unknown"
+        if token:
+            email = await _fetch_user_email(token)
+
+        # Enforce uploader metadata
+        final_metadata = {**(request.metadata or {}), "uploader": email}
+
+        # Resolve destination object name
+        source_filename = request.source_uri.split("/")[-1]
+        if request.name_of_the_file:
+            # Preserve extension if present in source
+            ext = ""
+            if "." in source_filename:
+                ext = f".{source_filename.split('.')[-1]}"
+            destination_name = f"{request.name_of_the_file}{ext}"
+        else:
+            destination_name = source_filename
+
+        if request.path_inside_destination_bucket:
+            # Strip slashes and join
+            prefix = request.path_inside_destination_bucket.strip("/")
+            destination_path = f"{prefix}/{destination_name}"
+        else:
+            destination_path = destination_name
+
+        # Credential switching: Use SA for KB landing zone, otherwise OAuth
+        if request.destination_bucket == GCS_SERVER_CONFIG.kb_landing_zone:
+            logger.info("Using Service Account for KB landing zone ingestion.")
+            gcs_manager = _make_sa_gcs_manager()
+        else:
+            gcs_manager = _make_gcs_manager()
+
         blob = await asyncio.to_thread(
-            gcs_manager.create_object,
-            request.bucket_name,
-            request.object_name,
-            request.content,
-            request.local_path,
-            request.content_type,
+            gcs_manager.copy_object,
+            request.source_uri,
+            request.destination_bucket,
+            destination_path,
+            final_metadata,
         )
+
         return UploadObjectResponse(
-            bucket_name=request.bucket_name,
-            object_name=blob.name,
-            content=request.content,
-            local_path=request.local_path,
-            content_type=blob.content_type,
+            gcs_uri=f"gs://{request.destination_bucket}/{blob.name}",
             execution_status="success",
             execution_message=(
-                f"Successfully uploaded object: {blob.name} to bucket: {request.bucket_name}"
+                f"Successfully ingested {source_filename} to {request.destination_bucket} "
+                f"as {blob.name}. Uploader: {email}"
             ),
         )
     except Exception as e:
+        logger.exception("In-tool failure during upload_object")
         return UploadObjectResponse(
-            bucket_name=request.bucket_name,
-            object_name=request.object_name,
-            content=request.content,
-            local_path=request.local_path,
-            content_type=request.content_type,
+            gcs_uri="",
             execution_status="error",
             execution_message=_format_execution_error(e),
         )
@@ -436,6 +459,30 @@ def _make_gcs_manager() -> GCSManager:
         scopes=GCS_API_CONFIG.read_write_scopes,
     )
     return GCSManager(creds, default_project=GCS_SERVER_CONFIG.default_project_id)
+
+
+def _make_sa_gcs_manager() -> GCSManager:
+    """Creates a GCS manager using the agent's Service Account credentials."""
+    from .gcs_client import build_sa_credentials
+
+    creds = build_sa_credentials(scopes=GCS_API_CONFIG.read_write_scopes)
+    return GCSManager(creds, default_project=GCS_SERVER_CONFIG.default_project_id)
+
+
+async def _fetch_user_email(token: str) -> str:
+    """Fetches the user's email from Google's tokeninfo endpoint."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                GCS_AUTH_CONFIG.google_token_info_url,
+                params={"access_token": token},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("email", "unknown")
+    except Exception:
+        logger.warning("Failed to fetch user email from token info.")
+    return "unknown"
 
 
 def _get_current_token() -> Optional[str]:

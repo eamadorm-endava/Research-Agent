@@ -135,6 +135,26 @@ class GcsServerConfig(GcsMcpConfigBase):
             description="Default log level for the local GCS MCP server.",
         ),
     ]
+    ai_agent_landing_zone: Annotated[
+        str,
+        Field(
+            default="mock-ai-agent-landing-zone",
+            validation_alias=AliasChoices(
+                "AI_AGENT_LANDING_ZONE",
+            ),
+            description="Bucket where Gemini stores initial uploads.",
+        ),
+    ]
+    kb_landing_zone: Annotated[
+        str,
+        Field(
+            default="mock-kb-landing-zone",
+            validation_alias=AliasChoices(
+                "KB_LANDING_ZONE",
+            ),
+            description="Destination bucket for the Enterprise Knowledge Base.",
+        ),
+    ]
     stateless_http: Annotated[
         bool,
         Field(

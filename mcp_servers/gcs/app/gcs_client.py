@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence, Union
-import logging
+from loguru import logger
 import mimetypes
 import os
 import httpx
@@ -13,9 +13,7 @@ from google.oauth2.credentials import Credentials
 from .config import GCS_API_CONFIG, GCS_AUTH_CONFIG
 from .schemas import AuthenticationError
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Logging is handled by loguru
 
 
 @lru_cache(maxsize=1)
@@ -324,6 +322,65 @@ class GCSManager:
         except GoogleCloudError as e:
             logger.error(f"Error listing buckets with prefix '{prefix or ''}': {e}")
             raise
+
+    def copy_object(
+        self,
+        source_uri: str,
+        destination_bucket_name: str,
+        destination_object_name: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> storage.Blob:
+        """Copies an object from a source GCS URI to a destination bucket and path.
+        Optionally updates metadata.
+
+        Args:
+            source_uri: str -> The source GCS URI (gs://bucket/path).
+            destination_bucket_name: str -> The name of the destination bucket.
+            destination_object_name: str -> The name of the object in the destination bucket.
+            metadata: Optional[dict] -> Optional dictionary of metadata to set on the destination object.
+
+        Returns:
+            storage.Blob -> The created destination blob object.
+        """
+        try:
+            # Parse source URI
+            if not source_uri.startswith("gs://"):
+                raise ValueError("source_uri must start with gs://")
+
+            source_path = source_uri[len("gs://") :]
+            source_bucket_name, source_blob_name = source_path.split("/", 1)
+
+            source_bucket = self.client.bucket(source_bucket_name)
+            source_blob = source_bucket.blob(source_blob_name)
+            destination_bucket = self.client.bucket(destination_bucket_name)
+
+            # Perform the copy (rewrite is more robust for cross-region/large files)
+            new_blob = source_bucket.copy_blob(
+                source_blob, destination_bucket, destination_object_name
+            )
+
+            if metadata:
+                new_blob.metadata = {**(new_blob.metadata or {}), **metadata}
+                new_blob.patch()
+
+            logger.info(
+                f"Successfully copied {source_uri} to gs://{destination_bucket_name}/{destination_object_name}"
+            )
+            return new_blob
+        except Exception as e:
+            logger.error(f"Error copying object from {source_uri}: {e}")
+            raise
+
+
+def build_sa_credentials(
+    scopes: Optional[Sequence[str]] = None,
+) -> google.auth.credentials.Credentials:
+    """
+    Builds Application Default Credentials (typically a service account).
+    """
+    scopes = list(scopes or GCS_API_CONFIG.read_write_scopes)
+    creds, _ = google.auth.default(scopes=scopes)
+    return creds
 
 
 def build_gcs_credentials(
