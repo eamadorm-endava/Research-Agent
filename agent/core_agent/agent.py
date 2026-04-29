@@ -1,5 +1,4 @@
-from .builder import AgentBuilder
-from .app_factory import create_adk_app
+from .builder import AgentBuilder, AppBuilder
 from .config import (
     GCP_CONFIG,
     AGENT_CONFIG,
@@ -10,8 +9,6 @@ from .config import (
     GOOGLE_AUTH_CONFIG,
 )
 
-from google.adk.apps.app import App
-from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from google.adk.tools import load_artifacts
 from .internal_tools import (
     GetArtifactUriTool,
@@ -29,6 +26,7 @@ skills_to_mount = [
     "meeting-summary",
 ]
 
+# Build the root ADK agent
 root_agent = (
     AgentBuilder(
         agent_config=AGENT_CONFIG,
@@ -47,18 +45,9 @@ root_agent = (
     .build()
 )
 
-# Select the application type based on the environment
-if GCP_CONFIG.PROD_EXECUTION:
-    # AdkApp (Vertex AI template) used for production deployment to Agent Engine
-    app = create_adk_app(
-        agent=root_agent,
-        artifact_bucket=GCP_CONFIG.ARTIFACT_BUCKET,
-        app_name=AGENT_CONFIG.AGENT_NAME,
-    )
-else:
-    # Standard ADK App object used by the 'adk web' CLI for local development
-    app = App(
-        name=AGENT_CONFIG.AGENT_NAME,
-        root_agent=root_agent,
-        plugins=[SaveFilesAsArtifactsPlugin()],
-    )
+# Build and export the application (AdkApp for PROD, App for LOCAL)
+app = AppBuilder(
+    agent=root_agent,
+    gcp_config=GCP_CONFIG,
+    agent_config=AGENT_CONFIG,
+).build()
