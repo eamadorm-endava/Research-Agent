@@ -59,7 +59,19 @@ async def _load_artifact_parts(
     parts = []
     for filename in filenames:
         try:
-            part = await callback_context.load_artifact(filename)
+            # If using GeminiEnterpriseGcsArtifactService, we must force bytes for GE rendering.
+            # Standard load_artifact would return a GCS reference which GE doesn't render.
+            svc = getattr(callback_context.invocation_context, "artifact_service", None)
+            if svc and hasattr(svc, "load_artifact_as_bytes"):
+                part = await svc.load_artifact_as_bytes(
+                    app_name=callback_context.invocation_context.app_name,
+                    user_id=callback_context.invocation_context.user_id,
+                    session_id=callback_context.invocation_context.session.id,
+                    filename=filename,
+                )
+            else:
+                part = await callback_context.load_artifact(filename)
+
             if part:
                 parts.append(part)
                 logger.debug(f"Loaded artifact for GE rendering: {filename}")
