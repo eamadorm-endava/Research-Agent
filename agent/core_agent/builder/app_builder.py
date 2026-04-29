@@ -3,6 +3,7 @@ from typing import Annotated, Self, Union
 from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
+from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from loguru import logger
 from vertexai.agent_engines import AdkApp
@@ -34,11 +35,11 @@ class AppBuilder:
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
         )
 
-    def with_plugins(self, plugins: list[object]) -> Self:
+    def with_plugins(self, plugins: list[BasePlugin]) -> Self:
         """Registers additional ADK plugins to the application.
 
         Args:
-            plugins: list[object] -> List of plugin instances to add.
+            plugins: list[BasePlugin] -> List of plugin instances to add.
 
         Returns:
             Self -> The builder instance for fluent chaining.
@@ -73,18 +74,15 @@ class AppBuilder:
                     bucket_name=self.gcp_config.ARTIFACT_BUCKET
                 ),
                 plugins=self._plugins,
-                enable_tracing=self.agent_config.ENABLE_TRACING,
+                # enable_tracing=self.agent_config.ENABLE_TRACING,
             )
 
         logger.info(
-            f"Building AdkApp (Local) for '{self.agent_config.AGENT_NAME}' with GCS artifacts"
+            f"Building App (Local) for '{self.agent_config.AGENT_NAME}'. "
+            f"GCS artifact storage is provided via --artifact_service_uri at startup."
         )
-        return AdkApp(
-            agent=self.agent,
-            app_name=self.agent_config.AGENT_NAME,
-            artifact_service_builder=lambda: GcsArtifactService(
-                bucket_name=self.gcp_config.ARTIFACT_BUCKET
-            ),
+        return App(
+            name=self.agent_config.AGENT_NAME,
+            root_agent=self.agent,
             plugins=self._plugins,
-            enable_tracing=self.agent_config.ENABLE_TRACING,
         )
