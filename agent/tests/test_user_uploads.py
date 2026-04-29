@@ -351,17 +351,19 @@ async def test_grants_uploader_owner_acl_on_successful_upload():
 
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
         mock_blob = MagicMock()
-        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+        mock_client.return_value.bucket.return_value.get_blob.return_value = mock_blob
 
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
     mock_client.return_value.bucket.assert_called_once_with("landing-zone")
-    mock_client.return_value.bucket.return_value.blob.assert_called_once_with(
+    mock_client.return_value.bucket.return_value.get_blob.assert_called_once_with(
         "report.pdf"
     )
     mock_blob.acl.user.assert_called_once_with("uploader@example.com")
     mock_blob.acl.user.return_value.grant_owner.assert_called_once()
     mock_blob.acl.save.assert_called_once()
+    assert mock_blob.metadata["uploader"] == "uploader@example.com"
+    mock_blob.patch.assert_called_once()
 
 
 async def test_acl_grant_failure_does_not_block_upload():
@@ -416,7 +418,7 @@ async def test_grants_acl_to_user_id_from_context():
 
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
         mock_blob = MagicMock()
-        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+        mock_client.return_value.bucket.return_value.get_blob.return_value = mock_blob
 
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
@@ -439,9 +441,12 @@ async def test_grants_acl_on_existing_gcs_references_using_user_id():
 
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
         mock_blob = MagicMock()
-        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+        mock_client.return_value.bucket.return_value.get_blob.return_value = mock_blob
 
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
     mock_client.return_value.bucket.assert_called_once_with("pre-uploaded")
+    mock_client.return_value.bucket.return_value.get_blob.assert_called_once_with(
+        "file.pdf"
+    )
     mock_blob.acl.user.assert_called_once_with("emmanuel.amador@endava.com")

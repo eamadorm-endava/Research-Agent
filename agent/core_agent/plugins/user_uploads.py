@@ -223,18 +223,21 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
 
         for part in parts:
             file_data = getattr(part, "file_data", None)
-            if not file_data:
-                continue
+            file_uri = getattr(file_data, "file_uri", None) if file_data else None
 
-            file_uri = getattr(file_data, "file_uri", None)
-            if not file_uri:
-                continue
-
-            if file_uri.startswith("gs://"):
+            if file_uri and file_uri.startswith("gs://"):
                 logger.info(
                     f"Found existing GCS reference: {file_uri}. Granting OWNER ACL to {user_identity}"
                 )
                 await self._grant_uploader_object_acl(file_uri, user_identity)
+            else:
+                # Debug log to see structure of parts that are not GCS references
+                part_summary = {
+                    "has_inline_data": part.inline_data is not None,
+                    "has_file_data": file_data is not None,
+                    "has_text": getattr(part, "text", None) is not None,
+                }
+                logger.debug(f"Part skipped by GCS scanner: {part_summary}")
 
     async def _grant_uploader_object_acl(
         self, canonical_uri: str, user_email: str
@@ -256,18 +259,32 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             object_path = canonical_uri[len("gs://") :]
             bucket_name, object_name = object_path.split("/", 1)
             client = storage.Client()
-            blob = client.bucket(bucket_name).blob(object_name)
+            bucket = client.bucket(bucket_name)
+            blob = bucket.get_blob(object_name)
 
-            def _apply_acl() -> None:
+            if not blob:
+                logger.warning(
+                    f"Blob not found for ACL/Metadata grant: {canonical_uri}"
+                )
+                return
+
+            def _apply_updates() -> None:
+                # 1. Update ACL
                 blob.acl.reload()
                 blob.acl.user(user_email).grant_owner()
                 blob.acl.save()
 
-            await asyncio.to_thread(_apply_acl)
+                # 2. Update Metadata
+                new_metadata = dict(blob.metadata or {})
+                new_metadata["uploader"] = user_email
+                blob.metadata = new_metadata
+                blob.patch()
+
+            await asyncio.to_thread(_apply_updates)
             logger.info(
-                f"Granted OWNER ACL on '{canonical_uri}' for uploader: {user_email}"
+                f"Successfully updated ACL and 'uploader' metadata on '{canonical_uri}' for: {user_email}"
             )
         except Exception as exc:
             logger.warning(
-                f"Could not set uploader ACL on '{canonical_uri}' for '{user_email}': {exc}"
+                f"Could not update ACL/Metadata on '{canonical_uri}' for '{user_email}': {exc}"
             )
