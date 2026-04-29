@@ -419,7 +419,7 @@ async def test_grants_ge_user_acl_when_token_in_state_contains_email():
         artifact_version=_make_artifact_version("gs://landing-zone/report.pdf")
     )
     ctx.user_id = "sa@project.iam.gserviceaccount.com"
-    ctx.state = {
+    ctx.session.state = {
         GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID: _make_jwt_token("ge_user@company.com")
     }
     msg = _make_user_message([inline_part])
@@ -453,7 +453,7 @@ async def test_grants_ge_user_acl_on_every_uploaded_file_not_only_first():
     svc.get_artifact_version = AsyncMock(side_effect=[v_a, v_b])
     ctx = _make_invocation_context(artifact_service=svc)
     ctx.user_id = "sa@project.iam.gserviceaccount.com"
-    ctx.state = {
+    ctx.session.state = {
         GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID: _make_jwt_token("ge_user@company.com")
     }
     msg = _make_user_message([part_a, part_b])
@@ -479,7 +479,7 @@ async def test_skips_ge_user_acl_when_no_token_in_state():
         artifact_version=_make_artifact_version("gs://landing-zone/file.pdf")
     )
     ctx.user_id = "sa@project.iam.gserviceaccount.com"
-    ctx.state = {}
+    ctx.session.state = {}
     msg = _make_user_message([inline_part])
 
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
@@ -499,7 +499,7 @@ async def test_skips_ge_user_acl_when_token_is_not_jwt_format():
         artifact_version=_make_artifact_version("gs://landing-zone/file.pdf")
     )
     ctx.user_id = "sa@project.iam.gserviceaccount.com"
-    ctx.state = {GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID: "opaque-non-jwt-token"}
+    ctx.session.state = {GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID: "opaque-non-jwt-token"}
     msg = _make_user_message([inline_part])
 
     with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:

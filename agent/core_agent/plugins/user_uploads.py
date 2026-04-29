@@ -54,8 +54,16 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             return None
 
         logger.info(
-            f"GeminiEnterpriseFileIngestionPlugin: Intercepted message with {len(user_message.parts)} part(s)"
+            f"GeminiEnterpriseFileIngestionPlugin: Intercepted message with {len(user_message.parts)} part(s). "
+            f"Context User ID: {invocation_context.user_id}"
         )
+
+        # Log session state keys to see if GE is providing alternative identity tokens
+        try:
+            state_keys = list(invocation_context.session.state.keys())
+            logger.debug(f"Available session state keys: {state_keys}")
+        except Exception:
+            pass
 
         # 1. Grant ACLs to any GCS references already present in the message (pre-uploaded by GE)
         await self._grant_acl_on_gcs_file_data(invocation_context, user_message.parts)

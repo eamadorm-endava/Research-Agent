@@ -88,7 +88,11 @@ def extract_user_email_from_token(token: str) -> Optional[str]:
     try:
         parts = token.split(".")
         if len(parts) != 3:
-            logger.debug("Token is not JWT-formatted; cannot extract email claim")
+            logger.debug(
+                f"Token is not JWT-formatted (found {len(parts)} segments). "
+                f"It appears to be an opaque Access Token. "
+                f"Token prefix: {token[:10]}..."
+            )
             return None
         padding = "=" * (-len(parts[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
