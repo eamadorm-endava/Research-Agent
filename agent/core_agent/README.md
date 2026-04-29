@@ -26,7 +26,7 @@ core_agent/
 │
 ├── plugins/             # Native tools and plugins (Artifacts, GCS promotion)
 │   ├── __init__.py      
-│   └── artifacts/       # DeduplicatingArtifactPlugin + GCS tools
+│   └── artifacts/       # GCS-to-Artifact import and URI retrieval tools
 │
 └── security/            # Authentication utilities
     ├── __init__.py      # Re-exports get_id_token, get_ge_oauth_token
@@ -41,7 +41,7 @@ The package is organized into four internal modules, each with a single responsi
 
 - **`builder/`** — Construction logic. Separates the _what to build_ from the _how to build it_ using the Builder pattern. The `AgentBuilder` orchestrates the core agent assembly, while the `AppBuilder` handles the final application wrapper (`AdkApp` for production or `App` for local), ensuring consistent plugin and artifact configuration.
 
-- **`plugins/`** — Custom extensions and tools. Contains native ADK plugins like the `DeduplicatingArtifactPlugin` (which prevents redundant artifact saves in Gemini Enterprise) and utility tools for artifact-to-landing-zone promotion.
+- **`plugins/`** — Custom extensions and tools. Contains native ADK tools for artifact-to-landing-zone promotion and URI management. Persistence logic is managed by the `AppBuilder`, which conditionally registers the base `SaveFilesAsArtifactsPlugin` for local development.
 
 - **`security/`** — Token generation utilities. Provides functions to obtain GCP identity tokens (for Cloud Run service authentication) and Gemini Enterprise OAuth tokens (for delegated user data access). These are consumed by the builders at runtime, not at construction time.
 
