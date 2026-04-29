@@ -7,6 +7,7 @@ from google.genai import types
 from loguru import logger
 from typing_extensions import override
 
+from .callbacks import PENDING_RENDER_KEY
 from .schemas import (
     GetArtifactUriRequest,
     GetArtifactUriResponse,
@@ -160,6 +161,10 @@ class ImportGcsToArtifactTool(BaseTool):
             version = await tool_context.save_artifact(
                 filename=download["artifact_name"], artifact=artifact_part
             )
+            pending = list(tool_context.state.get(PENDING_RENDER_KEY, []))
+            pending.append(download["artifact_name"])
+            tool_context.state[PENDING_RENDER_KEY] = pending
+            logger.debug(f"Queued '{download['artifact_name']}' for GE rendering.")
             return ImportGcsToArtifactResponse(
                 artifact_id=f"{download['artifact_name']}:v{version}",
                 gcs_uri=request.gcs_uri,

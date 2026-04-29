@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from agent.core_agent.builder import AppBuilder
 from agent.core_agent.config import GCPConfig, AgentConfig
+from agent.core_agent.plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
 from google.adk.agents import BaseAgent
 from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
@@ -72,11 +73,11 @@ def test_app_builder_local_default_plugin_is_save_files(mock_agent, mock_configs
     assert any(isinstance(p, SaveFilesAsArtifactsPlugin) for p in app.plugins)
 
 
-def test_app_builder_prod_has_no_artifact_plugin(mock_agent, mock_configs):
-    """Test that AppBuilder registers no artifact plugin in production.
+def test_app_builder_prod_has_no_save_files_plugin(mock_agent, mock_configs):
+    """Test that AppBuilder does not register SaveFilesAsArtifactsPlugin in production.
 
-    GE handles file ingestion itself; any artifact plugin would cause double-saves
-    and prevent GE from rendering files inline.
+    SaveFilesAsArtifactsPlugin targets ADK Web UI only; Gemini Enterprise does
+    not apply it and including it breaks GE artifact rendering.
     """
     builder = AppBuilder(
         agent=mock_agent,
@@ -86,6 +87,24 @@ def test_app_builder_prod_has_no_artifact_plugin(mock_agent, mock_configs):
 
     assert not any(
         isinstance(p, SaveFilesAsArtifactsPlugin) for p in builder._registered_plugins
+    )
+
+
+def test_app_builder_prod_registers_ge_file_ingestion_plugin(mock_agent, mock_configs):
+    """Test that AppBuilder registers GeminiEnterpriseFileIngestionPlugin in production.
+
+    In production, user-uploaded files arrive as inline data from Gemini Enterprise
+    and must be persisted to GCS via this plugin.
+    """
+    builder = AppBuilder(
+        agent=mock_agent,
+        gcp_config=mock_configs["gcp_prod"],
+        agent_config=mock_configs["agent"],
+    )
+
+    assert any(
+        isinstance(p, GeminiEnterpriseFileIngestionPlugin)
+        for p in builder._registered_plugins
     )
 
 

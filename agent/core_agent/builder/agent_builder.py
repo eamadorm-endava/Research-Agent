@@ -14,6 +14,7 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
+from ..plugins.artifacts.callbacks import render_pending_artifacts
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill_toolset
 
@@ -134,6 +135,7 @@ class AgentBuilder:
             ),
             instruction=self.agent_config.AGENT_INSTRUCTION,
             tools=self._registered_tools,
+            after_agent_callback=render_pending_artifacts,
             planner=BuiltInPlanner(
                 thinking_config=ThinkingConfig(
                     thinking_budget=self.agent_config.THINKING_BUDGET,

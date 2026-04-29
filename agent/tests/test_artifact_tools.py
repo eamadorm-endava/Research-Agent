@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from agent.core_agent.plugins.artifacts.callbacks import PENDING_RENDER_KEY
 from agent.core_agent.plugins.artifacts.tools import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
@@ -10,6 +11,19 @@ pytestmark = pytest.mark.asyncio
 
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
+
+
+def _make_mock_tool_context(save_artifact_version: int = 0) -> AsyncMock:
+    """Builds a ToolContext mock with a real dict-backed state and a configured save_artifact."""
+    ctx = AsyncMock()
+    ctx.save_artifact.return_value = save_artifact_version
+    _state: dict = {}
+    ctx.state = MagicMock()
+    ctx.state.get = MagicMock(side_effect=lambda k, d=None: _state.get(k, d))
+    ctx.state.__setitem__ = MagicMock(side_effect=lambda k, v: _state.update({k: v}))
+    ctx.state.__getitem__ = MagicMock(side_effect=lambda k: _state[k])
+    ctx.state.__contains__ = MagicMock(side_effect=lambda k: k in _state)
+    return ctx
 
 
 def _make_mock_blob(
@@ -107,8 +121,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 1
+        ctx = _make_mock_tool_context(save_artifact_version=1)
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/photo.png"}, tool_context=ctx
@@ -127,8 +140,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/report.pdf"}, tool_context=ctx
@@ -145,8 +157,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/meeting.mp3"}, tool_context=ctx
@@ -163,8 +174,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/notes.txt"}, tool_context=ctx
@@ -182,8 +192,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/data.csv"}, tool_context=ctx
@@ -202,8 +211,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/data.bin"}, tool_context=ctx
@@ -221,8 +229,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         await tool.run_async(
             args={
@@ -242,8 +249,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 3
+        ctx = _make_mock_tool_context(save_artifact_version=3)
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/notes.txt"}, tool_context=ctx
@@ -258,8 +264,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/file", "mime_type": "text/plain"},
@@ -279,8 +284,7 @@ class TestImportGcsToArtifactTool:
         mock_mimetypes.guess_type.return_value = ("application/pdf", None)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/document.pdf"}, tool_context=ctx
@@ -289,6 +293,23 @@ class TestImportGcsToArtifactTool:
         assert result["execution_status"] == "success"
         assert result["content_type"] == "application/pdf"
         mock_mimetypes.guess_type.assert_called_once_with("document.pdf")
+
+    @patch("agent.core_agent.plugins.artifacts.tools.storage")
+    async def test_queues_artifact_filename_in_state_for_ge_rendering(
+        self, mock_storage
+    ):
+        """Edge case: after a successful save, the filename is added to the GE render queue in state."""
+        blob = _make_mock_blob(b"data", "text/plain")
+        mock_storage.Client.return_value = _make_mock_storage_client(blob)
+
+        tool = ImportGcsToArtifactTool()
+        ctx = _make_mock_tool_context()
+
+        await tool.run_async(
+            args={"gcs_uri": "gs://bucket/report.txt"}, tool_context=ctx
+        )
+
+        ctx.state.__setitem__.assert_called_with(PENDING_RENDER_KEY, ["report.txt"])
 
     @patch("agent.core_agent.plugins.artifacts.tools.storage")
     async def test_returns_error_when_gcs_object_not_found(self, mock_storage):
@@ -341,8 +362,7 @@ class TestImportGcsToArtifactTool:
         mock_storage.Client.return_value = _make_mock_storage_client(blob)
 
         tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-        ctx.save_artifact.return_value = 0
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/file.txt"}, tool_context=ctx

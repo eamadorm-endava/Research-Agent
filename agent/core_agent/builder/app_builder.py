@@ -9,6 +9,7 @@ from loguru import logger
 from vertexai.agent_engines import AdkApp
 
 from ..config import AgentConfig, GCPConfig
+from ..plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
 
 
 class AppBuilder:
@@ -30,11 +31,12 @@ class AppBuilder:
         self.agent = agent
         self.gcp_config = gcp_config
         self.agent_config = agent_config
-        # GE has its own file ingestion pipeline that runs before the agent.
-        # Adding any artifact plugin in production causes double-saves and
-        # prevents GE from rendering files inline.
+        # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
+        # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
         self._registered_plugins = (
-            [] if gcp_config.PROD_EXECUTION else [SaveFilesAsArtifactsPlugin()]
+            [GeminiEnterpriseFileIngestionPlugin()]
+            if gcp_config.PROD_EXECUTION
+            else [SaveFilesAsArtifactsPlugin()]
         )
         logger.debug(
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
