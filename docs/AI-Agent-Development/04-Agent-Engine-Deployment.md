@@ -20,14 +20,15 @@ The deployable code is housed in `/agent`:
 ├── uv.lock                # Locked dependencies (managed by uv)
 └── agent/
     ├── core_agent/
-    │   ├── agent.py       # Entry point defining the `app` instance
-    │   ├── config.py      # Configuration logic
+    │   ├── agent.py       # Entry point utilizing AppBuilder
+    │   ├── builder/       # Centralized App and Agent builders
+    │   ├── config/        # Pydantic-based configuration package
     │   └── utils/         
     └── deployment/
         └── deploy.py      # Custom script for Agent Engine deployment
 ```
 
-> **Entry Point**: The deployment expects an application instance. In `agent/core_agent/agent.py`, the entry point is exposed as `app = agent_engines.AdkApp(agent=root_agent)`.
+> **Entry Point**: The deployment expects an application instance. In `agent/core_agent/agent.py`, the `app` instance is constructed via the `AppBuilder`, ensuring configuration parity between local and production environments.
 
 ## Production Deployment via CI/CD
 
@@ -67,7 +68,6 @@ The pipeline uses `uv` to rapidly export dependencies and execute the deployment
           --source-packages=./agent \
           --entrypoint-module=agent.core_agent.agent \
           --entrypoint-object=app \
-          --requirements-file=./agent/core_agent/requirements.txt \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com \
           --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},DRIVE_URL=${_DRIVE_URL},GEMINI_GOOGLE_AUTH_ID=$$GOOGLE_AUTH_ID"

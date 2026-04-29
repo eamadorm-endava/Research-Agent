@@ -16,9 +16,9 @@ from agent.core_agent.config import (
 
 
 def test_gcp_config_defaults():
-    """Test that GCPConfig initialises with default values if no env vars are set."""
+    """Test that GCPConfig initialises with code-defined defaults when no env vars or env file are present."""
     with patch.dict(os.environ, clear=True):
-        config = GCPConfig()
+        config = GCPConfig(_env_file=None)
         assert config.PROJECT_ID == "dummy-gcp-project-id"
         assert config.REGION == "dummy-gcp-region"
         assert config.PROD_EXECUTION is True
@@ -55,6 +55,17 @@ def test_mcp_servers_config_defaults_to_localhost_urls():
     assert drive_config.URL == "http://localhost:8081"
     assert gcs_config.URL == "http://localhost:8082"
     assert cal_config.URL == "http://localhost:8083"
+
+
+def test_gcs_mcp_config_default_scope_is_cloud_platform_only():
+    """Edge case: GCS default scopes must be cloud-platform only — openid/email are not required."""
+    with patch.dict(os.environ, clear=True):
+        gcs_config = GCSMCPConfig()
+
+    assert gcs_config.OAUTH_SCOPES == {
+        "https://www.googleapis.com/auth/cloud-platform": "google cloud storage access",
+    }
+    assert len(gcs_config.OAUTH_SCOPES) == 1
 
 
 def test_agent_config_validation():

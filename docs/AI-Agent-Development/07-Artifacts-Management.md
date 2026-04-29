@@ -17,7 +17,25 @@ A chat-uploaded file does **not** begin its lifecycle as a relocatable GCS objec
 
 That makes an upload-oriented design the right first architectural direction.
 
-However, that direction is not complete on its own. The current repository implementation exposes an MCP upload contract that is shaped around either string content or a server-local file path, which is narrower than the needs of a binary chat-upload workflow. As a result, the right architectural direction has been identified, but the current implementation surface does not yet fully realize it.
+### The Gemini Enterprise Rendering Paradox
+
+As documented in **[ADK Python Issue #4273](https://github.com/google/adk-python/issues/4273)**, there is a fundamental distinction between the ADK Web UI and the Gemini Enterprise UI regarding how they interact with stored artifacts:
+
+-   **ADK Web UI**: Displays artifacts saved strictly through the `save_artifact` method via the `SaveFilesAsArtifactsPlugin`.
+-   **Gemini Enterprise UI**: Only displays files that are returned directly in the final agent response as inline `types.Part` objects. 
+
+This creates a **functional overlap paradox**: 
+1.  **Ingestion Paradox**: Using a standard `SaveFilesAsArtifactsPlugin` in production causes redundant storage (GE saves Version 0, Plugin saves Version 1) and prevents the UI from displaying the file as it strips the inline data for persistence.
+2.  **Rendering Paradox**: Tools (like GCS Import) should return simple types (str/dict) to maintain clean schemas, but GE requires inline binary Parts for visual rendering.
+
+### The Unified Solution Path
+
+To resolve these paradoxes, the Research-Agent uses a two-phase lifecycle:
+
+1.  **Explicit Ingestion**: User uploads are handled by the `GeminiEnterpriseFileIngestionPlugin`, which persists the file to GCS and replaces it with a token-efficient GCS reference (`file_data`) instead of keeping the binary payload inline for the entire session.
+2.  **Post-Turn Rendering**: Any artifact generated or imported during a turn is "stashed" in the session state. An `after_agent_callback` (`render_pending_artifacts`) then converts these stashed references back into inline binary Parts only for the final response to the UI.
+
+For a complete visual representation of this lifecycle and the Mermaid sequence diagram, see **[09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md)**.
 
 ---
 
@@ -37,6 +55,8 @@ This lifecycle matters because it separates two different storage concerns:
 - **later storage-native relocation of an already-existing object**.
 
 Those are not the same problem and should not be solved by the same primitive unless the architecture already guarantees that the file exists as a stable object in GCS.
+
+For advanced details on recursive artifact prevention in Gemini Enterprise, see **[09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md)**.
 
 ---
 
@@ -126,46 +146,35 @@ The solution path should be organized in phases.
 
 ## Phase 1: implement a binary-safe artifact-to-GCS ingestion path
 
-The first priority should be a capability that accepts uploaded artifact content from ADK and writes it into the landing zone safely and explicitly.
+The first priority is a capability that accepts a GCS reference (`source_uri`) from the ADK artifact layer and copies it into the landing zone with mandatory audit metadata.
 
-There are two viable ways to do this.
+### Finalized Approach: Enhance the existing upload tool
 
-### Option A: extend the existing upload tool
+The `upload_object` tool has been enhanced to support direct GCS-to-GCS transfers, which is the most efficient path for artifacts already saved by ADK.
 
-The current `upload_object` capability can be extended so the MCP schema supports an explicit binary payload representation, such as:
-
-- base64-encoded bytes,
-- filename,
-- MIME type,
-- and metadata.
-
-This is attractive because it reuses the existing tool identity and matches the broader capability already present in the underlying GCS client.[R3]
-
-### Option B: add a dedicated artifact-upload tool
-
-A new tool can be introduced specifically for chat-originated or ADK-originated artifacts, for example:
-
-- `upload_binary_object`,
-- `put_artifact_in_landing_zone`,
-- or similarly named operation.
-
-This is attractive if the existing upload tool should remain simple for text and local-path use cases while artifact ingestion gets its own explicit contract.
+**Key Features:**
+- **`source_uri`**: Accepts a `gs://` path (e.g., from an ADK artifact).
+- **`destination_uri`**: Allows specifying the target location as a full GCS path. If it ends with `/`, the source filename is preserved.
+- **Mandatory Identity**: The MCP server automatically extracts the user's email from the OAuth token and injects it as `x-goog-meta-user-email`.
+- **Dynamic Metadata**: Supports an optional `metadata` dictionary for additional tagging.
 
 ### Phase-1 conclusion
 
-Either approach is better than introducing `move_file` first, because the immediate problem is **ingestion of uploaded artifact content**, not relocation of a storage object that already exists.
+This approach closes the ingestion gap by providing a secure, auditable, and performance-optimized bridge between the agent's temporary artifact storage and the production landing zone.
 
 ---
 
 ## Phase 2: make the artifact handoff explicit in the agent workflow
 
-Once the GCS ingestion surface is corrected, the runtime path should be documented and implemented explicitly as:
+The runtime path is now:
 
-1. UI upload arrives as ADK-side file content.[P1][P2]
-2. The file is persisted or loaded through an explicit artifact-handling path.[P2][P3][P6]
-3. The agent or helper layer extracts the bytes and metadata needed for landing-zone placement.[R1]
-4. The GCS MCP server receives a binary-safe request and writes the object.[R2][R3]
-5. Landing-zone metadata is finalized for downstream routing.[R1][R7]
+1. **User Upload**: A file is uploaded via the Chat UI.
+2. **ADK Persistence**: ADK saves the file to the `agent_landing_zone` bucket (standard ADK artifact behavior).
+3. **Agent Trigger**: The agent identifies the artifact and its `gs://` URI.
+4. **Landing Zone Promotion**: The agent calls `upload_object` with:
+   - `source_uri`: `gs://agent-landing-zone/...`
+   - `destination_uri`: `gs://kb-landing-zone/raw/`
+5. **Metadata Injection**: The GCS MCP server extracts the user's email from the token and writes the object to the landing zone with the required metadata.
 
 This phase is essential because the acceptance criterion requires the lifecycle to be documented fully, not only that a storage API exists somewhere in the system.
 

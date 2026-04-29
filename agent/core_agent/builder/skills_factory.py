@@ -5,14 +5,13 @@ from google.adk.tools.skill_toolset import SkillToolset
 
 
 def get_skill_toolset(skill_name: str) -> SkillToolset:
-    """
-    Dynamically loads an ADK skill from the `agent/skills/` directory.
+    """Dynamically loads an ADK skill from the agent/skills/ directory and wraps it in a SkillToolset.
 
     Args:
-        skill_name (str): The name of the skill directory to load.
+        skill_name: str -> The name of the skill directory to load.
 
     Returns:
-        SkillToolset: The configured ADK wrapper.
+        SkillToolset -> The configured ADK skill wrapper ready to register with an agent.
     """
     logger.info(f"Initializing ADK Skill: {skill_name}")
     skills_base_path = Path(__file__).parent.parent.parent / "skills"

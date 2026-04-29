@@ -1,5 +1,4 @@
-from vertexai import agent_engines
-from .builder import AgentBuilder
+from .builder import AgentBuilder, AppBuilder
 from .config import (
     GCP_CONFIG,
     AGENT_CONFIG,
@@ -8,6 +7,12 @@ from .config import (
     DRIVE_MCP_CONFIG,
     GCS_MCP_CONFIG,
     GOOGLE_AUTH_CONFIG,
+)
+
+from google.adk.tools import load_artifacts
+from .plugins import (
+    GetArtifactUriTool,
+    ImportGcsToArtifactTool,
 )
 
 mcp_servers_to_mount = [
@@ -29,7 +34,18 @@ root_agent = (
     )
     .with_skills(skills_to_mount)
     .with_mcp_servers(mcp_servers_to_mount)
+    .with_native_tools(
+        [
+            GetArtifactUriTool(),
+            ImportGcsToArtifactTool(),
+            load_artifacts,
+        ]
+    )
     .build()
 )
 
-app = agent_engines.AdkApp(agent=root_agent)
+app = AppBuilder(
+    agent=root_agent,
+    gcp_config=GCP_CONFIG,
+    agent_config=AGENT_CONFIG,
+).build()

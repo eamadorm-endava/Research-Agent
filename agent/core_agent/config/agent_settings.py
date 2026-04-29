@@ -1,19 +1,17 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import AliasChoices, Field
-from typing import Annotated
+from typing import Annotated, Optional
 
 
 class GCPConfig(BaseSettings):
+    """Holds configuration values for GCP services, enabling future cloud provider portability."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
     )
-    """
-    Class that holds configuration values for GCP services. Allowing to, in any future, change the
-    cloud provider or the way to access the secrets.
-    """
 
     PROJECT_ID: Annotated[
         str,
@@ -37,19 +35,24 @@ class GCPConfig(BaseSettings):
             validation_alias=AliasChoices("PROD_EXECUTION", "IS_DEPLOYED"),
         ),
     ]
+    ARTIFACT_BUCKET: Annotated[
+        str,
+        Field(
+            default="ai_agent_landing_zone",
+            description="GCS Bucket where the user-uploaded artifacts will be stored.",
+        ),
+    ]
 
 
 class AgentConfig(BaseSettings):
+    """Holds configuration values for the ADK agent: model, generation, retry, and system prompt."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
     )
-    """
-    Class that holds configuration values for the agent, it requires to assign
-    parameters after initialization.
-    """
 
     MODEL_NAME: Annotated[
         str,
@@ -98,10 +101,10 @@ class AgentConfig(BaseSettings):
         ),
     ]
     MODEL_ARMOR_TEMPLATE_ID: Annotated[
-        str,
+        Optional[str],
         Field(
-            default="dummy-template-id",
-            description="Model Armor Template ID",
+            default=None,
+            description="The final ID of the Model Armor template (e.g., 'security-template'). The full resource path (projects/.../templates/...) is constructed dynamically using the project and region settings. When None, Model Armor screening is disabled.",
         ),
     ]
     RETRY_ATTEMPTS: Annotated[
@@ -135,7 +138,7 @@ class AgentConfig(BaseSettings):
     AGENT_NAME: Annotated[
         str,
         Field(
-            default="research_agent",
+            default="core_agent",
             description="Name of the agent",
         ),
     ]
@@ -201,6 +204,17 @@ class AgentConfig(BaseSettings):
             - The ONLY text you are allowed to output to the user is either:
               1. Clarification questions from step 1.
               2. The final response from step 3.
+            ### ARTIFACT HANDLING
+            - When a user uploads a file, it is saved as a session artifact. You will see a placeholder like `[Uploaded Artifact: "filename"]` and the file becomes available in your artifact list.
+            - If you need to pass an uploaded file to a GCS tool (e.g., `upload_object`):
+              1. Use the `get_artifact_uri` tool to retrieve the artifact's GCS URI (`gs://...`).
+              2. Pass the resulting URI to the `source_uri` parameter of the GCS tool.
+            - If you need to read or analyze the content of an uploaded file (Images, PDF, Audio, Video, CSV, etc.):
+              1. Call the `load_artifacts` tool with the artifact filename to load its content into context.
+            - If you need to analyze a file that already exists in GCS (not uploaded by the user):
+              1. Use the `read_object` tool to get the object's `gcs_uri`.
+              2. Use the `import_gcs_to_artifact` tool with the `gcs_uri` to register it as a session artifact.
+              3. Call `load_artifacts` to load its content into context.
 
             ### FINAL OUTPUT FORMAT
             Be brief and consice if the user ask for a simple answer. Always answer in the same language the user is asking.
@@ -236,15 +250,14 @@ class AgentConfig(BaseSettings):
 
 
 class GoogleAuthConfig(BaseSettings):
+    """Holds shared Google OAuth 2.0 credentials used across all MCP server connections."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
     )
-    """
-    Class that holds configuration values for generic Shared Google OAuth infrastructure credentials.
-    """
 
     GOOGLE_OAUTH_CLIENT_ID: Annotated[
         str,

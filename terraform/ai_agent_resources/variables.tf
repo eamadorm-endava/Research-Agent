@@ -15,7 +15,19 @@ variable "apis_to_enable" {
   default     = {}
 }
 
+variable "main_region" {
+  description = "The main region for GCP resources."
+  type        = string
+  default     = "us-central1"
+}
+
+variable "artifact_bucket_name" {
+  description = "The name of the GCS bucket for session artifacts."
+  type        = string
+}
+
 #AI Agent service account and IAM roles
+
 variable "ai_agent_service_account_name" {
   description = "The name of the service account (the part before the @)."
   type        = string

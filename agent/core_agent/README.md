@@ -9,7 +9,7 @@ The agent is an [**LLM Agent**](../../docs/ADK/ADK-01-Intro.md#llm-agents-llmage
 ```
 core_agent/
 ├── __init__.py          # Package entry point, exports the agent module
-├── agent.py             # Application entry point, wires config → builder → agent
+├── agent.py             # Application entry point, wires config → builders → app
 ├── .env                 # Environment variables (Vertex AI, MCP URLs, OAuth)
 │
 ├── config/              # Centralized Pydantic Settings (classes + singletons)
@@ -17,11 +17,16 @@ core_agent/
 │   ├── agent_settings.py    # GCPConfig, AgentConfig, GoogleAuthConfig
 │   └── mcp_settings.py     # BaseMCPConfig + per-service subclasses
 │
-├── builder/             # Builder pattern for agent construction
-│   ├── __init__.py      # Re-exports AgentBuilder, MCPToolsetBuilder, get_skill_toolset
+├── builder/             # Builder pattern for agent and app construction
+│   ├── __init__.py      # Re-exports AgentBuilder, AppBuilder, MCPToolsetBuilder
 │   ├── agent_builder.py     # Fluent AgentBuilder orchestrator
+│   ├── app_builder.py       # Orchestrates AdkApp vs. standard App construction
 │   ├── mcp_factory.py       # MCPToolsetBuilder (auth + connection setup)
 │   └── skills_factory.py    # get_skill_toolset (ADK Skill loader)
+│
+├── plugins/             # Native tools and plugins (Artifacts, GCS promotion)
+│   ├── __init__.py      
+│   └── artifacts/       # GCS-to-Artifact import and URI retrieval tools
 │
 └── security/            # Authentication utilities
     ├── __init__.py      # Re-exports get_id_token, get_ge_oauth_token
@@ -30,15 +35,17 @@ core_agent/
 
 ## Module Overview
 
-The package is organized into three internal modules, each with a single responsibility:
+The package is organized into four internal modules, each with a single responsibility:
 
 - **`config/`** — Centralized configuration management. Contains Pydantic `BaseSettings` classes that validate environment variables at import time. Exposes both the **classes** (for type hints and testing) and **singleton instances** (for runtime usage), so consumers never need to call `os.getenv()` directly.
 
-- **`builder/`** — Agent construction logic. Separates the _what to build_ from the _how to build it_ using the Builder pattern. The `AgentBuilder` orchestrates the full agent assembly, while `MCPToolsetBuilder` and `get_skill_toolset` handle the specific construction of MCP connections and ADK skills respectively.
+- **`builder/`** — Construction logic. Separates the _what to build_ from the _how to build it_ using the Builder pattern. The `AgentBuilder` orchestrates the core agent assembly, while the `AppBuilder` handles the final application wrapper (`AdkApp` for production or `App` for local), ensuring consistent plugin and artifact configuration.
 
-- **`security/`** — Token generation utilities. Provides functions to obtain GCP identity tokens (for Cloud Run service authentication) and Gemini Enterprise OAuth tokens (for delegated user data access). These are consumed by the builder at runtime, not at construction time.
+- **`plugins/`** — Custom extensions and tools. Contains native ADK tools for artifact-to-landing-zone promotion and URI management. Persistence logic is managed by the `AppBuilder`, which conditionally registers the base `SaveFilesAsArtifactsPlugin` for local development.
 
-The entry point `agent.py` wires everything together: it imports singletons from `config/`, passes them into `AgentBuilder`, and wraps the result in an `AdkApp` for deployment.
+- **`security/`** — Token generation utilities. Provides functions to obtain GCP identity tokens (for Cloud Run service authentication) and Gemini Enterprise OAuth tokens (for delegated user data access). These are consumed by the builders at runtime, not at construction time.
+
+The entry point `agent.py` wires everything together: it imports singletons from `config/`, assembles the agent via `AgentBuilder`, and passes it to `AppBuilder` to create the final `app` instance.
 
 ## How the Components Interact
 
@@ -60,6 +67,9 @@ sequenceDiagram
     MCPToolsetBuilder-->>AgentBuilder: McpToolset
     agent.py->>AgentBuilder: .build()
     AgentBuilder-->>agent.py: Agent
+    agent.py->>AppBuilder: Agent, AgentConfig, GCPConfig
+    agent.py->>AppBuilder: .build()
+    AppBuilder-->>agent.py: AdkApp / App
 ```
 
 ### Reading the Diagram
@@ -70,7 +80,9 @@ sequenceDiagram
 
 3. **MCP registration** — When `agent.py` calls `.with_mcp_servers(...)`, the builder passes each MCP config to `MCPToolsetBuilder.build()`. The MCP builder uses the `security` module to obtain an ID token (for Cloud Run access) and an OAuth token (for delegated user data), then returns a fully configured `McpToolset`.
 
-4. **Final assembly** — `agent.py` calls `.build()`, which assembles the `Agent` with the accumulated tools, model settings, and planner. The returned `Agent` is then wrapped in `AdkApp` for deployment.
+4. **Agent assembly** — `agent.py` calls `AgentBuilder.build()`, which assembles the `Agent` with the accumulated tools and settings.
+
+5. **Application wrapping** — Finally, `agent.py` passes the constructed `Agent` to the `AppBuilder`. Calling `.build()` on the app builder produces the final `AdkApp` (for production) or `App` (for local), pre-configured with the necessary plugins and artifact storage settings.
 
 ## Benefits of This Architecture
 
@@ -92,6 +104,38 @@ sequenceDiagram
 | **Singleton Coupling** | Module-level singletons (`GCP_CONFIG`, etc.) are instantiated at import time, which can conflict with test fixtures that need isolated environments |
 | **Builder Complexity** | For a single-agent system, the full builder + factory pattern may feel over-engineered compared to a flat script. The value scales with the number of tools/configs |
 | **Private API Dependency** | Some tests rely on internal attributes of ADK classes (e.g., `_skills`, `_connection_params`), which may break on library upgrades |
+
+## Gemini Enterprise Artifact Lifecycle
+
+As documented in **[ADK Python Issue #4273](https://github.com/google/adk-python/issues/4273)**, Gemini Enterprise requires explicit manual handling for both file ingestion (from user uploads) and visual rendering (for tool outputs).
+
+The following diagram illustrates how the Research-Agent orchestrates this lifecycle:
+
+```mermaid
+graph TD
+    subgraph "1. Ingestion Phase (Plugin)"
+    A[User Uploads File] --> B{GE Ingestion Plugin}
+    B -->|Save| C[(GCS Artifact Store)]
+    B -->|Replace| D[GCS URI Reference]
+    end
+
+    subgraph "2. Execution Phase (Tools)"
+    D --> E[Agent reasoning]
+    E --> F[Tool Import/Export]
+    F -->|Save| C
+    F -->|Stash| G[Session State Queue]
+    end
+
+    subgraph "3. Rendering Phase (Callback)"
+    G --> H{Post-Turn Callback}
+    C -->|Load| H
+    H -->|Inline Part| I[Gemini UI Rendering]
+    end
+```
+
+1.  **Ingestion**: User uploads arrive as inline binary data. The `GeminiEnterpriseFileIngestionPlugin` persists them to GCS and replaces them with a `file_data` reference to save tokens and avoid redundant storage.
+2.  **Execution**: Tools perform their logic and save results to GCS. Because tools must return simple types (`str`/`dict`), they "stash" the filename in the session state.
+3.  **Rendering**: The `render_pending_artifacts` callback (registered as an `after_agent_callback`) loads the stashed artifacts from GCS and returns them as inline `types.Part` objects, which is the only format Gemini Enterprise can render visually.
 
 ## Integrated Tools
 
