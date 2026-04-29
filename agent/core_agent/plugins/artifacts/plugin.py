@@ -1,4 +1,5 @@
 import copy
+import hashlib
 from typing import Optional
 
 from google.adk.agents.invocation_context import InvocationContext
@@ -66,9 +67,8 @@ class DeduplicatingArtifactPlugin(SaveFilesAsArtifactsPlugin):
                 continue
 
             inline_data = part.inline_data
-            file_name = (
-                inline_data.display_name
-                or f"artifact_{invocation_context.invocation_id}_{i}"
+            file_name = inline_data.display_name or self._stable_name_from_content(
+                inline_data.data, inline_data.mime_type
             )
             display_name = file_name
 
@@ -114,6 +114,25 @@ class DeduplicatingArtifactPlugin(SaveFilesAsArtifactsPlugin):
         if modified:
             return types.Content(role=user_message.role, parts=new_parts)
         return None
+
+    def _stable_name_from_content(
+        self, data: Optional[bytes], mime_type: Optional[str]
+    ) -> str:
+        """Derives a deterministic filename from file bytes when display_name is absent.
+
+        Uses a SHA-256 content hash so the same file always maps to the same key,
+        enabling deduplication across turns even when Gemini Enterprise omits display_name.
+
+        Args:
+            data: Optional[bytes] -> Raw file bytes.
+            mime_type: Optional[str] -> MIME type used to derive the file extension.
+
+        Returns:
+            str -> A stable filename of the form artifact_<hex16>.<ext>.
+        """
+        ext = (mime_type or "application/octet-stream").split("/")[-1]
+        digest = hashlib.sha256(data or b"").hexdigest()[:16]
+        return f"artifact_{digest}.{ext}"
 
     async def _get_latest_version(
         self,
