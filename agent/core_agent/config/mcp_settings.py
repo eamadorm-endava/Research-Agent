@@ -27,6 +27,8 @@ class GCSScopes(StrEnum):
     """Enum for Google Cloud Storage OAuth scopes."""
 
     CLOUD_PLATFORM = "https://www.googleapis.com/auth/cloud-platform"
+    OPENID = "openid"
+    EMAIL = "email"
 
 
 def _scopes_to_dict(v: Union[list, dict[str, str]], description: str) -> dict[str, str]:
@@ -233,7 +235,11 @@ class GCSMCPConfig(BaseMCPConfig):
     OAUTH_SCOPES: Annotated[
         Union[dict[str, str], list[GCSScopes]],
         Field(
-            default=[GCSScopes.CLOUD_PLATFORM],
+            default=[
+                GCSScopes.CLOUD_PLATFORM,
+                GCSScopes.OPENID,
+                GCSScopes.EMAIL,
+            ],
             description="OAuth scopes requested by the agent.",
             validation_alias="GCS_OAUTH_SCOPES",
         ),
