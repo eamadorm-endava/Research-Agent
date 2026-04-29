@@ -1,8 +1,10 @@
+import asyncio
 import copy
 from typing import Optional
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.plugins.base_plugin import BasePlugin
+from google.cloud import storage
 from google.genai import types
 from loguru import logger
 
@@ -123,6 +125,9 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
             if gcs_part:
                 result.append(gcs_part)
+                await self._grant_uploader_object_acl(
+                    gcs_part.file_data.file_uri, invocation_context.user_id
+                )
             return result
 
         except Exception as exc:
@@ -181,3 +186,39 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 display_name=filename,
             )
         )
+
+    async def _grant_uploader_object_acl(
+        self, canonical_uri: str, user_email: str
+    ) -> None:
+        """Grants the uploading user OWNER-level ACL on their uploaded GCS object.
+
+        Uses Application Default Credentials (service account) to set per-object ACL,
+        giving the uploader storage.objectAdmin access over the specific file they uploaded.
+        Logs a warning without raising if the grant fails (e.g., uniform bucket-level access).
+
+        Args:
+            canonical_uri: str -> The canonical gs:// URI of the uploaded GCS object.
+            user_email: str -> The email of the user who performed the upload.
+
+        Returns:
+            None
+        """
+        try:
+            object_path = canonical_uri[len("gs://") :]
+            bucket_name, object_name = object_path.split("/", 1)
+            client = storage.Client()
+            blob = client.bucket(bucket_name).blob(object_name)
+
+            def _apply_acl() -> None:
+                blob.acl.reload()
+                blob.acl.user(user_email).grant_owner()
+                blob.acl.save()
+
+            await asyncio.to_thread(_apply_acl)
+            logger.info(
+                f"Granted OWNER ACL on '{canonical_uri}' for uploader: {user_email}"
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Could not set uploader ACL on '{canonical_uri}' for '{user_email}': {exc}"
+            )
