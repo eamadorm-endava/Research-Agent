@@ -219,6 +219,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         Returns:
             None
         """
+        logger.debug(f"Part as json: {part.model_dump()}")
         inline = getattr(part, "inline_data", None)
         file_data = getattr(part, "file_data", None)
         text = getattr(part, "text", None)
