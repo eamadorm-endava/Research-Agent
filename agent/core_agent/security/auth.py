@@ -1,5 +1,3 @@
-import base64
-import json
 from typing import Optional
 
 from loguru import logger
@@ -71,35 +69,3 @@ def get_ge_oauth_token(
         logger.error(f"Available keys: {readonly_context.state.keys()}")
 
     return oauth_token
-
-
-def extract_user_email_from_token(token: str) -> Optional[str]:
-    """Decodes the JWT payload from a Gemini Enterprise OAuth token to extract the user email.
-
-    Performs base64url decoding of the JWT middle segment without signature verification,
-    relying solely on the token already being trusted (injected by GE into session state).
-
-    Args:
-        token: str -> The JWT-formatted OAuth token string.
-
-    Returns:
-        Optional[str] -> The email claim from the payload, or None if unavailable.
-    """
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            logger.debug(
-                f"Token is not JWT-formatted (found {len(parts)} segments). "
-                f"It appears to be an opaque Access Token. "
-                f"Token prefix: {token[:10]}..."
-            )
-            return None
-        padding = "=" * (-len(parts[1]) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
-        email = payload.get("email")
-        if email:
-            logger.debug(f"Extracted GE user email from token payload: {email}")
-        return email
-    except Exception as exc:
-        logger.warning(f"Failed to decode OAuth token for email extraction: {exc}")
-        return None

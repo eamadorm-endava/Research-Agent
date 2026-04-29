@@ -3,14 +3,10 @@ import copy
 from typing import Optional
 
 from google.adk.agents.invocation_context import InvocationContext
-from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.plugins.base_plugin import BasePlugin
 from google.cloud import storage
 from google.genai import types
 from loguru import logger
-
-from ..config import GCS_MCP_CONFIG
-from ..security import extract_user_email_from_token, get_ge_oauth_token
 
 
 class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
@@ -54,16 +50,8 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             return None
 
         logger.info(
-            f"GeminiEnterpriseFileIngestionPlugin: Intercepted message with {len(user_message.parts)} part(s). "
-            f"Context User ID: {invocation_context.user_id}"
+            f"GeminiEnterpriseFileIngestionPlugin: Intercepted message with {len(user_message.parts)} part(s) from user: {invocation_context.user_id}"
         )
-
-        # Log session state keys to see if GE is providing alternative identity tokens
-        try:
-            state_keys = list(invocation_context.session.state.keys())
-            logger.debug(f"Available session state keys: {state_keys}")
-        except Exception:
-            pass
 
         # 1. Grant ACLs to any GCS references already present in the message (pre-uploaded by GE)
         await self._grant_acl_on_gcs_file_data(invocation_context, user_message.parts)
@@ -151,21 +139,12 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
             if gcs_part:
                 result.append(gcs_part)
+                logger.info(
+                    f"Granting OWNER ACL on '{gcs_part.file_data.file_uri}' to '{invocation_context.user_id}'"
+                )
                 await self._grant_uploader_object_acl(
                     gcs_part.file_data.file_uri, invocation_context.user_id
                 )
-                ge_user_email = self._extract_ge_user_email(invocation_context)
-                if ge_user_email:
-                    logger.info(
-                        f"Found GE user identity '{ge_user_email}'. Granting OWNER ACL on '{gcs_part.file_data.file_uri}'"
-                    )
-                    await self._grant_uploader_object_acl(
-                        gcs_part.file_data.file_uri, ge_user_email
-                    )
-                else:
-                    logger.warning(
-                        f"GE identity could not be extracted for '{filename}'. Object will only be accessible by the agent SA."
-                    )
             return result
 
         except Exception as exc:
@@ -225,35 +204,6 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
         )
 
-    def _extract_ge_user_email(
-        self, invocation_context: InvocationContext
-    ) -> Optional[str]:
-        """Extracts the Gemini Enterprise user email from the OAuth token in session state.
-
-        Reads the OAuth token injected by Gemini Enterprise under the GCS auth resource ID,
-        then decodes its JWT payload to retrieve the caller's email address.
-
-        Args:
-            invocation_context: InvocationContext -> The ADK invocation context with session state.
-
-        Returns:
-            Optional[str] -> The GE user's email, or None if the token is absent or unparseable.
-        """
-        try:
-            readonly_ctx = ReadonlyContext(invocation_context)
-            token = get_ge_oauth_token(
-                readonly_ctx, GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID
-            )
-            if not token:
-                logger.debug(
-                    "No GE OAuth token in session state; skipping GE user ACL grant"
-                )
-                return None
-            return extract_user_email_from_token(token)
-        except Exception as exc:
-            logger.warning(f"Could not read GE OAuth token from session state: {exc}")
-            return None
-
     async def _grant_acl_on_gcs_file_data(
         self, invocation_context: InvocationContext, parts: list[types.Part]
     ) -> None:
@@ -266,8 +216,9 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             invocation_context: InvocationContext -> Context with session state.
             parts: list[types.Part] -> Message parts to scan for GCS references.
         """
-        ge_user_email = self._extract_ge_user_email(invocation_context)
-        if not ge_user_email:
+        user_identity = invocation_context.user_id
+        if not user_identity:
+            logger.warning("No user identity found in context; skipping ACL grant.")
             return
 
         for part in parts:
@@ -281,9 +232,9 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
 
             if file_uri.startswith("gs://"):
                 logger.info(
-                    f"Found existing GCS reference: {file_uri}. Granting ACL to {ge_user_email}"
+                    f"Found existing GCS reference: {file_uri}. Granting OWNER ACL to {user_identity}"
                 )
-                await self._grant_uploader_object_acl(file_uri, ge_user_email)
+                await self._grant_uploader_object_acl(file_uri, user_identity)
 
     async def _grant_uploader_object_acl(
         self, canonical_uri: str, user_email: str
