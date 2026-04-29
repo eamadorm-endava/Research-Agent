@@ -334,6 +334,124 @@ async def test_one_failed_part_does_not_prevent_other_parts_from_processing():
     assert len(result.parts) == 3  # original failing + placeholder + file_data for good
 
 
+# ─── GE Text-Extraction Format ───────────────────────────────────────────────
+
+
+def _make_ge_text_part(filename: str, content: str) -> list:
+    """Build the 2-part GE text-extraction structure for a single file."""
+    start = MagicMock(spec=types.Part)
+    start.inline_data = None
+    start.file_data = None
+    start.text = f"\n<start_of_user_uploaded_file: {filename}>\n{content}\n"
+
+    end = MagicMock(spec=types.Part)
+    end.inline_data = None
+    end.file_data = None
+    end.text = f"<end_of_user_uploaded_file: {filename}>\n"
+
+    return [start, end]
+
+
+async def test_ge_text_extracted_file_is_saved_and_placeholder_returned():
+    """Should save a GE text-extracted file as a .txt artifact and replace the tag block."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    text_part = _make_text_part("Summarize this")
+    file_parts = _make_ge_text_part("report.pdf", "This is the extracted PDF text.")
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://bucket/report.pdf.txt")
+    )
+    msg = _make_user_message([text_part] + file_parts)
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client"):
+        result = await plugin.on_user_message_callback(
+            invocation_context=ctx, user_message=msg
+        )
+
+    assert result is not None
+    ctx.artifact_service.save_artifact.assert_called_once()
+    call_kwargs = ctx.artifact_service.save_artifact.call_args.kwargs
+    assert call_kwargs["filename"] == "report.pdf.txt"
+    assert call_kwargs["user_id"] == "user-1"
+    placeholder_texts = [p.text for p in result.parts if hasattr(p, "text") and p.text]
+    assert any('[Uploaded Artifact: "report.pdf"]' in t for t in placeholder_texts)
+
+
+async def test_ge_text_extracted_file_preserves_non_file_text():
+    """Should keep the user's prompt text and strip only the GE file tag block."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    text_part = _make_text_part("Summarize this")
+    file_parts = _make_ge_text_part("doc.pdf", "PDF content here.")
+    ctx = _make_invocation_context(
+        artifact_version=_make_artifact_version("gs://bucket/doc.pdf.txt")
+    )
+    msg = _make_user_message([text_part] + file_parts)
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client"):
+        result = await plugin.on_user_message_callback(
+            invocation_context=ctx, user_message=msg
+        )
+
+    assert result is not None
+    all_text = " ".join(p.text for p in result.parts if getattr(p, "text", None))
+    assert "Summarize this" in all_text
+
+
+async def test_multiple_ge_text_extracted_files_all_saved():
+    """Should save every GE text-extracted file found across all parts."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    parts_a = _make_ge_text_part("a.pdf", "Content of A.")
+    parts_b = _make_ge_text_part("b.pdf", "Content of B.")
+
+    svc = AsyncMock()
+    svc.save_artifact = AsyncMock(side_effect=[0, 1])
+    v_a = _make_artifact_version("gs://bucket/a.pdf.txt")
+    v_b = _make_artifact_version("gs://bucket/b.pdf.txt")
+    svc.get_artifact_version = AsyncMock(side_effect=[v_a, v_b])
+    ctx = _make_invocation_context(artifact_service=svc)
+    msg = _make_user_message(parts_a + parts_b)
+
+    with patch("agent.core_agent.plugins.user_uploads.storage.Client"):
+        result = await plugin.on_user_message_callback(
+            invocation_context=ctx, user_message=msg
+        )
+
+    assert result is not None
+    assert svc.save_artifact.call_count == 2
+
+
+async def test_ge_text_extracted_file_falls_back_on_save_failure():
+    """Should restore the original tag block when artifact save fails."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    file_parts = _make_ge_text_part("fail.pdf", "Some content.")
+    svc = AsyncMock()
+    svc.save_artifact = AsyncMock(side_effect=RuntimeError("GCS write error"))
+    ctx = _make_invocation_context(artifact_service=svc)
+    msg = _make_user_message(file_parts)
+
+    result = await plugin.on_user_message_callback(
+        invocation_context=ctx, user_message=msg
+    )
+
+    assert result is not None
+    assert any(
+        "start_of_user_uploaded_file" in (getattr(p, "text", "") or "")
+        for p in result.parts
+    )
+
+
+async def test_returns_none_when_no_inline_data_and_no_ge_text_blocks():
+    """Should return None when neither inline_data nor GE text blocks are present."""
+    plugin = GeminiEnterpriseFileIngestionPlugin()
+    ctx = _make_invocation_context()
+    msg = _make_user_message([_make_text_part("Just a question, no file")])
+
+    result = await plugin.on_user_message_callback(
+        invocation_context=ctx, user_message=msg
+    )
+
+    assert result is None
+
+
 # ─── ACL Grant ────────────────────────────────────────────────────────────────
 
 

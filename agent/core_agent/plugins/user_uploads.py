@@ -1,10 +1,9 @@
-import asyncio
 import copy
+import re
 from typing import Optional
 
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.plugins.base_plugin import BasePlugin
-from google.cloud import storage
 from google.genai import types
 from loguru import logger
 
@@ -59,16 +58,23 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         await self._grant_acl_on_gcs_file_data(invocation_context, user_message.parts)
 
         # 2. Process inline binary data, saving it to GCS and replacing with references
-        new_parts, modified = await self._process_message_parts(
+        parts, modified_inline = await self._process_message_parts(
             invocation_context, user_message.parts
         )
 
-        if not modified:
-            logger.debug("No inline data found; message left unmodified by plugin.")
+        # 3. Process GE text-extracted blocks (tags in text parts)
+        new_parts, modified_text = await self._process_ge_text_blocks(
+            invocation_context, parts
+        )
+
+        if not (modified_inline or modified_text):
+            logger.debug(
+                "No inline data or GE text blocks found; message left unmodified."
+            )
             return None
 
         logger.info(
-            "Plugin modified message: replaced inline data with GCS references."
+            f"Plugin modified message: inline={modified_inline}, text_blocks={modified_text}"
         )
         return types.Content(role=user_message.role, parts=new_parts)
 
@@ -101,6 +107,129 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
 
         return new_parts, modified
 
+    async def _process_ge_text_blocks(
+        self,
+        invocation_context: InvocationContext,
+        parts: list[types.Part],
+    ) -> tuple[list[types.Part], bool]:
+        """Scans text parts for GE file delimiters, persists content to GCS, and replaces tags.
+
+        Handles cases where tags and content may be split across multiple consecutive text parts.
+
+        Args:
+            invocation_context: InvocationContext -> Context with artifact service.
+            parts: list[types.Part] -> Current message parts.
+
+        Returns:
+            tuple[list[types.Part], bool] -> (processed parts, whether any text blocks were modified).
+        """
+        # Regex to find: <start_of_user_uploaded_file: filename> ... <end_of_user_uploaded_file: filename>
+        # Handles optional newlines and spaces.
+        ge_tag_pattern = re.compile(
+            r"\n?<start_of_user_uploaded_file:\s*(.*?)\s*>\n?(.*?)\n?<end_of_user_uploaded_file:\s*\1\s*>\n?",
+            re.DOTALL,
+        )
+
+        new_parts = []
+        modified = False
+        i = 0
+        while i < len(parts):
+            # Identify a sequence of consecutive text parts
+            if getattr(parts[i], "text", None) is None:
+                new_parts.append(parts[i])
+                i += 1
+                continue
+
+            text_sequence = []
+            start_idx = i
+            while i < len(parts) and getattr(parts[i], "text", None) is not None:
+                text_sequence.append(parts[i].text)
+                i += 1
+
+            full_text = "".join(text_sequence)
+            matches = list(ge_tag_pattern.finditer(full_text))
+
+            if not matches:
+                # No blocks in this sequence; restore the original parts
+                new_parts.extend(parts[start_idx:i])
+                continue
+
+            # Process matches and replace in text
+            modified = True
+            last_end = 0
+            for match in matches:
+                # Keep text before the match
+                prefix = full_text[last_end : match.start()]
+                if prefix:
+                    new_parts.append(types.Part(text=prefix))
+
+                filename = match.group(1)
+                content = match.group(2)
+
+                # Save the extracted text as a .txt artifact
+                replacement_parts = await self._process_ge_text_match(
+                    invocation_context, filename, content, match.group(0)
+                )
+                new_parts.extend(replacement_parts)
+                last_end = match.end()
+
+            # Keep text after the last match
+            suffix = full_text[last_end:]
+            if suffix:
+                new_parts.append(types.Part(text=suffix))
+
+        return new_parts, modified
+
+    async def _process_ge_text_match(
+        self,
+        invocation_context: InvocationContext,
+        filename: str,
+        content: str,
+        original_text: str,
+    ) -> list[types.Part]:
+        """Saves a single GE text block as a .txt artifact and returns replacement parts.
+
+        Args:
+            invocation_context: InvocationContext -> Context with artifact service.
+            filename: str -> Original filename from the tag.
+            content: str -> Extracted text content.
+            original_text: str -> The raw text of the match, used as a fallback on failure.
+
+        Returns:
+            list[types.Part] -> Replacement parts: text placeholder and GCS reference.
+        """
+        txt_filename = f"{filename}.txt"
+        logger.info(
+            f"Persisting GE text-extracted file to artifact store: {txt_filename}"
+        )
+
+        try:
+            # Create a text Part for the extracted content
+            text_part = types.Part(text=content)
+
+            # save_artifact in GeminiEnterpriseGcsArtifactService automatically grants ACLs
+            version = await invocation_context.artifact_service.save_artifact(
+                app_name=invocation_context.app_name,
+                user_id=invocation_context.user_id,
+                session_id=invocation_context.session.id,
+                filename=txt_filename,
+                artifact=text_part,
+            )
+
+            result = [types.Part(text=f'[Uploaded Artifact: "{filename}"]')]
+            gcs_part = await self._build_gcs_reference_part(
+                invocation_context, txt_filename, version, "text/plain"
+            )
+            if gcs_part:
+                result.append(gcs_part)
+
+            return result
+
+        except Exception as exc:
+            logger.error(f"Failed to persist GE text block '{filename}': {exc}")
+            # On failure, return the original text block to avoid data loss
+            return [types.Part(text=original_text)]
+
     async def _process_file_part(
         self,
         invocation_context: InvocationContext,
@@ -127,6 +256,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
             logger.info(f"Persisting GE user upload to artifact store: {filename}")
 
+            # save_artifact in GeminiEnterpriseGcsArtifactService automatically grants ACLs
             version = await invocation_context.artifact_service.save_artifact(
                 app_name=invocation_context.app_name,
                 user_id=invocation_context.user_id,
@@ -141,12 +271,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
             if gcs_part:
                 result.append(gcs_part)
-                logger.info(
-                    f"Granting OWNER ACL on '{gcs_part.file_data.file_uri}' to '{invocation_context.user_id}'"
-                )
-                await self._grant_uploader_object_acl(
-                    gcs_part.file_data.file_uri, invocation_context.user_id
-                )
+
             return result
 
         except Exception as exc:
@@ -260,128 +385,22 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             logger.warning("No user identity found in context; skipping ACL grant.")
             return
 
+        # We try to use the custom service's ACL method if available
+        svc = invocation_context.artifact_service
+        grant_fn = getattr(svc, "grant_uploader_object_acl", None)
+
+        if not grant_fn:
+            logger.debug(
+                "Artifact service does not support manual ACL grants; skipping pre-existing files."
+            )
+            return
+
         for part in parts:
             file_data = getattr(part, "file_data", None)
             file_uri = getattr(file_data, "file_uri", None) if file_data else None
 
             if file_uri and file_uri.startswith("gs://"):
                 logger.info(
-                    f"Found existing GCS reference: {file_uri}. Granting OWNER ACL to {user_identity}"
+                    f"Found existing GCS reference: {file_uri}. Requesting ACL grant for {user_identity}"
                 )
-                await self._grant_uploader_object_acl(file_uri, user_identity)
-            else:
-                # Debug log to see structure of parts that are not GCS references
-                part_summary = {
-                    "has_inline_data": part.inline_data is not None,
-                    "has_file_data": file_data is not None,
-                    "has_text": getattr(part, "text", None) is not None,
-                }
-                logger.debug(f"Part skipped by GCS scanner: {part_summary}")
-
-    async def _grant_uploader_object_acl(
-        self, canonical_uri: str, user_email: str
-    ) -> None:
-        """Grants roles/storage.objectAdmin to the uploader on their GCS object via IAM.
-
-        Uses a conditional IAM binding at the bucket level. This approach is
-        compatible with UBLA-enabled buckets (the expected landing zone configuration).
-        Logs a warning without raising to avoid blocking the upload flow on errors.
-
-        Args:
-            canonical_uri: str -> The canonical gs:// URI of the uploaded GCS object.
-            user_email: str -> The email of the user who performed the upload.
-
-        Returns:
-            None
-        """
-        try:
-            object_path = canonical_uri[len("gs://") :]
-            bucket_name, object_name = object_path.split("/", 1)
-            client = storage.Client()
-            bucket = client.bucket(bucket_name)
-
-            def _apply_updates() -> None:
-                blob = bucket.get_blob(object_name)
-                if not blob:
-                    raise ValueError(
-                        f"Blob not found for ACL/Metadata grant: {canonical_uri}"
-                    )
-                self._grant_iam_conditional_binding(
-                    bucket, bucket_name, object_name, user_email
-                )
-                self._stamp_uploader_metadata(blob, user_email)
-
-            await asyncio.to_thread(_apply_updates)
-            logger.info(
-                f"Successfully granted objectAdmin and stamped metadata on '{canonical_uri}' for: {user_email}"
-            )
-        except Exception as exc:
-            logger.warning(
-                f"Could not grant objectAdmin on '{canonical_uri}' for '{user_email}': {exc}"
-            )
-
-    def _grant_iam_conditional_binding(
-        self,
-        bucket: storage.Bucket,
-        bucket_name: str,
-        object_name: str,
-        user_email: str,
-    ) -> None:
-        """Adds a conditional IAM binding granting roles/storage.objectAdmin on a specific object.
-
-        Skips the update when an identical binding already exists to avoid policy bloat.
-        Requires IAM policy version 3 to support conditional bindings.
-
-        Args:
-            bucket: storage.Bucket -> The GCS bucket whose IAM policy is updated.
-            bucket_name: str -> Bucket name used to build the resource condition expression.
-            object_name: str -> Object path within the bucket.
-            user_email: str -> The user to receive the objectAdmin role.
-
-        Returns:
-            None
-        """
-        resource_name = f"projects/_/buckets/{bucket_name}/objects/{object_name}"
-        condition_expr = f'resource.name == "{resource_name}"'
-        policy = bucket.get_iam_policy(requested_policy_version=3)
-        policy.version = 3
-        already_granted = any(
-            b.get("role") == "roles/storage.objectAdmin"
-            and f"user:{user_email}" in b.get("members", set())
-            and (b.get("condition") or {}).get("expression") == condition_expr
-            for b in policy.bindings
-        )
-        if already_granted:
-            logger.debug(
-                f"IAM binding already exists for '{user_email}' on '{resource_name}'"
-            )
-            return
-        policy.bindings.append(
-            {
-                "role": "roles/storage.objectAdmin",
-                "members": {f"user:{user_email}"},
-                "condition": {
-                    "title": "uploader-object-access",
-                    "expression": condition_expr,
-                },
-            }
-        )
-        bucket.set_iam_policy(policy)
-        logger.info(
-            f"Granted roles/storage.objectAdmin to '{user_email}' on '{resource_name}'"
-        )
-
-    def _stamp_uploader_metadata(self, blob: storage.Blob, user_email: str) -> None:
-        """Records the uploader's email in the blob's custom metadata.
-
-        Args:
-            blob: storage.Blob -> The GCS blob to update.
-            user_email: str -> The uploader's email address to store.
-
-        Returns:
-            None
-        """
-        new_metadata = dict(blob.metadata or {})
-        new_metadata["uploader"] = user_email
-        blob.metadata = new_metadata
-        blob.patch()
+                await grant_fn(file_uri, user_identity)
