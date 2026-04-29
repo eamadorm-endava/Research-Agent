@@ -1,4 +1,5 @@
 import copy
+import mimetypes
 import re
 from typing import Optional
 
@@ -323,10 +324,16 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         logger.debug(
             f"GCS URI resolved for '{filename}': {artifact_version.canonical_uri}"
         )
+        # Gemini does not support 'application/octet-stream'.
+        res_mime_type = mime_type or artifact_version.mime_type
+        if not res_mime_type or res_mime_type == "application/octet-stream":
+            guessed, _ = mimetypes.guess_type(filename)
+            res_mime_type = guessed or "application/pdf"
+
         return types.Part(
             file_data=types.FileData(
                 file_uri=artifact_version.canonical_uri,
-                mime_type=mime_type or artifact_version.mime_type,
+                mime_type=res_mime_type,
                 display_name=filename,
             )
         )

@@ -1,4 +1,5 @@
 import asyncio
+import mimetypes
 from typing import Optional
 
 from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
@@ -63,10 +64,16 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
             file_uri = f"gs://{self.bucket.name}/{blob_name}"
             logger.debug(f"Resolved artifact reference for agent: {file_uri}")
 
+            # Gemini does not support 'application/octet-stream'. We must provide a valid type.
+            res_mime_type = blob.content_type
+            if not res_mime_type or res_mime_type == "application/octet-stream":
+                guessed, _ = mimetypes.guess_type(filename)
+                res_mime_type = guessed or "application/pdf"
+
             return types.Part(
                 file_data=types.FileData(
                     file_uri=file_uri,
-                    mime_type=blob.content_type or "application/octet-stream",
+                    mime_type=res_mime_type,
                 )
             )
         except Exception as exc:
