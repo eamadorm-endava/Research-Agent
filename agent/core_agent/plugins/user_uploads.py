@@ -3,13 +3,14 @@ import copy
 from typing import Optional
 
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.plugins.base_plugin import BasePlugin
 from google.cloud import storage
 from google.genai import types
 from loguru import logger
 
 from ..config import GCS_MCP_CONFIG
-from ..security import extract_user_email_from_token
+from ..security import extract_user_email_from_token, get_ge_oauth_token
 
 
 class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
@@ -32,7 +33,8 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         invocation_context: InvocationContext,
         user_message: types.Content,
     ) -> Optional[types.Content]:
-        """Intercepts the user message, persists any inline files to GCS, and replaces binary payloads with GCS URI references.
+        """Intercepts the user message, persists any inline files to GCS, replaces binary payloads
+        with GCS URI references, and grants OWNER ACL on GCS file_data references pre-uploaded by GE.
 
         Args:
             invocation_context: InvocationContext -> Full invocation context with artifact service access.
@@ -48,15 +50,28 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             return None
 
         if not user_message.parts:
+            logger.debug("User message has no parts; skipping GE file ingestion.")
             return None
 
+        logger.info(
+            f"GeminiEnterpriseFileIngestionPlugin: Intercepted message with {len(user_message.parts)} part(s)"
+        )
+
+        # 1. Grant ACLs to any GCS references already present in the message (pre-uploaded by GE)
+        await self._grant_acl_on_gcs_file_data(invocation_context, user_message.parts)
+
+        # 2. Process inline binary data, saving it to GCS and replacing with references
         new_parts, modified = await self._process_message_parts(
             invocation_context, user_message.parts
         )
 
         if not modified:
+            logger.debug("No inline data found; message left unmodified by plugin.")
             return None
 
+        logger.info(
+            "Plugin modified message: replaced inline data with GCS references."
+        )
         return types.Content(role=user_message.role, parts=new_parts)
 
     async def _process_message_parts(
@@ -133,8 +148,15 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 )
                 ge_user_email = self._extract_ge_user_email(invocation_context)
                 if ge_user_email:
+                    logger.info(
+                        f"Found GE user identity '{ge_user_email}'. Granting OWNER ACL on '{gcs_part.file_data.file_uri}'"
+                    )
                     await self._grant_uploader_object_acl(
                         gcs_part.file_data.file_uri, ge_user_email
+                    )
+                else:
+                    logger.warning(
+                        f"GE identity could not be extracted for '{filename}'. Object will only be accessible by the agent SA."
                     )
             return result
 
@@ -210,7 +232,10 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             Optional[str] -> The GE user's email, or None if the token is absent or unparseable.
         """
         try:
-            token = invocation_context.state.get(GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID)
+            readonly_ctx = ReadonlyContext(invocation_context)
+            token = get_ge_oauth_token(
+                readonly_ctx, GCS_MCP_CONFIG.GEMINI_GOOGLE_AUTH_ID
+            )
             if not token:
                 logger.debug(
                     "No GE OAuth token in session state; skipping GE user ACL grant"
@@ -220,6 +245,37 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         except Exception as exc:
             logger.warning(f"Could not read GE OAuth token from session state: {exc}")
             return None
+
+    async def _grant_acl_on_gcs_file_data(
+        self, invocation_context: InvocationContext, parts: list[types.Part]
+    ) -> None:
+        """Grants OWNER ACL to the uploader on any GCS file_data references already in the message.
+
+        Gemini Enterprise may pre-upload larger files directly to GCS and pass them as file_data
+        parts. This ensures those objects also receive the correct uploader identity ACLs.
+
+        Args:
+            invocation_context: InvocationContext -> Context with session state.
+            parts: list[types.Part] -> Message parts to scan for GCS references.
+        """
+        ge_user_email = self._extract_ge_user_email(invocation_context)
+        if not ge_user_email:
+            return
+
+        for part in parts:
+            file_data = getattr(part, "file_data", None)
+            if not file_data:
+                continue
+
+            file_uri = getattr(file_data, "file_uri", None)
+            if not file_uri:
+                continue
+
+            if file_uri.startswith("gs://"):
+                logger.info(
+                    f"Found existing GCS reference: {file_uri}. Granting ACL to {ge_user_email}"
+                )
+                await self._grant_uploader_object_acl(file_uri, ge_user_email)
 
     async def _grant_uploader_object_acl(
         self, canonical_uri: str, user_email: str
