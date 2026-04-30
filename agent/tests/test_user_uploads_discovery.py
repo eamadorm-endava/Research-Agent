@@ -1,7 +1,9 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from google.genai import types
-from agent.core_agent.plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
+from agent.core_agent.plugins.ingestion.plugin import (
+    GeminiEnterpriseFileIngestionPlugin,
+)
 
 pytestmark = pytest.mark.asyncio
 

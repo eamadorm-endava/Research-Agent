@@ -2,7 +2,9 @@ import pytest
 from unittest.mock import MagicMock
 from agent.core_agent.builder import AppBuilder
 from agent.core_agent.config import GCPConfig, AgentConfig
-from agent.core_agent.plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
+from agent.core_agent.plugins.ingestion.plugin import (
+    GeminiEnterpriseFileIngestionPlugin,
+)
 from google.adk.agents import BaseAgent
 from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin

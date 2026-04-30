@@ -1,10 +1,10 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from agent.core_agent.plugins.storage.callbacks import (
+from agent.core_agent.artifact_management.schemas import (
     PENDING_URI_KEY,
 )
-from agent.core_agent.plugins.storage.tools import (
+from agent.core_agent.tools.artifact_tools import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
 )
