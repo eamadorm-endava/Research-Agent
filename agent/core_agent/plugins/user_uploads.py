@@ -202,6 +202,12 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         Returns:
             list[types.Part] -> Replacement parts: text placeholder and GCS reference.
         """
+        if not content or not content.strip():
+            logger.warning(
+                f"Extracted content for '{filename}' is empty; skipping artifact persistence."
+            )
+            return [types.Part(text=f'[Empty/Non-text Artifact: "{filename}"]')]
+
         txt_filename = f"{filename}.txt"
         logger.info(
             f"Persisting GE text-extracted file to artifact store: {txt_filename}"
