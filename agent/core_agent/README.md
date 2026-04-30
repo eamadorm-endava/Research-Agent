@@ -24,14 +24,22 @@ core_agent/
 │   ├── mcp_factory.py       # MCPToolsetBuilder (auth + connection setup)
 │   └── skills_factory.py    # get_skill_toolset (ADK Skill loader)
 │
-├── storage/             # GCS persistence and IAM security layer
+├── artifact_management/ # Infrastructure: GCS persistence and IAM security
 │   ├── __init__.py      
+│   ├── schemas.py       # Shared Request/Response models and state keys
 │   └── service.py       # StorageService (Reference-based GCS storage)
 │
-├── plugins/             # Native tools and life-cycle interceptors
+├── tools/               # Agent Capabilities: Standalone tool definitions
 │   ├── __init__.py      
-│   ├── storage/         # Artifact rendering callbacks
-│   └── user_uploads.py  # Gemini Enterprise file ingestion orchestrator
+│   └── artifact_tools.py # Tools for GCS URI discovery and ingestion
+│
+├── callbacks/           # Lifecycle Hooks: Post-turn renderers and interceptors
+│   ├── __init__.py      
+│   └── artifact_rendering.py # Unified GCS/Local renderer
+│
+├── plugins/             # Integrated Behaviors: Message interceptors
+│   ├── __init__.py      
+│   └── ingestion/       # Gemini Enterprise file ingestion orchestrator
 │
 └── security/            # Authentication utilities
     ├── __init__.py      # Re-exports get_id_token, get_ge_oauth_token
@@ -44,11 +52,15 @@ The package is organized into dedicated domains, each with a single responsibili
 
 - **`config/`** — Centralized configuration management. Contains Pydantic `BaseSettings` classes that validate environment variables at import time. Exposes both the **classes** (for type hints and testing) and **singleton instances** (for runtime usage), so consumers never need to call `os.getenv()` directly.
 
-- **`storage/`** — The persistence layer. Contains the `StorageService`, which handles low-level GCS operations, MIME type resolution, and identity-aware IAM binding conditions. It is optimized for Gemini Enterprise by using `file_data` URI references instead of binary payloads.
+- **`artifact_management/`** — The infrastructure layer. Contains the `StorageService`, which handles low-level GCS operations, MIME type resolution, and identity-aware IAM binding conditions. It is optimized for Gemini Enterprise by using `file_data` URI references instead of binary payloads.
 
 - **`builder/`** — Construction logic. Separates the _what to build_ from the _how to build it_ using the Builder pattern. The `AgentBuilder` orchestrates the core agent assembly, while the `AppBuilder` handles the final application wrapper (`AdkApp` for production or `App` for local), ensuring consistent plugin and storage configuration.
 
-- **`plugins/`** — Custom extensions and life-cycle hooks. Contains the `GeminiEnterpriseFileIngestionPlugin`, which intercepts user messages to manage artifact ingestion, and the storage callbacks that handle post-turn visual rendering.
+- **`tools/`** — Standalone capabilities. Explicitly registered with the agent to provide specific functionality (e.g., GCS URI retrieval).
+
+- **`callbacks/`** — Lifecycle hooks. Contains post-turn renderers that resolve and render artifacts for the Gemini Enterprise UI.
+
+- **`plugins/`** — Integrated behaviors. Contains message interceptors like the `GeminiEnterpriseFileIngestionPlugin` that manage user-uploaded artifacts before the agent processes the message.
 
 - **`security/`** — Token generation utilities. Provides functions to obtain GCP identity tokens (for Cloud Run service authentication) and Gemini Enterprise OAuth tokens (for delegated user data access). These are consumed by the builders at runtime, not at construction time.
 

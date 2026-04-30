@@ -8,8 +8,8 @@ from loguru import logger
 from vertexai.agent_engines import AdkApp
 
 from ..config import AgentConfig, GCPConfig
-from ..plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
-from ..storage.service import StorageService
+from ..plugins.ingestion.plugin import GeminiEnterpriseFileIngestionPlugin
+from ..artifact_management.service import StorageService
 
 
 class AppBuilder:
