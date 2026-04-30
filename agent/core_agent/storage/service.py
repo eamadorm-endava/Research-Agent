@@ -194,33 +194,24 @@ class StorageService(GcsArtifactService):
     ) -> int:
         """Saves the artifact to GCS and secures it with an IAM binding.
 
-        Overrides parent to support 'file_data' (GCS URIs) via direct GCS-to-GCS copy,
-        bypassing the 'unsupported file_data' error in the base GcsArtifactService.
-
         Args:
             app_name: str -> Name of the application.
             user_id: str -> Identity of the user (email).
             session_id: str -> Active session ID.
             filename: str -> Name of the file.
-            artifact: types.Part -> Content or URI reference to save.
+            artifact: types.Part -> Content to save.
 
         Returns:
             int -> The version number of the saved artifact.
         """
-        if artifact.file_data:
-            # Optimized Zero-Download path: Copy reference from source GCS to session storage
-            version = await self._save_artifact_reference(
-                app_name, user_id, session_id, filename, artifact.file_data
-            )
-        else:
-            # Standard path (Bytes/Text)
-            version = await super().save_artifact(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                artifact=artifact,
-            )
+        # Call the parent save_artifact to perform the actual GCS write
+        version = await super().save_artifact(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            artifact=artifact,
+        )
 
         # Secure the file and stamp metadata
         blob_name = self._get_blob_name(
@@ -232,53 +223,6 @@ class StorageService(GcsArtifactService):
         await self.ensure_uploader_permissions(canonical_uri, user_id, app_name)
 
         return version
-
-    async def _save_artifact_reference(
-        self,
-        app_name: str,
-        user_id: str,
-        session_id: str,
-        filename: str,
-        file_data: types.FileData,
-    ) -> int:
-        """Performs a direct GCS-to-GCS copy of a URI reference into the session context."""
-        logger.debug(f"Handling URI reference artifact save: {file_data.file_uri}")
-
-        # 1. Determine next version using parent logic
-        def _get_next_version():
-            versions = self._list_versions(app_name, user_id, session_id, filename)
-            return max(versions) + 1 if versions else 1
-
-        next_version = await asyncio.to_thread(_get_next_version)
-        dest_blob_name = self._get_blob_name(
-            app_name, user_id, filename, next_version, session_id
-        )
-
-        # 2. Extract source bucket/blob
-        src_uri = file_data.file_uri
-        if not src_uri.startswith("gs://"):
-            raise ValueError(f"Invalid GCS URI: {src_uri}")
-        src_path = src_uri[len("gs://") :]
-        src_bucket_name, src_object_name = src_path.split("/", 1)
-
-        # 3. Perform server-side copy
-        def _copy_operation():
-            # Use a fresh client to ensure permissions for the source bucket are handled
-            client = storage.Client()
-            src_bucket = client.bucket(src_bucket_name)
-            src_blob = src_bucket.blob(src_object_name)
-
-            # Copy to our managed bucket
-            logger.info(f"Copying {src_uri} to {self.bucket.name}/{dest_blob_name}")
-            self.bucket.copy_blob(src_blob, self.bucket, dest_blob_name)
-
-            # Metadata update (Content-Type)
-            dest_blob = self.bucket.blob(dest_blob_name)
-            dest_blob.content_type = file_data.mime_type
-            dest_blob.patch()
-
-        await asyncio.to_thread(_copy_operation)
-        return next_version
 
     async def ensure_uploader_permissions(
         self, canonical_uri: str, user_email: str, app_name: Optional[str] = None

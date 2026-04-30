@@ -6,7 +6,7 @@ from google.genai import types
 from loguru import logger
 from typing_extensions import override
 
-from .callbacks import PENDING_RENDER_KEY
+from .callbacks import PENDING_URI_KEY
 from .schemas import (
     GetArtifactUriRequest,
     GetArtifactUriResponse,
@@ -103,9 +103,10 @@ class ImportGcsToArtifactTool(BaseTool):
             name="import_gcs_to_artifact",
             description=(
                 "Registers an object from Google Cloud Storage into the current session "
-                "as an artifact using its URI reference. Use this when you have a 'gs://' "
+                "context using its original URI reference. Use this when you have a 'gs://' "
                 "URI and its MIME type (retrieved from the GCS MCP server) to analyze "
-                "content (PDF, Image, Video, etc.) without downloading bytes."
+                "content (PDF, Image, Video, etc.) without downloading or copying bytes. "
+                "This enables zero-copy analysis of external data."
             ),
         )
 
@@ -164,27 +165,23 @@ class ImportGcsToArtifactTool(BaseTool):
                 logger.debug(f"MIME type guessed from filename: {mime_type}")
             mime_type = mime_type or "application/octet-stream"
 
-            artifact_part = self._create_artifact_part(
-                request.gcs_uri,
-                mime_type,
-                artifact_name,
-            )
-            version = await tool_context.save_artifact(
-                filename=artifact_name, artifact=artifact_part
-            )
-            pending = list(tool_context.state.get(PENDING_RENDER_KEY, []))
-            pending.append(artifact_name)
-            tool_context.state[PENDING_RENDER_KEY] = pending
+            # Zero-Copy Ingestion: Queue the original URI for the post-turn callback
+            # instead of copying it to the session landing zone.
+            pending_uris = list(tool_context.state.get(PENDING_URI_KEY, []))
+            pending_uris.append({"uri": request.gcs_uri, "mime_type": mime_type})
+            tool_context.state[PENDING_URI_KEY] = pending_uris
+
+            logger.info(f"Queued GCS URI for direct LLM ingestion: {request.gcs_uri}")
 
             return ImportGcsToArtifactResponse(
-                artifact_id=f"{artifact_name}:v{version}",
+                artifact_id=f"{artifact_name}:direct",
                 gcs_uri=request.gcs_uri,
                 content_type=mime_type,
                 execution_status="success",
                 execution_message=(
-                    f"Successfully registered {request.gcs_uri} as artifact "
-                    f"'{artifact_name}' (v{version}). "
-                    "The model will access the file directly via GCS URI."
+                    f"Successfully registered {request.gcs_uri} for direct analysis. "
+                    "The model will access the file directly from its original bucket "
+                    "without any intermediate copies."
                 ),
             ).model_dump()
         except Exception as e:

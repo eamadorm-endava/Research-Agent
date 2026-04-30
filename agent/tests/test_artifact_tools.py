@@ -1,7 +1,9 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from agent.core_agent.plugins.storage.callbacks import PENDING_RENDER_KEY
+from agent.core_agent.plugins.storage.callbacks import (
+    PENDING_URI_KEY,
+)
 from agent.core_agent.plugins.storage.tools import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
@@ -96,10 +98,10 @@ class TestGetArtifactUriTool:
 
 
 class TestImportGcsToArtifactTool:
-    async def test_multimodal_file_is_saved_as_file_data_reference(self):
-        """Happy path: multimodal file is registered using its GCS URI reference."""
+    async def test_import_gcs_uri_is_queued_for_direct_pass_through(self):
+        """Happy path: GCS URI is registered in state for zero-copy rendering."""
         tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context(save_artifact_version=1)
+        ctx = _make_mock_tool_context()
 
         result = await tool.run_async(
             args={"gcs_uri": "gs://bucket/photo.png", "mime_type": "image/png"},
@@ -108,25 +110,16 @@ class TestImportGcsToArtifactTool:
 
         assert result["execution_status"] == "success"
         assert result["content_type"] == "image/png"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert saved_part.file_data is not None
-        assert saved_part.file_data.file_uri == "gs://bucket/photo.png"
-        assert saved_part.file_data.mime_type == "image/png"
+        assert result["artifact_id"] == "photo.png:direct"
 
-    async def test_text_file_is_also_saved_as_file_data_reference(self):
-        """Happy path: text file is also registered as a URI reference to avoid downloads."""
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
+        # Verify zero-copy: save_artifact MUST NOT be called
+        ctx.save_artifact.assert_not_called()
 
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/notes.txt", "mime_type": "text/plain"},
-            tool_context=ctx,
+        # Verify state queuing
+        ctx.state.__setitem__.assert_called_with(
+            PENDING_URI_KEY,
+            [{"uri": "gs://bucket/photo.png", "mime_type": "image/png"}],
         )
-
-        assert result["execution_status"] == "success"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert saved_part.file_data.file_uri == "gs://bucket/notes.txt"
-        assert saved_part.file_data.mime_type == "text/plain"
 
     async def test_mime_type_guessing_from_extension(self):
         """Edge case: MIME type is correctly guessed from URI extension when missing."""
@@ -139,15 +132,19 @@ class TestImportGcsToArtifactTool:
 
         assert result["execution_status"] == "success"
         assert result["content_type"] == "application/pdf"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert saved_part.file_data.mime_type == "application/pdf"
 
-    async def test_explicit_artifact_name_overrides_derived_name(self):
-        """Edge case: caller-provided artifact_name takes priority over the GCS filename."""
+        # Verify state queuing with guessed MIME
+        ctx.state.__setitem__.assert_called_with(
+            PENDING_URI_KEY,
+            [{"uri": "gs://bucket/report.pdf", "mime_type": "application/pdf"}],
+        )
+
+    async def test_explicit_artifact_name_overrides_derived_id(self):
+        """Edge case: caller-provided artifact_name is reflected in the returned artifact_id."""
         tool = ImportGcsToArtifactTool()
         ctx = _make_mock_tool_context()
 
-        await tool.run_async(
+        result = await tool.run_async(
             args={
                 "gcs_uri": "gs://bucket/original.txt",
                 "artifact_name": "my_custom.txt",
@@ -155,30 +152,7 @@ class TestImportGcsToArtifactTool:
             tool_context=ctx,
         )
 
-        ctx.save_artifact.assert_called_once()
-        assert ctx.save_artifact.call_args.kwargs["filename"] == "my_custom.txt"
-
-    async def test_artifact_id_encodes_name_and_version(self):
-        """Edge case: returned artifact_id correctly encodes the name and version number."""
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context(save_artifact_version=3)
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/notes.txt"}, tool_context=ctx
-        )
-
-        assert result["artifact_id"] == "notes.txt:v3"
-
-    async def test_queues_artifact_filename_in_state_for_ge_rendering(self):
-        """Edge case: after a successful save, the filename is added to the GE render queue in state."""
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        await tool.run_async(
-            args={"gcs_uri": "gs://bucket/report.txt"}, tool_context=ctx
-        )
-
-        ctx.state.__setitem__.assert_called_with(PENDING_RENDER_KEY, ["report.txt"])
+        assert result["artifact_id"] == "my_custom.txt:direct"
 
     async def test_returns_error_on_malformed_args(self):
         """Failure mode: missing required 'gcs_uri' returns error dict instead of raising."""
