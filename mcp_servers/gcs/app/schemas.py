@@ -1,5 +1,5 @@
 from typing import Annotated, Dict, Optional, Any, List, Literal
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from .config import GCS_SERVER_CONFIG
 
@@ -89,30 +89,58 @@ class UpdateBucketLabelsResponse(UpdateBucketLabelsRequest, BaseResponse):
 
 
 class UploadObjectRequest(BaseRequest):
-    bucket_name: BUCKET_NAME
-    object_name: OBJECT_NAME
-    content: Annotated[
-        Optional[str],
-        Field(default=None, description="Inline text content to upload."),
+    source_gcs_uri: Annotated[
+        str,
+        Field(
+            description="The source GCS URI (gs://bucket/object).",
+            pattern=r"^gs://[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]/.+$",
+        ),
     ]
-    local_path: Annotated[
-        Optional[str],
-        Field(default=None, description="Local path to upload from."),
+    destination_bucket: BUCKET_NAME
+    filename: Annotated[
+        str,
+        Field(
+            description="The mandatory new filename in the destination bucket.",
+            min_length=1,
+            max_length=1024,
+        ),
     ]
-    content_type: Annotated[
+    path_inside_bucket: Annotated[
         Optional[str],
-        Field(default=None, description="MIME type of the uploaded object."),
+        Field(
+            default=None,
+            description="Optional folder path inside the destination bucket. Do not include leading/trailing slashes.",
+        ),
     ]
 
-    @model_validator(mode="after")
-    def validate_content_source(self) -> "UploadObjectRequest":
-        if self.content is None and self.local_path is None:
-            raise ValueError("Either content or local_path must be provided.")
-        return self
+    @property
+    def source_bucket(self) -> str:
+        """Extracts the bucket name from the source GCS URI."""
+        import re
+
+        match = re.match(r"^gs://([^/]+)/", self.source_gcs_uri)
+        return match.group(1) if match else ""
+
+    @property
+    def source_object(self) -> str:
+        """Extracts the object path from the source GCS URI."""
+        import re
+
+        match = re.match(r"^gs://[^/]+/(.+)$", self.source_gcs_uri)
+        return match.group(1) if match else ""
+
+    @property
+    def destination_path(self) -> str:
+        """Constructs the full destination path including filename."""
+        path = (self.path_inside_bucket or "").strip("/")
+        return f"{path}/{self.filename}" if path else self.filename
 
 
-class UploadObjectResponse(UploadObjectRequest, BaseResponse):
-    pass
+class UploadObjectResponse(BaseResponse):
+    destination_uri: Annotated[
+        str,
+        Field(description="The full GCS URI of the ingested object."),
+    ]
 
 
 class ReadObjectRequest(BaseRequest):

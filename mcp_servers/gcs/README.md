@@ -8,7 +8,7 @@ The MCP Server wraps the `google-cloud-storage` client and exposes the following
 
 -   **`create_bucket`**: Create new buckets in a specified location.
 -   **`update_bucket_labels`**: Manage metadata and tagging for buckets.
--   **`upload_object`**: Upload data to GCS. Supports plain text, binary sequences (bytes), or streaming from local file paths with automatic MIME-type detection.
+-   **`upload_object`**: Ingest objects from a source GCS URI to a destination bucket. Implements automated authentication switching between Service Accounts (internal) and OAuth (user-to-user).
 -   **`read_object`**: Download an object's contents securely into the agent's memory (attempts UTF-8 decoding, falls back to raw bytes for binary files).
 -   **`update_object_metadata`**: Update metadata, including the crucial `content_type` attribute.
 -   **`list_objects`**: List files in a bucket, with support for prefix filtering (simulating directory structures), essential for agent discovery and navigation.
@@ -71,6 +71,18 @@ Validate with two distinct user profiles to confirm IAM boundaries:
 Expected outcomes:
 - Profile A: `list_objects`/`read_object` return `execution_status="success"`.
 - Profile B: requests return `execution_status="error"` and include `Permission Denied` or `Object not found`.
+
+---
+
+## 📥 Inbound Data Ingestion
+
+This server includes a specialized ingestion pipeline designed to move data securely from a Landing Zone to a Knowledge Base.
+
+### Automated Auth Switching
+- **Internal Pipeline**: If moving from `ai_agent_landing_zone` to `kb-landing-zone`, the server uses its own **Service Account (SA)**.
+- **User Operations**: For all other moves, it enforces the **Delegated OAuth Token** of the requesting user.
+
+For full technical details on URI-based ingestion and path construction, see [INGESTION.md](./INGESTION.md).
 
 ---
 

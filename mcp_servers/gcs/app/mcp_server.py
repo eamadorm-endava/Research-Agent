@@ -11,7 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
 from .config import GCS_API_CONFIG, GCS_AUTH_CONFIG, GCS_SERVER_CONFIG
-from .gcs_client import GCSManager, build_gcs_credentials
+from .gcs_client import GCSManager, build_gcs_credentials, build_sa_credentials
 from .schemas import (
     CreateBucketRequest,
     CreateBucketResponse,
@@ -158,49 +158,51 @@ async def update_bucket_labels(
 @mcp.tool()
 async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     """
-    Uploads a file (blob) to a specified GCS bucket.
-    Supports providing content directly as a string or specifying a local file path.
+    Ingests an object from a source GCS URI into a destination bucket.
+    This tool replaces direct uploads and implements automated authentication switching.
 
     Args:
-        request: UploadObjectRequest -> The request parameters for the object upload.
+        request: UploadObjectRequest -> The URI-based ingestion parameters.
 
     Returns:
-        UploadObjectResponse -> The result of the upload operation.
+        UploadObjectResponse -> The resulting destination URI and status.
     """
     logger.info(
-        f"Tool call: upload_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
+        f"Tool call: upload_object(source={request.source_gcs_uri}, "
+        f"dest_bucket={request.destination_bucket}, filename={request.filename})"
     )
     try:
-        gcs_manager = _make_gcs_manager()
-        blob = await asyncio.to_thread(
-            gcs_manager.create_object,
-            request.bucket_name,
-            request.object_name,
-            request.content,
-            request.local_path,
-            request.content_type,
+        # 1. Determine Authentication Strategy
+        # Logic: Use SA ONLY for internal landing-zone to KB pipeline.
+        use_sa = (
+            request.source_bucket == GCS_SERVER_CONFIG.landing_zone_bucket
+            and request.destination_bucket == GCS_SERVER_CONFIG.kb_ingestion_bucket
         )
+
+        # 2. Execute Copy Operation
+        gcs_manager = _make_gcs_manager(use_sa=use_sa)
+        blob = await asyncio.to_thread(
+            gcs_manager.copy_blob,
+            request.source_bucket,
+            request.source_object,
+            request.destination_bucket,
+            request.destination_path,
+        )
+
+        dest_uri = f"gs://{request.destination_bucket}/{blob.name}"
         return UploadObjectResponse(
-            bucket_name=request.bucket_name,
-            object_name=blob.name,
-            content=request.content,
-            local_path=request.local_path,
-            content_type=blob.content_type,
+            destination_uri=dest_uri,
             execution_status="success",
-            execution_message=(
-                f"Successfully uploaded object: {blob.name} to bucket: {request.bucket_name}"
-            ),
+            execution_message=f"Successfully ingested object to {dest_uri}",
         )
     except Exception as e:
         return UploadObjectResponse(
-            bucket_name=request.bucket_name,
-            object_name=request.object_name,
-            content=request.content,
-            local_path=request.local_path,
-            content_type=request.content_type,
+            destination_uri="",
             execution_status="error",
             execution_message=_format_execution_error(e),
         )
+    finally:
+        pass
 
 
 @mcp.tool()
@@ -413,13 +415,16 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
         )
 
 
-def _make_gcs_manager() -> GCSManager:
-    """Creates a GCS manager using the delegated user token from MCP context."""
-    access_token = _get_current_token()
-    creds = build_gcs_credentials(
-        access_token=access_token,
-        scopes=GCS_API_CONFIG.read_write_scopes,
-    )
+def _make_gcs_manager(use_sa: bool = False) -> GCSManager:
+    """Creates a GCS manager using either the delegated user token or the environment SA."""
+    if use_sa:
+        creds = build_sa_credentials(scopes=GCS_API_CONFIG.read_write_scopes)
+    else:
+        access_token = _get_current_token()
+        creds = build_gcs_credentials(
+            access_token=access_token,
+            scopes=GCS_API_CONFIG.read_write_scopes,
+        )
     return GCSManager(creds, default_project=GCS_SERVER_CONFIG.default_project_id)
 
 

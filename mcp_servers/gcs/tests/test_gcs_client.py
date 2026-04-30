@@ -31,59 +31,26 @@ class TestGCSManager(unittest.TestCase):
         with self.assertRaises(GoogleCloudError):
             self.gcs_manager.create_bucket("fail-bucket")
 
-    def test_upload_object_string_content(self):
-        mock_bucket = MagicMock()
-        mock_blob = MagicMock()
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
-        mock_bucket.blob.return_value = mock_blob
-        mock_blob.name = "test.txt"
-        mock_blob.content_type = "text/plain"
+    def test_copy_blob_success(self):
+        mock_source_bucket = MagicMock(name="source_bucket")
+        mock_dest_bucket = MagicMock(name="dest_bucket")
+        mock_source_blob = MagicMock(name="source_blob")
+        mock_new_blob = MagicMock(name="new_blob")
 
-        result = self.gcs_manager.create_object(
-            "test-bucket", "test.txt", content="hello"
+        self.mock_client_instance.bucket.side_effect = [
+            mock_source_bucket,
+            mock_dest_bucket,
+        ]
+        mock_source_bucket.blob.return_value = mock_source_blob
+        mock_source_bucket.copy_blob.return_value = mock_new_blob
+
+        result = self.gcs_manager.copy_blob(
+            "source-bucket", "source-obj", "dest-bucket", "dest-obj"
         )
 
-        self.assertEqual(result.name, "test.txt")
-        mock_blob.upload_from_string.assert_called_with(
-            "hello", content_type="text/plain"
-        )
-
-    def test_upload_object_bytes_content(self):
-        mock_bucket = MagicMock()
-        mock_blob = MagicMock()
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
-        mock_bucket.blob.return_value = mock_blob
-        mock_blob.name = "data.bin"
-        mock_blob.content_type = "application/octet-stream"
-
-        result = self.gcs_manager.create_object(
-            "test-bucket", "data.bin", content=b"\x00\x01"
-        )
-
-        self.assertEqual(result.name, "data.bin")
-        mock_blob.upload_from_string.assert_called_with(
-            b"\x00\x01", content_type="application/octet-stream"
-        )
-
-    @patch("os.path.exists")
-    @patch("mimetypes.guess_type")
-    def test_upload_object_local_path(self, mock_guess, mock_exists):
-        mock_exists.return_value = True
-        mock_guess.return_value = ("image/png", None)
-        mock_bucket = MagicMock()
-        mock_blob = MagicMock()
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
-        mock_bucket.blob.return_value = mock_blob
-        mock_blob.name = "remote.png"
-        mock_blob.content_type = "image/png"
-
-        result = self.gcs_manager.create_object(
-            "test-bucket", "remote.png", local_path="/tmp/local.png"
-        )
-
-        self.assertEqual(result.name, "remote.png")
-        mock_blob.upload_from_filename.assert_called_with(
-            "/tmp/local.png", content_type="image/png"
+        self.assertEqual(result, mock_new_blob)
+        mock_source_bucket.copy_blob.assert_called_once_with(
+            mock_source_blob, mock_dest_bucket, "dest-obj"
         )
 
     def test_download_object_as_bytes(self):
