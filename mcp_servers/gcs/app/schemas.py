@@ -148,18 +148,25 @@ class ReadObjectRequest(BaseRequest):
     object_name: OBJECT_NAME
 
 
-class ReadObjectResponse(ReadObjectRequest, BaseResponse):
-    content: Annotated[
-        Optional[str],
-        Field(default=None, description="UTF-8 decoded content when applicable."),
+class GcsObjectMetadata(BaseModel):
+    mime_type: Annotated[str, Field(description="MIME type of the object.")]
+    size_bytes: Annotated[int, Field(description="Size of the object in bytes.")]
+    creation_date: Annotated[str, Field(description="Date of creation (YYYY-MM-DD).")]
+    creation_time: Annotated[str, Field(description="Time of creation (HH:MM:SS).")]
+    updated_at: Annotated[str, Field(description="Last update timestamp (ISO 8601).")]
+    custom_metadata: Annotated[
+        Dict[str, str],
+        Field(default_factory=dict, description="Custom user-defined metadata."),
     ]
-    size_bytes: Annotated[
-        int,
-        Field(default=0, description="Object payload size in bytes."),
-    ]
-    is_binary: Annotated[
-        bool,
-        Field(default=False, description="True when content is binary/non UTF-8."),
+
+
+class ReadObjectResponse(BaseResponse):
+    bucket_name: BUCKET_NAME
+    object_name: OBJECT_NAME
+    gcs_uri: Annotated[str, Field(description="The canonical GCS URI (gs://...).")]
+    metadata: Annotated[
+        GcsObjectMetadata,
+        Field(description="Strictly typed object metadata."),
     ]
 
 
