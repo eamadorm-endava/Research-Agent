@@ -232,13 +232,20 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             ]
 
         # 2. Check GCS (Lazy Association for pre-stashed files)
+        # Discovery requires a user_id to resolve the correct artifact path
         storage_service = invocation_context.artifact_service
-        metadata = await storage_service.get_artifact_metadata(
-            app_name=invocation_context.app_name,
-            user_id=invocation_context.user_id,
-            filename=filename,
-            session_id=invocation_context.session.id,
-        )
+        if not invocation_context.user_id:
+            logger.debug(
+                f"No user identity for discovery of '{filename}'; skipping GCS lookup."
+            )
+            metadata = None
+        else:
+            metadata = await storage_service.get_artifact_metadata(
+                app_name=invocation_context.app_name,
+                user_id=invocation_context.user_id,
+                filename=filename,
+                session_id=invocation_context.session.id,
+            )
 
         if metadata:
             logger.info(f"Resolved GE text tag '{filename}' via GCS discovery.")
