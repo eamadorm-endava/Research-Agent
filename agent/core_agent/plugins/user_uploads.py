@@ -30,7 +30,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         user_message: types.Content,
     ) -> Optional[types.Content]:
         """Intercepts the user message, persists any inline files to GCS, replaces binary payloads
-        with GCS URI references, and grants OWNER ACL on GCS file_data references pre-uploaded by GE.
+        with GCS URI references, and secures GCS file_data references pre-uploaded by GE.
 
         Args:
             invocation_context: InvocationContext -> Full invocation context with artifact service access.
@@ -52,20 +52,20 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         logger.info(
             f"GeminiEnterpriseFileIngestionPlugin: Intercepted message with {len(user_message.parts)} part(s) from user: {invocation_context.user_id}"
         )
-        for idx, part in enumerate(user_message.parts):
-            self._log_part_summary(idx, part)
+        for part_index, part in enumerate(user_message.parts):
+            self._log_part_summary(part_index, part)
 
-        # 1. Grant ACLs to any GCS references already present in the message (pre-uploaded by GE)
-        await self._grant_acl_on_gcs_file_data(invocation_context, user_message.parts)
+        # 1. Secure any GCS references already present in the message (pre-uploaded by GE)
+        await self._secure_gcs_file_references(invocation_context, user_message.parts)
 
         # 2. Process inline binary data, saving it to GCS and replacing with references
-        parts, modified_inline = await self._process_message_parts(
+        message_parts, modified_inline = await self._process_message_parts(
             invocation_context, user_message.parts
         )
 
         # 3. Process GE text-extracted blocks (tags in text parts)
         new_parts, modified_text = await self._process_ge_text_blocks(
-            invocation_context, parts
+            invocation_context, message_parts
         )
 
         if not (modified_inline or modified_text):
@@ -208,7 +208,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             # Create a text Part for the extracted content
             text_part = types.Part(text=content)
 
-            # save_artifact in GeminiEnterpriseGcsArtifactService automatically grants ACLs
+            # save_artifact in StorageService automatically secures the file via IAM
             version = await invocation_context.artifact_service.save_artifact(
                 app_name=invocation_context.app_name,
                 user_id=invocation_context.user_id,
@@ -226,8 +226,8 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
 
             return result
 
-        except Exception as exc:
-            logger.error(f"Failed to persist GE text block '{filename}': {exc}")
+        except Exception as error:
+            logger.error(f"Failed to persist GE text block '{filename}': {error}")
             # On failure, return the original text block to avoid data loss
             return [types.Part(text=original_text)]
 
@@ -275,8 +275,8 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
 
             return result
 
-        except Exception as exc:
-            logger.error(f"Failed to persist user upload (part {part_index}): {exc}")
+        except Exception as error:
+            logger.error(f"Failed to persist user upload (part {part_index}): {error}")
             return [part]
 
     async def _build_gcs_reference_part(
@@ -307,8 +307,8 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                     version=version,
                 )
             )
-        except Exception as exc:
-            logger.warning(f"Could not retrieve GCS URI for '{filename}': {exc}")
+        except Exception as error:
+            logger.warning(f"Could not retrieve GCS URI for '{filename}': {error}")
             return None
 
         if not artifact_version or not artifact_version.canonical_uri:
@@ -375,10 +375,10 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         else:
             logger.debug(f"  part[{index}] unknown    — {type(part)}")
 
-    async def _grant_acl_on_gcs_file_data(
+    async def _secure_gcs_file_references(
         self, invocation_context: InvocationContext, parts: list[types.Part]
     ) -> None:
-        """Grants OWNER ACL to the uploader on any GCS file_data references already in the message.
+        """Secures any GCS file_data references already in the message via IAM.
 
         Gemini Enterprise may pre-upload larger files directly to GCS and pass them as file_data
         parts. This ensures those objects also receive the correct uploader identity ACLs.
@@ -389,16 +389,20 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         """
         user_identity = invocation_context.user_id
         if not user_identity:
-            logger.warning("No user identity found in context; skipping ACL grant.")
+            logger.warning(
+                "No user identity found in context; skipping IAM security grant."
+            )
             return
 
-        # We try to use the custom service's ACL method if available
-        svc = invocation_context.artifact_service
-        grant_fn = getattr(svc, "grant_uploader_object_acl", None)
+        # We try to use the custom service's permission method if available
+        storage_service = invocation_context.artifact_service
+        permission_grant_function = getattr(
+            storage_service, "ensure_uploader_permissions", None
+        )
 
-        if not grant_fn:
+        if not permission_grant_function:
             logger.debug(
-                "Artifact service does not support manual ACL grants; skipping pre-existing files."
+                "Artifact service does not support manual IAM grants; skipping pre-existing files."
             )
             return
 
@@ -408,6 +412,8 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
 
             if file_uri and file_uri.startswith("gs://"):
                 logger.info(
-                    f"Found existing GCS reference: {file_uri}. Requesting ACL grant for {user_identity}"
+                    f"Found existing GCS reference: {file_uri}. Requesting IAM permission grant for {user_identity}"
                 )
-                await grant_fn(file_uri, user_identity, invocation_context.app_name)
+                await permission_grant_function(
+                    file_uri, user_identity, invocation_context.app_name
+                )

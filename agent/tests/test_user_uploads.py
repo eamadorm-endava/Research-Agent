@@ -470,7 +470,7 @@ async def test_grants_uploader_objectadmin_via_iam_on_successful_upload():
     mock_policy = MagicMock()
     mock_policy.bindings = []
 
-    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+    with patch("agent.core_agent.storage.service.storage.Client") as mock_client:
         mock_blob = MagicMock()
         mock_blob.metadata = {}
         mock_bucket = MagicMock()
@@ -489,7 +489,7 @@ async def test_grants_uploader_objectadmin_via_iam_on_successful_upload():
     assert binding["role"] == "roles/storage.objectAdmin"
     assert "user:uploader@example.com" in binding["members"]
     assert binding["condition"]["expression"] == (
-        'resource.name == "projects/_/buckets/landing-zone/objects/report.pdf"'
+        'resource.name.startsWith("projects/_/buckets/landing-zone/objects/test-app/uploader@example.com/")'
     )
     assert mock_blob.metadata["uploader"] == "uploader@example.com"
     mock_blob.patch.assert_called_once()
@@ -504,7 +504,7 @@ async def test_acl_grant_failure_does_not_block_upload():
     )
     msg = _make_user_message([inline_part])
 
-    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+    with patch("agent.core_agent.storage.service.storage.Client") as mock_client:
         mock_blob = MagicMock()
         mock_blob.metadata = {}
         mock_bucket = MagicMock()
@@ -529,7 +529,7 @@ async def test_acl_not_attempted_when_no_gcs_uri():
     )
     msg = _make_user_message([inline_part])
 
-    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+    with patch("agent.core_agent.storage.service.storage.Client") as mock_client:
         await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
 
     mock_client.assert_not_called()
@@ -551,7 +551,7 @@ async def test_grants_iam_objectadmin_to_user_id_from_context():
     mock_policy = MagicMock()
     mock_policy.bindings = []
 
-    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+    with patch("agent.core_agent.storage.service.storage.Client") as mock_client:
         mock_blob = MagicMock()
         mock_blob.metadata = {}
         mock_bucket = MagicMock()
@@ -564,6 +564,7 @@ async def test_grants_iam_objectadmin_to_user_id_from_context():
     mock_bucket.get_iam_policy.assert_called_once_with(requested_policy_version=3)
     assert len(mock_policy.bindings) == 1
     assert "user:emmanuel.amador@endava.com" in mock_policy.bindings[0]["members"]
+    assert "startsWith" in mock_policy.bindings[0]["condition"]["expression"]
 
 
 async def test_skips_duplicate_iam_binding_on_repeated_upload():
@@ -576,9 +577,7 @@ async def test_skips_duplicate_iam_binding_on_repeated_upload():
     ctx.user_id = "user@example.com"
     msg = _make_user_message([inline_part])
 
-    condition_expr = (
-        'resource.name == "projects/_/buckets/landing-zone/objects/report.pdf"'
-    )
+    condition_expr = 'resource.name.startsWith("projects/_/buckets/landing-zone/objects/test-app/user@example.com/")'
     existing_binding = {
         "role": "roles/storage.objectAdmin",
         "members": {"user:user@example.com"},
@@ -587,7 +586,7 @@ async def test_skips_duplicate_iam_binding_on_repeated_upload():
     mock_policy = MagicMock()
     mock_policy.bindings = [existing_binding]
 
-    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+    with patch("agent.core_agent.storage.service.storage.Client") as mock_client:
         mock_blob = MagicMock()
         mock_blob.metadata = {}
         mock_bucket = MagicMock()
@@ -616,7 +615,7 @@ async def test_grants_iam_objectadmin_on_existing_gcs_references():
     mock_policy = MagicMock()
     mock_policy.bindings = []
 
-    with patch("agent.core_agent.plugins.user_uploads.storage.Client") as mock_client:
+    with patch("agent.core_agent.storage.service.storage.Client") as mock_client:
         mock_blob = MagicMock()
         mock_blob.metadata = {}
         mock_bucket = MagicMock()
@@ -631,3 +630,4 @@ async def test_grants_iam_objectadmin_on_existing_gcs_references():
     mock_bucket.get_iam_policy.assert_called_once_with(requested_policy_version=3)
     assert len(mock_policy.bindings) == 1
     assert "user:emmanuel.amador@endava.com" in mock_policy.bindings[0]["members"]
+    assert "startsWith" in mock_policy.bindings[0]["condition"]["expression"]

@@ -8,15 +8,15 @@ from loguru import logger
 from google.cloud import storage
 
 
-class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
-    """Overrides GcsArtifactService to return GCS URI references instead of binary bytes.
+class StorageService(GcsArtifactService):
+    """Refined storage service that uses GCS URI references and IAM conditions.
 
     In Gemini Enterprise, sending raw bytes in the conversation context is token-expensive.
     This service returns a file_data Part with a gs:// URI, which Gemini can resolve
     natively without bloating the request payload.
 
-    For visual rendering in the UI (which requires bytes), use the dedicated
-    'load_artifact_as_bytes' method instead.
+    Security is enforced via identity-aware IAM binding conditions at the folder level,
+    ensuring users only have access to their own application artifacts.
     """
 
     def _load_artifact(
@@ -76,8 +76,8 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
                     mime_type=res_mime_type,
                 )
             )
-        except Exception as exc:
-            logger.error(f"Failed to load artifact reference for '{filename}': {exc}")
+        except Exception as error:
+            logger.error(f"Failed to load artifact reference for '{filename}': {error}")
             return None
 
     async def load_artifact_as_bytes(
@@ -131,8 +131,8 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
             return types.Part.from_bytes(
                 data=artifact_bytes, mime_type=blob.content_type
             )
-        except Exception as exc:
-            logger.error(f"Failed to load artifact bytes for '{filename}': {exc}")
+        except Exception as error:
+            logger.error(f"Failed to load artifact bytes for '{filename}': {error}")
             return None
 
     async def save_artifact(
@@ -143,7 +143,7 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
         filename: str,
         artifact: types.Part,
     ) -> int:
-        """Saves the artifact to GCS and automatically grants Object Admin ACL to the user.
+        """Saves the artifact to GCS and secures it with an IAM binding.
 
         Args:
             app_name: str -> Name of the application.
@@ -164,23 +164,21 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
             artifact=artifact,
         )
 
-        # Grant ACL and stamp metadata
+        # Secure the file and stamp metadata
         blob_name = self._get_blob_name(
             app_name, user_id, filename, version, session_id
         )
         canonical_uri = f"gs://{self.bucket.name}/{blob_name}"
 
-        logger.info(
-            f"Automatically granting ACLs on newly saved artifact: {canonical_uri}"
-        )
-        await self.grant_uploader_object_acl(canonical_uri, user_id, app_name)
+        logger.info(f"Automatically securing newly saved artifact: {canonical_uri}")
+        await self.ensure_uploader_permissions(canonical_uri, user_id, app_name)
 
         return version
 
-    async def grant_uploader_object_acl(
+    async def ensure_uploader_permissions(
         self, canonical_uri: str, user_email: str, app_name: Optional[str] = None
     ) -> None:
-        """Grants roles/storage.objectAdmin to the uploader on their GCS folder via IAM.
+        """Ensures roles/storage.objectAdmin is granted to the uploader via an IAM binding condition.
 
         Optimizes permissions by using a folder-level 'startsWith' condition instead of
         per-object bindings.
@@ -211,7 +209,7 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
                 blob = bucket.get_blob(object_name)
                 if not blob:
                     raise ValueError(
-                        f"Blob not found for ACL/Metadata grant: {canonical_uri}"
+                        f"Blob not found for permission/metadata grant: {canonical_uri}"
                     )
                 self._grant_iam_conditional_binding(
                     bucket, bucket_name, folder_prefix, user_email
@@ -222,9 +220,9 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
             logger.info(
                 f"Successfully secured folder '{folder_prefix}' and artifact '{canonical_uri}' for: {user_email}"
             )
-        except Exception as exc:
+        except Exception as error:
             logger.warning(
-                f"Could not secure artifact '{canonical_uri}' for '{user_email}': {exc}"
+                f"Could not secure artifact '{canonical_uri}' for '{user_email}': {error}"
             )
 
     def _grant_iam_conditional_binding(
@@ -237,14 +235,14 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
         """Adds a conditional IAM binding granting roles/storage.objectAdmin on a specific user folder."""
         resource_prefix = f"projects/_/buckets/{bucket_name}/objects/{folder_prefix}"
         condition_expr = f'resource.name.startsWith("{resource_prefix}")'
-        policy = bucket.get_iam_policy(requested_policy_version=3)
-        policy.version = 3
+        iam_policy = bucket.get_iam_policy(requested_policy_version=3)
+        iam_policy.version = 3
 
         already_granted = any(
-            b.get("role") == "roles/storage.objectAdmin"
-            and f"user:{user_email}" in b.get("members", set())
-            and (b.get("condition") or {}).get("expression") == condition_expr
-            for b in policy.bindings
+            binding.get("role") == "roles/storage.objectAdmin"
+            and f"user:{user_email}" in binding.get("members", set())
+            and (binding.get("condition") or {}).get("expression") == condition_expr
+            for binding in iam_policy.bindings
         )
 
         if already_granted:
@@ -253,7 +251,7 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
             )
             return
 
-        policy.bindings.append(
+        iam_policy.bindings.append(
             {
                 "role": "roles/storage.objectAdmin",
                 "members": {f"user:{user_email}"},
@@ -263,7 +261,7 @@ class GeminiEnterpriseGcsArtifactService(GcsArtifactService):
                 },
             }
         )
-        bucket.set_iam_policy(policy)
+        bucket.set_iam_policy(iam_policy)
         logger.info(
             f"Granted folder-level roles/storage.objectAdmin to '{user_email}' on '{resource_prefix}'"
         )

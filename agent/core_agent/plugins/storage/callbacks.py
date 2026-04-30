@@ -32,15 +32,15 @@ async def render_pending_artifacts(
     logger.info(
         f"Rendering {len(pending_filenames)} pending artifact(s) for Gemini Enterprise."
     )
-    parts = await _load_artifact_parts(callback_context, pending_filenames)
+    artifact_parts = await _load_artifact_parts(callback_context, pending_filenames)
 
     callback_context.state[PENDING_RENDER_KEY] = []
     logger.debug("Cleared pending artifact render queue from session state.")
 
-    if not parts:
+    if not artifact_parts:
         return None
 
-    return types.Content(role="model", parts=parts)
+    return types.Content(role="model", parts=artifact_parts)
 
 
 async def _load_artifact_parts(
@@ -56,29 +56,31 @@ async def _load_artifact_parts(
     Returns:
         list[types.Part] -> Successfully loaded Parts (failed loads are skipped).
     """
-    parts = []
+    artifact_parts = []
     for filename in filenames:
         try:
-            # If using GeminiEnterpriseGcsArtifactService, we must force bytes for GE rendering.
+            # If using StorageService, we must force bytes for GE rendering.
             # Standard load_artifact would return a GCS reference which GE doesn't render.
-            svc = getattr(callback_context.invocation_context, "artifact_service", None)
-            if svc and hasattr(svc, "load_artifact_as_bytes"):
-                part = await svc.load_artifact_as_bytes(
+            storage_service = getattr(
+                callback_context.invocation_context, "artifact_service", None
+            )
+            if storage_service and hasattr(storage_service, "load_artifact_as_bytes"):
+                artifact_part = await storage_service.load_artifact_as_bytes(
                     app_name=callback_context.invocation_context.app_name,
                     user_id=callback_context.invocation_context.user_id,
                     session_id=callback_context.invocation_context.session.id,
                     filename=filename,
                 )
             else:
-                part = await callback_context.load_artifact(filename)
+                artifact_part = await callback_context.load_artifact(filename)
 
-            if part:
-                parts.append(part)
+            if artifact_part:
+                artifact_parts.append(artifact_part)
                 logger.debug(f"Loaded artifact for GE rendering: {filename}")
             else:
                 logger.warning(
                     f"Artifact not found during render, skipping: {filename}"
                 )
-        except Exception as exc:
-            logger.error(f"Failed to load artifact '{filename}' for rendering: {exc}")
-    return parts
+        except Exception as error:
+            logger.error(f"Failed to load artifact '{filename}' for rendering: {error}")
+    return artifact_parts

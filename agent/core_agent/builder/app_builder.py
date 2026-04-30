@@ -7,9 +7,9 @@ from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifac
 from loguru import logger
 from vertexai.agent_engines import AdkApp
 
-from ..artifacts.custom_artifact_service import GeminiEnterpriseGcsArtifactService
 from ..config import AgentConfig, GCPConfig
 from ..plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
+from ..storage.service import StorageService
 
 
 class AppBuilder:
@@ -85,7 +85,7 @@ class AppBuilder:
             )
             return AdkApp(
                 app=base_application,
-                artifact_service_builder=lambda: GeminiEnterpriseGcsArtifactService(
+                artifact_service_builder=lambda: StorageService(
                     bucket_name=self.gcp_config.ARTIFACT_BUCKET
                 ),
             )
