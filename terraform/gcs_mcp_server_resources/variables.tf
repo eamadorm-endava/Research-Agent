@@ -63,3 +63,13 @@ variable "mcp_server_cloud_run_env" {
   type        = map(string)
   default     = {}
 }
+
+variable "landing_zone_bucket" {
+  description = "The name of the GCS bucket used as the landing zone for user uploads."
+  type        = string
+}
+
+variable "kb_ingestion_bucket" {
+  description = "The name of the GCS bucket used for KB ingestion."
+  type        = string
+}

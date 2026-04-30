@@ -9,6 +9,7 @@ ARTIFACT_BUCKET?=ai_agent_landing_zone
 ### General Commands ###
 
 gcloud-auth:
+	gcloud config unset auth/impersonate_service_account
 	gcloud auth application-default login --project=$(PROJECT_ID)
 	gcloud config set project $(PROJECT_ID)
 

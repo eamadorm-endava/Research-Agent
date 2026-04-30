@@ -57,3 +57,19 @@ module "mcp_server_cloud_run" {
     module.enable_apis
   ]
 }
+
+################ IAM (Resource Level) ################
+
+# Read access to the Landing Zone
+resource "google_storage_bucket_iam_member" "gcs_mcp_sa_landing_viewer" {
+  bucket = var.landing_zone_bucket
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
+
+# Admin access to the KB Ingestion Bucket
+resource "google_storage_bucket_iam_member" "gcs_mcp_sa_kb_admin" {
+  bucket = var.kb_ingestion_bucket
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
