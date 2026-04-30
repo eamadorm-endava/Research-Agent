@@ -65,6 +65,25 @@ class TestGCSManager(unittest.TestCase):
         self.assertEqual(result, b"test content")
         mock_blob.download_as_bytes.assert_called_once()
 
+    def test_get_object_metadata_success(self):
+        mock_bucket = MagicMock()
+        mock_blob = MagicMock()
+        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        mock_bucket.get_blob.return_value = mock_blob
+
+        result = self.gcs_manager.get_object_metadata("test-bucket", "doc.txt")
+
+        self.assertEqual(result, mock_blob)
+        mock_bucket.get_blob.assert_called_with("doc.txt")
+
+    def test_get_object_metadata_not_found(self):
+        mock_bucket = MagicMock()
+        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        mock_bucket.get_blob.return_value = None
+
+        with self.assertRaises(ValueError):
+            self.gcs_manager.get_object_metadata("test-bucket", "missing.txt")
+
     def test_update_object_metadata(self):
         mock_bucket = MagicMock()
         mock_blob = MagicMock()

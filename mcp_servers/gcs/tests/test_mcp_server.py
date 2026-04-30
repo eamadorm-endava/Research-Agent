@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from mcp_servers.gcs.app.mcp_server import (
@@ -167,8 +168,30 @@ def test_mcp_list_objects_authorized_user_success(mock_gcs_manager):
     assert result.objects == ["docs/a.txt", "docs/b.txt"]
 
 
+def test_mcp_read_object_success(mock_gcs_manager):
+    mock_blob = MagicMock()
+    mock_blob.content_type = "application/pdf"
+    mock_blob.size = 1024
+    mock_blob.time_created = datetime(2026, 1, 1, 12, 0, 0)
+    mock_blob.updated = datetime(2026, 1, 2, 12, 0, 0)
+    mock_blob.metadata = {"author": "Antigravity"}
+
+    mock_gcs_manager.get_object_metadata.return_value = mock_blob
+
+    request = ReadObjectRequest(bucket_name="my-bucket", object_name="file.pdf")
+    result = asyncio.run(read_object(request))
+
+    assert result.execution_status == "success"
+    assert result.gcs_uri == "gs://my-bucket/file.pdf"
+    assert result.metadata.mime_type == "application/pdf"
+    assert result.metadata.size_bytes == 1024
+    assert result.metadata.creation_date == "2026-01-01"
+    assert result.metadata.creation_time == "12:00:00"
+    assert result.metadata.custom_metadata["author"] == "Antigravity"
+
+
 def test_mcp_read_object_unauthorized_user_permission_denied(mock_gcs_manager):
-    mock_gcs_manager.download_object_as_bytes.side_effect = Exception(
+    mock_gcs_manager.get_object_metadata.side_effect = Exception(
         "403 Forbidden: caller does not have storage.objects.get access"
     )
 
@@ -180,7 +203,7 @@ def test_mcp_read_object_unauthorized_user_permission_denied(mock_gcs_manager):
 
 
 def test_mcp_read_object_not_found_normalized_message(mock_gcs_manager):
-    mock_gcs_manager.download_object_as_bytes.side_effect = Exception(
+    mock_gcs_manager.get_object_metadata.side_effect = Exception(
         "404 No such object: restricted-bucket/missing.txt"
     )
 
