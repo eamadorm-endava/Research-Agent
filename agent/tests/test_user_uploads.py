@@ -264,8 +264,8 @@ async def test_multiple_inline_files_are_all_processed():
     part_a = _make_inline_part(display_name="a.png", mime_type="image/png")
     part_b = _make_inline_part(display_name="b.pdf", mime_type="application/pdf")
 
-    svc = AsyncMock()
-    svc.save_artifact = AsyncMock(side_effect=[0, 1])
+    svc = FakeStorageService()
+    svc.save_artifact.side_effect = [0, 1]
     ctx = _make_invocation_context(artifact_service=svc)
     msg = _make_user_message([part_a, part_b])
 
@@ -285,8 +285,8 @@ async def test_falls_back_to_original_part_when_save_artifact_raises():
     """Should keep the original inline part when save_artifact raises, to avoid data loss."""
     plugin = GeminiEnterpriseFileIngestionPlugin()
     inline_part = _make_inline_part(display_name="file.png")
-    svc = AsyncMock()
-    svc.save_artifact = AsyncMock(side_effect=RuntimeError("GCS write failure"))
+    svc = FakeStorageService()
+    svc.save_artifact.side_effect = RuntimeError("GCS write failure")
     ctx = _make_invocation_context(artifact_service=svc)
     msg = _make_user_message([inline_part])
 
@@ -302,9 +302,8 @@ async def test_skips_gcs_part_when_get_artifact_version_raises():
     """Should return only the text placeholder when get_artifact_version raises unexpectedly."""
     plugin = GeminiEnterpriseFileIngestionPlugin()
     inline_part = _make_inline_part(display_name="file.png")
-    svc = AsyncMock()
-    svc.save_artifact = AsyncMock(return_value=0)
-    svc.get_artifact_version = AsyncMock(side_effect=RuntimeError("GCS read failure"))
+    svc = FakeStorageService()
+    svc.get_artifact_version.side_effect = RuntimeError("GCS read failure")
     ctx = _make_invocation_context(artifact_service=svc)
     msg = _make_user_message([inline_part])
 
