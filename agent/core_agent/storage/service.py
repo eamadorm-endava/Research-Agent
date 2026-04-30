@@ -19,6 +19,55 @@ class StorageService(GcsArtifactService):
     ensuring users only have access to their own application artifacts.
     """
 
+    async def get_artifact_metadata(
+        self,
+        app_name: str,
+        user_id: str,
+        filename: str,
+        session_id: Optional[str] = None,
+    ) -> Optional[dict[str, str]]:
+        """Searches GCS for the latest version of an artifact and returns its URI and MIME type.
+
+        Args:
+            app_name: str -> Name of the application.
+            user_id: str -> Identity of the user.
+            filename: str -> Name of the file.
+            session_id: Optional[str] -> Active session ID.
+
+        Returns:
+            Optional[dict[str, str]] -> {file_uri, mime_type} if found, else None.
+        """
+
+        def _lookup() -> Optional[dict[str, str]]:
+            versions = self._list_versions(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+            )
+            if not versions:
+                return None
+
+            version = max(versions)
+            blob_name = self._get_blob_name(
+                app_name, user_id, filename, version, session_id
+            )
+            blob = self.bucket.get_blob(blob_name)
+            if not blob:
+                return None
+
+            mime_type = blob.content_type
+            if not mime_type or mime_type == "application/octet-stream":
+                guessed, _ = mimetypes.guess_type(filename)
+                mime_type = guessed or "application/pdf"
+
+            return {
+                "file_uri": f"gs://{self.bucket.name}/{blob_name}",
+                "mime_type": mime_type,
+            }
+
+        return await asyncio.to_thread(_lookup)
+
     def _load_artifact(
         self,
         app_name: str,

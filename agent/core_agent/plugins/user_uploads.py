@@ -55,17 +55,23 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         for part_index, part in enumerate(user_message.parts):
             self._log_part_summary(part_index, part)
 
+        # Local turn-based registry for linking filenames to GCS URIs and metadata
+        # Structure: { "filename": { "file_uri": "gs://...", "mime_type": "..." } }
+        turn_registry: dict[str, dict[str, str]] = {}
+
         # 1. Secure any GCS references already present in the message (pre-uploaded by GE)
-        await self._secure_gcs_file_references(invocation_context, user_message.parts)
+        await self._secure_gcs_file_references(
+            invocation_context, user_message.parts, turn_registry
+        )
 
         # 2. Process inline binary data, saving it to GCS and replacing with references
         message_parts, modified_inline = await self._process_message_parts(
-            invocation_context, user_message.parts
+            invocation_context, user_message.parts, turn_registry
         )
 
         # 3. Process GE text-extracted blocks (tags in text parts)
         new_parts, modified_text = await self._process_ge_text_blocks(
-            invocation_context, message_parts
+            invocation_context, message_parts, turn_registry
         )
 
         if not (modified_inline or modified_text):
@@ -86,12 +92,14 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         self,
         invocation_context: InvocationContext,
         parts: list[types.Part],
+        turn_registry: dict[str, dict[str, str]],
     ) -> tuple[list[types.Part], bool]:
         """Iterates over message parts, persisting inline files and replacing them with GCS references.
 
         Args:
             invocation_context: InvocationContext -> Context with artifact service.
             parts: list[types.Part] -> Original message parts.
+            turn_registry: dict[str, dict[str, str]] -> Local registry to populate.
 
         Returns:
             tuple[list[types.Part], bool] -> (processed parts, whether any part was modified).
@@ -105,7 +113,9 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 continue
 
             new_parts.extend(
-                await self._process_file_part(invocation_context, part, index)
+                await self._process_file_part(
+                    invocation_context, part, index, turn_registry
+                )
             )
             modified = True
 
@@ -115,6 +125,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         self,
         invocation_context: InvocationContext,
         parts: list[types.Part],
+        turn_registry: dict[str, dict[str, str]],
     ) -> tuple[list[types.Part], bool]:
         """Scans text parts for GE file delimiters, persists content to GCS, and replaces tags.
 
@@ -123,6 +134,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         Args:
             invocation_context: InvocationContext -> Context with artifact service.
             parts: list[types.Part] -> Current message parts.
+            turn_registry: dict[str, dict[str, str]] -> Local registry to use for resolution.
 
         Returns:
             tuple[list[types.Part], bool] -> (processed parts, whether any text blocks were modified).
@@ -170,9 +182,9 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 filename = match.group(1)
                 content = match.group(2)
 
-                # Save the extracted text as a .txt artifact
+                # Save the extracted text as a .txt artifact (or resolve from registry)
                 replacement_parts = await self._process_ge_text_match(
-                    invocation_context, filename, content, match.group(0)
+                    invocation_context, filename, content, match.group(0), turn_registry
                 )
                 new_parts.extend(replacement_parts)
                 last_end = match.end()
@@ -190,24 +202,70 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         filename: str,
         content: str,
         original_text: str,
+        turn_registry: dict[str, dict[str, str]],
     ) -> list[types.Part]:
-        """Saves a single GE text block as a .txt artifact and returns replacement parts.
+        """Saves a single GE text block as a .txt artifact (or resolves it from storage)
+        and returns replacement parts.
 
         Args:
             invocation_context: InvocationContext -> Context with artifact service.
             filename: str -> Original filename from the tag.
             content: str -> Extracted text content.
             original_text: str -> The raw text of the match, used as a fallback on failure.
+            turn_registry: dict[str, dict[str, str]] -> Local registry for cross-part resolution.
 
         Returns:
             list[types.Part] -> Replacement parts: text placeholder and GCS reference.
         """
+        # 1. Check turn registry (populated by binary/GCS parts in this turn)
+        if filename in turn_registry:
+            metadata = turn_registry[filename]
+            logger.info(f"Resolved GE text tag '{filename}' from turn registry.")
+            return [
+                types.Part(text=f'[Uploaded Artifact: "{filename}"]'),
+                types.Part(
+                    file_data=types.FileData(
+                        file_uri=metadata["file_uri"],
+                        mime_type=metadata["mime_type"],
+                    )
+                ),
+            ]
+
+        # 2. Check GCS (Lazy Association for pre-stashed files)
+        storage_service = invocation_context.artifact_service
+        metadata = await storage_service.get_artifact_metadata(
+            app_name=invocation_context.app_name,
+            user_id=invocation_context.user_id,
+            filename=filename,
+            session_id=invocation_context.session.id,
+        )
+
+        if metadata:
+            logger.info(f"Resolved GE text tag '{filename}' via GCS discovery.")
+            # Ensure security is active for the discovered URI
+            await storage_service.ensure_uploader_permissions(
+                metadata["file_uri"],
+                invocation_context.user_id,
+                invocation_context.app_name,
+            )
+            return [
+                types.Part(text=f'[Uploaded Artifact: "{filename}"]'),
+                types.Part(
+                    file_data=types.FileData(
+                        file_uri=metadata["file_uri"],
+                        mime_type=metadata["mime_type"],
+                    )
+                ),
+            ]
+
+        # 3. Guard for empty content if not found in GCS/Registry
         if not content or not content.strip():
             logger.warning(
-                f"Extracted content for '{filename}' is empty; skipping artifact persistence."
+                f"Extracted content for '{filename}' is empty and not found in storage; skipping artifact persistence."
             )
             return [types.Part(text=f'[Empty/Non-text Artifact: "{filename}"]')]
 
+        # 4. Fallback: Persist as .txt if content is present
         txt_filename = f"{filename}.txt"
         logger.info(
             f"Persisting GE text-extracted file to artifact store: {txt_filename}"
@@ -245,6 +303,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         invocation_context: InvocationContext,
         part: types.Part,
         part_index: int,
+        turn_registry: dict[str, dict[str, str]],
     ) -> list[types.Part]:
         """Saves a single inline file part to GCS and returns its replacement parts.
 
@@ -254,6 +313,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             invocation_context: InvocationContext -> Context with artifact service.
             part: types.Part -> The inline file part to persist.
             part_index: int -> Position in the message, used when generating a fallback filename.
+            turn_registry: dict[str, dict[str, str]] -> Local registry to populate.
 
         Returns:
             list[types.Part] -> Replacement parts: a text placeholder and optionally a GCS file_data reference.
@@ -266,7 +326,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
             logger.info(f"Persisting GE user upload to artifact store: {filename}")
 
-            # save_artifact in GeminiEnterpriseGcsArtifactService automatically grants ACLs
+            # save_artifact in StorageService automatically grants IAM conditions
             version = await invocation_context.artifact_service.save_artifact(
                 app_name=invocation_context.app_name,
                 user_id=invocation_context.user_id,
@@ -281,6 +341,13 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
             if gcs_part:
                 result.append(gcs_part)
+                # Populate registry for subsequent GE tag resolution
+                file_data = getattr(gcs_part, "file_data", None)
+                if file_data:
+                    turn_registry[filename] = {
+                        "file_uri": file_data.file_uri,
+                        "mime_type": file_data.mime_type,
+                    }
 
             return result
 
@@ -385,7 +452,10 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             logger.debug(f"  part[{index}] unknown    — {type(part)}")
 
     async def _secure_gcs_file_references(
-        self, invocation_context: InvocationContext, parts: list[types.Part]
+        self,
+        invocation_context: InvocationContext,
+        parts: list[types.Part],
+        turn_registry: dict[str, dict[str, str]],
     ) -> None:
         """Secures any GCS file_data references already in the message via IAM.
 
@@ -395,6 +465,7 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
         Args:
             invocation_context: InvocationContext -> Context with session state.
             parts: list[types.Part] -> Message parts to scan for GCS references.
+            turn_registry: dict[str, dict[str, str]] -> Local registry to populate with found URIs.
         """
         user_identity = invocation_context.user_id
         if not user_identity:
@@ -426,3 +497,9 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 await permission_grant_function(
                     file_uri, user_identity, invocation_context.app_name
                 )
+                # Populate registry with the found reference (filename is derived from URI)
+                filename = file_uri.split("/")[-1]
+                turn_registry[filename] = {
+                    "file_uri": file_uri,
+                    "mime_type": getattr(file_data, "mime_type", "application/pdf"),
+                }
