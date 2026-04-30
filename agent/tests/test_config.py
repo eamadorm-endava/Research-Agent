@@ -57,15 +57,17 @@ def test_mcp_servers_config_defaults_to_localhost_urls():
     assert cal_config.URL == "http://localhost:8083"
 
 
-def test_gcs_mcp_config_default_scope_is_cloud_platform_only():
-    """Edge case: GCS default scopes must be cloud-platform only — openid/email are not required."""
+def test_gcs_mcp_config_default_scopes_include_identity():
+    """GCS default scopes must include cloud-platform for storage access and openid/email for identity extraction."""
     with patch.dict(os.environ, clear=True):
         gcs_config = GCSMCPConfig()
 
     assert gcs_config.OAUTH_SCOPES == {
         "https://www.googleapis.com/auth/cloud-platform": "google cloud storage access",
+        "openid": "google cloud storage access",
+        "email": "google cloud storage access",
     }
-    assert len(gcs_config.OAUTH_SCOPES) == 1
+    assert len(gcs_config.OAUTH_SCOPES) == 3
 
 
 def test_agent_config_validation():

@@ -2,7 +2,6 @@ from typing import Self, Union
 
 from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
-from google.adk.artifacts.gcs_artifact_service import GcsArtifactService
 from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from loguru import logger
@@ -10,6 +9,7 @@ from vertexai.agent_engines import AdkApp
 
 from ..config import AgentConfig, GCPConfig
 from ..plugins.user_uploads import GeminiEnterpriseFileIngestionPlugin
+from ..storage.service import StorageService
 
 
 class AppBuilder:
@@ -85,7 +85,7 @@ class AppBuilder:
             )
             return AdkApp(
                 app=base_application,
-                artifact_service_builder=lambda: GcsArtifactService(
+                artifact_service_builder=lambda: StorageService(
                     bucket_name=self.gcp_config.ARTIFACT_BUCKET
                 ),
             )

@@ -1,4 +1,4 @@
-from .artifacts import (
+from .storage import (
     GetArtifactUriRequest,
     GetArtifactUriResponse,
     GetArtifactUriTool,

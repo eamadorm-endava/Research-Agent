@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from google.genai import types
 
-from agent.core_agent.plugins.artifacts.callbacks import (
+from agent.core_agent.plugins.storage.callbacks import (
     PENDING_RENDER_KEY,
     render_pending_artifacts,
 )
@@ -12,6 +12,10 @@ from agent.core_agent.plugins.artifacts.callbacks import (
 def _make_callback_context(state: dict) -> MagicMock:
     """Builds a minimal CallbackContext mock with a writable state dict."""
     ctx = MagicMock()
+    # Explicitly clear invocation_context attributes to avoid MagicMock fall-through
+    ctx.invocation_context = MagicMock()
+    ctx.invocation_context.artifact_service = None
+
     ctx.state = MagicMock()
     ctx.state.get = MagicMock(
         side_effect=lambda key, default=None: state.get(key, default)
