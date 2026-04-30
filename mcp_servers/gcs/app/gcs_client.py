@@ -1,7 +1,5 @@
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Sequence, Union
-import mimetypes
-import os
+from typing import Any, Dict, List, Optional, Sequence
 import httpx
 import google.auth
 from loguru import logger
@@ -131,62 +129,41 @@ class GCSManager:
             logger.error(f"Error updating labels for bucket {bucket_name}: {e}")
             raise
 
-    def create_object(
+    def copy_blob(
         self,
-        bucket_name: str,
-        object_name: str,
-        content: Optional[Union[str, bytes]] = None,
-        local_path: Optional[str] = None,
-        content_type: Optional[str] = None,
+        source_bucket_name: str,
+        source_blob_name: str,
+        dest_bucket_name: str,
+        dest_blob_name: str,
     ) -> storage.Blob:
         """
-        Uploads an object to a GCS bucket. Supports string/bytes content or local file paths.
+        Copies a blob from one bucket to another, preserving metadata and content type.
 
         Args:
-            bucket_name: The name of the destination bucket.
-            object_name: The name of the object to create in the bucket.
-            content: Text or binary content to upload.
-            local_path: Path to a local file to upload.
-            content_type: MIME type for the object. If not provided, it's auto-detected.
+            source_bucket_name: The name of the source bucket.
+            source_blob_name: The name of the source object.
+            dest_bucket_name: The name of the destination bucket.
+            dest_blob_name: The name of the destination object.
 
         Returns:
-            storage.Blob: The created blob object.
+            storage.Blob: The new blob object in the destination.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
-            blob = bucket.blob(object_name)
+            source_bucket = self.client.bucket(source_bucket_name)
+            source_blob = source_bucket.blob(source_blob_name)
+            destination_bucket = self.client.bucket(dest_bucket_name)
 
-            # Determine content type if not provided
-            if not content_type:
-                if local_path:
-                    content_type, _ = mimetypes.guess_type(local_path)
-                elif object_name:
-                    content_type, _ = mimetypes.guess_type(object_name)
-
-            if local_path:
-                if not os.path.exists(local_path):
-                    raise FileNotFoundError(f"Local file not found: {local_path}")
-                blob.upload_from_filename(local_path, content_type=content_type)
-                logger.info(
-                    f"File {local_path} uploaded as {object_name} to bucket {bucket_name}."
-                )
-            elif content is not None:
-                if isinstance(content, str):
-                    blob.upload_from_string(
-                        content, content_type=content_type or "text/plain"
-                    )
-                else:
-                    blob.upload_from_string(
-                        content, content_type=content_type or "application/octet-stream"
-                    )
-                logger.info(f"Object {object_name} created in bucket {bucket_name}.")
-            else:
-                raise ValueError("Either content or local_path must be provided.")
-
-            return blob
-        except (GoogleCloudError, FileNotFoundError, ValueError) as e:
+            new_blob = source_bucket.copy_blob(
+                source_blob, destination_bucket, dest_blob_name
+            )
+            logger.info(
+                f"Successfully copied gs://{source_bucket_name}/{source_blob_name} "
+                f"to gs://{dest_bucket_name}/{dest_blob_name}"
+            )
+            return new_blob
+        except GoogleCloudError as e:
             logger.error(
-                f"Error creating object {object_name} in bucket {bucket_name}: {e}"
+                f"Error copying blob from {source_bucket_name} to {dest_bucket_name}: {e}"
             )
             raise
 
@@ -346,6 +323,20 @@ def build_gcs_credentials(
     raise RuntimeError(
         "No GCS credentials available. Provide a delegated user access token header."
     )
+
+
+def build_sa_credentials(scopes: Optional[Sequence[str]] = None) -> Credentials:
+    """
+    Builds credentials using Application Default Credentials (the Cloud Run SA).
+    """
+    scopes = list(scopes or GCS_API_CONFIG.read_write_scopes)
+    try:
+        creds, _ = google.auth.default(scopes=scopes)
+        logger.info("Using Application Default Credentials (SA).")
+        return creds
+    except Exception as e:
+        logger.error(f"Failed to load Application Default Credentials: {e}")
+        raise RuntimeError(f"SA Credentials unavailable: {e}")
 
 
 def validate_access_token(

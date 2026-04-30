@@ -51,7 +51,10 @@ mcp_servers/<server_name>/
 #### Server Definition (`mcp_server.py`)
 - Instantiate `FastMCP` globally within the file.
 - **Authentication**: Custom MCP servers must implement the `token_verifier` pattern (e.g., `GoogleCalendarTokenVerifier`) and pass it to `FastMCP` via the `auth=AuthSettings(...)` parameter to validate incoming Gemini/OAuth tokens.
-- **Tool Wrappers**: Tools defined using `@mcp.tool()` should only handle request unpacking, calling the underlying client (often using `asyncio.to_thread` if the client is synchronous), and packing the response model. They should catch exceptions and return them gracefully within the `Response` model (e.g., via an `execution_status` field).
+- **Validation & Thin Tools**: **MANDATORY**: All input parameter validation, complex regex parsing, and path construction MUST be handled within the Pydantic `Request` models (e.g., using `Field(pattern=...)`, `@property`, or `@model_validator`).
+    - `@mcp.tool()` wrappers should only handle unpacking the request, calling the underlying client (via `asyncio.to_thread`), and packing the response.
+    - Never include logic like `if not match: raise ValueError` inside the tool body; move it to the schema.
+- **Tool Wrappers**: Catch exceptions and return them gracefully within the `Response` model (e.g., via an `execution_status` field).
 
 #### Unified Clients (`app/<domain>/` or `app/client.py`)
 - Do not put complex API logic directly inside the tool functions in `mcp_server.py`.

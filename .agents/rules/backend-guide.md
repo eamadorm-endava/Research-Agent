@@ -28,6 +28,9 @@ All backend development must strictly adhere to these Python-specific protocols:
 - **Attribute Definition**: Subclasses of `BaseModel`/`BaseSettings` must use `Annotated`:
   - Format: `attribute: Annotated[type, Field(description="...", default=...)]`
   - **Type Reuse**: If an attribute definition is repeated, create a reusable type alias using `Annotated`.
+- **Validation & Thin Methods**: **MANDATORY**: All input parameter validation, regex parsing, and path construction MUST be handled within the Pydantic `Request` models.
+  - Public methods should only handle high-level logic, delegation to services, and response packing.
+  - Use Pydantic `@property` or `@model_validator` to encapsulate extraction logic within the schema.
 
 ### AI & Integration
 - **AI Agents**: Use the **Vertex AI Agent Engine (ADK)** for all agent logic and orchestration.

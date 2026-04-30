@@ -156,6 +156,22 @@ class GcsServerConfig(GcsMcpConfigBase):
             description="Whether the Starlette app should run in debug mode.",
         ),
     ]
+    landing_zone_bucket: Annotated[
+        str,
+        Field(
+            default="ai_agent_landing_zone",
+            validation_alias=AliasChoices("GCS_LANDING_ZONE_BUCKET"),
+            description="The GCS bucket acting as the AI Agent landing zone.",
+        ),
+    ]
+    kb_ingestion_bucket: Annotated[
+        str,
+        Field(
+            default="kb-landing-zone",
+            validation_alias=AliasChoices("GCS_KB_INGESTION_BUCKET"),
+            description="The GCS bucket acting as the Knowledge Base ingestion zone.",
+        ),
+    ]
 
 
 GCS_API_CONFIG = GcsApiConfig()
