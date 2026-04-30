@@ -1,9 +1,9 @@
 import asyncio
-import logging
 import re
 from typing import Optional
 
 import httpx
+from loguru import logger
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
@@ -30,9 +30,6 @@ from .schemas import (
     ListBucketsRequest,
     ListBucketsResponse,
 )
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 
 class GoogleGcsTokenVerifier(TokenVerifier):
@@ -82,11 +79,10 @@ async def create_bucket(request: CreateBucketRequest) -> CreateBucketResponse:
     Creates a new Google Cloud Storage bucket.
 
     Args:
-        bucket_name (str): The name of the bucket to create. Must be globally unique.
-        location (str): The GCS location (e.g., 'US', 'EU', 'asia-northeast1'). Defaults to 'US'.
+        request: CreateBucketRequest -> The request parameters for bucket creation.
 
     Returns:
-        str: Success message with the bucket name.
+        CreateBucketResponse -> The result of the bucket creation operation.
     """
     logger.info(
         "Tool call: create_bucket("
@@ -129,11 +125,10 @@ async def update_bucket_labels(
     Updates or sets labels on an existing GCS bucket.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        labels (Dict[str, str]): A dictionary of key-value pairs to set as labels.
+        request: UpdateBucketLabelsRequest -> The request parameters including bucket name and labels.
 
     Returns:
-        str: Success message with the updated labels.
+        UpdateBucketLabelsResponse -> The result of the label update operation.
     """
     logger.info(
         f"Tool call: update_bucket_labels(bucket_name={request.bucket_name}, labels={request.labels})"
@@ -167,14 +162,10 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     Supports providing content directly as a string or specifying a local file path.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        object_name (str): The name/path of the object to create in GCS.
-        content (str, optional): The string content to upload.
-        local_path (str, optional): The local file path to upload.
-        content_type (str, optional): The MIME type of the file. Auto-detected if not provided.
+        request: UploadObjectRequest -> The request parameters for the object upload.
 
     Returns:
-        str: Success message with the object name.
+        UploadObjectResponse -> The result of the upload operation.
     """
     logger.info(
         f"Tool call: upload_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
@@ -219,11 +210,10 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
     Ideal for reading configuration or documentation files stored in GCS.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        object_name (str): The name/path of the object to read.
+        request: ReadObjectRequest -> The request parameters for reading the object.
 
     Returns:
-        str: The content of the object (decoded as UTF-8 if possible).
+        ReadObjectResponse -> The object contents and metadata.
     """
     logger.info(
         f"Tool call: read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
@@ -271,13 +261,10 @@ async def update_object_metadata(
     Updates the metadata of an existing object in GCS, such as content-type or custom metadata.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        object_name (str): The name of the object.
-        metadata (Dict[str, Any]): Dictionary of metadata keys and values to update.
-            Use 'content_type' key to change the MIME type.
+        request: UpdateObjectMetadataRequest -> The request parameters for updating metadata.
 
     Returns:
-        str: Success message with updated metadata summary.
+        UpdateObjectMetadataResponse -> The updated metadata summary.
     """
     logger.info(
         "Tool call: update_object_metadata("
@@ -318,11 +305,10 @@ async def delete_object(request: DeleteObjectRequest) -> DeleteObjectResponse:
     Deletes an object from a GCS bucket.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        object_name (str): The name/path of the object to delete.
+        request: DeleteObjectRequest -> The request parameters for deleting the object.
 
     Returns:
-        str: Success message.
+        DeleteObjectResponse -> The result of the deletion operation.
     """
     logger.info(
         f"Tool call: delete_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
@@ -355,11 +341,10 @@ async def list_objects(request: ListObjectsRequest) -> ListObjectsResponse:
     Lists objects in a GCS bucket, optionally filtered by prefix to simulate folders.
 
     Args:
-        bucket_name (str): The name of the bucket.
-        prefix (str, optional): A prefix to filter results (e.g., 'docs/').
+        request: ListObjectsRequest -> The request parameters for listing objects.
 
     Returns:
-        str: A message listing the found object names.
+        ListObjectsResponse -> A list of found object names.
     """
     logger.info(
         f"Tool call: list_objects(bucket_name={request.bucket_name}, prefix={request.prefix})"
@@ -395,10 +380,10 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
     optionally filtered by bucket-name prefix.
 
     Args:
-        prefix (str, optional): A prefix to filter bucket names.
+        request: ListBucketsRequest -> The request parameters for listing buckets.
 
     Returns:
-        ListBucketsResponse: A structured response with matching bucket names.
+        ListBucketsResponse -> A structured response with matching bucket names.
     """
     logger.info(
         f"Tool call: list_buckets(project_id={request.project_id}, prefix={request.prefix})"

@@ -1,10 +1,10 @@
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence, Union
-import logging
 import mimetypes
 import os
 import httpx
 import google.auth
+from loguru import logger
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
@@ -12,10 +12,6 @@ from google.oauth2.credentials import Credentials
 
 from .config import GCS_API_CONFIG, GCS_AUTH_CONFIG
 from .schemas import AuthenticationError
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
