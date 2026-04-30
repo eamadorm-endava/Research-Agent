@@ -21,6 +21,7 @@ from .schemas import (
     UploadObjectResponse,
     ReadObjectRequest,
     ReadObjectResponse,
+    GcsObjectMetadata,
     UpdateObjectMetadataRequest,
     UpdateObjectMetadataResponse,
     DeleteObjectRequest,
@@ -208,48 +209,63 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
 @mcp.tool()
 async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
     """
-    Downloads a specific file (blob) from a bucket and returns its contents.
-    Ideal for reading configuration or documentation files stored in GCS.
+    Retrieves metadata and the canonical GCS URI for a specific file (blob).
+    Ideal for preparing files for multi-modal LLM analysis via GCS URI reference.
 
     Args:
-        request: ReadObjectRequest -> The request parameters for reading the object.
+        request: ReadObjectRequest -> The request parameters (bucket, object).
 
     Returns:
-        ReadObjectResponse -> The object contents and metadata.
+        ReadObjectResponse -> The object URI and strictly typed metadata.
     """
     logger.info(
         f"Tool call: read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
         gcs_manager = _make_gcs_manager()
-        content_bytes = await asyncio.to_thread(
-            gcs_manager.download_object_as_bytes,
+        blob = await asyncio.to_thread(
+            gcs_manager.get_object_metadata,
             request.bucket_name,
             request.object_name,
         )
-        decoded = None
-        is_binary = False
-        try:
-            decoded = content_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            is_binary = True
+
+        # Extract and format metadata
+        creation_dt = blob.time_created
+        metadata = GcsObjectMetadata(
+            mime_type=blob.content_type or "application/octet-stream",
+            size_bytes=blob.size or 0,
+            creation_date=creation_dt.strftime("%Y-%m-%d")
+            if creation_dt
+            else "unknown",
+            creation_time=creation_dt.strftime("%H:%M:%S")
+            if creation_dt
+            else "unknown",
+            updated_at=blob.updated.isoformat() if blob.updated else "unknown",
+            custom_metadata=blob.metadata or {},
+        )
 
         return ReadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
-            content=decoded,
-            size_bytes=len(content_bytes),
-            is_binary=is_binary,
+            gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
+            metadata=metadata,
             execution_status="success",
-            execution_message="Object read successfully.",
+            execution_message="Object metadata and URI retrieved successfully.",
         )
     except Exception as e:
+        # Fallback empty metadata on error
         return ReadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
-            content=None,
-            size_bytes=0,
-            is_binary=False,
+            gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
+            metadata=GcsObjectMetadata(
+                mime_type="application/octet-stream",
+                size_bytes=0,
+                creation_date="error",
+                creation_time="error",
+                updated_at="error",
+                custom_metadata={},
+            ),
             execution_status="error",
             execution_message=_format_execution_error(e),
         )

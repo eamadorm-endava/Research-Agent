@@ -5,18 +5,17 @@ from google.genai import types
 from loguru import logger
 
 PENDING_RENDER_KEY = "pending_artifact_renders"
+PENDING_URI_KEY = "pending_gcs_uri_renders"
 
 
 async def render_pending_artifacts(
     callback_context: Context,
 ) -> Optional[types.Content]:
-    """Loads artifacts queued during the agent turn and returns them as inline Parts.
+    """Unified renderer for both local session artifacts and external GCS URIs.
 
-    Gemini Enterprise only renders files returned as inline types.Part objects in
-    the final agent response. Tools cannot return Parts directly (causes schema
-    parsing errors), so they queue filenames in state under PENDING_RENDER_KEY.
-    This callback converts that queue into renderable content before the response
-    is sent to the platform.
+    Handles:
+    1. Local Artifacts (UI Uploads): Queued in PENDING_RENDER_KEY. Loaded as URIs from the Landing Zone.
+    2. External URIs (Discovery): Queued in PENDING_URI_KEY. Passed directly as URIs from original buckets.
 
     Args:
         callback_context: Context -> The ADK callback context with state and artifact access.
@@ -25,21 +24,36 @@ async def render_pending_artifacts(
         Optional[types.Content] -> Inline content with all pending artifact Parts,
         or None if no artifacts are queued.
     """
+    artifact_parts: list[types.Part] = []
+
+    # Path A: Local Artifacts (UI Uploads / Stashed Content)
     pending_filenames: list[str] = callback_context.state.get(PENDING_RENDER_KEY, [])
-    if not pending_filenames:
-        return None
+    if pending_filenames:
+        logger.info(f"Rendering {len(pending_filenames)} local artifact(s).")
+        artifact_parts.extend(
+            await _load_artifact_parts(callback_context, pending_filenames)
+        )
+        callback_context.state[PENDING_RENDER_KEY] = []
 
-    logger.info(
-        f"Rendering {len(pending_filenames)} pending artifact(s) for Gemini Enterprise."
-    )
-    artifact_parts = await _load_artifact_parts(callback_context, pending_filenames)
-
-    callback_context.state[PENDING_RENDER_KEY] = []
-    logger.debug("Cleared pending artifact render queue from session state.")
+    # Path B: External GCS URIs (GCS Discovery / Direct-Pass)
+    pending_uris: list[dict[str, str]] = callback_context.state.get(PENDING_URI_KEY, [])
+    if pending_uris:
+        logger.info(f"Rendering {len(pending_uris)} external GCS URI(s).")
+        for item in pending_uris:
+            uri = item.get("uri")
+            mime_type = item.get("mime_type", "application/pdf")
+            if uri:
+                artifact_parts.append(
+                    types.Part(
+                        file_data=types.FileData(file_uri=uri, mime_type=mime_type)
+                    )
+                )
+        callback_context.state[PENDING_URI_KEY] = []
 
     if not artifact_parts:
         return None
 
+    logger.debug(f"Combined render complete: {len(artifact_parts)} total parts.")
     return types.Content(role="model", parts=artifact_parts)
 
 
@@ -59,24 +73,12 @@ async def _load_artifact_parts(
     artifact_parts = []
     for filename in filenames:
         try:
-            # If using StorageService, we must force bytes for GE rendering.
-            # Standard load_artifact would return a GCS reference which GE doesn't render.
-            storage_service = getattr(
-                callback_context.invocation_context, "artifact_service", None
-            )
-            if storage_service and hasattr(storage_service, "load_artifact_as_bytes"):
-                artifact_part = await storage_service.load_artifact_as_bytes(
-                    app_name=callback_context.invocation_context.app_name,
-                    user_id=callback_context.invocation_context.user_id,
-                    session_id=callback_context.invocation_context.session.id,
-                    filename=filename,
-                )
-            else:
-                artifact_part = await callback_context.load_artifact(filename)
+            # Standard load_artifact returns a Part(file_data=...) pointing to the Landing Zone
+            artifact_part = await callback_context.load_artifact(filename)
 
             if artifact_part:
                 artifact_parts.append(artifact_part)
-                logger.debug(f"Loaded artifact for GE rendering: {filename}")
+                logger.debug(f"Loaded local artifact URI for rendering: {filename}")
             else:
                 logger.warning(
                     f"Artifact not found during render, skipping: {filename}"

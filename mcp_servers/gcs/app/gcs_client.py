@@ -190,6 +190,30 @@ class GCSManager:
             )
             raise
 
+    def get_object_metadata(self, bucket_name: str, object_name: str) -> storage.Blob:
+        """
+        Retrieves metadata for a GCS object without downloading its content.
+
+        Args:
+            bucket_name: The name of the bucket.
+            object_name: The name of the object.
+
+        Returns:
+            storage.Blob: The blob object with populated metadata.
+        """
+        try:
+            bucket = self.get_bucket(bucket_name)
+            blob = bucket.get_blob(object_name)
+            if not blob:
+                raise ValueError(
+                    f"Object {object_name} not found in bucket {bucket_name}."
+                )
+            logger.info(f"Retrieved metadata for {object_name} from {bucket_name}.")
+            return blob
+        except (GoogleCloudError, ValueError) as e:
+            logger.error(f"Error retrieving metadata for {object_name}: {e}")
+            raise
+
     def update_object_metadata(
         self, bucket_name: str, object_name: str, metadata: Dict[str, Any]
     ) -> storage.Blob:

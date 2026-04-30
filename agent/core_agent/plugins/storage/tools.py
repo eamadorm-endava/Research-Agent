@@ -2,12 +2,11 @@ import mimetypes
 from typing import Optional
 
 from google.adk.tools import BaseTool, ToolContext
-from google.cloud import storage
 from google.genai import types
 from loguru import logger
 from typing_extensions import override
 
-from .callbacks import PENDING_RENDER_KEY
+from .callbacks import PENDING_URI_KEY
 from .schemas import (
     GetArtifactUriRequest,
     GetArtifactUriResponse,
@@ -103,9 +102,11 @@ class ImportGcsToArtifactTool(BaseTool):
         super().__init__(
             name="import_gcs_to_artifact",
             description=(
-                "Imports an object from Google Cloud Storage into the current session "
-                "as an artifact. Use this when you have a 'gs://' URI (e.g., from "
-                "reading a file) and you want to analyze its content (PDF, Image, Video, etc.)."
+                "Registers an object from Google Cloud Storage into the current session "
+                "context using its original URI reference. Use this when you have a 'gs://' "
+                "URI and its MIME type (retrieved from the GCS MCP server) to analyze "
+                "content (PDF, Image, Video, etc.) without downloading or copying bytes. "
+                "This enables zero-copy analysis of external data."
             ),
         )
 
@@ -140,10 +141,10 @@ class ImportGcsToArtifactTool(BaseTool):
 
     @override
     async def run_async(self, *, args: dict, tool_context: ToolContext) -> dict:
-        """Downloads the GCS object, converts it to the appropriate Part type, and saves it as an artifact.
+        """Registers a GCS URI as a session artifact using MCP-provided metadata.
 
         Args:
-            args: dict -> Must contain 'gcs_uri'; optionally 'artifact_name' and 'mime_type'. May be nested under 'request'.
+            args: dict -> Must contain 'gcs_uri'; optionally 'artifact_name' and 'mime_type'.
             tool_context: ToolContext -> ADK context for artifact saving.
 
         Returns:
@@ -151,33 +152,40 @@ class ImportGcsToArtifactTool(BaseTool):
         """
         try:
             request = ImportGcsToArtifactRequest(**args)
-            logger.info(f"Importing GCS object to artifact: {request.gcs_uri}")
-            download = self._download_gcs_object(request)
-            artifact_part = self._create_artifact_part(
-                download["content_bytes"],
-                download["mime_type"],
-                download["artifact_name"],
-            )
-            version = await tool_context.save_artifact(
-                filename=download["artifact_name"], artifact=artifact_part
-            )
-            pending = list(tool_context.state.get(PENDING_RENDER_KEY, []))
-            pending.append(download["artifact_name"])
-            tool_context.state[PENDING_RENDER_KEY] = pending
-            logger.debug(f"Queued '{download['artifact_name']}' for GE rendering.")
+            logger.info(f"Registering GCS URI artifact: {request.gcs_uri}")
+
+            # Extract artifact name from URI if not provided
+            object_name = request.gcs_uri[5:].split("/", 1)[-1]
+            artifact_name = request.artifact_name or object_name.split("/")[-1]
+
+            # Resolve MIME type: trust input -> guess from extension -> fallback
+            mime_type = request.mime_type
+            if not mime_type:
+                mime_type, _ = mimetypes.guess_type(artifact_name)
+                logger.debug(f"MIME type guessed from filename: {mime_type}")
+            mime_type = mime_type or "application/octet-stream"
+
+            # Zero-Copy Ingestion: Queue the original URI for the post-turn callback
+            # instead of copying it to the session landing zone.
+            pending_uris = list(tool_context.state.get(PENDING_URI_KEY, []))
+            pending_uris.append({"uri": request.gcs_uri, "mime_type": mime_type})
+            tool_context.state[PENDING_URI_KEY] = pending_uris
+
+            logger.info(f"Queued GCS URI for direct LLM ingestion: {request.gcs_uri}")
+
             return ImportGcsToArtifactResponse(
-                artifact_id=f"{download['artifact_name']}:v{version}",
+                artifact_id=f"{artifact_name}:direct",
                 gcs_uri=request.gcs_uri,
-                content_type=download["mime_type"],
+                content_type=mime_type,
                 execution_status="success",
                 execution_message=(
-                    f"Successfully imported {request.gcs_uri} as artifact "
-                    f"'{download['artifact_name']}' (v{version}). "
-                    "You can now 'load_artifacts' to process it."
+                    f"Successfully registered {request.gcs_uri} for direct analysis. "
+                    "The model will access the file directly from its original bucket "
+                    "without any intermediate copies."
                 ),
             ).model_dump()
         except Exception as e:
-            logger.error(f"Error importing GCS to artifact: {e}")
+            logger.error(f"Error registering GCS artifact: {e}")
             return ImportGcsToArtifactResponse(
                 artifact_id="",
                 gcs_uri=None,
@@ -185,65 +193,20 @@ class ImportGcsToArtifactTool(BaseTool):
                 execution_message=f"Internal error: {str(e)}",
             ).model_dump()
 
-    def _download_gcs_object(
-        self, request: ImportGcsToArtifactRequest
-    ) -> dict[str, bytes | str]:
-        """Downloads a GCS blob and resolves the artifact name and MIME type.
-
-        Args:
-            request: ImportGcsToArtifactRequest -> Validated import request containing the GCS URI.
-
-        Returns:
-            dict -> Keys: 'content_bytes' (bytes), 'mime_type' (str), 'artifact_name' (str).
-        """
-        bucket_name, object_name = request.gcs_uri[5:].split("/", 1)
-        artifact_name = request.artifact_name or object_name.split("/")[-1]
-        logger.debug(f"Resolved artifact name: {artifact_name}, bucket: {bucket_name}")
-
-        client = storage.Client()
-        blob = client.bucket(bucket_name).blob(object_name)
-
-        if not blob.exists():
-            raise FileNotFoundError(f"GCS object not found: {request.gcs_uri}")
-
-        mime_type = request.mime_type or blob.content_type
-        if not mime_type:
-            mime_type, _ = mimetypes.guess_type(artifact_name)
-            logger.debug(f"MIME type guessed from extension: {mime_type}")
-
-        return {
-            "content_bytes": blob.download_as_bytes(),
-            "mime_type": mime_type or "application/octet-stream",
-            "artifact_name": artifact_name,
-        }
-
     def _create_artifact_part(
-        self, content_bytes: bytes, mime_type: str, artifact_name: str
+        self, gcs_uri: str, mime_type: str, artifact_name: str
     ) -> types.Part:
-        """Converts raw bytes into the appropriate Gemini Part type based on the MIME type.
+        """Creates a Gemini Part using the GCS URI (file_data) without binary downloads.
 
         Args:
-            content_bytes: bytes -> Raw content of the downloaded GCS object.
-            mime_type: str -> MIME type used to select the ingestion strategy.
-            artifact_name: str -> Filename used in the fallback placeholder message.
+            gcs_uri: str -> The canonical GCS URI.
+            mime_type: str -> MIME type for Gemini ingestion.
+            artifact_name: str -> Filename for logging.
 
         Returns:
-            types.Part -> Gemini-compatible content part ready to be saved as an artifact.
+            types.Part -> Gemini-compatible content part referencing the GCS URI.
         """
-        logger.debug(f"Creating artifact part for MIME type: {mime_type}")
-
-        if mime_type.startswith(_MULTIMODAL_PREFIXES) or mime_type == "application/pdf":
-            return types.Part(
-                inline_data=types.Blob(data=content_bytes, mime_type=mime_type)
-            )
-
-        if mime_type.startswith("text/") or mime_type in _TEXT_LIKE_TYPES:
-            text_content = content_bytes.decode("utf-8", errors="replace")
-            return types.Part.from_text(text=text_content)
-
-        logger.debug(
-            f"Unsupported MIME type '{mime_type}' for '{artifact_name}'; using placeholder."
-        )
-        return types.Part.from_text(
-            text=f"[Binary Artifact: {artifact_name}, type: {mime_type}. Content cannot be displayed inline.]"
+        logger.debug(f"Creating URI-based part for {artifact_name} ({mime_type})")
+        return types.Part(
+            file_data=types.FileData(file_uri=gcs_uri, mime_type=mime_type)
         )
