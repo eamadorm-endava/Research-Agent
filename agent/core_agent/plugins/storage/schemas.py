@@ -25,7 +25,7 @@ class ImportGcsToArtifactRequest(BaseModel):
         Optional[str],
         Field(
             default=None,
-            description="Optional MIME type of the object (e.g., application/pdf). If not provided, it will be guessed.",
+            description="The MIME type of the object (e.g., application/pdf). Highly recommended to use the 'mime_type' returned by the GCS MCP server's 'read_object' tool.",
         ),
     ]
 

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from agent.core_agent.plugins.storage.callbacks import PENDING_RENDER_KEY
 from agent.core_agent.plugins.storage.tools import (
@@ -24,24 +24,6 @@ def _make_mock_tool_context(save_artifact_version: int = 0) -> AsyncMock:
     ctx.state.__getitem__ = MagicMock(side_effect=lambda k: _state[k])
     ctx.state.__contains__ = MagicMock(side_effect=lambda k: k in _state)
     return ctx
-
-
-def _make_mock_blob(
-    data: bytes,
-    content_type: str | None,
-    exists: bool = True,
-) -> MagicMock:
-    blob = MagicMock()
-    blob.exists.return_value = exists
-    blob.download_as_bytes.return_value = data
-    blob.content_type = content_type
-    return blob
-
-
-def _make_mock_storage_client(blob: MagicMock) -> MagicMock:
-    client = MagicMock()
-    client.bucket.return_value.blob.return_value = blob
-    return client
 
 
 # ─── GetArtifactUriTool ───────────────────────────────────────────────────────
@@ -114,31 +96,40 @@ class TestGetArtifactUriTool:
 
 
 class TestImportGcsToArtifactTool:
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_image_file_is_saved_as_inline_data(self, mock_storage):
-        """Happy path: image file is imported and stored as an inline-data artifact."""
-        blob = _make_mock_blob(b"fake-png-bytes", "image/png")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
+    async def test_multimodal_file_is_saved_as_file_data_reference(self):
+        """Happy path: multimodal file is registered using its GCS URI reference."""
         tool = ImportGcsToArtifactTool()
         ctx = _make_mock_tool_context(save_artifact_version=1)
 
         result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/photo.png"}, tool_context=ctx
+            args={"gcs_uri": "gs://bucket/photo.png", "mime_type": "image/png"},
+            tool_context=ctx,
         )
 
         assert result["execution_status"] == "success"
         assert result["content_type"] == "image/png"
         saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert saved_part.inline_data is not None
-        assert saved_part.inline_data.mime_type == "image/png"
+        assert saved_part.file_data is not None
+        assert saved_part.file_data.file_uri == "gs://bucket/photo.png"
+        assert saved_part.file_data.mime_type == "image/png"
 
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_pdf_file_is_saved_as_inline_data(self, mock_storage):
-        """Happy path: PDF is imported as inline-data so Gemini can read it natively."""
-        blob = _make_mock_blob(b"%PDF-fake", "application/pdf")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
+    async def test_text_file_is_also_saved_as_file_data_reference(self):
+        """Happy path: text file is also registered as a URI reference to avoid downloads."""
+        tool = ImportGcsToArtifactTool()
+        ctx = _make_mock_tool_context()
 
+        result = await tool.run_async(
+            args={"gcs_uri": "gs://bucket/notes.txt", "mime_type": "text/plain"},
+            tool_context=ctx,
+        )
+
+        assert result["execution_status"] == "success"
+        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
+        assert saved_part.file_data.file_uri == "gs://bucket/notes.txt"
+        assert saved_part.file_data.mime_type == "text/plain"
+
+    async def test_mime_type_guessing_from_extension(self):
+        """Edge case: MIME type is correctly guessed from URI extension when missing."""
         tool = ImportGcsToArtifactTool()
         ctx = _make_mock_tool_context()
 
@@ -147,87 +138,12 @@ class TestImportGcsToArtifactTool:
         )
 
         assert result["execution_status"] == "success"
+        assert result["content_type"] == "application/pdf"
         saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert saved_part.inline_data.mime_type == "application/pdf"
+        assert saved_part.file_data.mime_type == "application/pdf"
 
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_audio_file_is_saved_as_inline_data(self, mock_storage):
-        """Happy path: audio file is imported as inline-data for multimodal analysis."""
-        blob = _make_mock_blob(b"fake-mp3-bytes", "audio/mpeg")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/meeting.mp3"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "success"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert saved_part.inline_data.mime_type == "audio/mpeg"
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_plain_text_file_is_saved_as_text_part(self, mock_storage):
-        """Happy path: plain-text file is imported as a text Part."""
-        blob = _make_mock_blob(b"Hello, World!", "text/plain")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/notes.txt"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "success"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert saved_part.text == "Hello, World!"
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_csv_file_is_saved_as_text_part(self, mock_storage):
-        """Happy path: CSV file is treated as text-like and imported accordingly."""
-        csv_bytes = b"col1,col2\n1,2\n3,4"
-        blob = _make_mock_blob(csv_bytes, "application/csv")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/data.csv"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "success"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert "col1" in saved_part.text
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_unsupported_binary_falls_back_to_placeholder_text(
-        self, mock_storage
-    ):
-        """Edge case: unknown binary MIME type falls back to a descriptive placeholder."""
-        blob = _make_mock_blob(b"\x00\x01\x02", "application/octet-stream")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/data.bin"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "success"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert "[Binary Artifact:" in saved_part.text
-        assert "application/octet-stream" in saved_part.text
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_explicit_artifact_name_overrides_derived_name(self, mock_storage):
+    async def test_explicit_artifact_name_overrides_derived_name(self):
         """Edge case: caller-provided artifact_name takes priority over the GCS filename."""
-        blob = _make_mock_blob(b"data", "text/plain")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
         tool = ImportGcsToArtifactTool()
         ctx = _make_mock_tool_context()
 
@@ -242,12 +158,8 @@ class TestImportGcsToArtifactTool:
         ctx.save_artifact.assert_called_once()
         assert ctx.save_artifact.call_args.kwargs["filename"] == "my_custom.txt"
 
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_artifact_id_encodes_name_and_version(self, mock_storage):
+    async def test_artifact_id_encodes_name_and_version(self):
         """Edge case: returned artifact_id correctly encodes the name and version number."""
-        blob = _make_mock_blob(b"data", "text/plain")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
         tool = ImportGcsToArtifactTool()
         ctx = _make_mock_tool_context(save_artifact_version=3)
 
@@ -257,51 +169,8 @@ class TestImportGcsToArtifactTool:
 
         assert result["artifact_id"] == "notes.txt:v3"
 
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_explicit_mime_type_overrides_blob_content_type(self, mock_storage):
-        """Edge case: caller-specified mime_type is used even when the blob has its own content_type."""
-        blob = _make_mock_blob(b"data", "application/octet-stream")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/file", "mime_type": "text/plain"},
-            tool_context=ctx,
-        )
-
-        assert result["content_type"] == "text/plain"
-
-    @patch("agent.core_agent.plugins.storage.tools.mimetypes")
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_guesses_mime_type_from_extension_when_blob_has_none(
-        self, mock_storage, mock_mimetypes
-    ):
-        """Edge case: when blob has no content_type, MIME type is guessed from the filename extension."""
-        blob = _make_mock_blob(b"%PDF-fake", content_type=None)
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-        mock_mimetypes.guess_type.return_value = ("application/pdf", None)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/document.pdf"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "success"
-        assert result["content_type"] == "application/pdf"
-        mock_mimetypes.guess_type.assert_called_once_with("document.pdf")
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_queues_artifact_filename_in_state_for_ge_rendering(
-        self, mock_storage
-    ):
+    async def test_queues_artifact_filename_in_state_for_ge_rendering(self):
         """Edge case: after a successful save, the filename is added to the GE render queue in state."""
-        blob = _make_mock_blob(b"data", "text/plain")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
         tool = ImportGcsToArtifactTool()
         ctx = _make_mock_tool_context()
 
@@ -310,39 +179,6 @@ class TestImportGcsToArtifactTool:
         )
 
         ctx.state.__setitem__.assert_called_with(PENDING_RENDER_KEY, ["report.txt"])
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_returns_error_when_gcs_object_not_found(self, mock_storage):
-        """Failure mode: the GCS blob does not exist; save_artifact must not be called."""
-        blob = _make_mock_blob(b"", content_type="text/plain", exists=False)
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/ghost.txt"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "error"
-        assert result["gcs_uri"] is None
-        ctx.save_artifact.assert_not_called()
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_returns_error_on_storage_client_exception(self, mock_storage):
-        """Failure mode: GCS client raises an unexpected exception during initialisation."""
-        mock_storage.Client.side_effect = Exception("Network timeout")
-
-        tool = ImportGcsToArtifactTool()
-        ctx = AsyncMock()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/file.pdf"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "error"
-        assert result["gcs_uri"] is None
-        assert "Network timeout" in result["execution_message"]
 
     async def test_returns_error_on_malformed_args(self):
         """Failure mode: missing required 'gcs_uri' returns error dict instead of raising."""
@@ -353,21 +189,3 @@ class TestImportGcsToArtifactTool:
 
         assert result["execution_status"] == "error"
         assert result["gcs_uri"] is None
-
-    @patch("agent.core_agent.plugins.storage.tools.storage")
-    async def test_non_utf8_text_is_decoded_with_replacement(self, mock_storage):
-        """Edge case: text files with invalid UTF-8 sequences are decoded without crashing."""
-        invalid_utf8 = b"Hello \xff\xfe World"
-        blob = _make_mock_blob(invalid_utf8, "text/plain")
-        mock_storage.Client.return_value = _make_mock_storage_client(blob)
-
-        tool = ImportGcsToArtifactTool()
-        ctx = _make_mock_tool_context()
-
-        result = await tool.run_async(
-            args={"gcs_uri": "gs://bucket/file.txt"}, tool_context=ctx
-        )
-
-        assert result["execution_status"] == "success"
-        saved_part = ctx.save_artifact.call_args.kwargs["artifact"]
-        assert "Hello" in saved_part.text
