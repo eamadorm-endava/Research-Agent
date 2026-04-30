@@ -43,7 +43,13 @@ Plugins are responsible for "When" and "Where" data should be moved.
     - Uses the `StorageService` to save them to GCS.
     - Replaces the original binary data in the message with a lightweight GCS reference.
 
-### B. Rendering Callbacks (`render_pending_artifacts`)
+### B. Lazy Association & Discovery
+- **The Problem**: In some environments (like Gemini Enterprise), files may be "pre-stashed" into the GCS bucket before the plugin intercepts the message, leaving behind empty text tags.
+- **The Solution**: 
+    - The `StorageService` provides a `get_artifact_metadata` method to "discover" these pre-stashed files.
+    - The Plugin maintains a **Turn Registry** to link placeholders to actual GCS blobs, ensuring the agent always receives high-integrity GCS URIs even if the binary data was stripped during pre-processing.
+
+### C. Rendering Callbacks (`render_pending_artifacts`)
 - **When it activates**: At the end of an agent turn (before the response is sent).
 - **Function**: 
     - Scans the session state for any artifacts queued for display.
@@ -76,11 +82,11 @@ sequenceDiagram
     participant Service as Storage Service
     participant GCS as Google Cloud Storage
 
-    User->>Plugin: Sends Message + Inline File
-    Plugin->>Service: save_artifact(file)
-    Service->>GCS: Upload Blob
+    User->>Plugin: Sends Message + File Placeholder (Tags)
+    Plugin->>Service: get_artifact_metadata(filename)
+    Service->>GCS: Lookup Blob & MIME Type
+    Service-->>Plugin: Metadata (URI + MIME)
+    Plugin->>Service: ensure_uploader_permissions(discovered_uri)
     Service->>GCS: Set IAM Condition (Folder-level)
-    Service->>Service: Resolve MIME Type
-    Service-->>Plugin: Return GCS URI
-    Plugin->>User: Message (with GCS Reference)
+    Plugin->>User: Message (with Clean GCS Reference)
 ```
