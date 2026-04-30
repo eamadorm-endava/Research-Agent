@@ -1,4 +1,6 @@
 import argparse
+import sys
+from loguru import logger
 
 from .config import GCS_SERVER_CONFIG
 from .mcp_server import mcp
@@ -18,15 +20,19 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--log-level",
-        type=str.lower,
-        choices=["debug", "info", "warning", "error", "critical"],
-        default=GCS_SERVER_CONFIG.default_log_level,
+        type=str.upper,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default=GCS_SERVER_CONFIG.default_log_level.upper(),
         help="Logging level",
     )
     args = parser.parse_args()
 
+    # Configure logging
+    logger.remove()
+    logger.add(sys.stderr, level=args.log_level)
+
     mcp.settings.host = args.host
     mcp.settings.port = args.port
-    mcp.settings.log_level = args.log_level.upper()
+    mcp.settings.log_level = args.log_level
 
     mcp.run(transport="streamable-http")
