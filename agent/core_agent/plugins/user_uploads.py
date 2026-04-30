@@ -75,8 +75,11 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             return None
 
         logger.info(
-            f"Plugin modified message: inline={modified_inline}, text_blocks={modified_text}"
+            f"Plugin modified message: inline={modified_inline}, text_blocks={modified_text}. Final summary of parts sent to agent:"
         )
+        for part_index, part in enumerate(new_parts):
+            self._log_part_summary(part_index, part)
+
         return types.Content(role=user_message.role, parts=new_parts)
 
     async def _process_message_parts(
@@ -358,12 +361,12 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
 
         if inline is not None:
             data_len = len(inline.data) if inline.data else 0
-            logger.debug(
+            logger.info(
                 f"  part[{index}] inline_data — mime={inline.mime_type!r} "
                 f"display_name={inline.display_name!r} bytes={data_len}"
             )
         elif file_data is not None:
-            logger.debug(
+            logger.info(
                 f"  part[{index}] file_data  — uri={getattr(file_data, 'file_uri', None)!r} "
                 f"mime={getattr(file_data, 'mime_type', None)!r}"
             )
