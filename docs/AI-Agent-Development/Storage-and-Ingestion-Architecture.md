@@ -5,8 +5,11 @@ This document explains the architecture of the artifact storage and ingestion pi
 ## Overview
 
 The system is divided into two distinct layers to ensure a clean separation of concerns:
-1.  **Storage Service Layer**: Handles low-level communication with Google Cloud Platform (GCP).
-2.  **Plugin Layer**: Orchestrates high-level agent behavior and hooks into the communication lifecycle.
+1.  **Storage Service Layer (The Tool)**: Provides the core capabilities to interact with GCS and IAM. It is a stateless utility that handles the "How".
+2.  **Plugin Layer (The Hand)**: Orchestrates the agent's behavior by hooking into the lifecycle. It is the automated logic that handles the "When".
+
+### The "Hand vs Tool" Analogy
+Without the **Plugin**, the **Storage Service** would never be called. The Plugin is the "hand" that intercepts a user's upload and uses the Storage Service "tool" to persist and secure it.
 
 ---
 
