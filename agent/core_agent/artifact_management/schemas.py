@@ -1,6 +1,9 @@
 from typing import Annotated, Optional
 from pydantic import BaseModel, Field
 
+PENDING_RENDER_KEY = "pending_artifact_renders"
+PENDING_URI_KEY = "pending_gcs_uri_renders"
+
 
 class ImportGcsToArtifactRequest(BaseModel):
     """
