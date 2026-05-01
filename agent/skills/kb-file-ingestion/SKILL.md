@@ -3,11 +3,8 @@ name: kb-file-ingestion
 description: Orchestrates the ingestion of user-uploaded files into the Enterprise Knowledge Base.
 ---
 
-# Knowledge Base File Ingestion Skill
+## Mandatory execution mode
 
-You are a specialized ingestion agent responsible for ensuring that documents uploaded by users are correctly classified and stored in Endava's Enterprise Knowledge Base (EKB).
-
-## Activation
 Trigger this skill when a user asks to:
 - "Save this file to the knowledge base"
 - "Add this document to the general KB"
@@ -16,76 +13,75 @@ Trigger this skill when a user asks to:
 - "Publish the uploaded file to the EKB"
 or similar requests.
 
+## Progress Tracker
+Maintain this state throughout the interaction:
+- [ ] Step 1: Identify and verify session artifact
+- [ ] Step 2: Validate project and filename (Deduplication)
+- [ ] Step 3: Collect metadata (Domain, Trust, PII)
+- [ ] Step 4: Relocate file and stamp metadata
+- [ ] Step 5: Trigger EKB Pipeline
+
+## Gotchas
+- **GCS URIs**: The agent landing zone is always `gs://ai_agent_landing_zone/`. 
+- **KB Landing Zone**: The KB ingestion bucket is **`gs://ag-core-dev-fdx7-kb-landing-zone/`**. You MUST use this exact name for the `destination_bucket` to trigger the Service Account authentication switch.
+- **Project IDs**: In BigQuery, `project_id` is case-sensitive in some operations but should be checked case-insensitively for duplicates.
+- **Job IDs**: Always return the `job_id` from the pipeline response to the user as a confirmation.
+
 ## Mandatory Workflow
 
 ### Step 1: Identify the File
-- Use the `get_artifact_uri` tool to retrieve the GCS URI (`gs://ai_agent_landing_zone/...`) of the file the user just uploaded.
-- If multiple files were uploaded, ask the user to clarify which one to ingest.
-- If no file was uploaded, inform the user about the error and ask them to upload a file.
+1.  Use the `get_artifact_uri` tool to find the URI of the file the user just uploaded.
+2.  **Validation**:
+    - If multiple files exist, ask: "I see several files ([List]). Which one should I ingest?"
+    - If no file is found, ask: "Please upload the document you'd like to add to the knowledge base first."
 
-### Step 2: Metadata Collection & Validation
-Collect the following metadata through a multi-turn conversation. First asks for all the data, if the user provides all the data in one go, ask for confirmation. If there is missing data, ask for the missing data.
+### Step 2: Deduplication & Project Validation
+1.  **Project Identification**: Ask the user: "Which project does this document belong to?"
+2.  **Deduplication Check**: Run the following BigQuery query (via `execute_query`) to find similar projects:
+    ```sql
+    SELECT DISTINCT project_id 
+    FROM `knowledge_base.documents_metadata` 
+    WHERE lower(project_id) LIKE lower('%<user_input>%')
+    ```
+3.  **Conflict Resolution**:
+    - If similar projects are found, present them and ask if it's one of those or a new one.
+    - If no similar projects are found, run `ekb_semantic_search(project_filter='...')` to find related projects.
+4.  **Filename Check**: Check if a file with the same name already exists in that project:
+    ```sql
+    SELECT filename 
+    FROM `knowledge_base.documents_metadata` 
+    WHERE project_id = '<confirmed_project>' AND lower(filename) = lower('<uploaded_filename>')
+    ```
+    - If it exists, ask: "A version of '<filename>' already exists in project '<project>'. Should I replace it or would you like to rename this file?"
 
-1.  **Project Identification**:
-    - Ask: "Which project does this document belong to?"
-    - **Deduplication Check**: Use the BigQuery `execute_query` tool to search for similar projects in `knowledge_base.documents_metadata`:
-      ```sql
-      SELECT DISTINCT project_id 
-      FROM `knowledge_base.documents_metadata` 
-      WHERE lower(project_id) LIKE lower('%<user_input>%')
-      ```
-    - If no similar projects are found, use tool `ekb_semantic_search` to search for similar projects, using the *project_filter* parameter
-    - If similar projects are found, present them and ask: "I found existing projects with similar names: [List]. Is it one of these, or should I create a new project entry for '[User Input]'?"
+### Step 3: Metadata Collection
+Collect the following through conversation (batch questions when possible):
+- **Domain**: Restricted to: `IT, Finance, HR, Sales, Executives, Legal, Operations`.
+- **Trust Level**: Restricted to: `Published, WIP, Archived`.
+    - *Tip*: Explain that WIP is Work In Progress, Published is currently valid, and Archived is for reference only.
+- **PII Status**: Does it contain sensitive personal info?
 
-2.  **Filename Collision Check**:
-    - Once the project is confirmed, check if a file with the same name already exists in that project:
-      ```sql
-      SELECT filename 
-      FROM `knowledge_base.documents_metadata` 
-      WHERE project_id = '<confirmed_project>' AND lower(filename) LIKE lower('%<uploaded_filename_in_lowercase>%')
-      LIMIT 10
-      ```
-    - If the previous query returned a non-empty result, use the tool `ekb_semantic_search` to search for similar filenames in the project, using the *filename* and *project_filter* parameters.
-    - If a collision is found, ask: "A document named '[filename]' already exists in project '[project]'. Do you want to replace it (version update) or provide a different name for this upload?"
+### Step 4: Relocation & Stamping
+1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file:
+    - **Source**: `gs://ai_agent_landing_zone/<filename>`
+    - **Destination**: `gs://ag-core-dev-fdx7-kb-landing-zone/<project_id>/<filename>`
+2.  **Stamp Metadata**: Use `update_object_metadata` (GCS) to attach:
+    ```json
+    {
+      "project": "<project>",
+      "domain": "<domain>",
+      "trust-level": "<trust_level>",
+      "pii_status": "<status>"
+    }
+    ```
 
-3.  **Domain & Trust Level**:
-    - Ask for the **Domain**. Restricted to: `IT, Finance, HR, Sales, Executives, Legal, Operations`.
-    - Ask for the **Trust Level**. Restricted to: `Published, WIP, Archived`. Explain the user that WIP means that the document is Work In Progress, published is documents that are currently valid, and archived is documents that are no longer valid but should be kept for reference.
-    - Ask if the document contains any **PII (Personally Identifiable Information)**.
-
-4. **Ask confirmation**: 
-    - Summarize the collected metadata and ask for final confirmation: "I have the following information: 
-    Project: <project>
-    Filename: <filename>
-    Domain: <domain>
-    Trust Level: <trust_level>
-    PII: <pii>
-    Is this correct?"
-
-### Step 3: Execution (The "Landing Sequence")
-Once the user gives final confirmation of the summarized metadata:
-
-1.  **Relocate File**:
-    - Use the GCS `upload_object` tool to move the file:
-        - `source_gcs_uri`: The URI from Step 1.
-        - `destination_bucket`: `kb-landing-zone` (default).
-        - `filename`: The confirmed filename.
-    - Note the `destination_uri` returned.
-
-2.  **Stamp Metadata**:
-    - Use the GCS `update_object_metadata` tool to attach the collected answers to the new blob in `kb-landing-zone`:
-        ```json
-        {
-          "project": "<project>",
-          "domain": "<domain>",
-          "trust-level": "<trust_level>",
-          "pii_status": "<status>",
-          "uploader": "<uploader email>"
-        }
-        ```
-
-3.  **Trigger Pipeline**:
-    - Call the `trigger_ekb_pipeline` tool with the `destination_uri`.
-
-### Step 4: Closing
-Inform the user that the ingestion has started and provide the final GCS URI as proof of storage.
+### Step 5: Trigger Pipeline
+1.  Call `trigger_ekb_pipeline(gcs_uri='gs://kb-landing-zone/<project_id>/<filename>')`.
+2.  **Final Confirmation**: Provide the user with a summary using this template:
+    ```markdown
+    ### ✅ Ingestion Started
+    - **File**: <filename>
+    - **Project**: <project_id>
+    - **Job ID**: <job_id_from_tool>
+    - **Status**: The document is being processed and will be available in the KB shortly.
+    ```
