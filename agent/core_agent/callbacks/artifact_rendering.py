@@ -4,8 +4,7 @@ from google.adk.agents.context import Context
 from google.genai import types
 from loguru import logger
 
-PENDING_RENDER_KEY = "pending_artifact_renders"
-PENDING_URI_KEY = "pending_gcs_uri_renders"
+from ..artifact_management.schemas import PENDING_RENDER_KEY, PENDING_URI_KEY
 
 
 async def render_pending_artifacts(

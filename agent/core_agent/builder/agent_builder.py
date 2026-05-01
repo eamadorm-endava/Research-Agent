@@ -14,7 +14,7 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
-from ..plugins.storage.callbacks import render_pending_artifacts
+from ..callbacks.artifact_rendering import render_pending_artifacts
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill_toolset
 

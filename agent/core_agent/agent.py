@@ -10,7 +10,7 @@ from .config import (
 )
 
 from google.adk.tools import load_artifacts
-from .plugins import (
+from .tools.artifact_tools import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
 )

@@ -6,8 +6,8 @@ from google.genai import types
 from loguru import logger
 from typing_extensions import override
 
-from .callbacks import PENDING_URI_KEY
-from .schemas import (
+from ..artifact_management.schemas import (
+    PENDING_URI_KEY,
     GetArtifactUriRequest,
     GetArtifactUriResponse,
     ImportGcsToArtifactRequest,

@@ -3,9 +3,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 from google.genai import types
 
-from agent.core_agent.plugins.storage.callbacks import (
+from agent.core_agent.artifact_management.schemas import (
     PENDING_RENDER_KEY,
     PENDING_URI_KEY,
+)
+from agent.core_agent.callbacks.artifact_rendering import (
     render_pending_artifacts,
 )
 
