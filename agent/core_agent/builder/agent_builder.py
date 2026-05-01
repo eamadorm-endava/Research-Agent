@@ -40,7 +40,8 @@ class AgentBuilder:
         self.agent_config = agent_config
         self.gcp_config = gcp_config
         self._mcp_builder = MCPToolsetBuilder(auth_config)
-        self._registered_tools = []  # skills are also treated as tools in ADK
+        self._registered_tools = []
+        self._skills = []
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -84,7 +85,7 @@ class AgentBuilder:
         return self
 
     def with_skills(self, skill_names: list[str]) -> Self:
-        """Loads and registers ADK skills to the agent's toolset.
+        """Loads and registers ADK skills into a dedicated skills list.
 
         Args:
             skill_names: list[str] -> Names of the skill directories to load.
@@ -94,7 +95,7 @@ class AgentBuilder:
         """
         for name in skill_names:
             skill = get_skill(skill_name=name)
-            self._registered_tools.append(skill)
+            self._skills.append(skill)
         return self
 
     def build(self) -> Agent:
@@ -149,14 +150,16 @@ class AgentBuilder:
     def _consolidate_tools(self) -> list:
         """Consolidates all registered skills into a single SkillToolset to avoid duplicate declarations.
 
-        This method extracts raw Skill objects and those already wrapped in SkillToolset instances,
-        merging them into one unified toolset for the agent.
+        This method aggregates skills from both self._skills and self._registered_tools,
+        ensuring any wrapped or raw skills are unified into one toolset.
 
         Returns:
             list -> The final list of tools (MCP, Native, and Consolidated Skills).
         """
-        all_skills = []
+        all_skills = list(self._skills)
         other_tools = []
+
+        # Also extract any skills accidentally or manually placed in _registered_tools
         for tool in self._registered_tools:
             if isinstance(tool, Skill):
                 all_skills.append(tool)
