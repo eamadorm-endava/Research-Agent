@@ -76,7 +76,8 @@ Collect the following through conversation (batch questions when possible):
     ```
 
 ### Step 5: Trigger Pipeline
-1.  Call `trigger_ekb_pipeline(gcs_uri='gs://ag-core-dev-fdx7-kb-landing-zone/<project_id>/<filename>')`.
+1.  Call `trigger_ekb_pipeline(gcs_uri='<destination_uri_returned_in_Step_4>')`.
+    - **Note**: This MUST be exactly the same URI returned by the `upload_object` tool.
 2.  **Final Confirmation**: Provide the user with a summary using this template:
     ```markdown
     ### ✅ Ingestion Started
