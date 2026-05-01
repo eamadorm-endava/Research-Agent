@@ -67,7 +67,8 @@ Collect the following through conversation (batch questions when possible):
     - `destination_bucket`: "ag-core-dev-fdx7-kb-landing-zone"
     - `filename`: The confirmed filename.
     - `path_inside_bucket`: The confirmed `<project_id>`.
-2.  **Stamp Metadata**: Use `update_object_metadata` (GCS) to attach:
+    - **Note**: The relocation process automatically preserves the source metadata.
+2.  **Stamp Metadata**: Use `update_object_metadata` (GCS) to attach the following. This will be **merged** with existing metadata:
     ```json
     {
       "project": "<project>",
