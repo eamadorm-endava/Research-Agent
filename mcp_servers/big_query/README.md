@@ -14,6 +14,7 @@ This MCP server provides the following advanced BigQuery tools (write/read) to t
 - `list_tables`: List all tables in a given dataset for agent discovery.
 - `add_rows`: Efficiently insert multiple records into an existing table using `ROWS`.
 - `execute_query`: Run read-only standard SQL queries. Enforces safety by blocking destructive commands (`DROP`, `DELETE`, `TRUNCATE`).
+- `ekb_semantic_search`: Perform vector-based semantic search against the Enterprise Knowledge Base using BQML.
 
 ## Tool Enhancements
 Compared to previous iterations, the following major improvements were made to the BigQuery Tools:
