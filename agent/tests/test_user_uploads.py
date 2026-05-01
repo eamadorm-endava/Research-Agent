@@ -326,7 +326,6 @@ async def test_one_failed_part_does_not_prevent_other_parts_from_processing():
 
     svc = AsyncMock()
     svc.save_artifact = AsyncMock(side_effect=[RuntimeError("GCS error"), 0])
-    svc.get_artifact_metadata = AsyncMock(return_value=None)
     svc.get_artifact_version = AsyncMock(
         return_value=_make_artifact_version("gs://bucket/good.png")
     )
@@ -563,61 +562,3 @@ async def test_grants_iam_objectadmin_on_existing_gcs_references():
     ctx.artifact_service.ensure_uploader_permissions.assert_called_once_with(
         gcs_uri, "emmanuel.amador@endava.com", "test-app"
     )
-
-
-# ─── Deduplication ────────────────────────────────────────────────────────────
-
-
-async def test_skips_redundant_upload_when_name_and_size_match():
-    """Should skip save_artifact and reuse existing URI when filename and size match."""
-    plugin = GeminiEnterpriseFileIngestionPlugin()
-    data = b"same-content"
-    size = len(data)
-    inline_part = _make_inline_part(data=data, display_name="duplicate.png")
-
-    svc = FakeStorageService()
-    svc.get_artifact_metadata = AsyncMock(
-        return_value={
-            "file_uri": "gs://bucket/duplicate.png",
-            "mime_type": "image/png",
-            "size": size,
-            "version": 0,
-        }
-    )
-    ctx = _make_invocation_context(artifact_service=svc)
-    msg = _make_user_message([inline_part])
-
-    result = await plugin.on_user_message_callback(
-        invocation_context=ctx, user_message=msg
-    )
-
-    assert result is not None
-    # save_artifact should NOT be called
-    svc.save_artifact.assert_not_called()
-    # Result should contain the existing URI
-    file_ref = [p for p in result.parts if hasattr(p, "file_data") and p.file_data][0]
-    assert file_ref.file_data.file_uri == "gs://bucket/duplicate.png"
-
-
-async def test_saves_new_artifact_when_size_differs():
-    """Should call save_artifact if the filename matches but the size is different."""
-    plugin = GeminiEnterpriseFileIngestionPlugin()
-    data = b"new-content"
-    inline_part = _make_inline_part(data=data, display_name="updated.png")
-
-    svc = FakeStorageService()
-    svc.get_artifact_metadata = AsyncMock(
-        return_value={
-            "file_uri": "gs://bucket/updated.png",
-            "mime_type": "image/png",
-            "size": 99999,  # Different size
-            "version": 0,
-        }
-    )
-    ctx = _make_invocation_context(artifact_service=svc)
-    msg = _make_user_message([inline_part])
-
-    await plugin.on_user_message_callback(invocation_context=ctx, user_message=msg)
-
-    # save_artifact SHOULD be called
-    svc.save_artifact.assert_called_once()

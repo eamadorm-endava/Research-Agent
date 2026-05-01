@@ -248,26 +248,22 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
 
         if metadata:
-            incoming_size = len(content.encode("utf-8")) if content else 0
-            if metadata.get("size") == incoming_size:
-                logger.info(
-                    f"Resolved GE text tag '{filename}' via GCS discovery (Size match: {incoming_size} bytes)."
-                )
-                # Ensure security is active for the discovered URI
-                await storage_service.ensure_uploader_permissions(
-                    metadata["file_uri"],
-                    invocation_context.user_id,
-                    invocation_context.app_name,
-                )
-                return [
-                    types.Part(text=f'[Uploaded Artifact: "{filename}"]'),
-                    types.Part(
-                        file_data=types.FileData(
-                            file_uri=metadata["file_uri"],
-                            mime_type=metadata["mime_type"],
-                        )
-                    ),
-                ]
+            logger.info(f"Resolved GE text tag '{filename}' via GCS discovery.")
+            # Ensure security is active for the discovered URI
+            await storage_service.ensure_uploader_permissions(
+                metadata["file_uri"],
+                invocation_context.user_id,
+                invocation_context.app_name,
+            )
+            return [
+                types.Part(text=f'[Uploaded Artifact: "{filename}"]'),
+                types.Part(
+                    file_data=types.FileData(
+                        file_uri=metadata["file_uri"],
+                        mime_type=metadata["mime_type"],
+                    )
+                ),
+            ]
 
         # 3. Guard for empty content if not found in GCS/Registry
         if not content or not content.strip():
@@ -335,41 +331,6 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
                 inline_data.display_name
                 or f"upload_{invocation_context.invocation_id}_{part_index}"
             )
-            # --- Deduplication Logic ---
-            # Check if this file was already uploaded in this session to avoid redundant GCS storage.
-            # GE UI often repeats attachments in subsequent turns (Context Dumping).
-            existing_metadata = (
-                await invocation_context.artifact_service.get_artifact_metadata(
-                    app_name=invocation_context.app_name,
-                    user_id=invocation_context.user_id,
-                    filename=filename,
-                    session_id=invocation_context.session.id,
-                )
-            )
-
-            incoming_size = len(inline_data.data) if inline_data.data else 0
-            if existing_metadata and existing_metadata.get("size") == incoming_size:
-                logger.info(
-                    f"Deduplication: Skipping redundant GE upload for '{filename}' "
-                    f"(Size: {incoming_size} bytes). Using existing GCS reference."
-                )
-                result = [types.Part(text=f'[Uploaded Artifact: "{filename}"]')]
-                result.append(
-                    types.Part(
-                        file_data=types.FileData(
-                            file_uri=existing_metadata["file_uri"],
-                            mime_type=existing_metadata["mime_type"],
-                            display_name=filename,
-                        )
-                    )
-                )
-                # Populate turn registry for subsequent GE tag resolution in this turn
-                turn_registry[filename] = {
-                    "file_uri": existing_metadata["file_uri"],
-                    "mime_type": existing_metadata["mime_type"],
-                }
-                return result
-
             logger.info(f"Persisting GE user upload to artifact store: {filename}")
 
             # save_artifact in StorageService automatically grants IAM conditions
