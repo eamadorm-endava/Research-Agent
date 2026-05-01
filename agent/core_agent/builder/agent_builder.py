@@ -147,14 +147,24 @@ class AgentBuilder:
         )
 
     def _consolidate_tools(self) -> list:
-        """Consolidates registered skills into a single SkillToolset to avoid duplicate declarations.
+        """Consolidates all registered skills into a single SkillToolset to avoid duplicate declarations.
+
+        This method extracts raw Skill objects and those already wrapped in SkillToolset instances,
+        merging them into one unified toolset for the agent.
 
         Returns:
-            list -> The final list of tools for the agent.
+            list -> The final list of tools (MCP, Native, and Consolidated Skills).
         """
-        skills = [t for t in self._registered_tools if isinstance(t, Skill)]
-        other_tools = [t for t in self._registered_tools if not isinstance(t, Skill)]
+        all_skills = []
+        other_tools = []
+        for tool in self._registered_tools:
+            if isinstance(tool, Skill):
+                all_skills.append(tool)
+            elif isinstance(tool, SkillToolset):
+                all_skills.extend(tool.skills)
+            else:
+                other_tools.append(tool)
 
-        if skills:
-            return other_tools + [SkillToolset(skills=skills)]
+        if all_skills:
+            return other_tools + [SkillToolset(skills=all_skills)]
         return other_tools
