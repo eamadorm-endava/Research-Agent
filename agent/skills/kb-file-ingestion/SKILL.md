@@ -62,9 +62,11 @@ Collect the following through conversation (batch questions when possible):
 - **PII Status**: Does it contain sensitive personal info?
 
 ### Step 4: Relocation & Stamping
-1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file:
-    - **Source**: `gs://ai_agent_landing_zone/<filename>`
-    - **Destination**: `gs://ag-core-dev-fdx7-kb-landing-zone/<project_id>/<filename>`
+1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file using these parameters:
+    - `source_gcs_uri`: The URI identified in Step 1.
+    - `destination_bucket`: "ag-core-dev-fdx7-kb-landing-zone"
+    - `filename`: The confirmed filename.
+    - `path_inside_bucket`: The confirmed `<project_id>`.
 2.  **Stamp Metadata**: Use `update_object_metadata` (GCS) to attach:
     ```json
     {
