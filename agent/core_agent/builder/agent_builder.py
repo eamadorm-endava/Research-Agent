@@ -14,9 +14,11 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
+from google.adk.skills import Skill
+from google.adk.tools.skill_toolset import SkillToolset
 from ..callbacks.artifact_rendering import render_pending_artifacts
 from .mcp_factory import MCPToolsetBuilder
-from .skills_factory import get_skill_toolset
+from .skills_factory import get_skill
 
 
 class AgentBuilder:
@@ -38,8 +40,7 @@ class AgentBuilder:
         self.agent_config = agent_config
         self.gcp_config = gcp_config
         self._mcp_builder = MCPToolsetBuilder(auth_config)
-        self._registered_tools = []
-        self._skills = []
+        self._registered_tools = []  # skills are also treated as tools in ADK
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -83,7 +84,7 @@ class AgentBuilder:
         return self
 
     def with_skills(self, skill_names: list[str]) -> Self:
-        """Accumulates ADK skill names to be loaded and registered during the build phase.
+        """Loads and registers ADK skills to the agent's toolset.
 
         Args:
             skill_names: list[str] -> Names of the skill directories to load.
@@ -91,7 +92,9 @@ class AgentBuilder:
         Returns:
             Self -> The builder instance for fluent chaining.
         """
-        self._skills.extend(skill_names)
+        for name in skill_names:
+            skill = get_skill(skill_name=name)
+            self._registered_tools.append(skill)
         return self
 
     def build(self) -> Agent:
@@ -133,8 +136,7 @@ class AgentBuilder:
                 else None,
             ),
             instruction=self.agent_config.AGENT_INSTRUCTION,
-            tools=self._registered_tools
-            + ([get_skill_toolset(self._skills)] if self._skills else []),
+            tools=self._consolidate_tools(),
             after_agent_callback=render_pending_artifacts,
             planner=BuiltInPlanner(
                 thinking_config=ThinkingConfig(
@@ -143,3 +145,16 @@ class AgentBuilder:
                 )
             ),
         )
+
+    def _consolidate_tools(self) -> list:
+        """Consolidates registered skills into a single SkillToolset to avoid duplicate declarations.
+
+        Returns:
+            list -> The final list of tools for the agent.
+        """
+        skills = [t for t in self._registered_tools if isinstance(t, Skill)]
+        other_tools = [t for t in self._registered_tools if not isinstance(t, Skill)]
+
+        if skills:
+            return other_tools + [SkillToolset(skills=skills)]
+        return other_tools
