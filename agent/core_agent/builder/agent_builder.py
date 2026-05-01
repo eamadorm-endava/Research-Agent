@@ -14,7 +14,6 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
-from google.adk.skills import Skill
 from google.adk.tools.skill_toolset import SkillToolset
 from ..callbacks.artifact_rendering import render_pending_artifacts
 from .mcp_factory import MCPToolsetBuilder
@@ -148,26 +147,15 @@ class AgentBuilder:
         )
 
     def _consolidate_tools(self) -> list:
-        """Consolidates all registered skills into a single SkillToolset to avoid duplicate declarations.
-
-        This method aggregates skills from both self._skills and self._registered_tools,
-        ensuring any wrapped or raw skills are unified into one toolset.
+        """Combines registered tools and skills into a single list for the agent.
 
         Returns:
-            list -> The final list of tools (MCP, Native, and Consolidated Skills).
+            list -> The total tools including MCP, Native, and a single consolidated SkillToolset.
         """
-        all_skills = list(self._skills)
-        other_tools = []
+        total_tools = list(self._registered_tools)
 
-        # Also extract any skills accidentally or manually placed in _registered_tools
-        for tool in self._registered_tools:
-            if isinstance(tool, Skill):
-                all_skills.append(tool)
-            elif isinstance(tool, SkillToolset):
-                all_skills.extend(tool.skills)
-            else:
-                other_tools.append(tool)
+        if self._skills:
+            # Wrap all skills in one toolset to satisfy Gemini's unique function declaration rules
+            total_tools.append(SkillToolset(skills=self._skills))
 
-        if all_skills:
-            return other_tools + [SkillToolset(skills=all_skills)]
-        return other_tools
+        return total_tools
