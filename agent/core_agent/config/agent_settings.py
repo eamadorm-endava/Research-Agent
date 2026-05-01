@@ -145,7 +145,7 @@ class AgentConfig(BaseSettings):
     EKB_PIPELINE_URL: Annotated[
         str,
         Field(
-            default="https://ekb-pipeline-placeholder.run.app",
+            default="mock-pipeline-url",
             description="The URL of the Enterprise Knowledge Base ingestion pipeline service.",
             validation_alias=AliasChoices("EKB_PIPELINE_URL"),
         ),

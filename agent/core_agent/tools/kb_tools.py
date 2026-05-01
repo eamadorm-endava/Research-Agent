@@ -62,7 +62,7 @@ class TriggerEKBPipelineTool(BaseTool):
                 "execution_message": "Missing 'gcs_uri' parameter.",
             }
 
-        url = f"{AGENT_CONFIG.EKB_PIPELINE_URL}/ingest"
+        url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/ingest"
         logger.info(f"Triggering EKB pipeline at {url} for {gcs_uri}")
 
         # Get ID token for Cloud Run authentication
@@ -83,7 +83,7 @@ class TriggerEKBPipelineTool(BaseTool):
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    url, json=payload, headers=headers, timeout=60.0
+                    url, json=payload, headers=headers, timeout=300.0
                 )
                 response.raise_for_status()
                 data = response.json()
