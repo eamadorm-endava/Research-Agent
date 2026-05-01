@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Annotated, Literal
+from typing import List, Dict, Any, Annotated, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from enum import StrEnum
 import re
@@ -206,6 +206,43 @@ class ExecuteQueryRequest(BaseModel):
 class ExecuteQueryResponse(ExecuteQueryRequest, BaseResponse):
     """
     Response model for SQL query execution.
+    """
+
+    results: ROWS
+
+
+class SemanticSearchRequest(BaseModel):
+    """
+    Request model for performing a semantic search against the knowledge base.
+    """
+
+    project_id: PROJECT_ID
+    query: Annotated[
+        str, Field(description="The natural language query to search for.")
+    ]
+    top_k: Annotated[
+        int,
+        Field(description="The number of results to return.", default=10, ge=1, le=50),
+    ]
+    filename: Annotated[
+        Optional[str], Field(description="Filter by filename.", default=None)
+    ]
+    project_filter: Annotated[
+        Optional[str],
+        Field(description="Filter by project_id in metadata.", default=None),
+    ]
+    domain: Annotated[
+        Optional[str], Field(description="Filter by business domain.", default=None)
+    ]
+    trust_level: Annotated[
+        Optional[str],
+        Field(description="Filter by trust maturity level.", default=None),
+    ]
+
+
+class SemanticSearchResponse(BaseResponse):
+    """
+    Response model for semantic search.
     """
 
     results: ROWS

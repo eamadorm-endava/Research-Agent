@@ -28,6 +28,8 @@ from .schemas import (
     AddRowsResponse,
     ExecuteQueryRequest,
     ExecuteQueryResponse,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
 )
 
 # Configure logging
@@ -377,6 +379,38 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
         return ExecuteQueryResponse(
             project_id=request.project_id,
             query=request.query,
+            results=[],
+            execution_status="error",
+            execution_message=_format_execution_error(e),
+        )
+
+
+@mcp.tool()
+async def ekb_semantic_search(request: SemanticSearchRequest) -> SemanticSearchResponse:
+    """
+    Performs a semantic search against the Enterprise Knowledge Base.
+    Args:
+        request (SemanticSearchRequest): Structured request containing the query and optional filters.
+    Returns:
+        SemanticSearchResponse: The search results and execution status.
+    """
+    logger.info(f"Tool call: ekb_semantic_search(query={request.query})")
+    try:
+        bq_manager = _make_bq_manager()
+        results = await asyncio.to_thread(bq_manager.semantic_search, request)
+        return SemanticSearchResponse(
+            results=results,
+            execution_status="success",
+            execution_message=f"Semantic search completed successfully, returned {len(results)} chunks.",
+        )
+    except AuthenticationError as e:
+        return SemanticSearchResponse(
+            results=[],
+            execution_status="error",
+            execution_message=f"Authentication Error: {e}",
+        )
+    except Exception as e:
+        return SemanticSearchResponse(
             results=[],
             execution_status="error",
             execution_message=_format_execution_error(e),
