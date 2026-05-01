@@ -8,7 +8,7 @@ from google.cloud.exceptions import GoogleCloudError, NotFound
 from google.oauth2.credentials import Credentials
 
 from .config import BIGQUERY_API_CONFIG, BIGQUERY_AUTH_CONFIG
-from .schemas import AuthenticationError
+from .schemas import AuthenticationError, SemanticSearchRequest
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -248,6 +248,109 @@ class BigQueryManager:
             return make_serializable(output)
         except Exception as e:
             raise ValueError(f"Error querying the data: {e}")
+
+    def semantic_search(self, request: SemanticSearchRequest) -> List[Dict[str, Any]]:
+        """
+        Performs a semantic search against the knowledge base using VECTOR_SEARCH.
+
+        Args:
+            request (SemanticSearchRequest): The structured search request.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries representing the search results.
+        """
+        # Note: ML.GENERATE_EMBEDDING returns 'ml_generate_embedding_result'
+        # based on the enterprise pipeline implementation.
+        query = """
+        WITH query_embedding AS (
+          SELECT ml_generate_embedding_result AS embedding
+          FROM ML.GENERATE_EMBEDDING(
+            MODEL `knowledge_base.multimodal_embedding_model`,
+            (SELECT @query_text AS content)
+          )
+        )
+        SELECT
+          c.chunk_data,
+          c.filename,
+          c.page_number,
+          c.structural_metadata,
+          m.classification_tier,
+          m.domain,
+          m.trust_level,
+          m.project_id,
+          m.uploader_email,
+          m.description AS document_summary,
+          v.distance
+        FROM VECTOR_SEARCH(
+          TABLE `knowledge_base.documents_chunks`,
+          'embedding',
+          (SELECT embedding FROM query_embedding),
+          'embedding',
+          top_k => @top_k,
+          distance_type => 'COSINE'
+        ) v
+        JOIN `knowledge_base.documents_chunks` c ON v.base.chunk_id = c.chunk_id
+        JOIN `knowledge_base.documents_metadata` m ON c.document_id = m.document_id
+        WHERE m.latest = TRUE
+        """
+
+        query_params = [
+            bigquery.ScalarQueryParameter("query_text", "STRING", request.query),
+            bigquery.ScalarQueryParameter("top_k", "INT64", request.top_k),
+        ]
+
+        if request.filename:
+            query += " AND m.filename = @filename"
+            query_params.append(
+                bigquery.ScalarQueryParameter("filename", "STRING", request.filename)
+            )
+        if request.project_filter:
+            query += " AND m.project_id = @project_filter"
+            query_params.append(
+                bigquery.ScalarQueryParameter(
+                    "project_filter", "STRING", request.project_filter
+                )
+            )
+        if request.domain:
+            query += " AND m.domain = @domain"
+            query_params.append(
+                bigquery.ScalarQueryParameter("domain", "STRING", request.domain)
+            )
+        if request.trust_level:
+            query += " AND m.trust_level = @trust_level"
+            query_params.append(
+                bigquery.ScalarQueryParameter(
+                    "trust_level", "STRING", request.trust_level
+                )
+            )
+
+        query += " ORDER BY v.distance ASC"
+
+        try:
+            job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+            query_job = self.client.query(
+                query, project=request.project_id, job_config=job_config
+            )
+            results = query_job.result()
+
+            output = [dict(row) for row in results]
+
+            def make_serializable(obj):
+                if isinstance(obj, dict):
+                    return {k: make_serializable(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [make_serializable(v) for v in obj]
+                else:
+                    try:
+                        json.dumps(obj)
+                        return obj
+                    except (TypeError, ValueError):
+                        return str(obj)
+
+            return make_serializable(output)
+        except Exception as e:
+            logger.error(f"Error performing semantic search: {e}")
+            raise ValueError(f"Error performing semantic search: {e}")
 
 
 def build_bq_credentials(
