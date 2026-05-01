@@ -35,7 +35,7 @@ class StorageService(GcsArtifactService):
             session_id: Optional[str] -> Active session ID.
 
         Returns:
-            Optional[dict[str, str | int]] -> {file_uri, mime_type, size} if found, else None.
+            Optional[dict[str, str | int]] -> {file_uri, mime_type, size, version} if found, else None.
         """
 
         def _lookup() -> Optional[dict[str, str | int]]:
@@ -65,6 +65,7 @@ class StorageService(GcsArtifactService):
                 "file_uri": f"gs://{self.bucket.name}/{blob_name}",
                 "mime_type": mime_type,
                 "size": blob.size,
+                "version": version,
             }
 
         return await asyncio.to_thread(_lookup)
@@ -195,6 +196,9 @@ class StorageService(GcsArtifactService):
     ) -> int:
         """Saves the artifact to GCS and secures it with an IAM binding.
 
+        Implements deduplication: if a file with the same name and size already exists
+        in the current session, it returns the existing version number.
+
         Args:
             app_name: str -> Name of the application.
             user_id: str -> Identity of the user (email).
@@ -205,6 +209,30 @@ class StorageService(GcsArtifactService):
         Returns:
             int -> The version number of the saved artifact.
         """
+        # 1. Check for existing artifact to avoid duplicates (Context Dumping)
+        existing_metadata = await self.get_artifact_metadata(
+            app_name=app_name,
+            user_id=user_id,
+            filename=filename,
+            session_id=session_id,
+        )
+
+        incoming_size = 0
+        if artifact.inline_data:
+            incoming_size = (
+                len(artifact.inline_data.data) if artifact.inline_data.data else 0
+            )
+        elif artifact.text:
+            incoming_size = len(artifact.text.encode("utf-8")) if artifact.text else 0
+
+        if existing_metadata and existing_metadata.get("size") == incoming_size:
+            logger.info(
+                f"Deduplication: Skipping redundant save for '{filename}' "
+                f"(Size: {incoming_size} bytes). Using existing version {existing_metadata['version']}."
+            )
+            return int(existing_metadata["version"])
+
+        # 2. Proceed with save if not a duplicate
         # Call the parent save_artifact to perform the actual GCS write
         version = await super().save_artifact(
             app_name=app_name,

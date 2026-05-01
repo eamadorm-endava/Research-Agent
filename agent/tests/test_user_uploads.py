@@ -581,6 +581,7 @@ async def test_skips_redundant_upload_when_name_and_size_match():
             "file_uri": "gs://bucket/duplicate.png",
             "mime_type": "image/png",
             "size": size,
+            "version": 0,
         }
     )
     ctx = _make_invocation_context(artifact_service=svc)
@@ -610,6 +611,7 @@ async def test_saves_new_artifact_when_size_differs():
             "file_uri": "gs://bucket/updated.png",
             "mime_type": "image/png",
             "size": 99999,  # Different size
+            "version": 0,
         }
     )
     ctx = _make_invocation_context(artifact_service=svc)

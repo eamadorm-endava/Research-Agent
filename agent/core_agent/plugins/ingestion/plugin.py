@@ -248,22 +248,26 @@ class GeminiEnterpriseFileIngestionPlugin(BasePlugin):
             )
 
         if metadata:
-            logger.info(f"Resolved GE text tag '{filename}' via GCS discovery.")
-            # Ensure security is active for the discovered URI
-            await storage_service.ensure_uploader_permissions(
-                metadata["file_uri"],
-                invocation_context.user_id,
-                invocation_context.app_name,
-            )
-            return [
-                types.Part(text=f'[Uploaded Artifact: "{filename}"]'),
-                types.Part(
-                    file_data=types.FileData(
-                        file_uri=metadata["file_uri"],
-                        mime_type=metadata["mime_type"],
-                    )
-                ),
-            ]
+            incoming_size = len(content.encode("utf-8")) if content else 0
+            if metadata.get("size") == incoming_size:
+                logger.info(
+                    f"Resolved GE text tag '{filename}' via GCS discovery (Size match: {incoming_size} bytes)."
+                )
+                # Ensure security is active for the discovered URI
+                await storage_service.ensure_uploader_permissions(
+                    metadata["file_uri"],
+                    invocation_context.user_id,
+                    invocation_context.app_name,
+                )
+                return [
+                    types.Part(text=f'[Uploaded Artifact: "{filename}"]'),
+                    types.Part(
+                        file_data=types.FileData(
+                            file_uri=metadata["file_uri"],
+                            mime_type=metadata["mime_type"],
+                        )
+                    ),
+                ]
 
         # 3. Guard for empty content if not found in GCS/Registry
         if not content or not content.strip():
