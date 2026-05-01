@@ -64,6 +64,7 @@ class StorageService(GcsArtifactService):
             return {
                 "file_uri": f"gs://{self.bucket.name}/{blob_name}",
                 "mime_type": mime_type,
+                "size": blob.size,
             }
 
         return await asyncio.to_thread(_lookup)
