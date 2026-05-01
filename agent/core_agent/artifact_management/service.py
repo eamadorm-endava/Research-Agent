@@ -25,8 +25,8 @@ class StorageService(GcsArtifactService):
         user_id: str,
         filename: str,
         session_id: Optional[str] = None,
-    ) -> Optional[dict[str, str]]:
-        """Searches GCS for the latest version of an artifact and returns its URI and MIME type.
+    ) -> Optional[dict[str, str | int]]:
+        """Searches GCS for the latest version of an artifact and returns its metadata.
 
         Args:
             app_name: str -> Name of the application.
@@ -35,10 +35,10 @@ class StorageService(GcsArtifactService):
             session_id: Optional[str] -> Active session ID.
 
         Returns:
-            Optional[dict[str, str]] -> {file_uri, mime_type} if found, else None.
+            Optional[dict[str, str | int]] -> {file_uri, mime_type, size} if found, else None.
         """
 
-        def _lookup() -> Optional[dict[str, str]]:
+        def _lookup() -> Optional[dict[str, str | int]]:
             versions = self._list_versions(
                 app_name=app_name,
                 user_id=user_id,
