@@ -39,6 +39,7 @@ class AgentBuilder:
         self.gcp_config = gcp_config
         self._mcp_builder = MCPToolsetBuilder(auth_config)
         self._registered_tools = []
+        self._skills = []
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -82,7 +83,7 @@ class AgentBuilder:
         return self
 
     def with_skills(self, skill_names: list[str]) -> Self:
-        """Loads and registers ADK skill toolsets from the agent/skills/ directory by folder name.
+        """Accumulates ADK skill names to be loaded and registered during the build phase.
 
         Args:
             skill_names: list[str] -> Names of the skill directories to load.
@@ -90,9 +91,7 @@ class AgentBuilder:
         Returns:
             Self -> The builder instance for fluent chaining.
         """
-        for name in skill_names:
-            skill_toolset = get_skill_toolset(skill_name=name)
-            self._registered_tools.append(skill_toolset)
+        self._skills.extend(skill_names)
         return self
 
     def build(self) -> Agent:
@@ -134,7 +133,8 @@ class AgentBuilder:
                 else None,
             ),
             instruction=self.agent_config.AGENT_INSTRUCTION,
-            tools=self._registered_tools,
+            tools=self._registered_tools
+            + ([get_skill_toolset(self._skills)] if self._skills else []),
             after_agent_callback=render_pending_artifacts,
             planner=BuiltInPlanner(
                 thinking_config=ThinkingConfig(
