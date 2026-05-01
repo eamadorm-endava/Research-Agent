@@ -177,3 +177,43 @@ def test_build_bq_credentials_from_access_token(mock_credentials, mock_validate)
         token=access_token,
         scopes=expected_scopes,
     )
+
+
+def test_semantic_search(mock_client):
+    """
+    Tests the semantic search functionality.
+    """
+    manager = BigQueryManager(creds=MagicMock())
+    mock_job = MagicMock()
+    mock_row = {"chunk_data": "test", "distance": 0.1}
+    mock_job.result.return_value = [mock_row]
+    manager.client.query.return_value = mock_job
+
+    from mcp_servers.big_query.app.schemas import (
+        SemanticSearchRequest,
+        AvailableProject,
+    )
+
+    request = SemanticSearchRequest(
+        project_id=AvailableProject.DEV, query="test query", top_k=5, domain="it"
+    )
+
+    result = manager.semantic_search(request)
+    assert result == [{"chunk_data": "test", "distance": 0.1}]
+
+    # Verify query parameters
+    args, kwargs = manager.client.query.call_args
+    query_text = args[0]
+    job_config = kwargs["job_config"]
+
+    assert "VECTOR_SEARCH" in query_text
+    assert "'embedding'" in query_text  # Base column
+    assert "(SELECT embedding FROM query_embedding)" in query_text  # Query subquery
+    assert "'embedding'" in query_text  # Query column (optional but good practice)
+    assert "distance_type => 'COSINE'" in query_text
+    assert "AND m.domain = @domain" in query_text
+
+    params = {p.name: p.value for p in job_config.query_parameters}
+    assert params["query_text"] == "test query"
+    assert params["top_k"] == 5
+    assert params["domain"] == "it"
