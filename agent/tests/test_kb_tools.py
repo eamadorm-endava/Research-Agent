@@ -46,14 +46,14 @@ class TestTriggerEKBPipelineTool:
         assert "Authentication failed" in result["execution_message"]
 
     async def test_trigger_pipeline_missing_args(self):
-        """Failure mode: missing mandatory 'gcs_uri' returns error."""
+        """Failure mode: missing mandatory 'gcs_uri' returns Pydantic validation error."""
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
 
         result = await tool.run_async(args={}, tool_context=ctx)
 
         assert result["execution_status"] == "error"
-        assert "Missing 'gcs_uri'" in result["execution_message"]
+        assert "validation error" in result["execution_message"].lower()
 
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
     @patch("httpx.AsyncClient.post")
@@ -74,4 +74,4 @@ class TestTriggerEKBPipelineTool:
         result = await tool.run_async(args=args, tool_context=ctx)
 
         assert result["execution_status"] == "error"
-        assert "Service Error (500)" in result["execution_message"]
+        assert "Internal Error" in result["execution_message"]
