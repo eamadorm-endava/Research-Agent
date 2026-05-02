@@ -15,13 +15,25 @@ Examples:
 ## Hybrid Discovery Protocol (3 Phases)
 
 ### Phase 1: Semantic Anchoring
-1.  **Initial Search**: Call `ekb_semantic_search` to find conceptually relevant chunks and metadata. 
-    - **MANDATORY**: Ensure all parameters (e.g., `project_id`, `query`) follow the required input schema.
-2.  **Metadata Extraction**: Identify key identifiers from the results: `project_id`, `domain`, `document_id`, and other relevant metadata.
+1.  **Initial Search**: Call the `ekb_semantic_search` tool using the mandatory `project_id` ('ag-core-dev-fdx7') and the `query`.
+    - **MANDATORY**: Strictly follow the tool's input schema definition (e.g., nesting parameters under a `request` object).
+2.  **Metadata Extraction**: Identify the following from the top results:
+    - `project_id`
+    - `domain`
+    - `document_id`
+    - `uploader_email` (Stakeholder)
 
 ### Phase 2: Metadata-based SQL Pivot
-1.  **Broad Discovery**: Once a `project_id` or `domain` is identified, execute a targeted BigQuery SQL query to retrieve all related documents using `execute_query`.
-    - **MANDATORY**: Ensure the SQL query and parameters follow the required input schema.
+1.  **Broad Discovery**: Once identifiers are found, call `execute_query` using `project_id` ('ag-core-dev-fdx7') and a `query` to retrieve all related documents.
+    - **MANDATORY**: Strictly follow the tool's input schema definition.
+    - **Example Query Pattern**:
+    ```sql
+    SELECT filename, gcs_uri, description, uploader_email, ingested_at
+    FROM `knowledge_base.documents_metadata`
+    WHERE (project_id = '<identified_project>' OR domain = '<identified_domain>')
+      AND latest = TRUE
+    ORDER BY ingested_at DESC
+    ```
 2.  **Synthesis**: Use the `description` (document summary) from the metadata to form a high-level understanding of the project's scope and history.
 
 ### Phase 3: Long Context Deep Analysis (Conditional)
@@ -29,9 +41,9 @@ Examples:
 2.  **Selection**: Identify up to **10** most relevant GCS URIs from the SQL results.
 3.  **Loading**: 
     - For each selected URI:
-        - Call `import_gcs_to_artifact` to register it as a session artifact.
-    - Call `load_artifacts` to load the full content into the LLM context.
-    - **MANDATORY**: Ensure all tool calls strictly adhere to their respective input schemas.
+        - Call `import_gcs_to_artifact` using the `gcs_uri`.
+    - Call `load_artifacts` using the `filenames` list.
+    - **MANDATORY**: Strictly follow each tool's input schema definition.
 4.  **Analysis**: Perform the final analysis using the full document data.
 
 ## Standardized Output Format
