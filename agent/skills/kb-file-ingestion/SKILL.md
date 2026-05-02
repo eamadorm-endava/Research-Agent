@@ -42,13 +42,14 @@ Maintain this state throughout the interaction:
 3.  **Conflict Resolution**:
     - If similar projects are found, present the list and ask: "I found existing projects that might match: [List]. Is it one of these, or should I create a new project entry for '[User Input]'?"
     - If no similar projects are found, proceed with the user's input.
-4.  **Filename Check**: Check if a file with the same name already exists in that project:
+4.  **Conditional Filename Check**: **ONLY** if an existing project was confirmed in the previous step, check if a file with the same name already exists:
     ```sql
     SELECT filename 
     FROM `knowledge_base.documents_metadata` 
     WHERE project_id = '<confirmed_project>' AND lower(filename) = lower('<uploaded_filename>')
     ```
     - If it exists, ask: "A version of '<filename>' already exists in project '<project>'. Should I replace it or would you like to rename this file?"
+    - **Note**: Skip this check if the user is creating a completely new project.
 
 ### Step 3: Metadata Collection
 To avoid a tedious multi-turn interaction, **ALWAYS** ask for the information at once using the following structure:
