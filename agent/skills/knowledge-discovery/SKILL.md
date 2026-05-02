@@ -15,20 +15,21 @@ Examples:
 ## Hybrid Discovery Protocol (3 Phases)
 
 ### Phase 1: Semantic Anchoring
-1.  **Initial Search**: Call the `ekb_semantic_search` tool using the mandatory `project_id` ('ag-core-dev-fdx7') and the `query`.
+1.  **Initial Search**: Call the `ekb_semantic_search` tool using the `query` parameter and the other mandatory parameters.
     - **MANDATORY**: Strictly follow the tool's input schema definition (e.g., nesting parameters under a `request` object).
 2.  **Metadata Extraction**: Identify the following from the top results:
     - `project_id`
     - `domain`
     - `document_id`
     - `uploader_email` (Stakeholder)
+    - `latest` (Boolean)
 
 ### Phase 2: Metadata-based SQL Pivot
-1.  **Broad Discovery**: Once identifiers are found, call `execute_query` using `project_id` ('ag-core-dev-fdx7') and a `query` to retrieve all related documents.
+1.  **Broad Discovery**: Once identifiers are found, call `execute_query` to retrieve all related documents.
     - **MANDATORY**: Strictly follow the tool's input schema definition.
     - **Example Query Pattern**:
     ```sql
-    SELECT filename, gcs_uri, description, uploader_email, ingested_at
+    SELECT filename, gcs_uri, description, uploader_email, ingested_at, latest
     FROM `knowledge_base.documents_metadata`
     WHERE (project_id = '<identified_project>' OR domain = '<identified_domain>')
       AND latest = TRUE
