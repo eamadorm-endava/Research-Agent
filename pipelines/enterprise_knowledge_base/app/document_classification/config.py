@@ -196,6 +196,14 @@ class EKBConfig(BaseSettings):
         ),
     ]
 
+    BQ_JOBS_TABLE: Annotated[
+        str,
+        Field(
+            default="ingestion_jobs",
+            description="The BigQuery table for tracking async job status.",
+        ),
+    ]
+
     TIER_TO_LABEL: Annotated[
         dict[int, str],
         Field(
