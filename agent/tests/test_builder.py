@@ -43,9 +43,7 @@ def test_agent_builder_fluent_chaining(mock_vertex_client, mock_configs):
     )
 
     with (
-        patch(
-            "agent.core_agent.builder.agent_builder.get_skill_toolset"
-        ) as mock_skills,
+        patch("agent.core_agent.builder.agent_builder.get_skill") as mock_skills,
         patch.object(builder._mcp_builder, "build") as mock_mcp_build,
     ):
         mock_skills.return_value = MagicMock()
@@ -55,7 +53,8 @@ def test_agent_builder_fluent_chaining(mock_vertex_client, mock_configs):
         result = builder.with_skills(["skill1"]).with_mcp_servers([BigQueryMCPConfig()])
 
         assert result is builder
-        assert len(builder._registered_tools) == 2
+        assert len(builder._skills) == 1
+        assert len(builder._registered_tools) == 1
 
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
