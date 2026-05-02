@@ -55,11 +55,15 @@ Maintain this state throughout the interaction:
     - If it exists, ask: "A version of '<filename>' already exists in project '<project>'. Should I replace it or would you like to rename this file?"
 
 ### Step 3: Metadata Collection
-Collect the following through conversation (batch questions when possible):
-- **Domain**: Restricted to: `IT, Finance, HR, Sales, Executives, Legal, Operations`.
-- **Trust Level**: Restricted to: `Published, WIP, Archived`.
-    - *Tip*: Explain that WIP is Work In Progress, Published is currently valid, and Archived is for reference only.
-- **PII Status**: Does it contain sensitive personal info?
+To avoid a tedious multi-turn interaction, **ALWAYS** ask for all the following information in a single, clear message using bullet points:
+
+- **Project**: "Which project does this document belong to?" (If already identified in Step 2, just ask for confirmation).
+- **Domain**: "Which business domain best describes this content? Options: `IT, Finance, HR, Sales, Executives, Legal, Operations`."
+- **Trust Level**: "What is the trust maturity of this document?
+    - `Published`: Document is currently valid and verified.
+    - `WIP`: Work in progress, potentially incomplete.
+    - `Archived`: No longer valid, kept for historical reference only."
+- **PII Status**: "Does this document contain any Personally Identifiable Information (PII) like names, emails, or phone numbers?"
 
 ### Step 4: Relocation & Stamping
 1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file using these parameters:
