@@ -26,6 +26,7 @@ mcp_servers_to_mount = [
 skills_to_mount = [
     "meeting-summary",
     "kb-file-ingestion",
+    "knowledge-discovery",
 ]
 
 root_agent = (
