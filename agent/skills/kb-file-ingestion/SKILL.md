@@ -37,15 +37,18 @@ Maintain this state throughout the interaction:
 
 ### Step 2: Deduplication & Project Validation
 1.  **Project Identification**: Ask the user: "Which project does this document belong to?"
-2.  **Deduplication Check**: Run the following BigQuery query (via `execute_query`) to find similar projects:
-    ```sql
-    SELECT DISTINCT project_id 
-    FROM `knowledge_base.documents_metadata` 
-    WHERE lower(project_id) LIKE lower('%<user_input>%')
-    ```
+2.  **Parallel Search**: To minimize latency, **ALWAYS** execute both search methods simultaneously before presenting results:
+    - **Exact/Keyword Search**: Run `execute_query` to find similar project names:
+      ```sql
+      SELECT DISTINCT project_id 
+      FROM `knowledge_base.documents_metadata` 
+      WHERE lower(project_id) LIKE lower('%<user_input>%')
+      ```
+    - **Semantic Search**: Run `ekb_semantic_search(project_filter='...')` using the user's input to find conceptually related projects.
 3.  **Conflict Resolution**:
-    - If similar projects are found, present them and ask if it's one of those or a new one.
-    - If no similar projects are found, run `ekb_semantic_search(project_filter='...')` to find related projects.
+    - Combine the results from both tools.
+    - If any matches are found, present the combined list and ask: "I found several existing projects that might match: [List]. Is it one of these, or should I create a new project entry for '[User Input]'?"
+    - If no matches are found, proceed with the user's input as a new project.
 4.  **Filename Check**: Check if a file with the same name already exists in that project:
     ```sql
     SELECT filename 
