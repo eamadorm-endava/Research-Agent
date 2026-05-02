@@ -11,6 +11,9 @@ Trigger this skill when a user asks to:
 - "Make this file available for the whole company"
 - "Ingest this into the EKB"
 - "Publish the uploaded file to the EKB"
+- "Upload the file to the database"
+- "Register this document in EKB"
+- "Upload it to KB"
 or similar requests.
 
 ## Progress Tracker
