@@ -35,20 +35,12 @@ Maintain this state throughout the interaction:
     - If multiple files exist, ask: "I see several files ([List]). Which one should I ingest?"
     - If no file is found, ask: "Please upload the document you'd like to add to the knowledge base first."
 
-### Step 2: Deduplication & Project Validation
+### Step 2: Project Validation & Deduplication
 1.  **Project Identification**: Ask the user: "Which project does this document belong to?"
-2.  **Parallel Search**: To minimize latency, **ALWAYS** execute both search methods simultaneously before presenting results:
-    - **Exact/Keyword Search**: Run `execute_query` to find similar project names:
-      ```sql
-      SELECT DISTINCT project_id 
-      FROM `knowledge_base.documents_metadata` 
-      WHERE lower(project_id) LIKE lower('%<user_input>%')
-      ```
-    - **Semantic Search**: Run `ekb_semantic_search(project_filter='...')` using the user's input to find conceptually related projects.
+2.  **Semantic Validation**: Use `ekb_semantic_search(query='<user_input_project_name>')` to find similar projects in the knowledge base.
 3.  **Conflict Resolution**:
-    - Combine the results from both tools.
-    - If any matches are found, present the combined list and ask: "I found several existing projects that might match: [List]. Is it one of these, or should I create a new project entry for '[User Input]'?"
-    - If no matches are found, proceed with the user's input as a new project.
+    - If similar projects are found, present the list and ask: "I found existing projects that might match: [List]. Is it one of these, or should I create a new project entry for '[User Input]'?"
+    - If no similar projects are found, proceed with the user's input.
 4.  **Filename Check**: Check if a file with the same name already exists in that project:
     ```sql
     SELECT filename 
@@ -58,15 +50,16 @@ Maintain this state throughout the interaction:
     - If it exists, ask: "A version of '<filename>' already exists in project '<project>'. Should I replace it or would you like to rename this file?"
 
 ### Step 3: Metadata Collection
-To avoid a tedious multi-turn interaction, **ALWAYS** ask for all the following information in a single, clear message using bullet points:
+To avoid a tedious multi-turn interaction, **ALWAYS** ask for the information at once using the following structure:
 
-- **Project**: "Which project does this document belong to?" (If already identified in Step 2, just ask for confirmation).
-- **Domain**: "Which business domain best describes this content? Options: `IT, Finance, HR, Sales, Executives, Legal, Operations`."
-- **Trust Level**: "What is the trust maturity of this document?
+"Before storing the file, please provide me the following information:
+- **project the file belongs to**: (Confirming '[Project Name]')
+- **domain**: (Options: `IT, Finance, HR, Sales, Executives, Legal, Operations`)
+- **trust-level**: (Options: 
     - `Published`: Document is currently valid and verified.
     - `WIP`: Work in progress, potentially incomplete.
-    - `Archived`: No longer valid, kept for historical reference only."
-- **PII Status**: "Does this document contain any Personally Identifiable Information (PII) like names, emails, or phone numbers?"
+    - `Archived`: No longer valid, kept for reference only.)
+- **PII Status**: Does this document contain any Personally Identifiable Information?"
 
 ### Step 4: Relocation & Stamping
 1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file using these parameters:
