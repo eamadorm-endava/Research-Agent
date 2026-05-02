@@ -175,11 +175,9 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     try:
         # 1. Determine Authentication Strategy
         # Logic: Use SA ONLY for internal landing-zone to KB pipeline.
-        # We check both the configured name and the standard pattern to ensure the switch triggers.
-        use_sa = request.source_bucket == GCS_SERVER_CONFIG.landing_zone_bucket and (
-            request.destination_bucket == GCS_SERVER_CONFIG.kb_ingestion_bucket
-            or request.destination_bucket == "kb-landing-zone"
-            or request.destination_bucket.endswith("-kb-landing-zone")
+        use_sa = (
+            request.source_bucket == GCS_SERVER_CONFIG.landing_zone_bucket
+            and request.destination_bucket == GCS_SERVER_CONFIG.kb_ingestion_bucket
         )
 
         # 2. Execute Copy Operation
