@@ -14,9 +14,10 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import AgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
+from google.adk.tools.skill_toolset import SkillToolset
 from ..callbacks.artifact_rendering import render_pending_artifacts
 from .mcp_factory import MCPToolsetBuilder
-from .skills_factory import get_skill_toolset
+from .skills_factory import get_skill
 
 
 class AgentBuilder:
@@ -39,6 +40,7 @@ class AgentBuilder:
         self.gcp_config = gcp_config
         self._mcp_builder = MCPToolsetBuilder(auth_config)
         self._registered_tools = []
+        self._skills = []
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -82,7 +84,7 @@ class AgentBuilder:
         return self
 
     def with_skills(self, skill_names: list[str]) -> Self:
-        """Loads and registers ADK skill toolsets from the agent/skills/ directory by folder name.
+        """Loads and registers ADK skills into a dedicated skills list.
 
         Args:
             skill_names: list[str] -> Names of the skill directories to load.
@@ -91,8 +93,8 @@ class AgentBuilder:
             Self -> The builder instance for fluent chaining.
         """
         for name in skill_names:
-            skill_toolset = get_skill_toolset(skill_name=name)
-            self._registered_tools.append(skill_toolset)
+            skill = get_skill(skill_name=name)
+            self._skills.append(skill)
         return self
 
     def build(self) -> Agent:
@@ -134,7 +136,7 @@ class AgentBuilder:
                 else None,
             ),
             instruction=self.agent_config.AGENT_INSTRUCTION,
-            tools=self._registered_tools,
+            tools=self._consolidate_tools(),
             after_agent_callback=render_pending_artifacts,
             planner=BuiltInPlanner(
                 thinking_config=ThinkingConfig(
@@ -143,3 +145,17 @@ class AgentBuilder:
                 )
             ),
         )
+
+    def _consolidate_tools(self) -> list:
+        """Combines registered tools and skills into a single list for the agent.
+
+        Returns:
+            list -> The total tools including MCP, Native, and a single consolidated SkillToolset.
+        """
+        total_tools = list(self._registered_tools)
+
+        if self._skills:
+            # Wrap all skills in one toolset to satisfy Gemini's unique function declaration rules
+            total_tools.append(SkillToolset(skills=self._skills))
+
+        return total_tools

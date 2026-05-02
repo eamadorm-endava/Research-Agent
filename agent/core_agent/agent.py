@@ -14,6 +14,7 @@ from .tools.artifact_tools import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
 )
+from .tools.kb_tools import TriggerEKBPipelineTool
 
 mcp_servers_to_mount = [
     BIGQUERY_MCP_CONFIG,
@@ -24,6 +25,7 @@ mcp_servers_to_mount = [
 
 skills_to_mount = [
     "meeting-summary",
+    "kb-file-ingestion",
 ]
 
 root_agent = (
@@ -38,6 +40,7 @@ root_agent = (
         [
             GetArtifactUriTool(),
             ImportGcsToArtifactTool(),
+            TriggerEKBPipelineTool(),
             load_artifacts,
         ]
     )
