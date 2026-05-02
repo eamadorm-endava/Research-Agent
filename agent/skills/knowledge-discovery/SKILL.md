@@ -15,7 +15,7 @@ Examples:
 ## Hybrid Discovery Protocol (3 Phases)
 
 ### Phase 1: Semantic Anchoring
-1.  **Initial Search**: Call `ekb_semantic_search(project_id='ag-core-dev-fdx7', query='<user_query>')` to find conceptually relevant chunks and metadata.
+1.  **Initial Search**: Call `ekb_semantic_search(request={'project_id': 'ag-core-dev-fdx7', 'query': '<user_query>'})` to find conceptually relevant chunks and metadata.
 2.  **Metadata Extraction**: Identify the following from the top results:
     - `project_id`
     - `domain`
@@ -24,7 +24,7 @@ Examples:
 ### Phase 2: Metadata-based SQL Pivot
 1.  **Broad Discovery**: Once a `project_id` or `domain` is identified, execute a targeted BigQuery SQL query to retrieve all related documents:
     ```sql
-    -- Use execute_query(project_id='ag-core-dev-fdx7', query='...')
+    -- Use execute_query(request={'project_id': 'ag-core-dev-fdx7', 'query': '...'})
     SELECT filename, gcs_uri, description, uploader_email, ingested_at
     FROM `knowledge_base.documents_metadata`
     WHERE (project_id = '<identified_project>' OR domain = '<identified_domain>')
@@ -38,8 +38,8 @@ Examples:
 2.  **Selection**: Identify up to **10** most relevant GCS URIs from the SQL results.
 3.  **Loading**: 
     - For each selected URI:
-        - Call `import_gcs_to_artifact(gcs_uri='<uri>')` to register it as a session artifact.
-    - Call `load_artifacts(filenames=['<filename1>', '<filename2>', ...])` to load the full content into the LLM context.
+        - Call `import_gcs_to_artifact(request={'gcs_uri': '<uri>'})` to register it as a session artifact.
+    - Call `load_artifacts(request={'filenames': ['<filename1>', '<filename2>', ...]})` to load the full content into the LLM context.
 4.  **Analysis**: Perform the final analysis using the full document data.
 
 ## Standardized Output Format

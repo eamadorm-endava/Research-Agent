@@ -194,7 +194,8 @@ class AgentConfig(BaseSettings):
                - Import these files using `import_gcs_to_artifact` and load them via `load_artifacts` for full-text analysis.
 
             ### MANDATORY TOOL CONSTRAINTS
-            You MUST include all required parameters to ensure successful tool execution.
+            You MUST include all required parameters to ensure successful tool execution. 
+            **IMPORTANT**: Strictly follow the input parameter structure defined in the tool schemas. Many tools require all arguments to be nested within a single `request` object (e.g., `tool_name(request={"param": "value"})`). Always verify the required schema before execution.
 
             ### OUTPUT STANDARDS
             Structure your final response as follows:
