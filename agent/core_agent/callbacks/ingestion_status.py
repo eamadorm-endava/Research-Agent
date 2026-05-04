@@ -1,5 +1,6 @@
 import httpx
-from google.adk.agents.context import Context
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.events.event import Event
 from google.genai import types
 from loguru import logger
 
@@ -7,24 +8,26 @@ from ..config import AGENT_CONFIG
 from ..security import get_id_token
 from ..tools.kb_tools import PENDING_INGESTIONS_KEY
 
+from typing import Optional
+
 
 async def sync_ingestion_status(
-    callback_context: Context,
-) -> None:
+    callback_context: CallbackContext,
+) -> Optional[types.Content]:
     """
-    Proactively checks the status of pending ingestion jobs and injects updates into history.
+    Proactively checks the status of pending ingestion jobs and injects updates into session history.
     This enables proactive notifications in Gemini Enterprise by 'noticing' finished tasks.
 
     Args:
-        callback_context: Context -> The ADK callback context with state and history access.
+        callback_context: CallbackContext -> The ADK callback context.
 
     Returns:
-        None
+        Optional[types.Content] -> None, to allow the agent to continue its execution.
     """
     pending_jobs = list(callback_context.state.get(PENDING_INGESTIONS_KEY, []))
     if not pending_jobs:
         logger.debug("No pending ingestion jobs to sync.")
-        return
+        return None
 
     logger.info(f"Syncing status for {len(pending_jobs)} pending ingestion job(s).")
 
@@ -34,7 +37,7 @@ async def sync_ingestion_status(
     id_token = get_id_token(AGENT_CONFIG.EKB_PIPELINE_URL)
     if not id_token:
         logger.warning("Skipping status sync: Could not obtain ID token.")
-        return
+        return None
 
     headers = {"Authorization": f"Bearer {id_token}"}
 
@@ -72,7 +75,7 @@ async def sync_ingestion_status(
     # Update session state
     callback_context.state[PENDING_INGESTIONS_KEY] = still_pending
 
-    # If any jobs finished, inject a System Message into the history
+    # If any jobs finished, inject an Event into the session history
     if completed_updates:
         logger.info(
             f"Injecting {len(completed_updates)} completion updates into history."
@@ -91,7 +94,20 @@ async def sync_ingestion_status(
                     f"Security Tier: {update['details'].get('security_tier')}\n"
                 )
 
-        # Append as a system message to the history so Gemini 'sees' it before generating its response
-        callback_context.history.append(
-            types.Content(role="user", parts=[types.Part(text=update_text)])
+        # Create a new Event and append to history
+        # We use author='user' with a SYSTEM prefix so the agent treats it as context
+        new_event = Event(
+            invocation_id=callback_context.invocation_id,
+            author="user",
+            content=types.Content(role="user", parts=[types.Part(text=update_text)]),
         )
+
+        # ADK 2.0 uses session.events for history
+        callback_context.session.events.append(new_event)
+
+        logger.debug(
+            f"History updated with {len(completed_updates)} background task results."
+        )
+
+    # Always return None to allow the agent to run and see the new history
+    return None
