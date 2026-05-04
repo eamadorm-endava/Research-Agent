@@ -41,10 +41,8 @@ class JobService:
             }
         ]
         logger.info(f"Creating job record for {filename}: {job_id}")
-        errors = self.bq_client.insert_rows_json(self.table_id, rows_to_insert)
-        if errors:
-            logger.error(f"Failed to insert job record: {errors}")
-            raise RuntimeError(f"Database error: {errors}")
+        load_job = self.bq_client.load_table_from_json(rows_to_insert, self.table_id)
+        load_job.result()  # Wait for completion to ensure DML consistency
         return job_id
 
     def update_job(
