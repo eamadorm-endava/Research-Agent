@@ -67,6 +67,7 @@ class TriggerEKBPipelineTool(BaseTool):
         Returns:
             dict -> Serialised TriggerEKBPipelineResponse.
         """
+        logger.info(f"Triggering EKB pipeline for {args.get('gcs_uri')}")
         try:
             request = TriggerEKBPipelineRequest(**args)
             gcs_uri = request.gcs_uri
@@ -165,6 +166,7 @@ class CheckIngestionStatusTool(BaseTool):
         Returns:
             dict -> Serialised CheckIngestionStatusResponse.
         """
+        logger.info(f"Checking ingestion status for job_id: {args.get('job_id')}")
         try:
             request = CheckIngestionStatusRequest(**args)
             url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{request.job_id}"

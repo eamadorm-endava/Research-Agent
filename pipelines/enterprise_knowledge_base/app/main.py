@@ -104,7 +104,11 @@ async def get_status(job_id: str) -> JobStatusResponse:
     Returns:
         JobStatusResponse -> The current status and extracted metadata.
     """
+    logger.info(f"Checking status for job_id: {job_id}")
     status = job_service.get_job_status(job_id)
     if not status:
+        logger.warning(f"Job {job_id} not found during status check.")
         raise HTTPException(status_code=404, detail="Job not found")
+
+    logger.debug(f"Status for {job_id}: {status.status.value}")
     return status

@@ -23,6 +23,7 @@ async def sync_ingestion_status(
     """
     pending_jobs = list(callback_context.state.get(PENDING_INGESTIONS_KEY, []))
     if not pending_jobs:
+        logger.debug("No pending ingestion jobs to sync.")
         return
 
     logger.info(f"Syncing status for {len(pending_jobs)} pending ingestion job(s).")

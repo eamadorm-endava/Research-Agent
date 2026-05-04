@@ -16,6 +16,7 @@ from .tools.artifact_tools import (
 )
 from .tools.kb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
 from .callbacks.ingestion_status import sync_ingestion_status
+from loguru import logger
 
 mcp_servers_to_mount = [
     BIGQUERY_MCP_CONFIG,
@@ -56,3 +57,5 @@ app = AppBuilder(
     gcp_config=GCP_CONFIG,
     agent_config=AGENT_CONFIG,
 ).build()
+
+logger.info("ADK Agent application initialized and ready for execution.")

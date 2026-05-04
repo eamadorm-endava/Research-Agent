@@ -94,6 +94,7 @@ class AgentBuilder:
             Self -> The builder instance for fluent chaining.
         """
         for name in skill_names:
+            logger.info(f"Mounting skill: {name}")
             skill = get_skill(skill_name=name)
             self._skills.append(skill)
         return self
@@ -107,6 +108,7 @@ class AgentBuilder:
         Returns:
             Self -> The builder instance for fluent chaining.
         """
+        logger.info(f"Registering before_agent_callback: {callback.__name__}")
         self._before_callback = callback
         return self
 
