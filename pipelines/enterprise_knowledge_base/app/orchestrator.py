@@ -7,7 +7,7 @@ from .rag_ingestion import (
     IngestDocumentRequest,
     RAGIngestion,
 )
-from .schemas import OrchestratorRunRequest, OrchestratorRunResponse
+from .schemas import OrchestratorRunRequest, PipelineResult
 
 
 class KBIngestionPipeline:
@@ -27,14 +27,14 @@ class KBIngestionPipeline:
         self.classification_pipeline = ClassificationPipeline()
         self.rag_pipeline = RAGIngestion()
 
-    def run(self, request: OrchestratorRunRequest) -> OrchestratorRunResponse:
+    def run(self, request: OrchestratorRunRequest) -> PipelineResult:
         """Orchestrates the entire ingestion process end-to-end.
 
         Args:
             request: OrchestratorRunRequest -> The request containing the landing URI.
 
         Returns:
-            OrchestratorRunResponse -> Results of the pipeline execution.
+            PipelineResult -> Results of the pipeline execution.
         """
         logger.info(f"Triggering KB Ingestion Pipeline for: {request.gcs_uri}")
 
@@ -66,7 +66,7 @@ class KBIngestionPipeline:
             class_resp.final_security_tier, "unknown"
         )
 
-        return OrchestratorRunResponse(
+        return PipelineResult(
             gcs_uri=class_resp.final_original_uri,
             chunks_generated=ingest_resp.chunk_count,
             final_domain=class_resp.final_domain,
