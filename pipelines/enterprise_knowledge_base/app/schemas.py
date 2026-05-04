@@ -29,6 +29,15 @@ class OrchestratorRunRequest(BaseModel):
         return self.gcs_uri.split("/")[-1]
 
 
+class PipelineResult(BaseModel):
+    """Schema for the internal results of the pipeline execution."""
+
+    gcs_uri: Annotated[str, Field(description="The final GCS URI in the domain bucket")]
+    chunks_generated: Annotated[int, Field(description="Number of chunks created")]
+    final_domain: Annotated[str, Field(description="The determined business domain")]
+    security_tier: Annotated[str, Field(description="The security tier label")]
+
+
 class OrchestratorRunResponse(BaseModel):
     """Response schema for the initial async trigger."""
 
