@@ -103,7 +103,9 @@ class TriggerEKBPipelineTool(BaseTool):
                 pending.append({"job_id": job_id, "filename": filename})
                 tool_context.state[PENDING_INGESTIONS_KEY] = pending
 
-                logger.info(f"Ingestion job {job_id} started for {filename}")
+                logger.info(
+                    f"Stored pending ingestion in state: {filename} ({job_id}). Total pending: {len(pending)}"
+                )
 
                 return TriggerEKBPipelineResponse(
                     execution_status="success",

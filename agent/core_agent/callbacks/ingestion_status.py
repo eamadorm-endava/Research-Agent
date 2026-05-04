@@ -26,7 +26,7 @@ async def sync_ingestion_status(
     """
     pending_jobs = list(callback_context.state.get(PENDING_INGESTIONS_KEY, []))
     if not pending_jobs:
-        logger.trace("No pending ingestion jobs in session state.")
+        logger.debug("No pending ingestion jobs in session state.")
         return None
 
     logger.info(
@@ -112,5 +112,5 @@ async def sync_ingestion_status(
         )
 
     # Always return None to allow the agent to run and see the new history
-    logger.trace("Ingestion sync cycle completed.")
+    logger.debug("Ingestion sync cycle completed.")
     return None
