@@ -12,7 +12,7 @@ class JobService:
     """Manages the persistence of ingestion job statuses in BigQuery."""
 
     def __init__(self):
-        self.client = bigquery.Client(project=EKB_CONFIG.PROJECT_ID)
+        self.bq_client = bigquery.Client(project=EKB_CONFIG.PROJECT_ID)
         self.table_id = f"{EKB_CONFIG.PROJECT_ID}.{EKB_CONFIG.BQ_DATASET}.{EKB_CONFIG.BQ_JOBS_TABLE}"
 
     def create_job(self, filename: str) -> str:
@@ -41,7 +41,7 @@ class JobService:
             }
         ]
         logger.info(f"Creating job record for {filename}: {job_id}")
-        errors = self.client.insert_rows_json(self.table_id, rows_to_insert)
+        errors = self.bq_client.insert_rows_json(self.table_id, rows_to_insert)
         if errors:
             logger.error(f"Failed to insert job record: {errors}")
             raise RuntimeError(f"Database error: {errors}")
@@ -90,7 +90,7 @@ class JobService:
                 bigquery.ScalarQueryParameter("job_id", "STRING", job_id),
             ]
         )
-        query_job = self.client.query(query, job_config=job_config)
+        query_job = self.bq_client.query(query, job_config=job_config)
         query_job.result()  # Wait for completion
 
     def get_job_status(self, job_id: str) -> Optional[JobStatusResponse]:
@@ -107,7 +107,7 @@ class JobService:
         job_config = bigquery.QueryJobConfig(
             query_parameters=[bigquery.ScalarQueryParameter("job_id", "STRING", job_id)]
         )
-        query_job = self.client.query(query, job_config=job_config)
+        query_job = self.bq_client.query(query, job_config=job_config)
         results = list(query_job.result())
 
         if not results:
