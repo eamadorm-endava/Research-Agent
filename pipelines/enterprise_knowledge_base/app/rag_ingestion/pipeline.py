@@ -1,7 +1,7 @@
 import time
 import unicodedata
 import uuid
-from typing import Optional
+from typing import Any, Callable, Optional, TypeVar
 from datetime import datetime, timezone
 
 import fitz  # PyMuPDF
@@ -17,6 +17,8 @@ from .schemas import (
     IngestDocumentRequest,
     IngestDocumentResponse,
 )
+
+T = TypeVar("T")
 
 
 class RAGIngestion:
@@ -323,6 +325,43 @@ class RAGIngestion:
         except Exception as e:
             logger.warning(f"Failed to clear existing chunks: {str(e)}")
 
+    def _execute_with_exponential_backoff(
+        self, operation: Callable[..., T], *args: Any, **kwargs: Any
+    ) -> T:
+        """Executes a GCS operation with an exponential backoff retry strategy.
+
+        This helper handles transient network errors and SSL connection drops
+        (like SSLEOFError) by retrying the operation up to 3 times.
+
+        Args:
+            operation: Callable[..., T] -> The GCS method to execute.
+            *args: Any -> Positional arguments for the operation.
+            **kwargs: Any -> Keyword arguments for the operation.
+
+        Returns:
+            T -> The result of the successful operation.
+
+        Raises:
+            Exception: If the operation fails after all retry attempts.
+        """
+        max_retries = 3
+        base_delay = 2
+        for attempt in range(max_retries):
+            try:
+                return operation(*args, **kwargs)
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(
+                        f"GCS operation failed after {max_retries} attempts: {str(e)}"
+                    )
+                    raise e
+
+                wait_time = base_delay**attempt
+                logger.warning(
+                    f"GCS attempt {attempt + 1} failed: {str(e)}. Retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+
     def _process_document(self, read_uri: str, record_uri: str) -> list[DocumentChunk]:
         """Downloads, parses, and chunks a document into BQ-compatible objects.
 
@@ -343,7 +382,7 @@ class RAGIngestion:
         filename = blob_name.split("/")[-1]
 
         blob = self.storage_client.bucket(bucket_name).blob(blob_name)
-        file_bytes = blob.download_as_bytes()
+        file_bytes = self._execute_with_exponential_backoff(blob.download_as_bytes)
 
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         chunks_list = []
@@ -416,7 +455,9 @@ class RAGIngestion:
         dst_bucket = self.storage_client.bucket(dst_bucket_name)
         src_blob = src_bucket.blob(src_blob_name)
 
-        src_bucket.copy_blob(src_blob, dst_bucket, dst_blob_name)
+        self._execute_with_exponential_backoff(
+            src_bucket.copy_blob, src_blob, dst_bucket, dst_blob_name
+        )
 
     def _move_blob_to_processed(self, staging_uri: str) -> str:
         """Moves a document from staging ingestion to staging processed storage.
@@ -441,8 +482,10 @@ class RAGIngestion:
         source_blob = bucket.blob(blob_name)
 
         logger.debug(f"Moving staging file {blob_name} to {new_blob_name}")
-        bucket.copy_blob(source_blob, bucket, new_blob_name)
-        source_blob.delete()
+        self._execute_with_exponential_backoff(
+            bucket.copy_blob, source_blob, bucket, new_blob_name
+        )
+        self._execute_with_exponential_backoff(source_blob.delete)
 
         return f"gs://{bucket_name}/{new_blob_name}"
 

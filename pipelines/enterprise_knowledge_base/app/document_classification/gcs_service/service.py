@@ -1,6 +1,10 @@
+import time
+from typing import Any, Callable, TypeVar
 from google.cloud import storage
 from loguru import logger
 from .schemas import DocumentMetadata
+
+T = TypeVar("T")
 
 
 class GCSService:
@@ -18,6 +22,43 @@ class GCSService:
         """
         self.client = storage.Client()
 
+    def _execute_with_exponential_backoff(
+        self, operation: Callable[..., T], *args: Any, **kwargs: Any
+    ) -> T:
+        """Executes a GCS operation with an exponential backoff retry strategy.
+
+        This helper handles transient network errors and SSL connection drops
+        (like SSLEOFError) by retrying the operation up to 3 times.
+
+        Args:
+            operation: Callable[..., T] -> The GCS method to execute.
+            *args: Any -> Positional arguments for the operation.
+            **kwargs: Any -> Keyword arguments for the operation.
+
+        Returns:
+            T -> The result of the successful operation.
+
+        Raises:
+            Exception: If the operation fails after all retry attempts.
+        """
+        max_retries = 3
+        base_delay = 2
+        for attempt in range(max_retries):
+            try:
+                return operation(*args, **kwargs)
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(
+                        f"GCS operation failed after {max_retries} attempts: {str(e)}"
+                    )
+                    raise e
+
+                wait_time = base_delay**attempt
+                logger.warning(
+                    f"GCS attempt {attempt + 1} failed: {str(e)}. Retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+
     def get_blob_metadata(self, gcs_uri: str) -> DocumentMetadata:
         """Extracts custom metadata and properties from a GCS blob.
         Converts raw GCS metadata into a structured DocumentMetadata model.
@@ -31,7 +72,10 @@ class GCSService:
         logger.info(f"Extracting detailed GCS metadata for: {gcs_uri}")
         uri_parts = self._parse_uri(gcs_uri)
         bucket = self.client.bucket(uri_parts["bucket_name"])
-        blob = bucket.get_blob(uri_parts["blob_name"])
+
+        blob = self._execute_with_exponential_backoff(
+            bucket.get_blob, uri_parts["blob_name"]
+        )
 
         if not blob:
             raise FileNotFoundError(f"Blob not found: {gcs_uri}")
@@ -63,7 +107,7 @@ class GCSService:
         uri_parts = self._parse_uri(gcs_uri)
         bucket = self.client.bucket(uri_parts["bucket_name"])
         blob = bucket.blob(uri_parts["blob_name"])
-        return blob.download_as_bytes()
+        return self._execute_with_exponential_backoff(blob.download_as_bytes)
 
     def upload_blob_bytes(self, gcs_uri: str, data: bytes, content_type: str) -> str:
         """Uploads bytes to a GCS destination.
@@ -80,7 +124,9 @@ class GCSService:
         uri_parts = self._parse_uri(gcs_uri)
         bucket = self.client.bucket(uri_parts["bucket_name"])
         blob = bucket.blob(uri_parts["blob_name"])
-        blob.upload_from_string(data, content_type=content_type)
+        self._execute_with_exponential_backoff(
+            blob.upload_from_string, data, content_type=content_type
+        )
         return gcs_uri
 
     def copy_blob(self, source_uri: str, destination_uri: str) -> str:
@@ -101,7 +147,9 @@ class GCSService:
         src_blob = src_bucket.blob(src_parts["blob_name"])
         dst_bucket = self.client.bucket(dst_parts["bucket_name"])
 
-        src_bucket.copy_blob(src_blob, dst_bucket, dst_parts["blob_name"])
+        self._execute_with_exponential_backoff(
+            src_bucket.copy_blob, src_blob, dst_bucket, dst_parts["blob_name"]
+        )
         return destination_uri
 
     def delete_blob(self, gcs_uri: str) -> None:
@@ -117,7 +165,7 @@ class GCSService:
         uri_parts = self._parse_uri(gcs_uri)
         bucket = self.client.bucket(uri_parts["bucket_name"])
         blob = bucket.blob(uri_parts["blob_name"])
-        blob.delete()
+        self._execute_with_exponential_backoff(blob.delete)
 
     def _parse_uri(self, gcs_uri: str) -> dict[str, str]:
         """Helper to split gs://bucket/path into dictionary components.
