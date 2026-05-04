@@ -26,10 +26,12 @@ async def sync_ingestion_status(
     """
     pending_jobs = list(callback_context.state.get(PENDING_INGESTIONS_KEY, []))
     if not pending_jobs:
-        logger.debug("No pending ingestion jobs to sync.")
+        logger.trace("No pending ingestion jobs in session state.")
         return None
 
-    logger.info(f"Syncing status for {len(pending_jobs)} pending ingestion job(s).")
+    logger.info(
+        f"Syncing status for {len(pending_jobs)} pending ingestion job(s): {[j.get('filename') for j in pending_jobs]}"
+    )
 
     still_pending = []
     completed_updates = []
@@ -105,9 +107,10 @@ async def sync_ingestion_status(
         # ADK 2.0 uses session.events for history
         callback_context.session.events.append(new_event)
 
-        logger.debug(
-            f"History updated with {len(completed_updates)} background task results."
+        logger.info(
+            f"Proactive history update successful for {len(completed_updates)} jobs."
         )
 
     # Always return None to allow the agent to run and see the new history
+    logger.trace("Ingestion sync cycle completed.")
     return None

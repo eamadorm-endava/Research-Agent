@@ -185,11 +185,19 @@ class CheckIngestionStatusTool(BaseTool):
             headers = {"Authorization": f"Bearer {id_token}"}
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, headers=headers, timeout=10.0)
+                logger.debug(
+                    f"Response status from EKB for {request.job_id}: {response.status_code}"
+                )
                 response.raise_for_status()
                 data = response.json()
+                logger.info(
+                    f"Retrieved status for {request.job_id}: {data.get('status')}"
+                )
                 return CheckIngestionStatusResponse(**data).model_dump()
         except Exception as e:
-            logger.error(f"Error checking ingestion status: {e}")
+            logger.error(
+                f"Error checking ingestion status for job {args.get('job_id')}: {e}"
+            )
             return CheckIngestionStatusResponse(
                 job_id=args.get("job_id", "N/A"),
                 status="error",
