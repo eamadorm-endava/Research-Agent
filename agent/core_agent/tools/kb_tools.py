@@ -79,6 +79,7 @@ class TriggerEKBPipelineTool(BaseTool):
                 return TriggerEKBPipelineResponse(
                     execution_status="error",
                     execution_message="Authentication failed: Could not obtain ID token.",
+                    job_id="N/A",
                 ).model_dump()
 
             headers = {
@@ -173,7 +174,13 @@ class CheckIngestionStatusTool(BaseTool):
             id_token = get_id_token(AGENT_CONFIG.EKB_PIPELINE_URL)
 
             if not id_token:
-                return {"execution_status": "error", "execution_message": "Auth failed"}
+                return CheckIngestionStatusResponse(
+                    job_id=request.job_id,
+                    status="error",
+                    message="Auth failed: Could not obtain ID token.",
+                    execution_status="error",
+                    execution_message="Authentication failed",
+                ).model_dump()
 
             headers = {"Authorization": f"Bearer {id_token}"}
             async with httpx.AsyncClient() as client:
@@ -182,4 +189,11 @@ class CheckIngestionStatusTool(BaseTool):
                 data = response.json()
                 return CheckIngestionStatusResponse(**data).model_dump()
         except Exception as e:
-            return {"execution_status": "error", "execution_message": str(e)}
+            logger.error(f"Error checking ingestion status: {e}")
+            return CheckIngestionStatusResponse(
+                job_id=args.get("job_id", "N/A"),
+                status="error",
+                message=str(e),
+                execution_status="error",
+                execution_message="Internal Error",
+            ).model_dump()
