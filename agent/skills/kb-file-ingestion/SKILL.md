@@ -46,10 +46,10 @@ To minimize turns, **ALWAYS** ask for all necessary information in a single bull
 - **project the file belongs to**:
 - **domain**: (Options: `IT, Finance, HR, Sales, Executives, Legal, Operations`)
 - **trust-level**: (Options: 
-    - `Published`: Document is currently valid and verified.
-    - `WIP`: Work in progress, potentially incomplete.
-    - `Archived`: No longer valid, kept for reference only.)
-- **PII Status**: Does this document contain any Personally Identifiable Information?"
+    - `Published`: Verified, official document that is currently valid and ready for company-wide consumption.
+    - `WIP` (Work In Progress): Draft or evolving document that is still being refined; use this for active projects.
+    - `Archived`: Historical reference that is no longer active or valid, but should be kept for context or audit purposes.)
+- **PII Status**: Does this document contain any Personally Identifiable Information (Names, emails, IDs)?"
 
 **Once the user provides the information, perform the following in sequence:**
 
