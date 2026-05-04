@@ -20,7 +20,7 @@ app = FastAPI(
 job_service = JobService()
 
 
-def run_pipeline_task(job_id: str, request: OrchestratorRunRequest):
+def run_pipeline_task(job_id: str, request: OrchestratorRunRequest) -> None:
     """
     Background task to execute the sequential EKB pipeline (Classification -> RAG).
     Updates the BigQuery job status upon completion or failure.
