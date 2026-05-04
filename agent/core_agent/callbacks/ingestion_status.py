@@ -50,11 +50,14 @@ async def sync_ingestion_status(
 
             try:
                 url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{job_id}"
+                logger.debug(f"Checking status for job {job_id} at {url}")
                 response = await client.get(url, headers=headers, timeout=5.0)
 
+                logger.debug(f"Status for job {job_id}: {response.status_code}")
                 if response.status_code == 200:
                     data = response.json()
                     status = data.get("status")
+                    logger.debug(f"Status for job {job_id}: {status}")
 
                     if status in ["success", "error"]:
                         logger.info(
@@ -63,7 +66,13 @@ async def sync_ingestion_status(
                         completed_updates.append(
                             {"filename": filename, "status": status, "details": data}
                         )
+                        logger.debug(
+                            f"Job {job_id} added to completed_updates. Current count: {len(completed_updates)}"
+                        )
                     else:
+                        logger.debug(
+                            f"Job {job_id} still in progress (status: {status})."
+                        )
                         still_pending.append(job)
                 else:
                     logger.warning(
@@ -86,6 +95,9 @@ async def sync_ingestion_status(
 
     # Update session state
     callback_context.state[PENDING_INGESTIONS_KEY] = still_pending
+    logger.debug(
+        f"Updated session state: {len(still_pending)} jobs remaining in pending list."
+    )
 
     # If any jobs finished, inject an Event into the session history
     if completed_updates:
