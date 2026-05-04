@@ -1,27 +1,20 @@
 from unittest.mock import patch
-
 from fastapi.testclient import TestClient
-
 from pipelines.enterprise_knowledge_base.app.main import app
-from pipelines.enterprise_knowledge_base.app.schemas import OrchestratorRunResponse
+from pipelines.enterprise_knowledge_base.app.schemas import JobStatus, JobStatusResponse
 
 client = TestClient(app)
 
 
-@patch("pipelines.enterprise_knowledge_base.app.main.KBIngestionPipeline.run")
-def test_ingest_document_success(mock_run):
+@patch("pipelines.enterprise_knowledge_base.app.main.run_pipeline_task")
+@patch("pipelines.enterprise_knowledge_base.app.main.job_service.create_job")
+def test_ingest_document_success(mock_create_job, mock_run_task):
     """
-    Test the happy path: the endpoint successfully triggers the orchestrator
-    and returns the expected response schema.
+    Test the happy path: the endpoint successfully creates a job
+    and returns the processing status.
     """
     # Arrange
-    mock_run.return_value = OrchestratorRunResponse(
-        gcs_uri="gs://kb-it/test-project/confidential/jdoe/file.pdf",
-        chunks_generated=42,
-        final_domain="it",
-        security_tier="confidential",
-    )
-
+    mock_create_job.return_value = "test-job-id"
     request_payload = {"gcs_uri": "gs://landing-zone-bucket/file.pdf"}
 
     # Act
@@ -30,25 +23,20 @@ def test_ingest_document_success(mock_run):
     # Assert
     assert response.status_code == 200
     data = response.json()
-    assert data["gcs_uri"] == "gs://kb-it/test-project/confidential/jdoe/file.pdf"
-    assert data["chunks_generated"] == 42
-    assert data["final_domain"] == "it"
-    assert data["security_tier"] == "confidential"
+    assert data["job_id"] == "test-job-id"
+    assert data["status"] == "processing"
+    assert "It might take up to 10 minutes" in data["message"]
 
-    mock_run.assert_called_once()
-    run_arg = mock_run.call_args[0][0]
-    assert run_arg.gcs_uri == "gs://landing-zone-bucket/file.pdf"
+    mock_create_job.assert_called_once_with("file.pdf")
 
 
-@patch("pipelines.enterprise_knowledge_base.app.main.KBIngestionPipeline.run")
-def test_ingest_document_failure(mock_run):
+@patch("pipelines.enterprise_knowledge_base.app.main.job_service.create_job")
+def test_ingest_document_failure(mock_create_job):
     """
-    Test the failure mode: the orchestrator raises an exception,
-    and the endpoint catches it and returns a 500 error.
+    Test the failure mode: job creation fails.
     """
     # Arrange
-    mock_run.side_effect = Exception("Simulated pipeline failure")
-
+    mock_create_job.side_effect = Exception("BQ Write Failure")
     request_payload = {"gcs_uri": "gs://landing-zone-bucket/file.pdf"}
 
     # Act
@@ -56,15 +44,50 @@ def test_ingest_document_failure(mock_run):
 
     # Assert
     assert response.status_code == 500
-    assert "Simulated pipeline failure" in response.json()["detail"]
+    assert "Failed to initiate ingestion" in response.json()["detail"]
+
+
+@patch("pipelines.enterprise_knowledge_base.app.main.job_service.get_job_status")
+def test_get_status_success(mock_get_status):
+    """
+    Test status retrieval for an existing job.
+    """
+    # Arrange
+    mock_get_status.return_value = JobStatusResponse(
+        job_id="test-job-id",
+        status=JobStatus.SUCCESS,
+        message="Finished",
+        final_domain="it",
+        security_tier="public",
+    )
+
+    # Act
+    response = client.get("/status/test-job-id")
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["final_domain"] == "it"
+
+
+def test_get_status_not_found():
+    """
+    Test status retrieval for a non-existent job.
+    """
+    with patch(
+        "pipelines.enterprise_knowledge_base.app.main.job_service.get_job_status",
+        return_value=None,
+    ):
+        response = client.get("/status/invalid-id")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Job not found"
 
 
 def test_ingest_document_invalid_payload():
     """
-    Test edge cases: missing fields in the payload should trigger a 422 Unprocessable Entity.
+    Test edge cases: invalid GCS URI pattern.
     """
-    # Act: Missing gcs_uri
-    response = client.post("/ingest", json={"wrong_key": "value"})
-
-    # Assert
+    # Missing gs:// prefix
+    response = client.post("/ingest", json={"gcs_uri": "http://invalid.com/file.pdf"})
     assert response.status_code == 422

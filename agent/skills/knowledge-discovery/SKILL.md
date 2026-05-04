@@ -29,7 +29,7 @@ Examples:
     - **MANDATORY**: Strictly follow the tool's input schema definition.
     - **Example Query Pattern**:
     ```sql
-    SELECT filename, gcs_uri, description, uploader_email, ingested_at, latest
+    SELECT filename, gcs_uri, description, trust_level, uploader_email, ingested_at, latest
     FROM `knowledge_base.documents_metadata`
     WHERE (project_id = '<identified_project>' OR domain = '<identified_domain>')
       AND latest = TRUE

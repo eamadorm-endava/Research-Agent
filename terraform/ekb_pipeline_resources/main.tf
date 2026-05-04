@@ -49,6 +49,7 @@ module "ekb_pipeline_cloud_run" {
         BQ_TABLE           = google_bigquery_table.documents_metadata.table_id
         BQ_CHUNKS_TABLE    = google_bigquery_table.documents_chunks.table_id
         BQ_METADATA_TABLE  = google_bigquery_table.documents_metadata.table_id
+        BQ_JOBS_TABLE      = google_bigquery_table.ingestion_jobs.table_id
         RAG_STAGING_BUCKET = google_storage_bucket.rag_staging.name
       })
     }
@@ -290,6 +291,59 @@ resource "google_bigquery_table" "documents_metadata" {
     "type": "TIMESTAMP",
     "mode": "REQUIRED",
     "description": "ISO 8601 ingestion timestamp"
+  }
+]
+EOF
+}
+
+resource "google_bigquery_table" "ingestion_jobs" {
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
+  table_id   = "ingestion_jobs"
+
+  schema = <<EOF
+[
+  {
+    "name": "job_id",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Unique UUID for the ingestion job"
+  },
+  {
+    "name": "filename",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Basename of the file being ingested"
+  },
+  {
+    "name": "status",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Current status (processing, success, error)"
+  },
+  {
+    "name": "message",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Informational or error message"
+  },
+  {
+    "name": "start_time",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "When the job was initiated"
+  },
+  {
+    "name": "end_time",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "When the job was finalized"
+  },
+  {
+    "name": "metadata",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Stringified JSON containing final processing results"
   }
 ]
 EOF

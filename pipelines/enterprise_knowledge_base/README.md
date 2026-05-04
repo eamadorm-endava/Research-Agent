@@ -71,9 +71,47 @@ The following variables are required for the Cloud Run deployment (configured vi
 | `BQ_DATASET` | Name of the metadata dataset. |
 | `BQ_TABLE` | Main metadata table name. |
 | `BQ_CHUNKS_TABLE` | Table for storing document chunks. |
-| `BQ_METADATA_TABLE` | (Duplicate of BQ_TABLE) for backward compatibility. |
+| `BQ_JOBS_TABLE` | Table for tracking background job status. |
 | `RAG_STAGING_BUCKET` | The bucket name for the RAG staging area. |
 | `GEMINI_MODEL` | (Optional) Defaults to `gemini-2.5-flash`. |
+
+---
+
+## API Reference
+
+### 1. Trigger Ingestion (POST `/ingest`)
+Triggers the asynchronous pipeline. Returns a `job_id` immediately.
+
+**Request Body:**
+```json
+{
+  "gcs_uri": "gs://bucket/project/file.pdf"
+}
+```
+
+**Response:**
+```json
+{
+  "job_id": "uuid-v5-string",
+  "status": "processing",
+  "message": "File processing started..."
+}
+```
+
+### 2. Check Status (GET `/status/{job_id}`)
+Returns the current state and results of a job.
+
+**Response (Success):**
+```json
+{
+  "job_id": "uuid-v5-string",
+  "status": "success",
+  "message": "Pipeline completed successfully.",
+  "final_domain": "it",
+  "security_tier": "confidential",
+  "gcs_uri": "gs://kb-it/project/file.pdf"
+}
+```
 
 ---
 

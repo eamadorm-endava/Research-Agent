@@ -14,7 +14,9 @@ from .tools.artifact_tools import (
     GetArtifactUriTool,
     ImportGcsToArtifactTool,
 )
-from .tools.kb_tools import TriggerEKBPipelineTool
+from .tools.kb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
+from .callbacks.ingestion_status import sync_ingestion_status
+from loguru import logger
 
 mcp_servers_to_mount = [
     BIGQUERY_MCP_CONFIG,
@@ -37,11 +39,13 @@ root_agent = (
     )
     .with_skills(skills_to_mount)
     .with_mcp_servers(mcp_servers_to_mount)
+    .with_before_agent_callback(sync_ingestion_status)
     .with_native_tools(
         [
             GetArtifactUriTool(),
             ImportGcsToArtifactTool(),
             TriggerEKBPipelineTool(),
+            CheckIngestionStatusTool(),
             load_artifacts,
         ]
     )
@@ -53,3 +57,5 @@ app = AppBuilder(
     gcp_config=GCP_CONFIG,
     agent_config=AGENT_CONFIG,
 ).build()
+
+logger.info("ADK Agent application initialized and ready for execution.")
