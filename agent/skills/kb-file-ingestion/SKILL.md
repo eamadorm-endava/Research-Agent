@@ -19,10 +19,9 @@ or similar requests.
 ## Progress Tracker
 Maintain this state throughout the interaction:
 - [ ] Step 1: Identify and verify session artifact
-- [ ] Step 2: Validate project and filename (Deduplication)
-- [ ] Step 3: Collect metadata (Domain, Trust, PII)
-- [ ] Step 4: Relocate file and stamp metadata
-- [ ] Step 5: Trigger EKB Pipeline
+- [ ] Step 2: Collect metadata and validate project (Deduplication)
+- [ ] Step 3: Relocate file and stamp metadata
+- [ ] Step 4: Trigger EKB Pipeline
 
 ## Gotchas
 - **GCS URIs**: The agent landing zone is always `gs://ai_agent_landing_zone/`. 
@@ -40,26 +39,11 @@ Maintain this state throughout the interaction:
     - **Multi-file**: If multiple PDF files exist, ask: "I see several PDFs ([List]). Which one should I ingest?"
     - **Missing**: If no PDF file is found, ask: "Please upload the PDF document you'd like to add to the knowledge base."
 
-### Step 2: Project Validation & Deduplication
-1.  **Project Identification**: Ask the user: "Which project does this document belong to?"
-2.  **Semantic Validation**: Use `ekb_semantic_search(query='<user_input_project_name>')` to find similar projects in the knowledge base.
-3.  **Conflict Resolution**:
-    - If similar projects are found, present the list and ask: "I found existing projects that might match: [List]. Is it one of these, or should I create a new project entry for '[User Input]'?"
-    - If no similar projects are found, proceed with the user's input.
-4.  **Conditional Filename Check**: **ONLY** if an existing project was confirmed in the previous step, check if a file with the same name already exists:
-    ```sql
-    SELECT filename 
-    FROM `knowledge_base.documents_metadata` 
-    WHERE project_id = '<confirmed_project>' AND lower(filename) = lower('<uploaded_filename>')
-    ```
-    - If it exists, ask: "A version of '<filename>' already exists in project '<project>'. Should I replace it or would you like to rename this file?"
-    - **Note**: Skip this check if the user is creating a completely new project.
-
-### Step 3: Metadata Collection
-To avoid a tedious multi-turn interaction, **ALWAYS** ask for the information at once using the following structure:
+### Step 2: Information Gathering & Validation
+To minimize turns, **ALWAYS** ask for all necessary information in a single bulleted message immediately after Step 1:
 
 "Before storing the file, please provide me the following information:
-- **project the file belongs to**: (Confirming '[Project Name]')
+- **project the file belongs to**:
 - **domain**: (Options: `IT, Finance, HR, Sales, Executives, Legal, Operations`)
 - **trust-level**: (Options: 
     - `Published`: Document is currently valid and verified.
@@ -67,7 +51,23 @@ To avoid a tedious multi-turn interaction, **ALWAYS** ask for the information at
     - `Archived`: No longer valid, kept for reference only.)
 - **PII Status**: Does this document contain any Personally Identifiable Information?"
 
-### Step 4: Relocation & Stamping
+**Once the user provides the information, perform the following in sequence:**
+
+1.  **Semantic Project Validation**: Use `ekb_semantic_search(query='<user_input_project_name>')`.
+    - If a high-confidence match exists, proceed with that `project_id`.
+    - If ambiguous, ask: "I found existing projects that might match: [List]. Is it one of these?"
+2.  **Deduplication Check**: If the project exists, check for duplicate filenames and retrieve their existing metadata:
+    ```sql
+    SELECT filename, domain, classification_tier 
+    FROM `knowledge_base.documents_metadata` 
+    WHERE project_id = '<confirmed_project>' AND lower(filename) = lower('<uploaded_filename>')
+      AND latest = TRUE
+    ```
+    - If found, ask: "A version of '<filename>' already exists. Should I replace it or would you like to rename this file?"
+    - **MANDATORY**: If the user chooses to **REPLACE** the file, you MUST reuse the `domain` and `classification_tier` retrieved from the existing record for the new ingestion.
+3.  **Final Summary**: Confirm the final metadata values with the user before proceeding to Step 3.
+
+### Step 3: Relocation & Stamping
 1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file using these parameters:
     - `source_gcs_uri`: The URI identified in Step 1.
     - `destination_bucket`: "ag-core-dev-fdx7-kb-landing-zone"
@@ -84,8 +84,8 @@ To avoid a tedious multi-turn interaction, **ALWAYS** ask for the information at
     }
     ```
 
-### Step 5: Trigger Pipeline
-1.  Call `trigger_ekb_pipeline(gcs_uri='<destination_uri_returned_in_Step_4>')`.
+### Step 4: Trigger Pipeline
+1.  Call `trigger_ekb_pipeline(gcs_uri='<destination_uri_returned_in_Step_3>')`.
     - **Note**: This MUST be exactly the same URI returned by the `upload_object` tool.
 2.  **Final Confirmation**: Provide the user with a summary using this template:
     ```markdown
