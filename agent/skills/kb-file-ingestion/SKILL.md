@@ -56,16 +56,16 @@ Maintain this state throughout the interaction:
     - **Note**: Skip this check if the user is creating a completely new project.
 
 ### Step 3: Metadata Collection
-To avoid a tedious multi-turn interaction, **ALWAYS** ask for the information at once using the following structure:
+To avoid a tedious multi-turn interaction, **ALWAYS** ask for the information at once using the following bulleted structure:
 
-"Before storing the file, please provide me the following information:
+"First, provide the following information before storing it into the knowledge base:
 - **project the file belongs to**: (Confirming '[Project Name]')
 - **domain**: (Options: `IT, Finance, HR, Sales, Executives, Legal, Operations`)
-- **trust-level**: (Options: 
+- **trust level**: (Options: 
     - `Published`: Document is currently valid and verified.
     - `WIP`: Work in progress, potentially incomplete.
     - `Archived`: No longer valid, kept for reference only.)
-- **PII Status**: Does this document contain any Personally Identifiable Information?"
+- **pii?**: Does this document contain any Personally Identifiable Information?"
 
 ### Step 4: Relocation & Stamping
 1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file using these parameters:
