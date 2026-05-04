@@ -80,7 +80,7 @@ The following variables are required for the Cloud Run deployment (configured vi
 ## API Reference
 
 ### 1. Trigger Ingestion (POST `/ingest`)
-Triggers the asynchronous pipeline. Returns a `job_id` immediately.
+Triggers the asynchronous pipeline. This endpoint is non-blocking; the heavy orchestration logic (classification and vectorization) is executed in a background thread pool to ensure the API remains responsive. Returns a `job_id` immediately.
 
 **Request Body:**
 ```json
@@ -99,7 +99,7 @@ Triggers the asynchronous pipeline. Returns a `job_id` immediately.
 ```
 
 ### 2. Check Status (GET `/status/{job_id}`)
-Returns the current state and results of a job.
+Returns the current state and results of a job. This endpoint is used by the AI Agent's **Proactive Notification System** to monitor progress and inform the user upon completion.
 
 **Response (Success):**
 ```json
