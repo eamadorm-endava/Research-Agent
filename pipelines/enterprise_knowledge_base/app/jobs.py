@@ -18,6 +18,8 @@ class JobService:
     def create_job(self, filename: str) -> str:
         """
         Creates a new ingestion job record in BigQuery to track background progress.
+        The job_id is generated using uuid5 based on the filename and ingestion timestamp
+        to ensure uniqueness and traceability.
 
         Args:
             filename: str -> The basename of the file being processed.
@@ -25,14 +27,17 @@ class JobService:
         Returns:
             str -> The unique UUID generated for the job.
         """
-        job_id = str(uuid.uuid4())
+        start_time = datetime.utcnow().isoformat()
+        # Generate a deterministic UUID based on filename and timestamp for uniqueness
+        job_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{filename}-{start_time}"))
+
         rows_to_insert = [
             {
                 "job_id": job_id,
                 "filename": filename,
                 "status": JobStatus.PROCESSING.value,
                 "message": "Job initiated. Starting classification and ingestion.",
-                "start_time": datetime.utcnow().isoformat(),
+                "start_time": start_time,
             }
         ]
         logger.info(f"Creating job record for {filename}: {job_id}")
