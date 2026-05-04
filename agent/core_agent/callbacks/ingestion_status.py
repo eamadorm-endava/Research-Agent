@@ -51,7 +51,7 @@ async def sync_ingestion_status(
             try:
                 url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{job_id}"
                 logger.debug(f"Checking status for job {job_id} at {url}")
-                response = await client.get(url, headers=headers, timeout=5.0)
+                response = await client.get(url, headers=headers, timeout=10.0)
 
                 logger.debug(f"Status for job {job_id}: {response.status_code}")
                 if response.status_code == 200:
