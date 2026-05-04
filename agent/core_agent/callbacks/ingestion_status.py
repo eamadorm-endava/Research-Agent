@@ -70,8 +70,18 @@ async def sync_ingestion_status(
                         f"Failed to check status for {job_id}: {response.status_code}"
                     )
                     still_pending.append(job)
+            except httpx.TimeoutException:
+                logger.warning(f"Timeout syncing status for job {job_id} (5s).")
+                still_pending.append(job)
+            except httpx.RequestError as exc:
+                logger.error(
+                    f"Network error syncing status for job {job_id} at {exc.request.url}: {exc}"
+                )
+                still_pending.append(job)
             except Exception as e:
-                logger.error(f"Error syncing status for job {job_id}: {e}")
+                logger.error(
+                    f"Unexpected error syncing status for job {job_id}: {type(e).__name__} - {e}"
+                )
                 still_pending.append(job)
 
     # Update session state
