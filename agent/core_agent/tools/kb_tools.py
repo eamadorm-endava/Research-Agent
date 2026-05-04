@@ -118,6 +118,7 @@ class TriggerEKBPipelineTool(BaseTool):
             return TriggerEKBPipelineResponse(
                 execution_status="error",
                 execution_message=f"Internal Error: {str(e)}",
+                job_id="N/A",
             ).model_dump()
 
 

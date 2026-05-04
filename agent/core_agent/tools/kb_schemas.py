@@ -1,6 +1,8 @@
 from typing import Annotated, Optional
 from pydantic import BaseModel, Field
 
+JobIdType = Annotated[str, Field(description="Unique identifier for the ingestion job")]
+
 
 class TriggerEKBPipelineRequest(BaseModel):
     """Request schema for triggering the EKB pipeline."""
@@ -24,22 +26,23 @@ class TriggerEKBPipelineResponse(BaseModel):
 
     execution_status: Annotated[str, Field(description="Success or error status")]
     execution_message: Annotated[str, Field(description="Informational message")]
-    job_id: Annotated[Optional[str], Field(description="The background Job ID")] = None
+    job_id: JobIdType
     response: Annotated[
-        Optional[dict], Field(description="Raw response from service")
-    ] = None
+        Optional[dict],
+        Field(description="Raw response from service", default=None),
+    ]
 
 
 class CheckIngestionStatusRequest(BaseModel):
     """Request schema for polling job status."""
 
-    job_id: Annotated[str, Field(description="The unique Job ID to check")]
+    job_id: JobIdType
 
 
 class CheckIngestionStatusResponse(BaseModel):
     """Unified response for job status checks."""
 
-    job_id: Annotated[str, Field(description="The unique Job ID")]
+    job_id: JobIdType
     status: Annotated[str, Field(description="Current job status")]
     message: Annotated[str, Field(description="Informational message")]
     gcs_uri: Annotated[

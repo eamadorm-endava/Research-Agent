@@ -9,6 +9,9 @@ class JobStatus(str, Enum):
     ERROR = "error"
 
 
+JobIdType = Annotated[str, Field(description="Unique identifier for the ingestion job")]
+
+
 class OrchestratorRunRequest(BaseModel):
     """Request schema for the KB Orchestrator run method."""
 
@@ -29,17 +32,14 @@ class OrchestratorRunRequest(BaseModel):
 class OrchestratorRunResponse(BaseModel):
     """Response schema for the initial async trigger."""
 
-    job_id: Annotated[str, Field(description="Unique identifier for the ingestion job")]
+    job_id: JobIdType
     status: Annotated[JobStatus, Field(description="Current status of the job")]
     message: Annotated[str, Field(description="Informational message about the job")]
 
 
-class JobStatusResponse(BaseModel):
+class JobStatusResponse(OrchestratorRunResponse):
     """Detailed response schema for status polling."""
 
-    job_id: Annotated[str, Field(description="The unique Job ID")]
-    status: Annotated[JobStatus, Field(description="Current job status")]
-    message: Annotated[str, Field(description="Informational message")]
     gcs_uri: Annotated[
         Optional[str], Field(description="The final GCS URI", default=None)
     ]
