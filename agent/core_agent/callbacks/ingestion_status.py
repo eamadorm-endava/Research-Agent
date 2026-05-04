@@ -27,7 +27,7 @@ async def sync_ingestion_status(
     pending_jobs = list(callback_context.state.get(PENDING_INGESTIONS_KEY, []))
     if not pending_jobs:
         logger.debug("No pending ingestion jobs in session state.")
-        return None
+        return
 
     logger.info(
         f"Syncing status for {len(pending_jobs)} pending ingestion job(s): {[j.get('filename') for j in pending_jobs]}"
@@ -39,7 +39,7 @@ async def sync_ingestion_status(
     id_token = get_id_token(AGENT_CONFIG.EKB_PIPELINE_URL)
     if not id_token:
         logger.warning("Skipping status sync: Could not obtain ID token.")
-        return None
+        return
 
     headers = {"Authorization": f"Bearer {id_token}"}
 
@@ -135,4 +135,4 @@ async def sync_ingestion_status(
 
     # Always return None to allow the agent to run and see the new history
     logger.debug("Ingestion sync cycle completed.")
-    return None
+    return
