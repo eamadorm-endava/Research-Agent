@@ -18,7 +18,7 @@ from .schemas import (
     IngestDocumentResponse,
 )
 
-T = TypeVar("T")
+GCSOperationResult = TypeVar("GCSOperationResult")
 
 
 class RAGIngestion:
@@ -326,20 +326,20 @@ class RAGIngestion:
             logger.warning(f"Failed to clear existing chunks: {str(e)}")
 
     def _execute_with_exponential_backoff(
-        self, operation: Callable[..., T], *args: Any, **kwargs: Any
-    ) -> T:
+        self, operation: Callable[..., GCSOperationResult], *args: Any, **kwargs: Any
+    ) -> GCSOperationResult:
         """Executes a GCS operation with an exponential backoff retry strategy.
 
         This helper handles transient network errors and SSL connection drops
         (like SSLEOFError) by retrying the operation up to 3 times.
 
         Args:
-            operation: Callable[..., T] -> The GCS method to execute.
+            operation: Callable[..., GCSOperationResult] -> The GCS method to execute.
             *args: Any -> Positional arguments for the operation.
             **kwargs: Any -> Keyword arguments for the operation.
 
         Returns:
-            T -> The result of the successful operation.
+            GCSOperationResult -> The result of the successful operation.
 
         Raises:
             Exception: If the operation fails after all retry attempts.
