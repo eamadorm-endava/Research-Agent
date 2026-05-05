@@ -97,7 +97,7 @@ Triggers the asynchronous pipeline. This endpoint is non-blocking; the heavy orc
   "message": "File processing started..."
 }
 ```
-
+ 
 ### 2. Check Status (GET `/status/{job_id}`)
 Returns the current state and results of a job. This endpoint is used by the AI Agent's **Proactive Notification System** to monitor progress and inform the user upon completion.
 
