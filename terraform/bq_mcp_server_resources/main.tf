@@ -61,6 +61,12 @@ module "mcp_server_cloud_run" {
     email  = module.mcp-server-service-account.email
   }
 
+  service_config = {
+    scaling = {
+      min_instance_count = 1
+    }
+  }
+
   depends_on = [
     module.enable_apis
   ]

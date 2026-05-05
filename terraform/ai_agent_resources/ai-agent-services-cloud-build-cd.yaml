@@ -111,6 +111,8 @@ steps:
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --min-instances=1 \
+          --num-workers=4 \
           --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GCS_URL=${_GCS_URL},CALENDAR_URL=${_CALENDAR_URL},GEMINI_GOOGLE_AUTH_ID=$$GEMINI_GOOGLE_AUTH_ID,EKB_PIPELINE_URL=${_EKB_PIPELINE_URL}" 2>&1 | tee deploy_output.txt
         
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
