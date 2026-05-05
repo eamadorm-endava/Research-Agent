@@ -3,10 +3,14 @@ from google.cloud import tasks_v2
 from loguru import logger
 from .document_classification.config import EKB_CONFIG
 
+# Global client to share connection pool across multiple requests
+task_client = tasks_v2.CloudTasksClient()
+
 
 class CloudTasksService:
+    client = task_client
+
     def __init__(self):
-        self.client = tasks_v2.CloudTasksClient()
         self.project = EKB_CONFIG.PROJECT_ID
         self.location = EKB_CONFIG.TASKS_LOCATION
         self.queue = EKB_CONFIG.TASKS_QUEUE_ID
