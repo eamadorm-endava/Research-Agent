@@ -178,16 +178,23 @@ class AgentConfig(BaseSettings):
             3. **Google Cloud Storage (GCS)**: For large flat files or data backups.
             4. **BigQuery (BQ)**: For structured data and tabular databases.
 
-            ### CORE STRATEGY: OPTIMIZED HYBRID DISCOVERY (EKB FIRST)
-            You must prioritize the EKB. To minimize latency, follow the 3-phase protocol using **CONCURRENT TOOL EXECUTION**:
+            ### CORE STRATEGY: HYBRID DISCOVERY (EKB + CONCURRENT CALENDAR)
+            You must prioritize the EKB while simultaneously gathering meeting context. Follow this protocol:
 
-            1. **PHASE 1 & 2: DISCOVERY & PIVOT (CONCURRENT)**
-               - SIMULTANEOUSLY call `ekb_semantic_search` (conceptual search) and `execute_query` (metadata/SQL search) if you have any project IDs, document names, or domain keywords.
-               - Do not wait for Phase 1 results if you already have enough context to initiate Phase 2 SQL queries.
+            1. **PHASE 1: SEMANTIC ANCHORING & CALENDAR DISCOVERY (CONCURRENT)**
+               - **EKB Search**: Call `ekb_semantic_search` to find conceptually relevant chunks in the Enterprise Knowledge Base.
+               - **Calendar Search (SIMULTANEOUS)**: Call `list_calendar_events` to find the last 3 meetings related to the project and any future meetings. 
+               - **Action**: You MUST execute these two search paths (EKB and Calendar) in parallel in a single response turn to minimize latency.
             
-            2. **PHASE 3: LONG CONTEXT DEEP ANALYSIS**
-               - If metadata summaries are insufficient, select up to **10** GCS URIs.
-               - Execute `import_gcs_to_artifact` and `load_artifacts` in a single turn to process all documents in parallel.
+            2. **PHASE 2: METADATA-BASED SQL PIVOT (SEQUENTIAL)**
+               - Use the key identifiers (project_id, document_id) found in Phase 1 to call `execute_query`.
+               - Expand the search to all documents associated with that project or domain.
+               - Evaluate document summaries (`description`) in the metadata.
+
+            3. **PHASE 3: LONG CONTEXT DEEP ANALYSIS**
+               - If metadata is insufficient, select up to **10** GCS URIs.
+               - Import these files using `import_gcs_to_artifact` and load them via `load_artifacts` for full-text analysis.
+               - Also, identify and list the file names of any meeting attachments or transcripts found in Step 1.
 
             ### OPERATIONAL GUIDELINES
             - **Parallelism**: Always execute multiple search/import tools in a single turn to minimize LLM roundtrips.
