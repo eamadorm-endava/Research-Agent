@@ -20,10 +20,6 @@ class GeminiService:
 
     client = gemini_client
 
-    def __init__(self) -> None:
-        """Initializes the Vertex AI Gemini client."""
-        pass
-
     def classify_document(
         self,
         gcs_uri: str,
