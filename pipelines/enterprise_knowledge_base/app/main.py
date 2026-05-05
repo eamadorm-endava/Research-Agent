@@ -24,45 +24,6 @@ ekb_pipeline = KBIngestionPipeline(EKB_CONFIG.PROJECT_ID)
 cloud_tasks_service = CloudTasksService()
 
 
-def run_pipeline_task(job_id: str, request: OrchestratorRunRequest) -> None:
-    """
-    Background task to execute the sequential EKB pipeline (Classification -> RAG).
-    Updates the BigQuery job status upon completion or failure.
-
-    Args:
-        job_id: str -> The unique identifier of the background job.
-        request: OrchestratorRunRequest -> The request containing the source GCS URI.
-
-    Returns:
-        None
-    """
-    logger.info(f"Starting background pipeline for job {job_id}")
-    try:
-        result = ekb_pipeline.run(request)
-
-        # Extract metadata for status update
-        metadata = {
-            "gcs_uri": result.gcs_uri,
-            "chunks_generated": result.chunks_generated,
-            "final_domain": result.final_domain,
-            "security_tier": result.security_tier,
-        }
-
-        job_service.update_job(
-            job_id=job_id,
-            status=JobStatus.SUCCESS,
-            message="Pipeline completed successfully.",
-            metadata=metadata,
-        )
-        logger.info(f"Job {job_id} completed successfully.")
-    except Exception as e:
-        logger.error(f"Job {job_id} failed: {e}")
-        job_service.update_job(
-            job_id=job_id, status=JobStatus.ERROR, message=f"Pipeline failed: {str(e)}"
-        )
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.post("/ingest", response_model=OrchestratorRunResponse)
 async def ingest_document(
     request: OrchestratorRunRequest, fastapi_req: Request
@@ -129,5 +90,30 @@ async def handle_task(payload: TaskPayload) -> dict:
     and allocate full CPU resources.
     """
     logger.info(f"Received Cloud Task for job_id: {payload.job_id}")
-    run_pipeline_task(payload.job_id, payload.request)
-    return {"status": "success"}
+    try:
+        result = ekb_pipeline.run(payload.request)
+
+        # Extract metadata for status update
+        metadata = {
+            "gcs_uri": result.gcs_uri,
+            "chunks_generated": result.chunks_generated,
+            "final_domain": result.final_domain,
+            "security_tier": result.security_tier,
+        }
+
+        job_service.update_job(
+            job_id=payload.job_id,
+            status=JobStatus.SUCCESS,
+            message="Pipeline completed successfully.",
+            metadata=metadata,
+        )
+        logger.info(f"Job {payload.job_id} completed successfully.")
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Job {payload.job_id} failed: {e}")
+        job_service.update_job(
+            job_id=payload.job_id,
+            status=JobStatus.ERROR,
+            message=f"Pipeline failed: {str(e)}",
+        )
+        raise HTTPException(status_code=500, detail=str(e))
