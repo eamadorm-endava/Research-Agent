@@ -31,6 +31,16 @@ class DriveManager:
     """Manager for Google Drive operations."""
 
     def __init__(self, creds: Credentials) -> None:
+        """
+        Initializes the Drive manager with authenticated Google credentials.
+        Creates a Drive API service client used by all manager operations.
+
+        Args:
+            creds (Credentials): Authenticated Google credentials for Drive API calls.
+
+        Returns:
+            None: This initializer does not return a value.
+        """
         self.creds = creds
         self.drive = build("drive", "v3", credentials=creds, cache_discovery=False)
 
@@ -45,6 +55,22 @@ class DriveManager:
         order_by: Optional[dict[ListFilesSortField, SortDirection]] = None,
         max_results: int = 10,
     ) -> list[DriveFileMetadata]:
+        """
+        Lists Drive files and folders that match the provided filters.
+        Resolves optional folder paths and returns compact metadata results.
+
+        Args:
+            folder_name (Optional[str]): Optional slash-separated folder path filter.
+            file_name (Optional[str]): Optional case-insensitive file name filter.
+            mime_type (Optional[DriveMimeType]): Optional MIME type to match.
+            creation_time (Optional[str]): Optional creation date in YYYY-MM-DD format.
+            last_update (Optional[str]): Optional modified date in YYYY-MM-DD format.
+            order_by (Optional[dict[ListFilesSortField, SortDirection]]): Sort directives.
+            max_results (int): Maximum number of metadata items to return.
+
+        Returns:
+            list[DriveFileMetadata]: Filtered and sorted Drive metadata results.
+        """
         folder_id = (
             self._resolve_folder_id_by_path(folder_name) if folder_name else None
         )
@@ -93,6 +119,16 @@ class DriveManager:
         return metadata_items[:max_results]
 
     def get_file_text(self, file_id: str) -> DriveTextDocument:
+        """
+        Extracts text from a Drive file using export or download APIs.
+        Supports Google-native files, PDFs, and UTF-8 text-like files.
+
+        Args:
+            file_id (str): Drive file identifier to extract text from.
+
+        Returns:
+            DriveTextDocument: File metadata enriched with extracted text content.
+        """
         metadata = self._get_file_metadata_payload(file_id)
         mime_type = metadata.get("mimeType", "")
         file_name = metadata.get("name", "")
@@ -136,6 +172,18 @@ class DriveManager:
         content: str,
         folder_id: Optional[str] = None,
     ) -> DriveFile:
+        """
+        Creates a Google Docs file and inserts the provided text content.
+        Optionally places the new document inside a specific Drive folder.
+
+        Args:
+            title (str): Display title for the Google Docs document.
+            content (str): Text content to insert into the document body.
+            folder_id (Optional[str]): Optional parent folder ID for the document.
+
+        Returns:
+            DriveFile: Metadata for the created Google Docs file.
+        """
         file_metadata: dict[str, Any] = {
             "name": title,
             "mimeType": DRIVE_API_CONFIG.google_doc,
@@ -172,6 +220,18 @@ class DriveManager:
         text: str,
         folder_id: Optional[str] = None,
     ) -> DriveFile:
+        """
+        Generates a PDF from text and uploads it to Google Drive.
+        Optionally places the uploaded PDF inside a specific Drive folder.
+
+        Args:
+            title (str): Base title used for the uploaded PDF file name.
+            text (str): Text content to render into the PDF body.
+            folder_id (Optional[str]): Optional parent folder ID for the PDF.
+
+        Returns:
+            DriveFile: Metadata for the uploaded PDF file.
+        """
         pdf_io = _build_pdf_bytes_from_text(text)
 
         file_metadata: dict[str, Any] = {
@@ -206,6 +266,19 @@ class DriveManager:
         mime_type: str = DRIVE_API_CONFIG.plain_text,
         folder_id: Optional[str] = None,
     ) -> DriveFile:
+        """
+        Creates a generic Drive file with optional UTF-8 text content.
+        Adds a .txt extension for plain text files without an extension.
+
+        Args:
+            name (str): Requested display name for the file.
+            content (str): Optional UTF-8 text content to upload.
+            mime_type (str): MIME type to assign to the created file.
+            folder_id (Optional[str]): Optional parent folder ID for the file.
+
+        Returns:
+            DriveFile: Metadata for the created Drive file.
+        """
         normalized_name = name.strip()
         if (
             mime_type == DRIVE_API_CONFIG.plain_text
@@ -246,6 +319,17 @@ class DriveManager:
         name: str,
         folder_id: Optional[str] = None,
     ) -> DriveFile:
+        """
+        Creates a Google Drive folder.
+        Optionally places the folder inside an existing parent folder.
+
+        Args:
+            name (str): Display name for the new folder.
+            folder_id (Optional[str]): Optional parent folder ID for the folder.
+
+        Returns:
+            DriveFile: Metadata for the created Drive folder.
+        """
         file_metadata: dict[str, Any] = {
             "name": name,
             "mimeType": DRIVE_API_CONFIG.google_folder,
@@ -270,6 +354,17 @@ class DriveManager:
         file_id: str,
         destination_folder_id: str,
     ) -> DriveFile:
+        """
+        Moves a Drive file or folder into a new parent folder.
+        Removes existing parents when present to complete the move.
+
+        Args:
+            file_id (str): Drive file or folder identifier to move.
+            destination_folder_id (str): Target parent folder identifier.
+
+        Returns:
+            DriveFile: Metadata for the moved Drive item.
+        """
         current = (
             self.drive.files()
             .get(
@@ -298,6 +393,17 @@ class DriveManager:
         file_id: str,
         new_name: str,
     ) -> DriveFile:
+        """
+        Renames an existing Drive file or folder.
+        Fetches fresh metadata after the rename operation completes.
+
+        Args:
+            file_id (str): Drive file or folder identifier to rename.
+            new_name (str): New display name for the Drive item.
+
+        Returns:
+            DriveFile: Metadata for the renamed Drive item.
+        """
         self.drive.files().update(
             fileId=file_id,
             body={"name": new_name},
@@ -307,11 +413,31 @@ class DriveManager:
         return self.get_file(file_id)
 
     def get_file(self, file_id: str) -> DriveFile:
+        """
+        Retrieves and normalizes metadata for a Drive file or folder.
+        Resolves derived fields such as parents, owners, version, and path.
+
+        Args:
+            file_id (str): Drive file or folder identifier to retrieve.
+
+        Returns:
+            DriveFile: Normalized Drive file metadata.
+        """
         metadata = self._get_file_metadata_payload(file_id)
         normalized = self._normalize_file_payload(metadata, path_cache={})
         return DriveFile.model_validate(normalized)
 
     def _to_list_file_metadata(self, file_payload: DriveFile) -> DriveFileMetadata:
+        """
+        Converts full Drive file metadata into list response metadata.
+        Derives folder path and creator information for compact results.
+
+        Args:
+            file_payload (DriveFile): Full normalized Drive file metadata.
+
+        Returns:
+            DriveFileMetadata: Compact metadata for list_files responses.
+        """
         owner = file_payload.owners[0] if file_payload.owners else None
         full_path = file_payload.path or f"/{file_payload.name}"
         folder_path = str(PurePosixPath(full_path).parent)
@@ -337,6 +463,17 @@ class DriveManager:
         items: list[DriveFileMetadata],
         order_by: dict[ListFilesSortField, SortDirection],
     ) -> list[DriveFileMetadata]:
+        """
+        Sorts list response metadata using the requested sort directives.
+        Applies stable sorting so multiple directives retain precedence.
+
+        Args:
+            items (list[DriveFileMetadata]): Metadata items to sort.
+            order_by (dict[ListFilesSortField, SortDirection]): Sort directives.
+
+        Returns:
+            list[DriveFileMetadata]: Sorted metadata items.
+        """
         if not order_by:
             return items
 
@@ -359,6 +496,16 @@ class DriveManager:
         self,
         order_by: Optional[dict[ListFilesSortField, SortDirection]],
     ) -> str:
+        """
+        Builds a Google Drive API orderBy expression from sort directives.
+        Falls back to the default Drive ordering when no mapping is available.
+
+        Args:
+            order_by (Optional[dict[ListFilesSortField, SortDirection]]): Sort directives.
+
+        Returns:
+            str: Google Drive API orderBy expression.
+        """
         if not order_by:
             return DRIVE_API_CONFIG.order_by
 
@@ -376,6 +523,16 @@ class DriveManager:
         return ", ".join(order_parts) or DRIVE_API_CONFIG.order_by
 
     def _resolve_folder_id_by_path(self, folder_path: str) -> Optional[str]:
+        """
+        Resolves a slash-separated folder path to the final folder ID.
+        Walks each path segment through Drive folder search queries.
+
+        Args:
+            folder_path (str): Slash-separated Drive folder path to resolve.
+
+        Returns:
+            Optional[str]: Resolved folder ID, or None when no path match exists.
+        """
         normalized_path = folder_path.strip().strip("/")
         if not normalized_path:
             return None
@@ -410,6 +567,16 @@ class DriveManager:
     def _build_drive_files(
         self, files_payload: Sequence[Mapping[str, Any]]
     ) -> list[DriveFile]:
+        """
+        Builds normalized Drive file models from raw API response payloads.
+        Shares a path cache across items to reduce parent metadata lookups.
+
+        Args:
+            files_payload (Sequence[Mapping[str, Any]]): Raw Drive file payloads.
+
+        Returns:
+            list[DriveFile]: Normalized Drive file models.
+        """
         path_cache: dict[str, dict[str, Any]] = {}
         return [
             DriveFile.model_validate(
@@ -424,6 +591,17 @@ class DriveManager:
         *,
         path_cache: dict[str, dict[str, Any]],
     ) -> dict[str, Any]:
+        """
+        Normalizes raw Drive metadata into the schema-compatible shape.
+        Coerces repeated fields, numeric fields, and resolved paths.
+
+        Args:
+            file_payload (Mapping[str, Any]): Raw Drive file metadata payload.
+            path_cache (dict[str, dict[str, Any]]): Cached parent metadata by file ID.
+
+        Returns:
+            dict[str, Any]: Normalized metadata ready for model validation.
+        """
         normalized = dict(file_payload)
         normalized["parents"] = list(normalized.get("parents") or [])
         normalized["owners"] = list(normalized.get("owners") or [])
@@ -440,6 +618,17 @@ class DriveManager:
         *,
         path_cache: dict[str, dict[str, Any]],
     ) -> str:
+        """
+        Builds a synthetic absolute Drive path for a file or folder.
+        Walks parent folders while using a cache to avoid repeated lookups.
+
+        Args:
+            file_payload (Mapping[str, Any]): Raw or normalized Drive file payload.
+            path_cache (dict[str, dict[str, Any]]): Cached parent metadata by file ID.
+
+        Returns:
+            str: Synthetic absolute Drive path for the item.
+        """
         names = [str(file_payload.get("name") or "").strip()]
         current_parent = next(iter(file_payload.get("parents") or []), None)
         visited = {str(file_payload.get("id") or "")}
@@ -471,6 +660,16 @@ class DriveManager:
         return "/" + "/".join(parts) if parts else "/"
 
     def _get_file_metadata_payload(self, file_id: str) -> dict[str, Any]:
+        """
+        Fetches raw metadata for a Drive file or folder.
+        Requests the configured metadata field set from the Drive API.
+
+        Args:
+            file_id (str): Drive file or folder identifier to fetch.
+
+        Returns:
+            dict[str, Any]: Raw Drive metadata payload.
+        """
         return (
             self.drive.files()
             .get(
@@ -482,6 +681,16 @@ class DriveManager:
         )
 
     def _download_bytes(self, file_id: str) -> bytes:
+        """
+        Downloads binary content for a non-Google Drive file.
+        Streams all chunks into memory and returns the collected bytes.
+
+        Args:
+            file_id (str): Drive file identifier to download.
+
+        Returns:
+            bytes: Downloaded file content.
+        """
         request = self.drive.files().get_media(fileId=file_id)
         file_handle = io.BytesIO()
         downloader = MediaIoBaseDownload(file_handle, request)
@@ -491,6 +700,17 @@ class DriveManager:
         return file_handle.getvalue()
 
     def _export_bytes(self, file_id: str, export_mime: str) -> bytes:
+        """
+        Exports a Google-native Drive file to the requested MIME type.
+        Normalizes non-bytes API responses into UTF-8 encoded bytes.
+
+        Args:
+            file_id (str): Google-native Drive file identifier to export.
+            export_mime (str): Target MIME type for the export.
+
+        Returns:
+            bytes: Exported file content.
+        """
         data = self.drive.files().export(fileId=file_id, mimeType=export_mime).execute()
         return (
             data if isinstance(data, (bytes, bytearray)) else bytes(str(data), "utf-8")
@@ -503,6 +723,18 @@ def build_drive_credentials(
     scopes: Optional[Sequence[str]] = None,
     validate: bool = True,
 ) -> Credentials:
+    """
+    Builds Google OAuth credentials from a delegated user access token.
+    Optionally validates the token against the required Drive scopes.
+
+    Args:
+        access_token (Optional[str]): Delegated Google OAuth access token.
+        scopes (Optional[Sequence[str]]): Required OAuth scopes for credentials.
+        validate (bool): Whether to validate the token before building credentials.
+
+    Returns:
+        Credentials: Google credentials configured for Drive API access.
+    """
     scopes = scopes or DRIVE_API_CONFIG.read_scopes
 
     if access_token:
@@ -518,6 +750,17 @@ def build_drive_credentials(
 def validate_access_token(
     access_token: str, required_scopes: Optional[Sequence[str]] = None
 ) -> dict[str, Any]:
+    """
+    Validates a Google OAuth access token and required scope coverage.
+    Raises AuthenticationError when validation or scope checks fail.
+
+    Args:
+        access_token (str): Google OAuth access token to validate.
+        required_scopes (Optional[Sequence[str]]): OAuth scopes that must be present.
+
+    Returns:
+        dict[str, Any]: Token information returned by Google validation.
+    """
     try:
         with httpx.Client() as client:
             response = client.get(
@@ -558,6 +801,16 @@ def validate_access_token(
 
 
 def _build_pdf_bytes_from_text(text: str) -> io.BytesIO:
+    """
+    Renders plain text into an in-memory PDF document.
+    Preserves paragraphs and line breaks using ReportLab flowables.
+
+    Args:
+        text (str): Text content to render into the PDF.
+
+    Returns:
+        io.BytesIO: Seekable PDF byte stream positioned at the start.
+    """
     pdf_io = io.BytesIO()
     document = SimpleDocTemplate(
         pdf_io,
@@ -591,6 +844,16 @@ def _build_pdf_bytes_from_text(text: str) -> io.BytesIO:
 
 
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
+    """
+    Extracts text from PDF bytes using pypdf.
+    Returns a diagnostic marker instead of raising extraction errors.
+
+    Args:
+        pdf_bytes (bytes): Raw PDF content to extract text from.
+
+    Returns:
+        str: Extracted PDF text or an extraction failure marker.
+    """
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
         parts: list[str] = []
@@ -604,4 +867,14 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 
 def _escape_q(value: str) -> str:
+    """
+    Escapes single quotes for Google Drive query string values.
+    Handles empty values by returning an empty string.
+
+    Args:
+        value (str): Raw query value to escape.
+
+    Returns:
+        str: Escaped value safe for Drive API query expressions.
+    """
     return (value or "").replace("'", "\\'")
