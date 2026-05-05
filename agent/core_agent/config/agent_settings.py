@@ -160,7 +160,7 @@ class AgentConfig(BaseSettings):
     THINKING_BUDGET: Annotated[
         int,
         Field(
-            default=0,
+            default=-1,
             description="Indicates the thinking budget in tokens. 0 is DISABLED. -1 is AUTOMATIC. The default values and allowed ranges are model dependent.",
         ),
     ]
