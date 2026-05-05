@@ -57,6 +57,7 @@ ROLES=(
     "roles/dlp.admin" # To manage DLP templates and jobs
     "roles/bigquery.admin" # To manage BigQuery datasets and tables
     "roles/storage.admin" # To manage GCS buckets
+    "roles/cloudtasks.admin" # To manage Cloud Tasks queues
 )
 
 for ROLE in "${ROLES[@]}"; do
