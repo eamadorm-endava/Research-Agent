@@ -116,7 +116,7 @@ class RAGIngestion:
             # 3. Stage to BigQuery
             if chunk_count > 0:
                 self._stage_chunks_bq(chunks)
-                logger.info(f"Successfully staged {chunk_count} chunks to BigQuery.")
+                logger.success(f"Successfully staged {chunk_count} chunks to BigQuery.")
 
             # 4. Lifecycle (Move within Staging Bucket)
             self._move_blob_to_processed(staging_uri)
@@ -250,7 +250,7 @@ class RAGIngestion:
         """
         if request.expected_chunk_count > 0:
             if affected_rows >= request.expected_chunk_count:
-                logger.info(
+                logger.success(
                     f"Successfully generated embeddings for ALL chunks: {request.gcs_uri}. "
                     f"Rows affected: {affected_rows} (Attempt {attempt + 1})"
                 )
@@ -264,7 +264,7 @@ class RAGIngestion:
                     f"Got {affected_rows}/{request.expected_chunk_count}. Retrying..."
                 )
         elif affected_rows > 0:
-            logger.info(
+            logger.success(
                 f"Successfully generated embeddings (Attempt {attempt + 1}). "
                 f"Rows affected: {affected_rows}"
             )

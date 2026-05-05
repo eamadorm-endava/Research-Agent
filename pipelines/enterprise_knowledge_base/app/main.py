@@ -1,3 +1,4 @@
+import sys
 from fastapi import FastAPI, HTTPException, Request
 from loguru import logger
 
@@ -12,6 +13,26 @@ from .config import EKB_CONFIG
 from .jobs import JobService
 from .cloud_tasks.service import CloudTasksService
 from .cloud_tasks.schemas import TaskPayload
+
+
+def custom_log_format(record: dict) -> str:
+    """
+    Dynamically injects the job_id into the loguru format if it exists in the record extra context.
+
+    Args:
+        record: dict -> The loguru record dictionary containing context and log data.
+
+    Returns:
+        str -> The customized log format string.
+    """
+    if "job_id" in record["extra"] and record["extra"]["job_id"]:
+        return "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | {extra[job_id]} - <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>\n"
+    else:
+        return "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>\n"
+
+
+logger.remove()
+logger.add(sys.stdout, format=custom_log_format)
 
 app = FastAPI(
     title="EKB Ingestion Service",
@@ -89,31 +110,32 @@ async def handle_task(payload: TaskPayload) -> dict:
     This maintains an active HTTP connection so Cloud Run can scale horizontally
     and allocate full CPU resources.
     """
-    logger.info(f"Received Cloud Task for job_id: {payload.job_id}")
-    try:
-        result = ekb_pipeline.run(payload.request)
+    with logger.contextualize(job_id=payload.job_id):
+        logger.info(f"Received Cloud Task for job_id: {payload.job_id}")
+        try:
+            result = ekb_pipeline.run(payload.request)
 
-        # Extract metadata for status update
-        metadata = {
-            "gcs_uri": result.gcs_uri,
-            "chunks_generated": result.chunks_generated,
-            "final_domain": result.final_domain,
-            "security_tier": result.security_tier,
-        }
+            # Extract metadata for status update
+            metadata = {
+                "gcs_uri": result.gcs_uri,
+                "chunks_generated": result.chunks_generated,
+                "final_domain": result.final_domain,
+                "security_tier": result.security_tier,
+            }
 
-        job_service.update_job(
-            job_id=payload.job_id,
-            status=JobStatus.SUCCESS,
-            message="Pipeline completed successfully.",
-            metadata=metadata,
-        )
-        logger.info(f"Job {payload.job_id} completed successfully.")
-        return {"status": "success"}
-    except Exception as e:
-        logger.error(f"Job {payload.job_id} failed: {e}")
-        job_service.update_job(
-            job_id=payload.job_id,
-            status=JobStatus.ERROR,
-            message=f"Pipeline failed: {str(e)}",
-        )
-        raise HTTPException(status_code=500, detail=str(e))
+            job_service.update_job(
+                job_id=payload.job_id,
+                status=JobStatus.SUCCESS,
+                message="Pipeline completed successfully.",
+                metadata=metadata,
+            )
+            logger.success(f"Job {payload.job_id} completed successfully.")
+            return {"status": "success"}
+        except Exception as e:
+            logger.error(f"Job {payload.job_id} failed: {e}")
+            job_service.update_job(
+                job_id=payload.job_id,
+                status=JobStatus.ERROR,
+                message=f"Pipeline failed: {str(e)}",
+            )
+            raise HTTPException(status_code=500, detail=str(e))

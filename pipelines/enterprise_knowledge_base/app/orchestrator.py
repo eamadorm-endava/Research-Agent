@@ -54,7 +54,7 @@ class KBIngestionPipeline:
         ingest_resp = self.rag_pipeline.run(ingest_req)
 
         if "SUCCESS" in ingest_resp.execution_status:
-            logger.info(
+            logger.success(
                 f"Pipeline finished successfully. Chunks: {ingest_resp.chunk_count}"
             )
         else:
