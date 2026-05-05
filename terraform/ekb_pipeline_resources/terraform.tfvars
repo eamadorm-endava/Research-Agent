@@ -12,7 +12,8 @@ project_services = {
     "run.googleapis.com",
     "dlp.googleapis.com",
     "aiplatform.googleapis.com",
-    "bigqueryconnection.googleapis.com"
+    "bigqueryconnection.googleapis.com",
+    "cloudtasks.googleapis.com"
   ],
 }
 

@@ -46,7 +46,6 @@ module "ekb_pipeline_cloud_run" {
         PROJECT_ID            = var.project_id
         GEMINI_LOCATION       = var.main_region
         BQ_DATASET            = google_bigquery_dataset.knowledge_base.dataset_id
-        BQ_TABLE              = google_bigquery_table.documents_metadata.table_id
         BQ_CHUNKS_TABLE       = google_bigquery_table.documents_chunks.table_id
         BQ_METADATA_TABLE     = google_bigquery_table.documents_metadata.table_id
         BQ_JOBS_TABLE         = google_bigquery_table.ingestion_jobs.table_id
@@ -69,7 +68,8 @@ module "ekb_pipeline_cloud_run" {
   iam = {
     "roles/run.invoker" = [
       "group:${var.developers_group_email}",
-      "serviceAccount:${var.agent_service_account_email}"
+      "serviceAccount:${var.agent_service_account_email}",
+      "serviceAccount:${module.ekb-pipeline-service-account.email}"
     ]
   }
 
