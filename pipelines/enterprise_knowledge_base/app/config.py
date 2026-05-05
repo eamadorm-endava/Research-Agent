@@ -32,10 +32,10 @@ class EKBConfig(BaseSettings):
         ),
     ]
 
-    BQ_TABLE: Annotated[
+    BQ_METADATA_TABLE: Annotated[
         str,
         Field(
-            default="mock-table",
+            default="mock-metadata-table",
             description="The BigQuery table for metadata storage.",
         ),
     ]

@@ -10,6 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
 from .config import RAG_CONFIG
+from ..config import EKB_CONFIG
 from .schemas import (
     DocumentChunk,
     GenerateEmbeddingsRequest,
@@ -22,8 +23,8 @@ GCSOperationResult = TypeVar("GCSOperationResult")
 
 
 # Global clients to share connection pools across multiple requests
-storage_client = storage.Client(project=RAG_CONFIG.PROJECT_ID)
-bq_client = bigquery.Client(project=RAG_CONFIG.PROJECT_ID)
+storage_client = storage.Client(project=EKB_CONFIG.PROJECT_ID)
+bq_client = bigquery.Client(project=EKB_CONFIG.PROJECT_ID)
 
 
 class RAGIngestion:
@@ -42,7 +43,7 @@ class RAGIngestion:
         Returns:
             None -> No return value.
         """
-        self.table_id = f"{RAG_CONFIG.PROJECT_ID}.{RAG_CONFIG.BQ_DATASET}.{RAG_CONFIG.BQ_CHUNKS_TABLE}"
+        self.table_id = f"{EKB_CONFIG.PROJECT_ID}.{EKB_CONFIG.BQ_DATASET}.{RAG_CONFIG.BQ_CHUNKS_TABLE}"
         logger.info(
             f"Initialized RAGIngestion | CHUNK_SIZE: {RAG_CONFIG.CHUNK_SIZE} | OVERLAP: {RAG_CONFIG.CHUNK_OVERLAP}"
         )

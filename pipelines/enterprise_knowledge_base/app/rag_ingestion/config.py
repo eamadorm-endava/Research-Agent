@@ -16,14 +16,6 @@ class RAGConfig(BaseSettings):
         extra="ignore",
     )
 
-    PROJECT_ID: Annotated[
-        str,
-        Field(
-            default="mock-project-id",
-            description="GCP Project ID to use for BigQuery and GCS.",
-        ),
-    ]
-
     RAG_STAGING_BUCKET: Annotated[
         str,
         Field(
@@ -32,27 +24,11 @@ class RAGConfig(BaseSettings):
         ),
     ]
 
-    BQ_DATASET: Annotated[
-        str,
-        Field(
-            default="mock-dataset",
-            description="The BigQuery dataset for storing document chunks.",
-        ),
-    ]
-
     BQ_CHUNKS_TABLE: Annotated[
         str,
         Field(
             default="mock-chunks-table",
             description="The BigQuery table for storing document chunks.",
-        ),
-    ]
-
-    BQ_METADATA_TABLE: Annotated[
-        str,
-        Field(
-            default="mock-metadata-table",
-            description="The BigQuery table for joining with metadata.",
         ),
     ]
 

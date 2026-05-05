@@ -2,6 +2,7 @@ import json
 from google.cloud import tasks_v2
 from loguru import logger
 from .config import CLOUD_TASKS_CONFIG
+from ..config import EKB_CONFIG
 
 # Global client to share connection pool across multiple requests
 task_client = tasks_v2.CloudTasksClient()
@@ -11,7 +12,7 @@ class CloudTasksService:
     client = task_client
 
     def __init__(self):
-        self.project = CLOUD_TASKS_CONFIG.PROJECT_ID
+        self.project = EKB_CONFIG.PROJECT_ID
         self.location = CLOUD_TASKS_CONFIG.TASKS_LOCATION
         self.queue = CLOUD_TASKS_CONFIG.TASKS_QUEUE_ID
         self.queue_path = self.client.queue_path(

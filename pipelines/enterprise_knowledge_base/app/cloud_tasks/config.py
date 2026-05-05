@@ -12,14 +12,6 @@ class CloudTasksConfig(BaseSettings):
         extra="ignore",
     )
 
-    PROJECT_ID: Annotated[
-        str,
-        Field(
-            default="mock-project-id",
-            description="GCP Project ID to use for Cloud Tasks.",
-        ),
-    ]
-
     TASKS_QUEUE_ID: Annotated[
         str,
         Field(
