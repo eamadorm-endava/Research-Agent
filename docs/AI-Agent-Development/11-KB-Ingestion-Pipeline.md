@@ -32,3 +32,13 @@ The module relies on the following environment variables:
 3. Skill moves the file from `ai_agent_landing_zone` to `kb-landing-zone`.
 4. Skill stamps metadata on the destination object.
 5. Tool triggers the `/ingest` endpoint on the EKB Pipeline.
+
+## Proactive Notification System
+The agent core includes a **`sync_ingestion_status`** callback that enhances the user experience by providing real-time updates on background jobs.
+
+- **Hook**: `before_agent_callback`.
+- **Logic**:
+    - Checks the session state for pending `job_id`s.
+    - Synchronizes status with the EKB Pipeline `/status` endpoint.
+    - If a job is finished, it injects a **System Update** event into the conversation history using the ADK 2.0 `session.events` pattern.
+- **Benefit**: The agent "notices" when a document is ready for use right before responding to the user, even if the user didn't explicitly ask for a status update.

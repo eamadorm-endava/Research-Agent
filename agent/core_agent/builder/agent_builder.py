@@ -41,6 +41,7 @@ class AgentBuilder:
         self._mcp_builder = MCPToolsetBuilder(auth_config)
         self._registered_tools = []
         self._skills = []
+        self._before_callback = None
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -93,8 +94,22 @@ class AgentBuilder:
             Self -> The builder instance for fluent chaining.
         """
         for name in skill_names:
+            logger.info(f"Mounting skill: {name}")
             skill = get_skill(skill_name=name)
             self._skills.append(skill)
+        return self
+
+    def with_before_agent_callback(self, callback: Callable) -> Self:
+        """Sets the before_agent_callback for the agent.
+
+        Args:
+            callback: Callable -> The callback function to run before agent execution.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info(f"Registering before_agent_callback: {callback.__name__}")
+        self._before_callback = callback
         return self
 
     def build(self) -> Agent:
@@ -137,6 +152,7 @@ class AgentBuilder:
             ),
             instruction=self.agent_config.AGENT_INSTRUCTION,
             tools=self._consolidate_tools(),
+            before_agent_callback=self._before_callback,
             after_agent_callback=render_pending_artifacts,
             planner=BuiltInPlanner(
                 thinking_config=ThinkingConfig(

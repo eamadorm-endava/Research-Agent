@@ -88,5 +88,21 @@ class RAGConfig(BaseSettings):
         ),
     ]
 
+    GCS_MAX_RETRIES: Annotated[
+        int,
+        Field(
+            default=3,
+            description="Maximum number of retry attempts for GCS operations.",
+        ),
+    ]
+
+    GCS_BASE_DELAY: Annotated[
+        int,
+        Field(
+            default=2,
+            description="Base delay in seconds for exponential backoff calculation.",
+        ),
+    ]
+
 
 RAG_CONFIG = RAGConfig()
