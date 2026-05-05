@@ -70,6 +70,10 @@ class ClassificationPipeline:
                 proposed_domain=blob_metadata.proposed_domain,
                 trust_level=blob_metadata.trust_level,
             )
+            logger.success(
+                f"Classification successful. Domain: {llm_resp.final_domain}, "
+                f"Tier: {llm_resp.final_classification_tier}"
+            )
 
             # 4. File Routing
             routing_req = FileRoutingRequest(
@@ -91,7 +95,7 @@ class ClassificationPipeline:
             )
             self.ingest_metadata_bq(persistence_req)
 
-            logger.info(
+            logger.success(
                 f"Pipeline completed successfully for: {landing_zone_original_uri}"
             )
             return RunResponse(

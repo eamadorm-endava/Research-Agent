@@ -1,3 +1,4 @@
+import sys
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from loguru import logger
 
@@ -10,6 +11,26 @@ from .schemas import (
 )
 from .document_classification.config import EKB_CONFIG
 from .jobs import JobService
+
+
+def custom_log_format(record: dict) -> str:
+    """
+    Dynamically injects the job_id into the loguru format if it exists in the record extra context.
+
+    Args:
+        record: dict -> The loguru record dictionary containing context and log data.
+
+    Returns:
+        str -> The customized log format string.
+    """
+    if "job_id" in record["extra"] and record["extra"]["job_id"]:
+        return "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | {extra[job_id]} - <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>\n"
+    else:
+        return "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>\n"
+
+
+logger.remove()
+logger.add(sys.stdout, format=custom_log_format)
 
 app = FastAPI(
     title="EKB Ingestion Service",
@@ -33,30 +54,33 @@ def run_pipeline_task(job_id: str, request: OrchestratorRunRequest) -> None:
     Returns:
         None
     """
-    logger.info(f"Starting background pipeline for job {job_id}")
-    try:
-        result = ekb_pipeline.run(request)
+    with logger.contextualize(job_id=job_id):
+        logger.info(f"Starting background pipeline for job {job_id}")
+        try:
+            result = ekb_pipeline.run(request)
 
-        # Extract metadata for status update
-        metadata = {
-            "gcs_uri": result.gcs_uri,
-            "chunks_generated": result.chunks_generated,
-            "final_domain": result.final_domain,
-            "security_tier": result.security_tier,
-        }
+            # Extract metadata for status update
+            metadata = {
+                "gcs_uri": result.gcs_uri,
+                "chunks_generated": result.chunks_generated,
+                "final_domain": result.final_domain,
+                "security_tier": result.security_tier,
+            }
 
-        job_service.update_job(
-            job_id=job_id,
-            status=JobStatus.SUCCESS,
-            message="Pipeline completed successfully.",
-            metadata=metadata,
-        )
-        logger.info(f"Job {job_id} completed successfully.")
-    except Exception as e:
-        logger.error(f"Job {job_id} failed: {e}")
-        job_service.update_job(
-            job_id=job_id, status=JobStatus.ERROR, message=f"Pipeline failed: {str(e)}"
-        )
+            job_service.update_job(
+                job_id=job_id,
+                status=JobStatus.SUCCESS,
+                message="Pipeline completed successfully.",
+                metadata=metadata,
+            )
+            logger.success(f"Job {job_id} completed successfully.")
+        except Exception as e:
+            logger.error(f"Job {job_id} failed: {e}")
+            job_service.update_job(
+                job_id=job_id,
+                status=JobStatus.ERROR,
+                message=f"Pipeline failed: {str(e)}",
+            )
 
 
 @app.post("/ingest", response_model=OrchestratorRunResponse)
