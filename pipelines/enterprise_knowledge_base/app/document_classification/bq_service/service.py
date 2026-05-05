@@ -10,11 +10,17 @@ from .schemas import (
 )
 
 
+# Global client to share connection pool across multiple requests
+bq_client = bigquery.Client(project=EKB_CONFIG.PROJECT_ID)
+
+
 class BQService:
     """Service class for BigQuery operations: metadata persistence and queries.
 
     Handles metadata insertion using Load Jobs to avoid streaming buffer limitations.
     """
+
+    client = bq_client
 
     SCHEMA = [
         bigquery.SchemaField("document_id", "STRING", mode="REQUIRED"),
@@ -38,7 +44,6 @@ class BQService:
         Returns:
             None
         """
-        self.client = bigquery.Client(project=EKB_CONFIG.PROJECT_ID)
         self.dataset_id = EKB_CONFIG.BQ_DATASET
         self.table_id = EKB_CONFIG.BQ_TABLE
 

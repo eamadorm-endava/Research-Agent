@@ -8,6 +8,10 @@ from .config import gcs_config
 GCSOperationResult = TypeVar("GCSOperationResult")
 
 
+# Global client to share connection pool across multiple requests
+gcs_client = storage.Client()
+
+
 class GCSService:
     """Service class for GCS file operations: routing, moving, and metadata extraction.
 
@@ -15,13 +19,15 @@ class GCSService:
     of custom metadata (x-goog-meta-*) used in the classification process.
     """
 
+    client = gcs_client
+
     def __init__(self) -> None:
         """Initializes the GCS client using Application Default Credentials (ADC).
 
         Returns:
             None
         """
-        self.client = storage.Client()
+        pass
 
     def _execute_with_exponential_backoff(
         self, operation: Callable[..., GCSOperationResult], *args: Any, **kwargs: Any
