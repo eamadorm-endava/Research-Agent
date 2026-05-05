@@ -24,6 +24,11 @@ class CloudTasksService:
         Creates an HTTP task targeting the Cloud Run /task-handler endpoint.
         """
         url = f"{service_url.rstrip('/')}/task-handler"
+
+        # Cloud Tasks OIDC tokens strictly require HTTPS.
+        # Since Cloud Run terminates TLS at the edge, FastAPI often reports the base_url as HTTP.
+        if url.startswith("http://") and "localhost" not in url:
+            url = url.replace("http://", "https://", 1)
         task = {
             "http_request": {
                 "http_method": tasks_v2.HttpMethod.POST,
