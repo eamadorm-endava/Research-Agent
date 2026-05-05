@@ -18,6 +18,7 @@ app = FastAPI(
 )
 
 job_service = JobService()
+ekb_pipeline = KBIngestionPipeline(EKB_CONFIG.PROJECT_ID)
 
 
 def run_pipeline_task(job_id: str, request: OrchestratorRunRequest) -> None:
@@ -34,8 +35,7 @@ def run_pipeline_task(job_id: str, request: OrchestratorRunRequest) -> None:
     """
     logger.info(f"Starting background pipeline for job {job_id}")
     try:
-        pipeline = KBIngestionPipeline(EKB_CONFIG.PROJECT_ID)
-        result = pipeline.run(request)
+        result = ekb_pipeline.run(request)
 
         # Extract metadata for status update
         metadata = {

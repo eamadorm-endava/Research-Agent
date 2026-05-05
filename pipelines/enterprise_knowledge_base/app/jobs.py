@@ -8,11 +8,16 @@ from .schemas import JobStatus, JobStatusResponse
 from .document_classification.config import EKB_CONFIG
 
 
+# Global client to share connection pool across multiple requests
+bq_client = bigquery.Client(project=EKB_CONFIG.PROJECT_ID)
+
+
 class JobService:
     """Manages the persistence of ingestion job statuses in BigQuery."""
 
+    bq_client = bq_client
+
     def __init__(self):
-        self.bq_client = bigquery.Client(project=EKB_CONFIG.PROJECT_ID)
         self.table_id = f"{EKB_CONFIG.PROJECT_ID}.{EKB_CONFIG.BQ_DATASET}.{EKB_CONFIG.BQ_JOBS_TABLE}"
 
     def create_job(self, filename: str) -> str:
