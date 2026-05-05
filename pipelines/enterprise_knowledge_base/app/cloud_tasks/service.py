@@ -1,7 +1,7 @@
 import json
 from google.cloud import tasks_v2
 from loguru import logger
-from .config import EKB_CONFIG
+from .config import CLOUD_TASKS_CONFIG
 
 # Global client to share connection pool across multiple requests
 task_client = tasks_v2.CloudTasksClient()
@@ -11,9 +11,9 @@ class CloudTasksService:
     client = task_client
 
     def __init__(self):
-        self.project = EKB_CONFIG.PROJECT_ID
-        self.location = EKB_CONFIG.TASKS_LOCATION
-        self.queue = EKB_CONFIG.TASKS_QUEUE_ID
+        self.project = CLOUD_TASKS_CONFIG.PROJECT_ID
+        self.location = CLOUD_TASKS_CONFIG.TASKS_LOCATION
+        self.queue = CLOUD_TASKS_CONFIG.TASKS_QUEUE_ID
         self.queue_path = self.client.queue_path(
             self.project, self.location, self.queue
         )
@@ -34,11 +34,11 @@ class CloudTasksService:
 
         # If we have a service account email in config, use OIDC for authenticated invocation
         if (
-            hasattr(EKB_CONFIG, "SERVICE_ACCOUNT_EMAIL")
-            and EKB_CONFIG.SERVICE_ACCOUNT_EMAIL
+            hasattr(CLOUD_TASKS_CONFIG, "SERVICE_ACCOUNT_EMAIL")
+            and CLOUD_TASKS_CONFIG.SERVICE_ACCOUNT_EMAIL
         ):
             task["http_request"]["oidc_token"] = {
-                "service_account_email": EKB_CONFIG.SERVICE_ACCOUNT_EMAIL
+                "service_account_email": CLOUD_TASKS_CONFIG.SERVICE_ACCOUNT_EMAIL
             }
 
         try:

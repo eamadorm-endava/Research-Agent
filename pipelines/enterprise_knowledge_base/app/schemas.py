@@ -64,15 +64,3 @@ class JobStatusResponse(OrchestratorRunResponse):
     security_tier: Annotated[
         Optional[str], Field(description="The security tier label", default=None)
     ]
-
-
-class TaskPayload(BaseModel):
-    """Schema for the payload pushed by Cloud Tasks."""
-
-    job_id: JobIdType
-    request: Annotated[
-        OrchestratorRunRequest,
-        Field(
-            description="The original payload containing file metadata for ingestion."
-        ),
-    ]

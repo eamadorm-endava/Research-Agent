@@ -24,30 +24,6 @@ class EKBConfig(BaseSettings):
         ),
     ]
 
-    TASKS_QUEUE_ID: Annotated[
-        str,
-        Field(
-            default="ekb-ingestion-queue",
-            description="The Cloud Tasks queue ID for decoupling background ingestion.",
-        ),
-    ]
-
-    TASKS_LOCATION: Annotated[
-        str,
-        Field(
-            default="us-central1",
-            description="The GCP location for the Cloud Tasks queue.",
-        ),
-    ]
-
-    SERVICE_ACCOUNT_EMAIL: Annotated[
-        str,
-        Field(
-            default="",
-            description="The service account email to use for authenticated Cloud Tasks invocations.",
-        ),
-    ]
-
     BQ_DATASET: Annotated[
         str,
         Field(

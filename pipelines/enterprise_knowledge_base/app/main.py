@@ -7,11 +7,11 @@ from .schemas import (
     OrchestratorRunResponse,
     JobStatusResponse,
     JobStatus,
-    TaskPayload,
 )
 from .config import EKB_CONFIG
 from .jobs import JobService
-from .cloud_tasks import CloudTasksService
+from .cloud_tasks.service import CloudTasksService
+from .cloud_tasks.schemas import TaskPayload
 
 app = FastAPI(
     title="EKB Ingestion Service",
