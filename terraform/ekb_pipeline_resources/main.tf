@@ -54,13 +54,19 @@ module "ekb_pipeline_cloud_run" {
         TASKS_LOCATION        = var.main_region
         SERVICE_ACCOUNT_EMAIL = module.ekb-pipeline-service-account.email
       })
+      resources = {
+        limits = {
+          cpu    = var.ekb_pipeline_cloud_run_cpu
+          memory = var.ekb_pipeline_cloud_run_memory
+        }
+      }
     }
   }
 
   service_config = {
     timeout = "3600s"
     scaling = {
-      max_instance_count = 10
+      max_instance_count = 100
     }
   }
 
