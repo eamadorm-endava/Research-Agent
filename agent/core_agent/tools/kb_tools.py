@@ -17,9 +17,15 @@ from .kb_schemas import (
 # Key for storing pending jobs in session state
 PENDING_INGESTIONS_KEY = "pending_ingestions"
 
+# Global client to share connection pool across multiple requests
+limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
+http_client = httpx.AsyncClient(limits=limits)
+
 
 class TriggerEKBPipelineTool(BaseTool):
     """Triggers the Enterprise Knowledge Base (EKB) ingestion pipeline."""
+
+    client = http_client
 
     def __init__(self) -> None:
         """Registers the tool for background processing of documents."""
@@ -88,35 +94,34 @@ class TriggerEKBPipelineTool(BaseTool):
             }
             payload = {"gcs_uri": gcs_uri}
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    url, json=payload, headers=headers, timeout=30.0
-                )
-                response.raise_for_status()
-                data = response.json()
+            response = await self.client.post(
+                url, json=payload, headers=headers, timeout=30.0
+            )
+            response.raise_for_status()
+            data = response.json()
 
-                job_id = data.get("job_id")
-                filename = request.filename
+            job_id = data.get("job_id")
+            filename = request.filename
 
-                # Store in session state for proactive status checks
-                pending = list(tool_context.state.get(PENDING_INGESTIONS_KEY, []))
-                pending.append({"job_id": job_id, "filename": filename})
-                tool_context.state[PENDING_INGESTIONS_KEY] = pending
+            # Store in session state for proactive status checks
+            pending = list(tool_context.state.get(PENDING_INGESTIONS_KEY, []))
+            pending.append({"job_id": job_id, "filename": filename})
+            tool_context.state[PENDING_INGESTIONS_KEY] = pending
 
-                logger.info(
-                    f"Stored pending ingestion in state: {filename} ({job_id}). Total pending: {len(pending)}"
-                )
+            logger.info(
+                f"Stored pending ingestion in state: {filename} ({job_id}). Total pending: {len(pending)}"
+            )
 
-                return TriggerEKBPipelineResponse(
-                    execution_status="success",
-                    execution_message=(
-                        f"I've started the ingestion process for '{filename}'. "
-                        "It usually takes about 10 minutes to classify and index the document. "
-                        "I'll let you know once it's finished!"
-                    ),
-                    job_id=job_id,
-                    response=data,
-                ).model_dump()
+            return TriggerEKBPipelineResponse(
+                execution_status="success",
+                execution_message=(
+                    f"I've started the ingestion process for '{filename}'. "
+                    "It usually takes about 10 minutes to classify and index the document. "
+                    "I'll let you know once it's finished!"
+                ),
+                job_id=job_id,
+                response=data,
+            ).model_dump()
         except Exception as e:
             logger.error(f"Failed to trigger EKB pipeline: {e}")
             return TriggerEKBPipelineResponse(
@@ -128,6 +133,8 @@ class TriggerEKBPipelineTool(BaseTool):
 
 class CheckIngestionStatusTool(BaseTool):
     """Checks the status of a specific EKB ingestion job."""
+
+    client = http_client
 
     def __init__(self) -> None:
         super().__init__(
@@ -185,17 +192,14 @@ class CheckIngestionStatusTool(BaseTool):
                 ).model_dump()
 
             headers = {"Authorization": f"Bearer {id_token}"}
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers, timeout=10.0)
-                logger.debug(
-                    f"Response status from EKB for {request.job_id}: {response.status_code}"
-                )
-                response.raise_for_status()
-                data = response.json()
-                logger.info(
-                    f"Retrieved status for {request.job_id}: {data.get('status')}"
-                )
-                return CheckIngestionStatusResponse(**data).model_dump()
+            response = await self.client.get(url, headers=headers, timeout=10.0)
+            logger.debug(
+                f"Response status from EKB for {request.job_id}: {response.status_code}"
+            )
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Retrieved status for {request.job_id}: {data.get('status')}")
+            return CheckIngestionStatusResponse(**data).model_dump()
         except Exception as e:
             logger.error(
                 f"Error checking ingestion status for job {args.get('job_id')}: {e}"

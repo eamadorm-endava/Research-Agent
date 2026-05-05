@@ -10,6 +10,10 @@ from ..tools.kb_tools import PENDING_INGESTIONS_KEY
 
 from typing import Optional
 
+# Global client to share connection pool across multiple requests
+limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
+http_client = httpx.AsyncClient(limits=limits)
+
 
 async def sync_ingestion_status(
     callback_context: CallbackContext,
@@ -43,55 +47,52 @@ async def sync_ingestion_status(
 
     headers = {"Authorization": f"Bearer {id_token}"}
 
-    async with httpx.AsyncClient() as client:
-        for job in pending_jobs:
-            job_id = job.get("job_id")
-            filename = job.get("filename")
+    for job in pending_jobs:
+        job_id = job.get("job_id")
+        filename = job.get("filename")
 
-            try:
-                url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{job_id}"
-                logger.debug(f"Checking status for job {job_id} at {url}")
-                response = await client.get(url, headers=headers, timeout=10.0)
+        try:
+            url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{job_id}"
+            logger.debug(f"Checking status for job {job_id} at {url}")
+            response = await http_client.get(url, headers=headers, timeout=10.0)
 
-                logger.debug(f"Status for job {job_id}: {response.status_code}")
-                if response.status_code == 200:
-                    data = response.json()
-                    status = data.get("status")
-                    logger.debug(f"Status for job {job_id}: {status}")
+            logger.debug(f"Status for job {job_id}: {response.status_code}")
+            if response.status_code == 200:
+                data = response.json()
+                status = data.get("status")
+                logger.debug(f"Status for job {job_id}: {status}")
 
-                    if status in ["success", "error"]:
-                        logger.info(
-                            f"Job {job_id} for {filename} finished with status: {status}"
-                        )
-                        completed_updates.append(
-                            {"filename": filename, "status": status, "details": data}
-                        )
-                        logger.debug(
-                            f"Job {job_id} added to completed_updates. Current count: {len(completed_updates)}"
-                        )
-                    else:
-                        logger.debug(
-                            f"Job {job_id} still in progress (status: {status})."
-                        )
-                        still_pending.append(job)
-                else:
-                    logger.warning(
-                        f"Failed to check status for {job_id}: {response.status_code}"
+                if status in ["success", "error"]:
+                    logger.info(
+                        f"Job {job_id} for {filename} finished with status: {status}"
                     )
+                    completed_updates.append(
+                        {"filename": filename, "status": status, "details": data}
+                    )
+                    logger.debug(
+                        f"Job {job_id} added to completed_updates. Current count: {len(completed_updates)}"
+                    )
+                else:
+                    logger.debug(f"Job {job_id} still in progress (status: {status}).")
                     still_pending.append(job)
-            except httpx.TimeoutException:
-                logger.warning(f"Timeout syncing status for job {job_id} (5s).")
-                still_pending.append(job)
-            except httpx.RequestError as exc:
-                logger.error(
-                    f"Network error syncing status for job {job_id} at {exc.request.url}: {exc}"
+            else:
+                logger.warning(
+                    f"Failed to check status for {job_id}: {response.status_code}"
                 )
                 still_pending.append(job)
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error syncing status for job {job_id}: {type(e).__name__} - {e}"
-                )
-                still_pending.append(job)
+        except httpx.TimeoutException:
+            logger.warning(f"Timeout syncing status for job {job_id} (5s).")
+            still_pending.append(job)
+        except httpx.RequestError as exc:
+            logger.error(
+                f"Network error syncing status for job {job_id} at {exc.request.url}: {exc}"
+            )
+            still_pending.append(job)
+        except Exception as e:
+            logger.error(
+                f"Unexpected error syncing status for job {job_id}: {type(e).__name__} - {e}"
+            )
+            still_pending.append(job)
 
     # Update session state
     callback_context.state[PENDING_INGESTIONS_KEY] = still_pending
