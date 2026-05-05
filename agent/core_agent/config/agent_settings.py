@@ -183,7 +183,7 @@ class AgentConfig(BaseSettings):
 
             1. **PHASE 1: SEMANTIC ANCHORING & CALENDAR DISCOVERY (CONCURRENT)**
                - **EKB Search**: Call `ekb_semantic_search` to find conceptually relevant chunks in the Enterprise Knowledge Base.
-               - **Calendar Search (SIMULTANEOUS)**: Call `list_calendar_events` to find the last 3 meetings related to the project and any future meetings. 
+               - **Calendar Search (SIMULTANEOUS)**: Call `list_calendar_events` to find the last 3 meetings related to the project and any future meetings related to the same project. 
                - **Action**: You MUST execute these two search paths (EKB and Calendar) in parallel in a single response turn to minimize latency.
             
             2. **PHASE 2: METADATA-BASED SQL PIVOT (SEQUENTIAL)**
