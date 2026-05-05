@@ -86,6 +86,7 @@ ekb-integration = [
     "pydantic-settings>=2.13.1",
     "loguru>=0.7.3",
     "pymupdf>=1.24.1",
+    "google-cloud-tasks>=2.22.0",
 ]
 
 [tool.pytest.ini_options]

@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
 from loguru import logger
 
 from .orchestrator import KBIngestionPipeline
@@ -10,6 +11,7 @@ from .schemas import (
 )
 from .document_classification.config import EKB_CONFIG
 from .jobs import JobService
+from .cloud_tasks import CloudTasksService
 
 app = FastAPI(
     title="EKB Ingestion Service",
@@ -19,6 +21,7 @@ app = FastAPI(
 
 job_service = JobService()
 ekb_pipeline = KBIngestionPipeline(EKB_CONFIG.PROJECT_ID)
+cloud_tasks_service = CloudTasksService()
 
 
 def run_pipeline_task(job_id: str, request: OrchestratorRunRequest) -> None:
@@ -57,19 +60,20 @@ def run_pipeline_task(job_id: str, request: OrchestratorRunRequest) -> None:
         job_service.update_job(
             job_id=job_id, status=JobStatus.ERROR, message=f"Pipeline failed: {str(e)}"
         )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/ingest", response_model=OrchestratorRunResponse)
 async def ingest_document(
-    request: OrchestratorRunRequest, background_tasks: BackgroundTasks
+    request: OrchestratorRunRequest, fastapi_req: Request
 ) -> OrchestratorRunResponse:
     """
-    Triggers the EKB pipeline asynchronously using a non-blocking job-based workflow.
+    Triggers the EKB pipeline by pushing a Cloud Task.
     Returns a Job ID for status tracking.
 
     Args:
         request: OrchestratorRunRequest -> The document URI to ingest.
-        background_tasks: BackgroundTasks -> FastAPI utility for background processing.
+        fastapi_req: Request -> FastAPI request object for url resolving.
 
     Returns:
         OrchestratorRunResponse -> The initial job status and ID.
@@ -79,12 +83,15 @@ async def ingest_document(
         filename = request.filename
         job_id = job_service.create_job(filename)
 
-        background_tasks.add_task(run_pipeline_task, job_id, request)
+        service_url = str(fastapi_req.base_url)
+        cloud_tasks_service.enqueue_ingestion_task(
+            job_id, request.model_dump(), service_url
+        )
 
         return OrchestratorRunResponse(
             job_id=job_id,
             status=JobStatus.PROCESSING,
-            message="File processing started. It might take up to 10 minutes to finish.",
+            message="File processing task enqueued successfully.",
         )
     except Exception as e:
         logger.error(f"Failed to initiate ingestion for {request.gcs_uri}: {e}")
@@ -112,3 +119,20 @@ async def get_status(job_id: str) -> JobStatusResponse:
 
     logger.debug(f"Status for {job_id}: {status.status.value}")
     return status
+
+
+class TaskPayload(BaseModel):
+    job_id: str
+    request: OrchestratorRunRequest
+
+
+@app.post("/task-handler")
+async def handle_task(payload: TaskPayload) -> dict:
+    """
+    Synchronous execution of the pipeline, triggered by Cloud Tasks.
+    This maintains an active HTTP connection so Cloud Run can scale horizontally
+    and allocate full CPU resources.
+    """
+    logger.info(f"Received Cloud Task for job_id: {payload.job_id}")
+    run_pipeline_task(payload.job_id, payload.request)
+    return {"status": "success"}
