@@ -7,16 +7,18 @@ from ..config import EKB_CONFIG
 from .schemas import ContextualClassificationResponse
 
 
+# Global client to share connection pool across multiple requests
+gemini_client = genai.Client(
+    vertexai=True,
+    project=EKB_CONFIG.PROJECT_ID,
+    location=EKB_CONFIG.GEMINI_LOCATION,
+)
+
+
 class GeminiService:
     """Service to interact with Gemini 2.5 Flash on Vertex AI."""
 
-    def __init__(self) -> None:
-        """Initializes the Vertex AI Gemini client."""
-        self.client = genai.Client(
-            vertexai=True,
-            project=EKB_CONFIG.PROJECT_ID,
-            location=EKB_CONFIG.GEMINI_LOCATION,
-        )
+    client = gemini_client
 
     def classify_document(
         self,

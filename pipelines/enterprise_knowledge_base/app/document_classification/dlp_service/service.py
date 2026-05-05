@@ -5,12 +5,18 @@ from loguru import logger
 from ..config import EKB_CONFIG
 
 
+# Global client to share connection pool across multiple requests
+dlp_client = dlp_v2.DlpServiceClient()
+
+
 class DLPService:
     """Service class to handle Cloud DLP operations: scanning and de-identification.
 
     This service is responsible for 'Phase 1' of the classification pipeline,
     identifying high-risk data (Tiers 4 and 5) and polling for results.
     """
+
+    client = dlp_client
 
     def __init__(self, project_id: str = EKB_CONFIG.PROJECT_ID) -> None:
         """Initializes the DLP client using Application Default Credentials (ADC).
@@ -21,7 +27,6 @@ class DLPService:
         Returns:
             None
         """
-        self.client = dlp_v2.DlpServiceClient()
         self.project_id = project_id
         self.parent = f"projects/{project_id}/locations/global"
 

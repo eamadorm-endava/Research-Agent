@@ -30,7 +30,7 @@ def mock_config():
 @pytest.fixture
 def mock_storage():
     with patch(
-        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.storage.Client"
+        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.RAGIngestion.storage_client"
     ) as mock:
         yield mock
 
@@ -38,16 +38,15 @@ def mock_storage():
 @pytest.fixture
 def mock_bq():
     with patch(
-        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.bigquery.Client"
+        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.RAGIngestion.bq_client"
     ) as mock:
-        mock_client = mock.return_value
         mock_query_job = MagicMock()
 
         # By default, return empty result to pass _is_document_processed
         mock_query_job.result.return_value = []
         mock_query_job.num_dml_affected_rows = 1
 
-        mock_client.query.return_value = mock_query_job
+        mock.query.return_value = mock_query_job
         yield mock
 
 
@@ -75,20 +74,18 @@ def test_ingest_document_success(mock_storage, mock_bq, mock_fitz):
     assert response.processed_uri == "gs://test-bucket/ingested/test.pdf"
 
     # Verify BQ calls
-    mock_bq_client = mock_bq.return_value
-    mock_bq_client.load_table_from_json.assert_called_once()
+    mock_bq.load_table_from_json.assert_called_once()
 
     # Verify GCS calls (should be 2 copies: Domain -> Staging, Staging Ingested -> Staging Processed)
-    mock_bucket = mock_storage.return_value.bucket.return_value
+    mock_bucket = mock_storage.bucket.return_value
     assert mock_bucket.copy_blob.call_count == 2
 
 
 def test_ingest_document_already_processed(mock_storage, mock_bq, mock_fitz):
     service = RAGIngestion()
-    mock_bq_client = mock_bq.return_value
     mock_query_job = MagicMock()
     mock_query_job.result.return_value = [{"dummy": 1}]
-    mock_bq_client.query.return_value = mock_query_job
+    mock_bq.query.return_value = mock_query_job
 
     request = IngestDocumentRequest(gcs_uri="gs://test-bucket/ingested/test.pdf")
     response = service.ingest_document(request)
@@ -103,22 +100,20 @@ def test_generate_embeddings_success(mock_bq):
     request = GenerateEmbeddingsRequest(gcs_uri="gs://test-bucket/processed/test.pdf")
 
     # Mock the verify query explicitly since we changed the default mock behavior
-    mock_bq_client = mock_bq.return_value
     mock_result = MagicMock()
     mock_result.count = 1
     mock_query_job = MagicMock()
     mock_query_job.result.return_value = iter([mock_result])
     mock_query_job.num_dml_affected_rows = 1
-    mock_bq_client.query.return_value = mock_query_job
+    mock_bq.query.return_value = mock_query_job
 
     response = service.generate_embeddings(request)
 
     assert response.success is True
     assert "SUCCESS" in response.execution_status
 
-    mock_bq_client = mock_bq.return_value
-    assert mock_bq_client.query.call_count == 2
-    args, kwargs = mock_bq_client.query.call_args_list[0]
+    assert mock_bq.query.call_count == 2
+    args, kwargs = mock_bq.query.call_args_list[0]
     query_str = args[0]
 
     assert (
@@ -129,8 +124,7 @@ def test_generate_embeddings_success(mock_bq):
 
 def test_generate_embeddings_failure(mock_bq):
     service = RAGIngestion()
-    mock_bq_client = mock_bq.return_value
-    mock_bq_client.query.side_effect = Exception("BQ Error")
+    mock_bq.query.side_effect = Exception("BQ Error")
 
     request = GenerateEmbeddingsRequest(gcs_uri="gs://test-bucket/processed/test.pdf")
     response = service.generate_embeddings(request)

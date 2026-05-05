@@ -21,6 +21,11 @@ from .schemas import (
 GCSOperationResult = TypeVar("GCSOperationResult")
 
 
+# Global clients to share connection pools across multiple requests
+storage_client = storage.Client(project=RAG_CONFIG.PROJECT_ID)
+bq_client = bigquery.Client(project=RAG_CONFIG.PROJECT_ID)
+
+
 class RAGIngestion:
     """Parses documents into structural chunks and stages them in BigQuery.
 
@@ -28,14 +33,15 @@ class RAGIngestion:
     including PDF parsing, chunking, BigQuery staging, and vectorization.
     """
 
+    storage_client = storage_client
+    bq_client = bq_client
+
     def __init__(self) -> None:
         """Initializes the RAG Ingestion with GCP clients and configuration.
 
         Returns:
             None -> No return value.
         """
-        self.storage_client = storage.Client(project=RAG_CONFIG.PROJECT_ID)
-        self.bq_client = bigquery.Client(project=RAG_CONFIG.PROJECT_ID)
         self.table_id = f"{RAG_CONFIG.PROJECT_ID}.{RAG_CONFIG.BQ_DATASET}.{RAG_CONFIG.BQ_CHUNKS_TABLE}"
         logger.info(
             f"Initialized RAGIngestion | CHUNK_SIZE: {RAG_CONFIG.CHUNK_SIZE} | OVERLAP: {RAG_CONFIG.CHUNK_OVERLAP}"
