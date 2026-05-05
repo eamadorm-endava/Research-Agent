@@ -10,6 +10,8 @@ from google.genai.types import (
     HttpRetryOptions,
     ModelArmorConfig,
     ThinkingConfig,
+    ToolConfig,
+    FunctionCallingConfig,
 )
 from loguru import logger
 
@@ -149,6 +151,9 @@ class AgentBuilder:
                 )
                 if self.agent_config.MODEL_ARMOR_TEMPLATE_ID
                 else None,
+                tool_config=ToolConfig(
+                    function_calling_config=FunctionCallingConfig(mode="AUTO")
+                ),
             ),
             instruction=self.agent_config.AGENT_INSTRUCTION,
             tools=self._consolidate_tools(),

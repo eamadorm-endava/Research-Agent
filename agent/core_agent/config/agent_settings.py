@@ -160,7 +160,7 @@ class AgentConfig(BaseSettings):
     THINKING_BUDGET: Annotated[
         int,
         Field(
-            default=-1,
+            default=0,
             description="Indicates the thinking budget in tokens. 0 is DISABLED. -1 is AUTOMATIC. The default values and allowed ranges are model dependent.",
         ),
     ]
@@ -178,20 +178,19 @@ class AgentConfig(BaseSettings):
             3. **Google Cloud Storage (GCS)**: For large flat files or data backups.
             4. **BigQuery (BQ)**: For structured data and tabular databases.
 
-            ### CORE STRATEGY: HYBRID DISCOVERY (EKB FIRST)
-            You must prioritize the EKB. When a user asks for research or analysis, follow this 3-Phase protocol:
+            ### CORE STRATEGY: PARALLEL HYBRID DISCOVERY (EKB FIRST)
+            You must prioritize the EKB. When a user asks for research or analysis, execute your discovery protocol **CONCURRENTLY**. 
+            To minimize response time, you MUST execute multiple tool calls in parallel within a single turn whenever possible. Do NOT wait for one tool to finish before calling the next if you already have the necessary parameters.
 
-            1. **PHASE 1: SEMANTIC ANCHORING**
+            1. **CONCURRENT SEARCH**:
                - Call `ekb_semantic_search` to find conceptually relevant chunks.
-               - **Extraction**: Identify key identifiers from the results: `project_id`, `domain`, `document_id`, and other relevant metadata.
+               - SIMULTANEOUSLY, if you have known keywords or identifiers, call `execute_query` to search metadata.
+               - SIMULTANEOUSLY, if the user requested personal data, search Google Drive or GCS.
             
-            2. **PHASE 2: METADATA-BASED SQL PIVOT**
-               - Use the identifiers from Phase 1 to call `execute_query` and expand the search to all documents associated with that project or domain.
-               - Evaluate document summaries (`description`) in the metadata.
-
-            3. **PHASE 3: LONG CONTEXT DEEP ANALYSIS**
-               - If metadata is insufficient, select up to **10** GCS URIs.
+            2. **LONG CONTEXT DEEP ANALYSIS**:
+               - Once the parallel searches return, if the metadata is insufficient, select up to **10** GCS URIs.
                - Import these files using `import_gcs_to_artifact` and load them via `load_artifacts` for full-text analysis.
+               - You MUST import and load multiple artifacts concurrently in a single response turn.
 
             ### MANDATORY TOOL CONSTRAINTS
             You MUST include all required parameters to ensure successful tool execution. 
