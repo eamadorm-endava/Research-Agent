@@ -11,20 +11,26 @@ from pipelines.enterprise_knowledge_base.app.rag_ingestion import (
 
 @pytest.fixture(autouse=True)
 def mock_config():
-    """Mock the RAG_CONFIG to avoid environment dependency."""
-    with patch(
-        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.RAG_CONFIG"
-    ) as mock:
-        mock.PROJECT_ID = "test-project"
-        mock.BQ_DATASET = "knowledge_base"
-        mock.BQ_CHUNKS_TABLE = "documents_chunks"
-        mock.BQ_METADATA_TABLE = "documents_metadata"
-        mock.CHUNK_SIZE = 1000
-        mock.CHUNK_OVERLAP = 100
-        mock.GCS_INGESTED_PREFIX = "ingested/"
-        mock.GCS_PROCESSED_PREFIX = "processed/"
-        mock.RAG_STAGING_BUCKET = "test-staging-bucket"
-        yield mock
+    """Mock the RAG_CONFIG and EKB_CONFIG to avoid environment dependency."""
+    with (
+        patch(
+            "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.RAG_CONFIG"
+        ) as mock_rag,
+        patch(
+            "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.EKB_CONFIG"
+        ) as mock_ekb,
+    ):
+        mock_ekb.PROJECT_ID = "test-project"
+        mock_ekb.BQ_DATASET = "knowledge_base"
+        mock_ekb.BQ_METADATA_TABLE = "documents_metadata"
+
+        mock_rag.BQ_CHUNKS_TABLE = "documents_chunks"
+        mock_rag.CHUNK_SIZE = 1000
+        mock_rag.CHUNK_OVERLAP = 100
+        mock_rag.GCS_INGESTED_PREFIX = "ingested/"
+        mock_rag.GCS_PROCESSED_PREFIX = "processed/"
+        mock_rag.RAG_STAGING_BUCKET = "test-staging-bucket"
+        yield mock_rag
 
 
 @pytest.fixture

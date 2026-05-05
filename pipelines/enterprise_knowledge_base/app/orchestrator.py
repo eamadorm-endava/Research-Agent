@@ -2,7 +2,7 @@ import sys
 from loguru import logger
 
 from .document_classification import ClassificationPipeline
-from .config import EKB_CONFIG
+from .document_classification.config import CLASSIFICATION_CONFIG
 from .rag_ingestion import (
     IngestDocumentRequest,
     RAGIngestion,
@@ -62,7 +62,7 @@ class KBIngestionPipeline:
                 f"Pipeline finished with status: {ingest_resp.execution_status}"
             )
 
-        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(
+        tier_label = CLASSIFICATION_CONFIG.TIER_TO_LABEL.get(
             class_resp.final_security_tier, "unknown"
         )
 

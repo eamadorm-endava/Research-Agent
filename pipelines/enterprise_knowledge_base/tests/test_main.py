@@ -6,9 +6,11 @@ from pipelines.enterprise_knowledge_base.app.schemas import JobStatus, JobStatus
 client = TestClient(app)
 
 
-@patch("pipelines.enterprise_knowledge_base.app.main.run_pipeline_task")
+@patch(
+    "pipelines.enterprise_knowledge_base.app.main.cloud_tasks_service.enqueue_ingestion_task"
+)
 @patch("pipelines.enterprise_knowledge_base.app.main.job_service.create_job")
-def test_ingest_document_success(mock_create_job, mock_run_task):
+def test_ingest_document_success(mock_create_job, mock_enqueue_task):
     """
     Test the happy path: the endpoint successfully creates a job
     and returns the processing status.
@@ -25,7 +27,7 @@ def test_ingest_document_success(mock_create_job, mock_run_task):
     data = response.json()
     assert data["job_id"] == "test-job-id"
     assert data["status"] == "processing"
-    assert "It might take up to 10 minutes" in data["message"]
+    assert "File processing task enqueued successfully" in data["message"]
 
     mock_create_job.assert_called_once_with("file.pdf")
 
