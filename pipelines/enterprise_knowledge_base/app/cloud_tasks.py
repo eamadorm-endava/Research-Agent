@@ -1,7 +1,7 @@
 import json
 from google.cloud import tasks_v2
 from loguru import logger
-from .document_classification.config import EKB_CONFIG
+from .config import EKB_CONFIG
 
 # Global client to share connection pool across multiple requests
 task_client = tasks_v2.CloudTasksClient()

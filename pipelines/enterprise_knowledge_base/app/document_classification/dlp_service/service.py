@@ -2,7 +2,8 @@ import time
 from typing import Union
 from google.cloud import dlp_v2
 from loguru import logger
-from ..config import EKB_CONFIG
+from ...config import EKB_CONFIG
+from ..config import CLASSIFICATION_CONFIG
 
 
 # Global client to share connection pool across multiple requests
@@ -43,11 +44,11 @@ class DLPService:
         logger.info(f"Starting DLP scan for: {gcs_uri}")
 
         all_info_types = (
-            EKB_CONFIG.TIER_5_INFOTYPES
-            + EKB_CONFIG.TIER_5_DOCUMENT_TYPES
-            + EKB_CONFIG.TIER_4_INFOTYPES
-            + EKB_CONFIG.TIER_4_DOCUMENT_TYPES
-            + EKB_CONFIG.CONTEXTUAL_INFOTYPES
+            CLASSIFICATION_CONFIG.TIER_5_INFOTYPES
+            + CLASSIFICATION_CONFIG.TIER_5_DOCUMENT_TYPES
+            + CLASSIFICATION_CONFIG.TIER_4_INFOTYPES
+            + CLASSIFICATION_CONFIG.TIER_4_DOCUMENT_TYPES
+            + CLASSIFICATION_CONFIG.CONTEXTUAL_INFOTYPES
         )
 
         inspect_config = {
@@ -215,12 +216,16 @@ class DLPService:
         return [
             {
                 "info_type": {"name": "TIER_4_KEYWORDS"},
-                "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_4_KEYWORDS}},
+                "dictionary": {
+                    "word_list": {"words": CLASSIFICATION_CONFIG.TIER_4_KEYWORDS}
+                },
                 "likelihood": dlp_v2.Likelihood.VERY_LIKELY,
             },
             {
                 "info_type": {"name": "TIER_5_KEYWORDS"},
-                "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_5_KEYWORDS}},
+                "dictionary": {
+                    "word_list": {"words": CLASSIFICATION_CONFIG.TIER_5_KEYWORDS}
+                },
                 "likelihood": dlp_v2.Likelihood.VERY_LIKELY,
             },
         ]
@@ -240,21 +245,25 @@ class DLPService:
         logger.debug(
             f"Building masking logic into dictionary (contextual: {requires_context})"
         )
-        info_types = EKB_CONFIG.TIER_5_INFOTYPES.copy()
+        info_types = CLASSIFICATION_CONFIG.TIER_5_INFOTYPES.copy()
         customs = [
             {
                 "info_type": {"name": "TIER_5_KEYWORDS"},
-                "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_5_KEYWORDS}},
+                "dictionary": {
+                    "word_list": {"words": CLASSIFICATION_CONFIG.TIER_5_KEYWORDS}
+                },
             }
         ]
 
         if requires_context:
-            info_types.extend(EKB_CONFIG.TIER_4_INFOTYPES)
-            info_types.extend(EKB_CONFIG.CONTEXTUAL_INFOTYPES)
+            info_types.extend(CLASSIFICATION_CONFIG.TIER_4_INFOTYPES)
+            info_types.extend(CLASSIFICATION_CONFIG.CONTEXTUAL_INFOTYPES)
             customs.append(
                 {
                     "info_type": {"name": "TIER_4_KEYWORDS"},
-                    "dictionary": {"word_list": {"words": EKB_CONFIG.TIER_4_KEYWORDS}},
+                    "dictionary": {
+                        "word_list": {"words": CLASSIFICATION_CONFIG.TIER_4_KEYWORDS}
+                    },
                 }
             )
         return {"info_types": info_types, "customs": customs}

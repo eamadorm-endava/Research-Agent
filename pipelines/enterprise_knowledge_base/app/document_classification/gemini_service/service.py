@@ -3,7 +3,8 @@ from typing import Optional
 from google import genai
 from google.genai import types
 from loguru import logger
-from ..config import EKB_CONFIG
+from ...config import EKB_CONFIG
+from ..config import CLASSIFICATION_CONFIG
 from .schemas import ContextualClassificationResponse
 
 
@@ -11,7 +12,7 @@ from .schemas import ContextualClassificationResponse
 gemini_client = genai.Client(
     vertexai=True,
     project=EKB_CONFIG.PROJECT_ID,
-    location=EKB_CONFIG.GEMINI_LOCATION,
+    location=CLASSIFICATION_CONFIG.GEMINI_LOCATION,
 )
 
 
@@ -47,7 +48,7 @@ class GeminiService:
         file_part = types.Part.from_uri(file_uri=gcs_uri, mime_type=mime_type)
 
         response = self.client.models.generate_content(
-            model=EKB_CONFIG.GEMINI_MODEL,
+            model=CLASSIFICATION_CONFIG.GEMINI_MODEL,
             contents=[system_prompt, file_part],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -77,16 +78,16 @@ class GeminiService:
             str: The formatted system prompt.
         """
         prompt = "You are a Senior Security Architect. Classify this document based on the matrix:\n"
-        prompt += EKB_CONFIG.CLASSIFICATION_MATRIX
+        prompt += CLASSIFICATION_CONFIG.CLASSIFICATION_MATRIX
         prompt += "\nContextual Grounding:\n"
         prompt += f"- Proposed Tier (DLP Phase 1): {proposed_tier or 'Unknown'}\n"
         prompt += f"- Proposed Domain: {proposed_domain or 'Unknown'}\n"
         prompt += f"- Trust Level: {trust_level or 'Unknown'}\n"
-        prompt += f"- Valid Business Domains: {', '.join(EKB_CONFIG.VALID_DOMAINS)}\n\n"
+        prompt += f"- Valid Business Domains: {', '.join(CLASSIFICATION_CONFIG.VALID_DOMAINS)}\n\n"
         prompt += "Instructions:\n"
         prompt += "1. Return a JSON object with final_classification_tier (1-5).\n"
         prompt += "2. Return confidence (0.0-1.0).\n"
-        prompt += f"3. Return final_domain (Must be one of: {', '.join(EKB_CONFIG.VALID_DOMAINS)}).\n"
+        prompt += f"3. Return final_domain (Must be one of: {', '.join(CLASSIFICATION_CONFIG.VALID_DOMAINS)}).\n"
         prompt += "4. Return file_description (brief summary, < 150 words).\n"
         prompt += "5. LANGUAGE CONSTRAINT: No matter the language of the document, the answer MUST be written in English, always.\n"
         return prompt

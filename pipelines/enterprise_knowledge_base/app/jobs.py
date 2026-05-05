@@ -5,7 +5,7 @@ from google.cloud import bigquery
 from loguru import logger
 
 from .schemas import JobStatus, JobStatusResponse
-from .document_classification.config import EKB_CONFIG
+from .config import EKB_CONFIG
 
 
 # Global client to share connection pool across multiple requests

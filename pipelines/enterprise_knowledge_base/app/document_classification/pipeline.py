@@ -4,7 +4,7 @@ import uuid
 import unicodedata
 from datetime import datetime, timezone
 from loguru import logger
-from .config import EKB_CONFIG
+from .config import CLASSIFICATION_CONFIG
 from .gcs_service.service import GCSService
 from .dlp_service.service import DLPService
 from .gemini_service.service import GeminiService
@@ -195,16 +195,16 @@ class ClassificationPipeline:
         """Internal helper to map DLP findings to EKB Tiers."""
         logger.debug(f"Determining risk tier from findings: {findings}")
         if any(
-            finding in EKB_CONFIG.TIER_5_INFOTYPES
-            or finding in EKB_CONFIG.TIER_5_DOCUMENT_TYPES
+            finding in CLASSIFICATION_CONFIG.TIER_5_INFOTYPES
+            or finding in CLASSIFICATION_CONFIG.TIER_5_DOCUMENT_TYPES
             or finding == "TIER_5_KEYWORDS"
             for finding in findings
         ):
             return 5
 
         if any(
-            finding in EKB_CONFIG.TIER_4_DOCUMENT_TYPES
-            or finding in EKB_CONFIG.TIER_4_INFOTYPES
+            finding in CLASSIFICATION_CONFIG.TIER_4_DOCUMENT_TYPES
+            or finding in CLASSIFICATION_CONFIG.TIER_4_INFOTYPES
             or finding == "TIER_4_KEYWORDS"
             for finding in findings
         ):
@@ -280,7 +280,7 @@ class ClassificationPipeline:
         logger.info(
             f"Routing files for domain: {request.final_domain}, Tier: {request.final_security_tier}"
         )
-        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(
+        tier_label = CLASSIFICATION_CONFIG.TIER_TO_LABEL.get(
             request.final_security_tier, "unknown"
         )
         filename = request.original_landing_uri.split("/")[-1]
@@ -352,7 +352,9 @@ class ClassificationPipeline:
 
         # 3. Map Tier to Label
         tier_int = request.llm_classification.final_classification_tier
-        tier_label = EKB_CONFIG.TIER_TO_LABEL.get(tier_int, f"tier-{tier_int}")
+        tier_label = CLASSIFICATION_CONFIG.TIER_TO_LABEL.get(
+            tier_int, f"tier-{tier_int}"
+        )
 
         record = BQMetadataRecord(
             document_id=doc_id,

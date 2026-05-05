@@ -3,8 +3,8 @@ from pydantic import Field
 from typing import Annotated
 
 
-class EKBConfig(BaseSettings):
-    """Configuration class for the Enterprise Knowledge Base (EKB) pipeline.
+class ClassificationConfig(BaseSettings):
+    """Configuration class for the Classification pipeline.
 
     This class manages environment variables and technical constants for the
     document classification and metadata extraction process.
@@ -15,38 +15,6 @@ class EKBConfig(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
-    PROJECT_ID: Annotated[
-        str,
-        Field(
-            default="mock-project-id",
-            description="GCP Project ID to use for DLP and BigQuery.",
-        ),
-    ]
-
-    TASKS_QUEUE_ID: Annotated[
-        str,
-        Field(
-            default="ekb-ingestion-queue",
-            description="The Cloud Tasks queue ID for decoupling background ingestion.",
-        ),
-    ]
-
-    TASKS_LOCATION: Annotated[
-        str,
-        Field(
-            default="us-central1",
-            description="The GCP location for the Cloud Tasks queue.",
-        ),
-    ]
-
-    SERVICE_ACCOUNT_EMAIL: Annotated[
-        str,
-        Field(
-            default="",
-            description="The service account email to use for authenticated Cloud Tasks invocations.",
-        ),
-    ]
 
     TIER_5_INFOTYPES: Annotated[
         list[str],
@@ -204,30 +172,6 @@ class EKBConfig(BaseSettings):
         ),
     ]
 
-    BQ_DATASET: Annotated[
-        str,
-        Field(
-            default="mock-dataset",
-            description="The BigQuery dataset for metadata storage.",
-        ),
-    ]
-
-    BQ_TABLE: Annotated[
-        str,
-        Field(
-            default="mock-table",
-            description="The BigQuery table for metadata storage.",
-        ),
-    ]
-
-    BQ_JOBS_TABLE: Annotated[
-        str,
-        Field(
-            default="ingestion_jobs",
-            description="The BigQuery table for tracking async job status.",
-        ),
-    ]
-
     TIER_TO_LABEL: Annotated[
         dict[int, str],
         Field(
@@ -243,4 +187,4 @@ class EKBConfig(BaseSettings):
     ]
 
 
-EKB_CONFIG = EKBConfig()
+CLASSIFICATION_CONFIG = ClassificationConfig()

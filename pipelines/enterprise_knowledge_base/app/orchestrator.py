@@ -2,7 +2,7 @@ import sys
 from loguru import logger
 
 from .document_classification import ClassificationPipeline
-from .document_classification.config import EKB_CONFIG
+from .config import EKB_CONFIG
 from .rag_ingestion import (
     IngestDocumentRequest,
     RAGIngestion,

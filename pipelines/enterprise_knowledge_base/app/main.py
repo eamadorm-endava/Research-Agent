@@ -9,7 +9,7 @@ from .schemas import (
     JobStatus,
     TaskPayload,
 )
-from .document_classification.config import EKB_CONFIG
+from .config import EKB_CONFIG
 from .jobs import JobService
 from .cloud_tasks import CloudTasksService
 
