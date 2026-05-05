@@ -344,19 +344,17 @@ class RAGIngestion:
         Raises:
             Exception: If the operation fails after all retry attempts.
         """
-        max_retries = 3
-        base_delay = 2
-        for attempt in range(max_retries):
+        for attempt in range(RAG_CONFIG.GCS_MAX_RETRIES):
             try:
                 return operation(*args, **kwargs)
             except Exception as e:
-                if attempt == max_retries - 1:
+                if attempt == RAG_CONFIG.GCS_MAX_RETRIES - 1:
                     logger.error(
-                        f"GCS operation failed after {max_retries} attempts: {str(e)}"
+                        f"GCS operation failed after {RAG_CONFIG.GCS_MAX_RETRIES} attempts: {str(e)}"
                     )
                     raise e
 
-                wait_time = base_delay**attempt
+                wait_time = RAG_CONFIG.GCS_BASE_DELAY**attempt
                 logger.warning(
                     f"GCS attempt {attempt + 1} failed: {str(e)}. Retrying in {wait_time}s..."
                 )

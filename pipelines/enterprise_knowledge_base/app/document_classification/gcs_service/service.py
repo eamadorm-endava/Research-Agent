@@ -3,6 +3,7 @@ from typing import Any, Callable, TypeVar
 from google.cloud import storage
 from loguru import logger
 from .schemas import DocumentMetadata
+from .config import gcs_config
 
 GCSOperationResult = TypeVar("GCSOperationResult")
 
@@ -41,19 +42,17 @@ class GCSService:
         Raises:
             Exception: If the operation fails after all retry attempts.
         """
-        max_retries = 3
-        base_delay = 2
-        for attempt in range(max_retries):
+        for attempt in range(gcs_config.MAX_RETRIES):
             try:
                 return operation(*args, **kwargs)
             except Exception as e:
-                if attempt == max_retries - 1:
+                if attempt == gcs_config.MAX_RETRIES - 1:
                     logger.error(
-                        f"GCS operation failed after {max_retries} attempts: {str(e)}"
+                        f"GCS operation failed after {gcs_config.MAX_RETRIES} attempts: {str(e)}"
                     )
                     raise e
 
-                wait_time = base_delay**attempt
+                wait_time = gcs_config.BASE_DELAY**attempt
                 logger.warning(
                     f"GCS attempt {attempt + 1} failed: {str(e)}. Retrying in {wait_time}s..."
                 )
