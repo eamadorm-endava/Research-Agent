@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
 from loguru import logger
 
 from .orchestrator import KBIngestionPipeline
@@ -8,6 +7,7 @@ from .schemas import (
     OrchestratorRunResponse,
     JobStatusResponse,
     JobStatus,
+    TaskPayload,
 )
 from .document_classification.config import EKB_CONFIG
 from .jobs import JobService
@@ -119,11 +119,6 @@ async def get_status(job_id: str) -> JobStatusResponse:
 
     logger.debug(f"Status for {job_id}: {status.status.value}")
     return status
-
-
-class TaskPayload(BaseModel):
-    job_id: str
-    request: OrchestratorRunRequest
 
 
 @app.post("/task-handler")
