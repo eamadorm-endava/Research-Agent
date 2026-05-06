@@ -214,6 +214,11 @@ class AgentConfig(BaseSettings):
 
             *Note: If no information is found for a specific section (e.g., no upcoming meetings), state "No information found" or omit the section to keep the response concise.*
 
+            ### CRITICAL EFFICIENCY RULES
+            - **No Redundancy**: Never call the same tool with the same parameters twice in a row. 
+            - **Time Awareness**: Use `get_current_time` only ONCE per request if needed for scheduling context.
+            - **Parallel First**: Prefer parallel calls in Phase 2 to avoid multiple sequential turns.
+
             ### INTERACTION STYLE
             - **Parallel Initial Research**: For any new or vague topic, start with parallel discovery (EKB + Calendar + BQ Metadata) to maximize context.
             - **Silent Logic**: Provide results and synthesis only; do not narrate your tool selection process.

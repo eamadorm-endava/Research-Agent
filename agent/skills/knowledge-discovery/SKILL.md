@@ -20,10 +20,10 @@ Trigger this skill for any research task or when the user's query is broad or va
 
 ### Phase 2: Parallel Context Acquisition (Broad Search)
 Maximize information gathering by querying multiple sources in parallel. 
-*Efficiency Rule: Limit to a maximum of 2 concurrent requests per data source. Aim to find core data in the first turn.*
+*Efficiency Rule: Limit to a maximum of 2 concurrent requests per data source. DO NOT repeat the same tool call with the same parameters in the same session. Aim to find core data in the first turn.*
 
 1.  **Calendar (Temporal Context)**:
-    -   **MANDATORY**: The **first call** to `list_calendar_events` MUST ONLY include the date range filter (±3 months). Do not include title or description filters initially.
+    -   **MANDATORY**: The **first call** to `list_calendar_events` MUST ONLY include the date range filter (1 month past - 1 month future). Do not include title or description filters initially.
     -   **Internal Filtering**: Once retrieved, analyze results for matches in titles, descriptions, and the names of **attached files** using the anchors from Phase 1.
     -   **Awareness**: Flag relevant attachments and meeting context for potential Phase 3 analysis, but do not read their content yet.
 2.  **BigQuery (Structural Context)**:
