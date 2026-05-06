@@ -81,14 +81,14 @@ resource "google_storage_bucket_iam_member" "gcs_mcp_sa_kb_admin" {
 }
 
 # Bucket metadata access for both buckets (required for GCS SDK internal bucket lookups)
-resource "google_storage_bucket_iam_member" "gcs_mcp_sa_landing_bucket_reader" {
+resource "google_storage_bucket_iam_member" "gcs_mcp_sa_landing_bucket_viewer" {
   bucket = var.landing_zone_bucket
-  role   = "roles/storage.legacyBucketReader"
+  role   = "roles/storage.bucketViewer"
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
 
-resource "google_storage_bucket_iam_member" "gcs_mcp_sa_kb_bucket_reader" {
+resource "google_storage_bucket_iam_member" "gcs_mcp_sa_kb_bucket_viewer" {
   bucket = var.kb_ingestion_bucket
-  role   = "roles/storage.legacyBucketReader"
+  role   = "roles/storage.bucketViewer"
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
