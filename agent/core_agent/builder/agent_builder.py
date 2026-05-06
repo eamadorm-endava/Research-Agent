@@ -2,7 +2,6 @@ from typing import Callable, Self, Union
 
 import vertexai
 from google.adk.agents import Agent
-from google.adk.agents.context import Context
 from google.adk.models import Gemini
 from google.adk.planners import BuiltInPlanner
 from google.adk.tools import BaseTool, FunctionTool
@@ -45,7 +44,6 @@ class AgentBuilder:
         self._registered_tools = []
         self._skills = []
         self._before_callback = None
-        self._after_callback = None
 
         # Initialize VertexAI natively
         vertexai.Client(
@@ -116,36 +114,12 @@ class AgentBuilder:
         self._before_callback = callback
         return self
 
-    def with_after_agent_callback(self, callback: Callable) -> Self:
-        """Sets the after_agent_callback for the agent.
-
-        Args:
-            callback: Callable -> The callback function to run after agent execution.
-
-        Returns:
-            Self -> The builder instance for fluent chaining.
-        """
-        logger.info(f"Registering after_agent_callback: {callback.__name__}")
-        self._after_callback = callback
-        return self
-
     def build(self) -> Agent:
         """Assembles and returns the fully configured ADK Agent from all registered tools and settings.
 
         Returns:
             Agent -> The executable agent instance.
         """
-
-        async def combined_after_callback(callback_context: Context):
-            """Internal wrapper to chain the custom after_callback with the mandatory artifact renderer."""
-            if self._after_callback:
-                try:
-                    await self._after_callback(callback_context)
-                except Exception as exc:
-                    logger.error(f"Error in custom after_agent_callback: {exc}")
-
-            # Mandatory: ADK requires this for UI artifact rendering
-            return await render_pending_artifacts(callback_context)
 
         return Agent(
             model=Gemini(
@@ -185,7 +159,7 @@ class AgentBuilder:
             instruction=self.agent_config.AGENT_INSTRUCTION,
             tools=self._consolidate_tools(),
             before_agent_callback=self._before_callback,
-            after_agent_callback=combined_after_callback,
+            after_agent_callback=render_pending_artifacts,
             planner=BuiltInPlanner(
                 thinking_config=ThinkingConfig(
                     thinking_budget=self.agent_config.THINKING_BUDGET,
