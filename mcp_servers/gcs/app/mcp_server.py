@@ -176,9 +176,15 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
         # 1. Determine Authentication Strategy
         # Logic: Use SA ONLY for internal landing-zone to KB pipeline.
         use_sa = (
-            request.source_bucket == GCS_SERVER_CONFIG.landing_zone_bucket
-            and request.destination_bucket == GCS_SERVER_CONFIG.kb_ingestion_bucket
+            request.source_bucket.lower()
+            == GCS_SERVER_CONFIG.landing_zone_bucket.lower()
+            and request.destination_bucket.lower()
+            == GCS_SERVER_CONFIG.kb_ingestion_bucket.lower()
         )
+        if use_sa:
+            logger.info(
+                f"Using Service Account for restricted ingestion to {request.destination_bucket}"
+            )
 
         # 2. Execute Copy Operation
         gcs_manager = _make_gcs_manager(use_sa=use_sa)
@@ -291,7 +297,13 @@ async def update_object_metadata(
     )
     try:
         # Determine Authentication Strategy
-        use_sa = request.bucket_name == GCS_SERVER_CONFIG.kb_ingestion_bucket
+        use_sa = (
+            request.bucket_name.lower() == GCS_SERVER_CONFIG.kb_ingestion_bucket.lower()
+        )
+        if use_sa:
+            logger.info(
+                f"Using Service Account for metadata update on restricted bucket {request.bucket_name}"
+            )
 
         gcs_manager = _make_gcs_manager(use_sa=use_sa)
         blob = await asyncio.to_thread(
