@@ -18,6 +18,19 @@ By combining these, an agent can perform complex queries like: *"Find the transc
 - **Traceability (Parameter Echoing)**: Response schemas dynamically inherit from their corresponding Requests and a common `BaseResponse`. This means every tool returns the `execution_status` ("success" or "error"), the `execution_message`, and crucially, echoes back the original input parameters. The Agent never loses context when attempting rollbacks or compensations. 
 - **Graceful Error Handling**: Instead of raising raw runtime exceptions on API HTTP errors, the Server catches exceptions and securely returns them wrapped within the `BaseResponse` standard format.
 - **Unified Observability**: Leveraging `loguru`, the server implements tiered logging natively down to private components: `DEBUG` for mapping and fetching, `INFO` for unified routing boundaries, and `ERROR` for API exceptions.
+
+---
+
+## Precision Retrieval Logic
+
+To ensure high accuracy and chronological consistency for research tasks, this server implements specialized retrieval policies:
+
+- **Mandatory `startTime` Ordering**: All calendar queries are internally forced to use `orderBy="startTime"`. This ensures the underlying data sequence is always chronologically sound before any further processing.
+- **Bi-Directional Sorting**: While the API is constrained to ascending order when using `startTime`, this server implements manual result reversal. This allows agents to request `sort_order="desc"` (e.g., for past events) to receive the most recent information first.
+- **Split-Window Discovery Protocol**: The agent is configured to perform two distinct queries:
+    1. **Past (1 month)**: Sorted `desc` to capture the latest decisions and meeting context.
+    2. **Future (1 month)**: Sorted `asc` to identify upcoming milestones and sync points.
+- **Deep Document Evaluation**: Beyond event metadata, the system mandates the analysis of meeting attachments and documents referenced in descriptions, elevating collaborative context into the primary research hierarchy.
  
 ---
 
