@@ -1,3 +1,4 @@
+import time
 from typing import Optional
 
 from loguru import logger
@@ -8,36 +9,58 @@ from google.auth.transport.requests import Request
 from google.adk.agents.readonly_context import ReadonlyContext
 
 
-def get_id_token(audience: str) -> Optional[str]:
-    """Generates a valid ID token for calling GCP-authenticated services such as Cloud Run.
+# Global cache for ID tokens: {audience: (token, expiry_timestamp)}
+_ID_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
+TOKEN_TTL_SECONDS = (
+    3000  # Reuse tokens for 50 minutes (standard GCP tokens last 1 hour)
+)
 
-    Tries the GCP metadata server first, then falls back to local ADC credentials for development.
+
+def get_id_token(audience: str) -> Optional[str]:
+    """Generates or retrieves a cached ID token for calling GCP-authenticated services.
+
+    Checks the global cache first. If missing or expired, it tries the GCP metadata server,
+    then falls back to local ADC credentials.
 
     Args:
         audience: str -> The target service URL used as the token audience.
 
     Returns:
-        Optional[str] -> The ID token string, or None if retrieval fails via both paths.
+        Optional[str] -> The ID token string, or None if retrieval fails.
     """
-    logger.info(f"Generating ID token for audience: {audience}")
+    now = time.time()
+
+    # Check cache first
+    if audience in _ID_TOKEN_CACHE:
+        token, expiry = _ID_TOKEN_CACHE[audience]
+        if expiry > now + 60:  # 1 minute buffer
+            logger.debug(f"Using cached ID token for audience: {audience}")
+            return token
+
+    logger.info(f"Generating fresh ID token for audience: {audience}")
     request = Request()
+
+    # Path 1: Metadata Server (Production/GCP)
     try:
         logger.debug(
             f"Retrieving ID token from metadata server for audience {audience}"
         )
         id_token = google.oauth2.id_token.fetch_id_token(request, audience)
-        logger.debug("ID token successfully retrieved from metadata server")
+        _ID_TOKEN_CACHE[audience] = (id_token, now + TOKEN_TTL_SECONDS)
+        logger.debug("ID token successfully retrieved from metadata server and cached")
         return id_token
     except Exception as exc:
         logger.warning(f"Metadata-server ID token retrieval failed: {exc}")
 
+    # Path 2: Local ADC (Development)
     try:
         logger.debug("Retrieving ID token from local ADC credentials")
         credentials, _ = google.auth.default()
         credentials.refresh(request)
         id_token = getattr(credentials, "id_token", None)
         if id_token:
-            logger.debug("ID token retrieved from local ADC credentials")
+            _ID_TOKEN_CACHE[audience] = (id_token, now + TOKEN_TTL_SECONDS)
+            logger.debug("ID token retrieved from local ADC credentials and cached")
             return id_token
         logger.warning("ADC credentials did not yield an ID token")
     except Exception as exc:

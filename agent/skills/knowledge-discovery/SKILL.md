@@ -20,7 +20,7 @@ Trigger this skill for any research task or when the user's query is broad or va
 
 ### Phase 2: Parallel Context Acquisition (Broad Search)
 Maximize information gathering by querying multiple sources in parallel. 
-*Efficiency Rule: Limit to a maximum of 3 concurrent requests per data source. Aim to find core data in the first turn.*
+*Efficiency Rule: Limit to a maximum of 2 concurrent requests per data source. Aim to find core data in the first turn.*
 
 1.  **Calendar (Temporal Context)**:
     -   **MANDATORY**: The **first call** to `list_calendar_events` MUST ONLY include the date range filter (±3 months). Do not include title or description filters initially.
