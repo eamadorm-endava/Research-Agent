@@ -84,7 +84,12 @@ def test_mcp_upload_object_success_sa_flow(mock_gcs_manager):
         destination_bucket="kb-landing-zone",
         filename="ingested_file.zip",
     )
-    with patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make:
+    with (
+        patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make,
+        patch("mcp_servers.gcs.app.mcp_server.GCS_SERVER_CONFIG") as mock_config,
+    ):
+        mock_config.landing_zone_bucket = "ai_agent_landing_zone"
+        mock_config.kb_ingestion_bucket = "kb-landing-zone"
         mock_make.return_value = mock_gcs_manager
         result = asyncio.run(upload_object(request))
         # Ensure it was called with use_sa=True
@@ -280,7 +285,11 @@ def test_mcp_update_object_metadata_success_sa_flow(mock_gcs_manager):
         object_name="test.pdf",
         metadata={"project": "test"},
     )
-    with patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make:
+    with (
+        patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make,
+        patch("mcp_servers.gcs.app.mcp_server.GCS_SERVER_CONFIG") as mock_config,
+    ):
+        mock_config.kb_ingestion_bucket = "kb-landing-zone"
         mock_make.return_value = mock_gcs_manager
         result = asyncio.run(update_object_metadata(request))
         # Ensure it was called with use_sa=True
