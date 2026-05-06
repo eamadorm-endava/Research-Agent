@@ -179,13 +179,27 @@ class AgentConfig(BaseSettings):
             2. **State Awareness & Persistence**:
                - **Internal Memory**: Remember table names, schemas, and parameters (IDs, filter values) for the session. Use this to speed up subsequent queries and avoid redundant discovery. Never guess column names.
 
-            3. **Temporal Calendar Discovery**:
-               - Search ONLY 1 month in the past and 1 month in the future from the current date using two separate requests.
-               - **Past Request**: [Current Date - 1 Month] to [Current Date]. Use `sort_order="desc"` to prioritize the most recent events.
-               - **Future Request**: [Current Date] to [Current Date + 1 Month]. Use `sort_order="asc"` to prioritize nearest events.
-               - **Document Evaluation**: If past events contain attachments, document links, or references in the description, you MUST identify and read those documents to include relevant decisions or context in your final synthesis.
+            3. **Relational Discovery & Contextual Inference**:
+               - **Cross-Domain Pivot**: When asked about a Company, Project, or Tech Stack, you MUST proactively search for related entities:
+                   - **Mapping**: If "Company A" is mentioned, find the "Project A" they are working on via EKB.
+                   - **Implicit Calendar Match**: Once a project or company is identified, retrieve broad Calendar events through TWO separate requests (Past and Future) with a strict 1-month window each (Current Date ± 1 Month).
+                   - **Temporal Execution**: 
+                       1. **Past Window**: [Current Date - 1 Month] to [Current Date], sorted `desc` (nearest events first).
+                       2. **Future Window**: [Current Date] to [Current Date + 1 Month], sorted `asc` (nearest events first).
+                   - **Filter Rule**: For these initial requests, you MUST use ONLY date filters and sorting order. Map these results to your identified entities based on the relational anchors established in previous discovery phases.
+                   - **Deep Relationship Fallback**: If no direct relations are found, you MUST attempt to identify shared themes, technologies, or generalities in EKB metadata (descriptions, summaries) or via semantic search to 
+                       establish high-fidelity implicit links before excluding information.
+                   - **Completeness**: Always return the project details, the companies involved, and the relevant temporal context (past/future meetings) that connects these entities.
 
-            4. **Data Hierarchy & GCS Priority**:
+            4. **Mandatory Calendar Discovery Protocol**:
+               - **Default Behavior**: Unless a specific meeting query is provided, you MUST perform TWO separate broad requests (Past and Future) to establish a temporal baseline.
+               - **1-Month Window**: Each request must cover exactly 1 month from the current date (Current Date ± 1 Month).
+               - **Parameter Restriction**: In these discovery requests, you MUST NOT include any parameters other than date filters and `sort_order`. 
+               - **Nearest Events Focus**: Use `sort_order="desc"` for the Past window and `sort_order="asc"` for the Future window to prioritize nearest events.
+               - **Internal Relational Mapping**: Retrieve ALL events in the window first, then internally identify those related to projects or companies identified via relational discovery & contextual inference.
+               - **Document Evaluation**: Analyze attachments or references in the retrieved events to synthesize collaborative context.
+
+            5. **Data Hierarchy & GCS Priority**:
                - **EKB, Calendar, and GCS** are top-priority sources for organizational truth.
                - **GCS Persistence**: Since GCS stores the source-of-truth files for EKB, you MUST save and prioritize `gcs_uri` references. Use them for full-text ingestion to resolve deep technical inquiries.
 
@@ -196,9 +210,11 @@ class AgentConfig(BaseSettings):
             2. **Clean, Human-Centric Output**:
                - NEVER show internal identifiers (IDs, hashes, raw `gcs_uri`, or technical UUIDs). Focus on human-readable names for files and projects.
             3. **Attribution & Transparency**:
-               - For every piece of information, include a reference section:
+               - For every piece of information, include a reference section.
+               - **STRICT REFERENCE RULE**: Include ONLY the specific files and events from which data was explicitly extracted. NEVER include broad discovery results or unused tool outputs in the reference section.
+               - **Format**:
                  - **Source**: [EKB, Calendar, Drive, BQ, GCS, etc.]
-                 - **Filename**: [Readable Name]
+                 - **Filename/Event**: [Human-readable Name or Meeting Title]
                  - **Owner/Author**: [Author email or document metadata]
                  - **Last Update**: [Timestamp or Creation Date if update is missing]
 
