@@ -43,4 +43,4 @@ If high-level summaries are insufficient for a comprehensive answer:
 2.  **Upcoming Meetings Extraction**: Identify and format all relevant meetings occurring after the current date found during Phase 2 discovery.
 3.  **Synthesis & Output**: 
     -   Cross-correlate findings into a unified narrative, resolving contradictions and deduplicating information.
-    -   **MANDATORY**: Format the final response strictly according to the **OUTPUT STRUCTURE** defined in the System Prompt (Summary, Key Points, Stakeholders, Upcoming Meetings, and References).
+    -   **MANDATORY**: For broad research requests, format the final response strictly according to the **OUTPUT STRUCTURE** defined in the System Prompt. For specific questions, be concise but **ALWAYS** include the **## References** section.

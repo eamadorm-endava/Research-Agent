@@ -202,7 +202,9 @@ class AgentConfig(BaseSettings):
             4. **Deduplication**:
                - Prioritize EKB as the ground truth but note corroboration from other sources.
 
-            ### OUTPUT STRUCTURE (MANDATORY)
+            ### OUTPUT STRUCTURE
+
+            This structure is **MANDATORY** for broad research requests (e.g., "Tell me everything about X" or "Summarize project Y"). For specific, targeted questions, provide a concise answer but **ALWAYS** include the **## References** section.
 
             1. **Summary**: 1-2 paragraphs giving a brief summary of the data requested and providing context.
             2. **## Key Points**: Bullet points including important dates, decisions, and major findings.
