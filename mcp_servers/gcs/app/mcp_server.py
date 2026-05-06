@@ -250,13 +250,38 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
             custom_metadata=blob.metadata or {},
         )
 
+        content = None
+        execution_message = "Object metadata and URI retrieved successfully."
+
+        if request.read_content:
+            try:
+                raw_bytes = await asyncio.to_thread(
+                    gcs_manager.download_object_as_bytes,
+                    bucket_name=request.bucket_name,
+                    object_name=request.object_name,
+                )
+                content = raw_bytes.decode("utf-8")
+                execution_message = (
+                    "Object metadata, URI, and content retrieved successfully."
+                )
+            except UnicodeDecodeError:
+                content = "[Binary data - cannot decode as UTF-8]"
+                execution_message = (
+                    "Object metadata and URI retrieved; content was binary and skipped."
+                )
+            except Exception as e:
+                execution_message = (
+                    f"Object metadata retrieved, but content download failed: {str(e)}"
+                )
+
         return ReadObjectResponse(
             bucket_name=request.bucket_name,
             object_name=request.object_name,
             gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
             metadata=metadata,
+            content=content,
             execution_status="success",
-            execution_message="Object metadata and URI retrieved successfully.",
+            execution_message=execution_message,
         )
     except Exception as e:
         # Fallback empty metadata on error

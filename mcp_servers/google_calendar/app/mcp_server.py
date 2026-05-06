@@ -67,6 +67,7 @@ async def list_calendar_events(
             date_max=request.date_max,
             time_max=request.time_max,
             query=request.query,
+            sort_order=request.sort_order,
         )
         return ListCalendarEventsResponse(
             execution_status="success",
