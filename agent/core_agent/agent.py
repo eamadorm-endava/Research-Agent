@@ -15,6 +15,7 @@ from .tools.artifact_tools import (
     ImportGcsToArtifactTool,
 )
 from .tools.kb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
+from .tools.time_tools import GetCurrentTimeTool
 from .callbacks.ingestion_status import sync_ingestion_status
 from loguru import logger
 
@@ -46,6 +47,7 @@ root_agent = (
             ImportGcsToArtifactTool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
+            GetCurrentTimeTool(),
             load_artifacts,
         ]
     )
