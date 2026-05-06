@@ -272,6 +272,7 @@ class BigQueryManager:
         SELECT
           c.chunk_data,
           c.filename,
+          c.gcs_uri,
           c.page_number,
           c.structural_metadata,
           m.classification_tier,

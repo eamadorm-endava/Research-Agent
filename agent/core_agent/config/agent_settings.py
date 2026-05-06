@@ -183,15 +183,15 @@ class AgentConfig(BaseSettings):
 
             1. **PHASE 1: SEMANTIC ANCHORING**
                - Call `ekb_semantic_search` to find conceptually relevant chunks.
-               - **Extraction**: Identify key identifiers from the results: `project_id`, `domain`, `document_id`, and other relevant metadata.
+               - **Extraction**: Identify key identifiers from the results: `project_id`, `domain`, `document_id`, and especially the **`gcs_uri`**. The `gcs_uri` is your direct link to the source document for deep analysis.
             
             2. **PHASE 2: METADATA-BASED SQL PIVOT**
                - Use the identifiers from Phase 1 to call `execute_query` and expand the search to all documents associated with that project or domain.
                - Evaluate document summaries (`description`) in the metadata.
 
             3. **PHASE 3: LONG CONTEXT DEEP ANALYSIS**
-               - If metadata is insufficient, select up to **10** GCS URIs.
-               - Import these files using `import_gcs_to_artifact` and load them via `load_artifacts` for full-text analysis.
+               - If metadata is insufficient or you need more detail from a specific file identified in Phase 1 or 2, use its **`gcs_uri`**.
+               - Import these files using `import_gcs_to_artifact` (passing the `gcs_uri`) and load them via `load_artifacts` for full-text analysis.
 
             ### MANDATORY TOOL CONSTRAINTS
             You MUST include all required parameters to ensure successful tool execution. 
