@@ -42,13 +42,13 @@ Maximize information gathering by querying multiple sources in parallel.
 If high-level summaries or metadata are insufficient for a comprehensive answer, follow this strict escalation order:
 
 1.  **Level 1: EKB Deep-Dive (GCS)**:
-    -   Use `gcs_read_file` or equivalent tools to analyze the full content of high-relevance `gcs_uri` references found in Phase 1 and 2.
+    -   Use `read_object` to retrieve metadata (specifically the `mime_type`) and then `import_gcs_to_artifact` to analyze the full content of high-relevance `gcs_uri` references found in Phase 1 and 2.
     -   Prioritize technical specifications, architecture diagrams, and project charters stored in EKB.
 2.  **Level 2: Calendar Deep-Dive (Personal Context)**:
     -   Identify any **documents or links** mentioned in the descriptions or attachments of relevant past meetings found in Phase 2.
     -   Search for and read the content of these specific documents (using Drive or GCS tools) to capture meeting decisions, notes, or referenced data.
 3.  **Level 3: Drive Deep-Dive**:
-    -   If the information is still missing, proceed to search and read the full content of relevant Google Drive documents found in Phase 2 discovery.
+    -   If the information is still missing, use `get_file_text` to search and read the full content of relevant Google Drive documents found in Phase 2 discovery.
 4.  **Level 4: Relationship Fallback (Implicit Mapping)**:
     -   If direct project/company links are missing, analyze EKB metadata (descriptions, summaries, and tech stacks) for shared technologies, industry themes, or generalities.
     -   Use these broader themes to re-evaluate the broad results found in Phase 2 (Calendar/Drive) to identify high-fidelity implicit relationships.

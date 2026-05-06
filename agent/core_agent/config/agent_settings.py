@@ -182,11 +182,11 @@ class AgentConfig(BaseSettings):
             3. **Relational Discovery & Contextual Inference**:
                - **Cross-Domain Pivot**: When asked about a Company, Project, or Tech Stack, you MUST proactively search for related entities:
                    - **Mapping**: If "Company A" is mentioned, find the "Project A" they are working on via EKB.
-                   - **Implicit Calendar Match**: Once a project or company is identified, retrieve broad Calendar events through TWO separate requests (Past and Future) with a strict 1-month window each (Current Date ± 1 Month).
+                   - **Implicit Calendar Match**: Once a project or company is identified, retrieve broad Calendar events through TWO separate requests (Past and Future) using `list_calendar_events` with a strict 1-month window each (Current Date ± 1 Month).
                    - **Temporal Execution**: 
                        1. **Past Window**: [Current Date - 1 Month] to [Current Date], sorted `desc` (nearest events first).
                        2. **Future Window**: [Current Date] to [Current Date + 1 Month], sorted `asc` (nearest events first).
-                   - **Filter Rule**: For these initial requests, you MUST use ONLY date filters and sorting order. Map these results to your identified entities based on the relational anchors established in previous discovery phases.
+                   - **Filter Rule**: For these initial requests, you MUST use ONLY date filters and `sort_order`. Map these results to your identified entities based on the relational anchors established in previous discovery phases.
                    - **Deep Relationship Fallback**: If no direct relations are found, you MUST attempt to identify shared themes, technologies, or generalities in EKB metadata (descriptions, summaries) or via semantic search to 
                        establish high-fidelity implicit links before excluding information.
                    - **Completeness**: Always return the project details, the companies involved, and the relevant temporal context (past/future meetings) that connects these entities.
@@ -229,10 +229,10 @@ class AgentConfig(BaseSettings):
 If high-level summaries or metadata are insufficient for a comprehensive answer, follow this strict escalation order:
 
 1.  **Level 1: EKB Deep-Dive (GCS)**:
-    -   Use `gcs_read_file` or equivalent tools to analyze the full content of high-relevance `gcs_uri` references found in Phase 1 and 2.
+    -   Use `read_object` to retrieve metadata (MIME type) and then `import_gcs_to_artifact` to analyze the full content of high-relevance `gcs_uri` references found in Phase 1 and 2.
     -   Prioritize technical specifications, architecture diagrams, and project charters stored in EKB.
 2.  **Level 2: Drive Deep-Dive**:
-    -   If Level 1 is insufficient, proceed to search and read the full content of relevant Google Drive documents found in Phase 2.
+    -   If Level 1 is insufficient, use `get_file_text` to search and read the full content of relevant Google Drive documents found in Phase 2.
     -   Focus on collaborative docs, meeting notes, and spreadsheets that might contain the specific missing detail.
 3.  **Level 3: Final Conclusion**:
     -   If the information is not found after both deep-dives, concisely state that the specific data was not found in the available Enterprise Knowledge Base or personal Drive. Do not hallucinate or guess.
