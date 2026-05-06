@@ -1,26 +1,24 @@
 import time
+import threading
 from typing import Optional
 
 from loguru import logger
 
 import google.auth
 import google.oauth2.id_token
+from google.auth import jwt
 from google.auth.transport.requests import Request
 from google.adk.agents.readonly_context import ReadonlyContext
 
 
 # Global cache for ID tokens: {audience: (token, expiry_timestamp)}
 _ID_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
-TOKEN_TTL_SECONDS = (
-    3000  # Reuse tokens for 50 minutes (standard GCP tokens last 1 hour)
-)
+_CACHE_LOCK = threading.Lock()
+DEFAULT_TTL = 3000  # Fallback TTL
 
 
 def get_id_token(audience: str) -> Optional[str]:
     """Generates or retrieves a cached ID token for calling GCP-authenticated services.
-
-    Checks the global cache first. If missing or expired, it tries the GCP metadata server,
-    then falls back to local ADC credentials.
 
     Args:
         audience: str -> The target service URL used as the token audience.
@@ -30,12 +28,13 @@ def get_id_token(audience: str) -> Optional[str]:
     """
     now = time.time()
 
-    # Check cache first
-    if audience in _ID_TOKEN_CACHE:
-        token, expiry = _ID_TOKEN_CACHE[audience]
-        if expiry > now + 60:  # 1 minute buffer
-            logger.debug(f"Using cached ID token for audience: {audience}")
-            return token
+    with _CACHE_LOCK:
+        # Check cache first
+        if audience in _ID_TOKEN_CACHE:
+            token, expiry = _ID_TOKEN_CACHE[audience]
+            if expiry > now + 30:  # 30 second buffer
+                logger.debug(f"Using cached ID token for audience: {audience}")
+                return token
 
     logger.info(f"Generating fresh ID token for audience: {audience}")
     request = Request()
@@ -46,7 +45,18 @@ def get_id_token(audience: str) -> Optional[str]:
             f"Retrieving ID token from metadata server for audience {audience}"
         )
         id_token = google.oauth2.id_token.fetch_id_token(request, audience)
-        _ID_TOKEN_CACHE[audience] = (id_token, now + TOKEN_TTL_SECONDS)
+
+        # Decode to get real expiry
+        try:
+            payload = jwt.decode(id_token, verify=False)
+            expiry = float(payload.get("exp", now + DEFAULT_TTL))
+            logger.debug(f"Token expiry from JWT: {expiry} (in {expiry - now:.0f}s)")
+        except Exception:
+            expiry = now + DEFAULT_TTL
+
+        with _CACHE_LOCK:
+            _ID_TOKEN_CACHE[audience] = (id_token, expiry)
+
         logger.debug("ID token successfully retrieved from metadata server and cached")
         return id_token
     except Exception as exc:
@@ -56,10 +66,26 @@ def get_id_token(audience: str) -> Optional[str]:
     try:
         logger.debug("Retrieving ID token from local ADC credentials")
         credentials, _ = google.auth.default()
+
+        # Ensure we refresh to get a fresh id_token
         credentials.refresh(request)
         id_token = getattr(credentials, "id_token", None)
+
         if id_token:
-            _ID_TOKEN_CACHE[audience] = (id_token, now + TOKEN_TTL_SECONDS)
+            # Decode to get real expiry
+            try:
+                payload = jwt.decode(id_token, verify=False)
+                expiry = float(
+                    payload.get("exp", now + 60)
+                )  # User tokens often expire fast
+                token_aud = payload.get("aud")
+                logger.debug(f"ADC Token aud: {token_aud}, exp: {expiry}")
+            except Exception:
+                expiry = now + 60  # Safe default for local
+
+            with _CACHE_LOCK:
+                _ID_TOKEN_CACHE[audience] = (id_token, expiry)
+
             logger.debug("ID token retrieved from local ADC credentials and cached")
             return id_token
         logger.warning("ADC credentials did not yield an ID token")
