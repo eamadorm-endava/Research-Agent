@@ -89,7 +89,7 @@ class AgentConfig(BaseSettings):
     MAX_OUTPUT_TOKENS: Annotated[
         int,
         Field(
-            default=10000,
+            default=10_000,
             description="Controls the maximum number of tokens generated in a single call to the LLM model",
         ),
     ]
