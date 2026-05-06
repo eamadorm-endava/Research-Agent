@@ -10,6 +10,7 @@ from mcp_servers.gcs.app.mcp_server import (
     list_buckets,
     read_object,
     upload_object,
+    update_object_metadata,
 )
 from mcp_servers.gcs.app.config import GCS_API_CONFIG, GCS_SERVER_CONFIG
 from mcp_servers.gcs.app.schemas import (
@@ -18,6 +19,7 @@ from mcp_servers.gcs.app.schemas import (
     ListBucketsRequest,
     ReadObjectRequest,
     UploadObjectRequest,
+    UpdateObjectMetadataRequest,
 )
 
 
@@ -264,3 +266,25 @@ def test_make_gcs_manager_uses_sa_credentials_when_requested():
     mock_manager.assert_called_once_with(
         "sa-creds", default_project=GCS_SERVER_CONFIG.default_project_id
     )
+
+
+def test_mcp_update_object_metadata_success_sa_flow(mock_gcs_manager):
+    mock_blob = MagicMock()
+    mock_blob.metadata = {"project": "test"}
+    mock_blob.content_type = "application/pdf"
+    mock_gcs_manager.update_object_metadata.return_value = mock_blob
+
+    # Config value: kb_ingestion_bucket="kb-landing-zone"
+    request = UpdateObjectMetadataRequest(
+        bucket_name="kb-landing-zone",
+        object_name="test.pdf",
+        metadata={"project": "test"},
+    )
+    with patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make:
+        mock_make.return_value = mock_gcs_manager
+        result = asyncio.run(update_object_metadata(request))
+        # Ensure it was called with use_sa=True
+        mock_make.assert_called_with(use_sa=True)
+
+    assert result.execution_status == "success"
+    mock_gcs_manager.update_object_metadata.assert_called_once()

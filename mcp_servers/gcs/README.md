@@ -79,8 +79,8 @@ Expected outcomes:
 This server includes a specialized ingestion pipeline designed to move data securely from a Landing Zone to a Knowledge Base.
 
 ### Automated Auth Switching
-- **Internal Pipeline**: If moving from `ai_agent_landing_zone` to `kb-landing-zone`, the server uses its own **Service Account (SA)**.
-- **User Operations**: For all other moves, it enforces the **Delegated OAuth Token** of the requesting user.
+- **Internal Pipeline**: If moving from `ai_agent_landing_zone` to `kb-landing-zone` (via `upload_object`) or updating metadata for objects in `kb-landing-zone` (via `update_object_metadata`), the server uses its own **Service Account (SA)**.
+- **User Operations**: For all other buckets and operations, it enforces the **Delegated OAuth Token** of the requesting user to maintain strict IAM boundaries.
 
 For full technical details on URI-based ingestion and path construction, see [INGESTION.md](./INGESTION.md).
 
