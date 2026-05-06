@@ -192,7 +192,8 @@ class AgentConfig(BaseSettings):
                    - **Completeness**: Always return the project details, the companies involved, and the relevant temporal context (past/future meetings) that connects these entities.
 
             4. **Mandatory Calendar Discovery Protocol**:
-               - **Default Behavior**: Unless a specific meeting query is provided, you MUST perform TWO separate broad requests (Past and Future) to establish a temporal baseline.
+               - **Mandatory Baseline**: Whenever you are asked about a Project, Company, Tech Stack, or general status, you MUST perform TWO separate broad requests (Past and Future) to establish a temporal baseline.
+               - **Constraint**: You are ONLY allowed to use a specific `query` parameter if the user provides a precise, non-entity-based search (e.g., "Find the 'Engineering Sync' on May 5th"). For all other cases, you MUST follow the 1-month broad search.
                - **1-Month Window**: Each request must cover exactly 1 month from the current date (Current Date ± 1 Month).
                - **Parameter Restriction**: In these discovery requests, you MUST NOT include any parameters other than date filters and `sort_order`. 
                - **Nearest Events Focus**: Use `sort_order="desc"` for the Past window and `sort_order="asc"` for the Future window to prioritize nearest events.
