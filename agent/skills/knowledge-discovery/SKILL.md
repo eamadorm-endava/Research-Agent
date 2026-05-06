@@ -1,74 +1,43 @@
 ---
 name: knowledge-discovery
-description: Expert protocol for high-fidelity data retrieval and analysis using a hybrid RAG + Long Context approach.
+description: Expert protocol for high-fidelity data retrieval and analysis using Contextual Anchoring and Parallel Discovery.
 ---
 
 ## Mandatory Execution Mode
+Trigger this skill for any research task or when the user's query is broad or vague. Use this to establish a factual baseline across all data sources.
 
-Trigger this skill when a user asks for broad research or specific analysis of a project, company, technology, or person within the enterprise.
-Examples:
-- "Tell me everything we know about project X"
-- "Give me the current state of project Y"
-- "Which projects use technology Z?"
-- "Analyze the stakeholders for project K"
+## Discovery Protocol
 
-## Hybrid Discovery Protocol (3 Phases)
+### Phase 1: Contextual Anchoring (The Hook)
+1.  **Semantic Search**: Execute `ekb_semantic_search`.
+2.  **Anchor Extraction**: Build a "Context Graph" from the results:
+    -   **Identities**: `project_name`, `project_id`, `document_id`, and `filename`.
+    -   **Context**: Capture the `document_summary` or `description`. These snippets are vital for identifying additional keywords for Phase 2.
+    -   **Entities**: Company names (clients/partners), technologies, and technical stacks.
+    -   **People**: `uploader_email` and key stakeholders mentioned in descriptions.
+    -   **Locations**: `gcs_uri` (essential for technical deep-dives).
+3.  **Expansion**: If results are narrow, broaden the search using the extracted entities and keywords to find related entries before moving to Phase 2.
 
-### Phase 1: Semantic Anchoring
-1.  **Initial Search**: Call the `ekb_semantic_search` tool using the `query` parameter and the other mandatory parameters.
-    - **MANDATORY**: Strictly follow the tool's input schema definition (e.g., nesting parameters under a `request` object).
-2.  **Metadata Extraction**: Identify the following from the top results:
-    - `project_id`
-    - `domain`
-    - `document_id`
-    - `uploader_email` (Stakeholder)
-    - `latest` (Boolean)
+### Phase 2: Parallel Context Acquisition (Broad Search)
+Maximize information gathering by querying multiple sources in parallel. 
+*Efficiency Rule: Limit to a maximum of 3 concurrent requests per data source. Aim to find core data in the first turn.*
 
-### Phase 2: Metadata-based SQL Pivot
-1.  **Broad Discovery**: Once identifiers are found, call `execute_query` to retrieve all related documents.
-    - **MANDATORY**: Strictly follow the tool's input schema definition.
-    - **Example Query Pattern**:
-    ```sql
-    SELECT filename, gcs_uri, description, trust_level, uploader_email, ingested_at, latest
-    FROM `knowledge_base.documents_metadata`
-    WHERE (project_id = '<identified_project>' OR domain = '<identified_domain>')
-      AND latest = TRUE
-    ORDER BY ingested_at DESC
-    ```
-2.  **Synthesis**: Use the `description` (document summary) from the metadata to form a high-level understanding of the project's scope and history.
+1.  **Calendar (Temporal Context)**:
+    -   **MANDATORY**: The **first call** to `list_calendar_events` MUST ONLY include the date range filter (±3 months). Do not include title or description filters initially.
+    -   **Internal Filtering**: Once retrieved, analyze results for matches in titles, descriptions, and the names of **attached files** using the anchors from Phase 1.
+    -   **Awareness**: Flag relevant attachments and meeting context for potential Phase 3 analysis, but do not read their content yet.
+2.  **BigQuery (Structural Context)**:
+    -   **MANDATORY**: Query the `documents_metadata` table inside the `knowledge_base` dataset.
+    -   **Data Capture**: Retrieve and store all metadata, especially the **document summary/description**, linked to the identified project, domain, or company.
+3.  **Google Drive (Personal Context)**:
+    -   **Best Practice**: Perform searches using **single keywords** or very short phrases (e.g., search "Alpha" instead of "Project Alpha"). This avoids missing files with naming variations like "Alpha Follow-up" or "Project Continuation - Alpha".
+    -   **Keywords**: Use company names, technologies, stacks, and project names found in Phase 1.
+4.  **GCS (Raw Data Reference)**:
+    -   Identify and store specific `gcs_uri` references for high-relevance files found in the metadata.
 
-### Phase 3: Long Context Deep Analysis (Conditional)
-1.  **Trigger**: If the BigQuery metadata summaries are insufficient to answer the user's specific request or if deep analysis is required.
-2.  **Selection**: Identify up to **10** most relevant GCS URIs from the SQL results.
-3.  **Loading**: 
-    - For each selected URI:
-        - Call `import_gcs_to_artifact` using the `gcs_uri`.
-    - Call `load_artifacts` using the `filenames` list.
-    - **MANDATORY**: Strictly follow each tool's input schema definition.
-4.  **Analysis**: Perform the final analysis using the full document data.
-
-## Standardized Output Format
-
-All discovery responses must follow this structure:
-
-### Summary
-[1-2 paragraphs summarizing the context and findings]
-
-### Key Points
-- [Bullet 1]
-- [Bullet 2]
-- [Bullet N...]
-
-### Stakeholders
-- [Stakeholder Name/Role 1]
-- [Stakeholder Name/Role 2]
-
-### Data Sources
-- [Filename] (Last Update: [Date], Owner: [Email/Name])
-- [Filename] (Last Update: [Date], Owner: [Email/Name])
-
----
-
-## Post-Discovery Interaction
-After presenting the EKB findings, **ALWAYS** ask:
-"I have completed the search in the Enterprise Knowledge Base. Would you like me to also search your personal data for additional context? If so, do you have a preference (Drive, personal buckets, or private BQ tables)? Searching across all sources may take some time."
+### Phase 3: Synthesis & Targeted Deep Dive
+If high-level summaries are insufficient for a comprehensive answer:
+1.  **Multisource Ingestion**: Import and load content from:
+    -   Specific **GCS URIs** (using `import_gcs_to_artifact`).
+    -   **Google Drive** files and **Calendar Attachments** flagged in Phase 2.
+2.  **Cross-Correlation**: Synthesize findings into a unified narrative, resolving contradictions and deduplicating information.
