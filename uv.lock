@@ -2964,8 +2964,10 @@ dependencies = [
 
 [package.dev-dependencies]
 ai-agent = [
+    { name = "google-auth" },
     { name = "google-cloud-aiplatform", extra = ["adk", "agent-engines"] },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "loguru" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -3049,8 +3051,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 ai-agent = [
+    { name = "google-auth", specifier = ">=2.0.0" },
     { name = "google-cloud-aiplatform", extras = ["adk", "agent-engines"], specifier = ">=1.138.0" },
     { name = "google-genai", specifier = ">=0.1.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
