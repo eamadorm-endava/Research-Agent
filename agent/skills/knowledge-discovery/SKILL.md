@@ -40,4 +40,5 @@ If high-level summaries are insufficient for a comprehensive answer:
 1.  **Multisource Ingestion**: Import and load content from:
     -   Specific **GCS URIs** (using `import_gcs_to_artifact`).
     -   **Google Drive** files and **Calendar Attachments** flagged in Phase 2.
-2.  **Cross-Correlation**: Synthesize findings into a unified narrative, resolving contradictions and deduplicating information.
+2.  **Upcoming Meetings Extraction**: Identify and format all relevant meetings occurring after the current date found during Phase 2 discovery.
+3.  **Cross-Correlation**: Synthesize findings into a unified narrative, resolving contradictions and deduplicating information.

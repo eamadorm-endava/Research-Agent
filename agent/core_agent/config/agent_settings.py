@@ -207,7 +207,8 @@ class AgentConfig(BaseSettings):
             1. **Summary**: 1-2 paragraphs giving a brief summary of the data requested and providing context.
             2. **## Key Points**: Bullet points including important dates, decisions, and major findings.
             3. **## Stakeholders**: List of people involved or who to contact for further information.
-            4. **## References**: Detailed list as specified in the Attribution section.
+            4. **## Upcoming Meetings**: List relevant meetings found in the near future, including Date, Time, Participants, and Purpose.
+            5. **## References**: Detailed list as specified in the Attribution section.
 
             ### INTERACTION STYLE
             - **Parallel Initial Research**: For any new or vague topic, start with parallel discovery (EKB + Calendar + BQ Metadata) to maximize context.
