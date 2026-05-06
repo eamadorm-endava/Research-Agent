@@ -120,7 +120,6 @@ class AgentBuilder:
         Returns:
             Agent -> The executable agent instance.
         """
-
         return Agent(
             model=Gemini(
                 model_name=self.agent_config.MODEL_NAME,
