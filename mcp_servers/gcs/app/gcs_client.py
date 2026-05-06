@@ -58,23 +58,6 @@ class GCSManager:
             )
         return resolved_project
 
-    def get_bucket(self, bucket_name: str) -> storage.Bucket:
-        """
-        Retrieves a GCS bucket.
-
-        Args:
-            bucket_name: The name of the bucket to retrieve.
-
-        Returns:
-            storage.Bucket: The retrieved bucket object.
-        """
-        try:
-            bucket = self.client.get_bucket(bucket_name)
-            return bucket
-        except GoogleCloudError as e:
-            logger.error(f"Error retrieving bucket {bucket_name}: {e}")
-            raise
-
     def create_bucket(
         self,
         bucket_name: str,
@@ -120,7 +103,7 @@ class GCSManager:
             Dict[str, str]: The updated labels dictionary.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
+            bucket = self.client.bucket(bucket_name)
             bucket.labels = labels
             bucket.patch()
             logger.info(f"Labels updated for bucket {bucket_name}.")
