@@ -146,13 +146,6 @@ class UploadObjectResponse(BaseResponse):
 class ReadObjectRequest(BaseRequest):
     bucket_name: BUCKET_NAME
     object_name: OBJECT_NAME
-    read_content: Annotated[
-        bool,
-        Field(
-            default=False,
-            description="Whether to download the object content (attempts UTF-8 decoding). Only use for small text-based files.",
-        ),
-    ]
 
 
 class GcsObjectMetadata(BaseModel):
@@ -174,13 +167,6 @@ class ReadObjectResponse(BaseResponse):
     metadata: Annotated[
         GcsObjectMetadata,
         Field(description="Strictly typed object metadata."),
-    ]
-    content: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            description="The object's content (available for text-like files, truncated if necessary).",
-        ),
     ]
 
 
