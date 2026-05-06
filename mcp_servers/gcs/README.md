@@ -78,9 +78,22 @@ Expected outcomes:
 
 This server includes a specialized ingestion pipeline designed to move data securely from a Landing Zone to a Knowledge Base.
 
-### Automated Auth Switching
-- **Internal Pipeline**: If moving from `ai_agent_landing_zone` to `kb-landing-zone` (via `upload_object`) or updating metadata for objects in `kb-landing-zone` (via `update_object_metadata`), the server uses its own **Service Account (SA)**.
-- **User Operations**: For all other buckets and operations, it enforces the **Delegated OAuth Token** of the requesting user to maintain strict IAM boundaries.
+### Automated Authentication Switching
+
+The server dynamically switches between the **Attached Service Account (SA)** and **Delegated User Permissions** based on the tool and the target bucket. This ensures internal ingestion pipelines are automated while maintaining strict per-user isolation for all other data.
+
+| Tool | Condition | Authentication Mode | Rationale |
+| :--- | :--- | :--- | :--- |
+| `upload_object` | Source: `landing_zone_bucket` <br> Dest: `kb_ingestion_bucket` | **Service Account (SA)** | Automated internal ingestion pipeline to the Knowledge Base. |
+| `update_object_metadata` | Bucket: `kb_ingestion_bucket` | **Service Account (SA)** | Status tagging and metadata updates for EKB ingestion. |
+| `upload_object` | Any other bucket combination | **User Permissions (OAuth)** | Ensures user-level IAM isolation for personal data movement. |
+| `read_object` | Any bucket | **User Permissions (OAuth)** | Restricts file access to the requesting user's permissions. |
+| `list_objects` / `list_buckets` | Any bucket / project | **User Permissions (OAuth)** | Discovery is gated by the user's explicit access levels. |
+| `create_bucket` / `delete_object` | Any bucket | **User Permissions (OAuth)** | Destructive or resource-heavy actions require user identity. |
+| `update_bucket_labels` | Any bucket | **User Permissions (OAuth)** | Resource management is tied to the delegated user. |
+
+> [!IMPORTANT]
+> When the Service Account (SA) is used, the server relies on the identity attached to the Cloud Run service, ignoring the delegated OAuth token for that specific call. This is only allowed for protected enterprise ingestion buckets.
 
 For full technical details on URI-based ingestion and path construction, see [INGESTION.md](./INGESTION.md).
 
