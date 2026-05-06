@@ -23,9 +23,11 @@ Maximize information gathering by querying multiple sources in parallel.
 *Efficiency Rule: Limit to a maximum of 2 concurrent requests per data source. DO NOT repeat the same tool call with the same parameters in the same session. Aim to find core data in the first turn.*
 
 1.  **Calendar (Temporal Context)**:
-    -   **MANDATORY**: The **first call** to `list_calendar_events` MUST ONLY include the date range filter (1 month past - 1 month future). Do not include title or description filters initially.
-    -   **Internal Filtering**: Once retrieved, analyze results for matches in titles, descriptions, and the names of **attached files** using the anchors from Phase 1.
-    -   **Awareness**: Flag relevant attachments and meeting context for potential Phase 3 analysis, but do not read their content yet.
+    -   **MANDATORY**: Search ONLY 1 month in the past and 1 month in the future from the current date using two separate requests:
+        -   **Request 1 (Past)**: From [Current Date - 1 Month] to [Current Date]. Use `sort_order="desc"` to retrieve the most recent events first.
+        -   **Request 2 (Future)**: From [Current Date] to [Current Date + 1 Month]. Use `sort_order="asc"` to retrieve the nearest upcoming events first.
+    -   **Efficiency**: Do not include title or description filters initially; perform internal filtering once the temporal baseline is established.
+    -   **Internal Filtering**: Analyze results for matches in titles, descriptions, and the names of **attached files** using the anchors from Phase 1.
 2.  **BigQuery (Structural Context)**:
     -   **MANDATORY**: Query the `documents_metadata` table inside the `knowledge_base` dataset.
     -   **Data Capture**: Retrieve and store all metadata, especially the **document summary/description**, linked to the identified project, domain, or company.
@@ -41,11 +43,13 @@ If high-level summaries or metadata are insufficient for a comprehensive answer,
 1.  **Level 1: EKB Deep-Dive (GCS)**:
     -   Use `gcs_read_file` or equivalent tools to analyze the full content of high-relevance `gcs_uri` references found in Phase 1 and 2.
     -   Prioritize technical specifications, architecture diagrams, and project charters stored in EKB.
-2.  **Level 2: Drive Deep-Dive**:
-    -   If Level 1 is insufficient, proceed to search and read the full content of relevant Google Drive documents found in Phase 2.
-    -   Focus on collaborative docs, meeting notes, and spreadsheets that might contain the specific missing detail.
-3.  **Level 3: Final Conclusion**:
-    -   If the information is not found after both deep-dives, concisely state that the specific data was not found in the available Enterprise Knowledge Base or personal Drive. Do not hallucinate or guess.
+2.  **Level 2: Calendar Deep-Dive (Personal Context)**:
+    -   Identify any **documents or links** mentioned in the descriptions or attachments of relevant past meetings found in Phase 2.
+    -   Search for and read the content of these specific documents (using Drive or GCS tools) to capture meeting decisions, notes, or referenced data.
+3.  **Level 3: Drive Deep-Dive**:
+    -   If the information is still missing, proceed to search and read the full content of relevant Google Drive documents found in Phase 2 discovery.
+4.  **Level 4: Final Conclusion**:
+    -   If the information is not found after all deep-dives, concisely state that the specific data was not found in the available Enterprise Knowledge Base or personal Drive. Do not hallucinate or guess.
 
 ### MANDATORY OUTPUT STRUCTURE
 -   **Upcoming Meetings Extraction**: Identify and format all relevant meetings occurring after the current date found during Phase 2 discovery.

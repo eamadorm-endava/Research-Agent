@@ -65,33 +65,33 @@ def get_id_token(audience: str) -> Optional[str]:
 
     # Path 2: Local ADC (Development)
     try:
-        logger.debug("Retrieving ID token from local ADC credentials")
-        credentials, _ = google.auth.default()
+        with _CACHE_LOCK:
+            # Double-check cache inside lock to avoid race condition
+            if audience in _ID_TOKEN_CACHE:
+                cached_token, expiry = _ID_TOKEN_CACHE[audience]
+                if expiry > now + 10:
+                    return cached_token
 
-        # Ensure we refresh to get a fresh id_token
-        credentials.refresh(request)
-        id_token = getattr(credentials, "id_token", None)
+            logger.debug(f"Refreshing local ADC credentials for audience: {audience}")
+            credentials, _ = google.auth.default()
+            credentials.refresh(request)
+            id_token = getattr(credentials, "id_token", None)
 
-        if id_token:
-            # Decode to get real expiry
-            try:
-                payload = jwt.decode(id_token, verify=False)
-                expiry = float(
-                    payload.get("exp", now + 60)
-                )  # User tokens often expire fast
-                token_aud = payload.get("aud")
-                expiry_dt = datetime.fromtimestamp(expiry).strftime("%Y-%m-%d %H:%M:%S")
-                logger.debug(
-                    f"ADC Token aud: {token_aud}, exp: {expiry_dt} (in {expiry - now:.0f}s)"
-                )
-            except Exception:
-                expiry = now + 60  # Safe default for local
+            if id_token:
+                try:
+                    payload = jwt.decode(id_token, verify=False)
+                    expiry = float(payload.get("exp", now + 60))
+                    expiry_dt = datetime.fromtimestamp(expiry).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    token_aud = payload.get("aud")
+                    logger.debug(f"ADC Token aud: {token_aud}, exp: {expiry_dt}")
+                except Exception:
+                    expiry = now + 60
 
-            with _CACHE_LOCK:
                 _ID_TOKEN_CACHE[audience] = (id_token, expiry)
+                return id_token
 
-            logger.debug("ID token retrieved from local ADC credentials and cached")
-            return id_token
         logger.warning("ADC credentials did not yield an ID token")
     except Exception as exc:
         logger.warning(f"Unable to obtain ID token from local ADC credentials: {exc}")
