@@ -5,6 +5,26 @@ from .calendar.schemas import CalendarEvent
 from .meet.schemas import MeetParticipant, MeetRecording, MeetSession, MeetTranscript
 
 
+# Reusable Type Aliases
+DateFilterType = Annotated[
+    Optional[str],
+    Field(
+        default=None,
+        description="Date filter in YYYY-MM-DD format.",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    ),
+]
+
+TimeFilterType = Annotated[
+    Optional[str],
+    Field(
+        default=None,
+        description="Time filter in HH:MM:SSZ or HH:MM:SS[+-]HH:MM format.",
+        pattern=r"^\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$",
+    ),
+]
+
+
 class BaseResponse(BaseModel):
     """
     Base response model for all Google Calendar and Meet tools.
@@ -26,39 +46,26 @@ class BaseResponse(BaseModel):
 
 
 class ListCalendarEventsRequest(BaseModel):
+    """
+    Request schema for listing calendar events with optional time filters.
+    """
+
     max_events: Annotated[
         int,
         Field(
-            default=10,
+            default=30,
             description="The maximum number of events to return.",
         ),
     ]
-    date_min: Annotated[
-        Optional[str],
+    date_min: DateFilterType
+    time_min: TimeFilterType
+    date_max: DateFilterType
+    time_max: TimeFilterType
+    sort_order: Annotated[
+        Optional[Literal["asc", "desc"]],
         Field(
-            default=None,
-            description="Lower bound date filter (YYYY-MM-DD).",
-        ),
-    ]
-    time_min: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            description="Lower bound time filter (HH:MM:SSZ).",
-        ),
-    ]
-    date_max: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            description="Upper bound date filter (YYYY-MM-DD).",
-        ),
-    ]
-    time_max: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            description="Upper bound time filter (HH:MM:SSZ).",
+            default="asc",
+            description="The direction of sorting. 'asc' for ascending, 'desc' for descending (newest first).",
         ),
     ]
     query: Annotated[
@@ -75,6 +82,15 @@ class ListCalendarEventsRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_time_filters(self) -> Self:
+        """
+        Ensures temporal logic consistency between date and time parameters.
+
+        Args:
+            self: The model instance.
+
+        Returns:
+            Self: The validated model.
+        """
         # Time without Date: Raise error if times are provided but dates are missing
         if (self.time_min or self.time_max) and (
             not self.date_min or not self.date_max

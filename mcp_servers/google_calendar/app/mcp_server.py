@@ -52,9 +52,10 @@ async def list_calendar_events(
         ListCalendarEventsResponse: A response containing the list of calendar events and execution status.
     """
     logger.info(
-        "Tool call: list_calendar_events(max_events=%s, query=%s)",
+        "Tool call: list_calendar_events(max_events=%s, query=%s, sort_order=%s)",
         request.max_events,
         request.query,
+        request.sort_order,
     )
     try:
         client = create_events_client()

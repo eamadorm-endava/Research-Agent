@@ -207,15 +207,15 @@ class CalendarClient:
         """Queries Google Calendar API to fetch raw event data.
 
         Args:
-            max_events (int): The maximum number of events to return.
-            date_min (str | None): Optional lower bound date filter (YYYY-MM-DD).
-            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "12:30:00-06:00").
-            date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
-            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "17:00:00-06:00").
-            query (str | None): Optional free-text search terms. Searches across title, description, location and other event fields.
+            max_events: int -> The maximum number of events to return.
+            date_min: Optional[str] -> Optional lower bound date filter (YYYY-MM-DD).
+            time_min: Optional[str] -> Optional lower bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "12:30:00-06:00").
+            date_max: Optional[str] -> Optional upper bound date filter (YYYY-MM-DD).
+            time_max: Optional[str] -> Optional upper bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "17:00:00-06:00").
+            query: Optional[str] -> Optional free-text search terms. Searches across title, description, location and other event fields.
 
-        Return:
-            list[dict]: A list of raw event items from the API.
+        Returns:
+            list[dict] -> A list of raw event items from the API.
         """
         logger.debug("Fetching raw calendar events from API...")
         kwargs = {
@@ -265,27 +265,27 @@ class CalendarClient:
         date_max: Optional[str] = None,
         time_max: Optional[str] = None,
         query: Optional[str] = None,
+        sort_order: Optional[str] = "asc",
     ) -> list[CalendarEvent]:
         """Fetch and parse calendar events into structured models.
 
         Args:
-            max_events (int): The maximum number of events to return.
-            date_min (str | None): Optional lower bound date filter (YYYY-MM-DD).
-            time_min (str | None): Optional lower bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "12:30:00-06:00").
-            date_max (str | None): Optional upper bound date filter (YYYY-MM-DD).
-            time_max (str | None): Optional upper bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "17:00:00-06:00").
-            query (str | None): Optional natural language query. Searches across title, description, location and other event fields.
+            max_events: int -> The maximum number of events to return.
+            date_min: Optional[str] -> Optional lower bound date filter (YYYY-MM-DD).
+            time_min: Optional[str] -> Optional lower bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "12:30:00-06:00").
+            date_max: Optional[str] -> Optional upper bound date filter (YYYY-MM-DD).
+            time_max: Optional[str] -> Optional upper bound time filter (HH:MM:SSZ). If setting a time zone, add the offset (e.g., "17:00:00-06:00").
+            query: Optional[str] -> Optional natural language query. Searches across title, description, location and other event fields.
+            sort_order: Optional[str] -> The direction of sorting (asc or desc).
 
-        Return:
-            list[CalendarEvent]: A list of parsed CalendarEvent objects.
+        Returns:
+            list[CalendarEvent] -> A list of parsed CalendarEvent objects.
         """
         logger.info("Fetching calendar events...")
         logger.debug(f"Max events: {max_events}")
-        logger.debug(f"Date min: {date_min}")
-        logger.debug(f"Time min: {time_min}")
-        logger.debug(f"Date max: {date_max}")
-        logger.debug(f"Time max: {time_max}")
-        logger.debug(f"Query: {query}")
+        logger.debug(f"Date min: {date_min}, Time min: {time_min}")
+        logger.debug(f"Date max: {date_max}, Time max: {time_max}")
+        logger.debug(f"Query: {query}, Sort order: {sort_order}")
 
         raw_items = self._fetch_calendar_events(
             max_events=max_events,
@@ -295,6 +295,11 @@ class CalendarClient:
             time_max=time_max,
             query=query,
         )
+
+        # Handle manual sorting for descending order (Google API only supports ascending for startTime)
+        if sort_order == "desc":
+            logger.debug("Reversing events for descending order")
+            raw_items.reverse()
 
         logger.info(f"Parsing {len(raw_items)} events into CalendarEvent models")
         events = []

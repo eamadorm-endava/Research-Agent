@@ -38,6 +38,7 @@ class EventsClient:
         date_max: Optional[str] = None,
         time_max: Optional[str] = None,
         query: Optional[str] = None,
+        sort_order: Optional[str] = "asc",
     ) -> list[CalendarEvent]:
         """Fetch and parse calendar events into structured models.
 
@@ -48,6 +49,7 @@ class EventsClient:
             date_max (Optional[str]): Upper bound date filter (YYYY-MM-DD).
             time_max (Optional[str]): Upper bound time filter (HH:MM:SSZ).
             query (Optional[str]): Optional search terms.
+            sort_order (Optional[str]): The direction of sorting (asc or desc).
 
         Returns:
             list[CalendarEvent]: A list of parsed CalendarEvent objects.
@@ -60,6 +62,7 @@ class EventsClient:
             date_max=date_max,
             time_max=time_max,
             query=query,
+            sort_order=sort_order,
         )
 
     # --- Meet Client Delegation ---
