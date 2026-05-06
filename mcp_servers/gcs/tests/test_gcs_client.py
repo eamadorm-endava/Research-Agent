@@ -56,7 +56,7 @@ class TestGCSManager(unittest.TestCase):
     def test_download_object_as_bytes(self):
         mock_bucket = MagicMock()
         mock_blob = MagicMock()
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        self.mock_client_instance.bucket.return_value = mock_bucket
         mock_bucket.blob.return_value = mock_blob
         mock_blob.download_as_bytes.return_value = b"test content"
 
@@ -68,7 +68,7 @@ class TestGCSManager(unittest.TestCase):
     def test_get_object_metadata_success(self):
         mock_bucket = MagicMock()
         mock_blob = MagicMock()
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        self.mock_client_instance.bucket.return_value = mock_bucket
         mock_bucket.get_blob.return_value = mock_blob
 
         result = self.gcs_manager.get_object_metadata("test-bucket", "doc.txt")
@@ -78,7 +78,7 @@ class TestGCSManager(unittest.TestCase):
 
     def test_get_object_metadata_not_found(self):
         mock_bucket = MagicMock()
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        self.mock_client_instance.bucket.return_value = mock_bucket
         mock_bucket.get_blob.return_value = None
 
         with self.assertRaises(ValueError):
@@ -87,7 +87,7 @@ class TestGCSManager(unittest.TestCase):
     def test_update_object_metadata(self):
         mock_bucket = MagicMock()
         mock_blob = MagicMock()
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        self.mock_client_instance.bucket.return_value = mock_bucket
         mock_bucket.get_blob.return_value = mock_blob
         mock_blob.metadata = {"key": "old"}
         mock_blob.content_type = "text/plain"
@@ -109,7 +109,7 @@ class TestGCSManager(unittest.TestCase):
         mock_blob2 = MagicMock(name="file2.txt")
         mock_blob2.name = "file2.txt"
 
-        self.mock_client_instance.get_bucket.return_value = mock_bucket
+        self.mock_client_instance.bucket.return_value = mock_bucket
         self.mock_client_instance.list_blobs.return_value = [mock_blob1, mock_blob2]
 
         result = self.gcs_manager.list_blobs("test-bucket", prefix="data/")
