@@ -89,7 +89,7 @@ class AgentConfig(BaseSettings):
     MAX_OUTPUT_TOKENS: Annotated[
         int,
         Field(
-            default=50_000,
+            default=8192,
             description="Controls the maximum number of tokens generated in a single call to the LLM model",
         ),
     ]
@@ -220,8 +220,9 @@ class AgentConfig(BaseSettings):
             - **Level 3: Conclusion**: If both fail, state that the info was not found. Do not hallucinate.
 
             ### CRITICAL EFFICIENCY RULES
-            - **No Redundancy**: Never call the same tool with the same parameters twice in a row. 
-            - **Time Awareness**: Use `get_current_time` only ONCE per request if needed for scheduling context.
+            - **No Redundancy**: NEVER call the same tool with the same parameters. If a search failed, change the keywords or move to the next Level.
+            - **Time Constraint**: DO NOT call `get_current_time` if you already called it in a previous turn. Use the timestamp from your history.
+            - **Deep-Dive Limit**: In Level 1 and 2, select ONLY the top 2 most relevant documents to read. Do not attempt to read everything.
             - **Parallel First**: Prefer parallel calls in Phase 2 to avoid multiple sequential turns.
 
             ### INTERACTION STYLE
