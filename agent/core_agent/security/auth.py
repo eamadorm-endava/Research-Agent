@@ -1,5 +1,6 @@
 import time
 import threading
+from datetime import datetime
 from typing import Optional
 
 from loguru import logger
@@ -79,7 +80,10 @@ def get_id_token(audience: str) -> Optional[str]:
                     payload.get("exp", now + 60)
                 )  # User tokens often expire fast
                 token_aud = payload.get("aud")
-                logger.debug(f"ADC Token aud: {token_aud}, exp: {expiry}")
+                expiry_dt = datetime.fromtimestamp(expiry).strftime("%Y-%m-%d %H:%M:%S")
+                logger.debug(
+                    f"ADC Token aud: {token_aud}, exp: {expiry_dt} (in {expiry - now:.0f}s)"
+                )
             except Exception:
                 expiry = now + 60  # Safe default for local
 

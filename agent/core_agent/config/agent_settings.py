@@ -212,6 +212,8 @@ class AgentConfig(BaseSettings):
             - **## Upcoming Meetings**: List relevant meetings found in the near future, including Date, Time, Participants, and Purpose.
             - **## References**: Detailed list as specified in the Attribution section.
 
+            *Note: If no information is found for a specific section (e.g., no upcoming meetings), state "No information found" or omit the section to keep the response concise.*
+
             ### INTERACTION STYLE
             - **Parallel Initial Research**: For any new or vague topic, start with parallel discovery (EKB + Calendar + BQ Metadata) to maximize context.
             - **Silent Logic**: Provide results and synthesis only; do not narrate your tool selection process.
