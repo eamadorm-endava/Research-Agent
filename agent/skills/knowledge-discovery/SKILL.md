@@ -24,7 +24,7 @@ Maximize information gathering by querying multiple sources in parallel.
 *Efficiency Rule: Limit to a maximum of 2 concurrent requests per data source. DO NOT repeat the same tool call with the same parameters in the same session. Aim to find core data in the first turn.*
 
 1.  **Calendar (Broad Temporal Discovery)**:
-    -   **DEFAULT PROTOCOL**: Unless the user specifies a precise event query, you MUST perform two separate requests to establish a broad temporal baseline:
+    -   **MANDATORY BASELINE**: Whenever searching for context related to entities (Projects, Companies, Tech Stacks), you MUST perform two separate requests to establish a broad temporal baseline:
         -   **Request 1 (Past)**: From [Current Date - 1 Month] to [Current Date]. Use `sort_order="desc"` to retrieve the nearest past events.
         -   **Request 2 (Future)**: From [Current Date] to [Current Date + 1 Month]. Use `sort_order="asc"` to retrieve the nearest upcoming events.
     -   **MANDATORY RESTRICTION**: In these first two requests, you MUST NOT include any parameters other than date filters and `sort_order`. 

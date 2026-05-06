@@ -58,23 +58,6 @@ class GCSManager:
             )
         return resolved_project
 
-    def get_bucket(self, bucket_name: str) -> storage.Bucket:
-        """
-        Retrieves a GCS bucket.
-
-        Args:
-            bucket_name: The name of the bucket to retrieve.
-
-        Returns:
-            storage.Bucket: The retrieved bucket object.
-        """
-        try:
-            bucket = self.client.get_bucket(bucket_name)
-            return bucket
-        except GoogleCloudError as e:
-            logger.error(f"Error retrieving bucket {bucket_name}: {e}")
-            raise
-
     def create_bucket(
         self,
         bucket_name: str,
@@ -120,7 +103,7 @@ class GCSManager:
             Dict[str, str]: The updated labels dictionary.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
+            bucket = self.client.bucket(bucket_name)
             bucket.labels = labels
             bucket.patch()
             logger.info(f"Labels updated for bucket {bucket_name}.")
@@ -179,7 +162,7 @@ class GCSManager:
             bytes: The downloaded content.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
+            bucket = self.client.bucket(bucket_name)
             blob = bucket.blob(object_name)
             content = blob.download_as_bytes()
             logger.info(f"Object {object_name} downloaded from bucket {bucket_name}.")
@@ -202,7 +185,7 @@ class GCSManager:
             storage.Blob: The blob object with populated metadata.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
+            bucket = self.client.bucket(bucket_name)
             blob = bucket.get_blob(object_name)
             if not blob:
                 raise ValueError(
@@ -229,7 +212,7 @@ class GCSManager:
             storage.Blob: The updated blob object.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
+            bucket = self.client.bucket(bucket_name)
             blob = bucket.get_blob(object_name)
             if not blob:
                 raise ValueError(
@@ -259,7 +242,7 @@ class GCSManager:
             bool: True if successful.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
+            bucket = self.client.bucket(bucket_name)
             blob = bucket.blob(object_name)
             blob.delete()
             logger.info(f"Object {object_name} deleted from bucket {bucket_name}.")
@@ -282,7 +265,7 @@ class GCSManager:
             List[str]: A list of blob names.
         """
         try:
-            bucket = self.get_bucket(bucket_name)
+            bucket = self.client.bucket(bucket_name)
             blobs = self.client.list_blobs(bucket, prefix=prefix)
             blob_names = [blob.name for blob in blobs]
             logger.info(f"Listed {len(blob_names)} blobs in bucket {bucket_name}.")
