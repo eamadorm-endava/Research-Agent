@@ -41,4 +41,6 @@ If high-level summaries are insufficient for a comprehensive answer:
     -   Specific **GCS URIs** (using `import_gcs_to_artifact`).
     -   **Google Drive** files and **Calendar Attachments** flagged in Phase 2.
 2.  **Upcoming Meetings Extraction**: Identify and format all relevant meetings occurring after the current date found during Phase 2 discovery.
-3.  **Cross-Correlation**: Synthesize findings into a unified narrative, resolving contradictions and deduplicating information.
+3.  **Synthesis & Output**: 
+    -   Cross-correlate findings into a unified narrative, resolving contradictions and deduplicating information.
+    -   **MANDATORY**: Format the final response strictly according to the **OUTPUT STRUCTURE** defined in the System Prompt (Summary, Key Points, Stakeholders, Upcoming Meetings, and References).
