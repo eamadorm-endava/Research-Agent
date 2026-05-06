@@ -89,7 +89,7 @@ class AgentConfig(BaseSettings):
     MAX_OUTPUT_TOKENS: Annotated[
         int,
         Field(
-            default=10_000,
+            default=50_000,
             description="Controls the maximum number of tokens generated in a single call to the LLM model",
         ),
     ]
@@ -213,6 +213,11 @@ class AgentConfig(BaseSettings):
             - **## References**: Detailed list as specified in the Attribution section.
 
             *Note: If no information is found for a specific section (e.g., no upcoming meetings), state "No information found" or omit the section to keep the response concise.*
+
+            ### DISCOVERY & ESCALATION PROTOCOL
+            - **Level 1: EKB/GCS Deep-Dive**: If initial metadata is insufficient, prioritize reading the full content of GCS files from the Enterprise Knowledge Base.
+            - **Level 2: Drive Deep-Dive**: If Level 1 fails, search and read relevant documents in Google Drive.
+            - **Level 3: Conclusion**: If both fail, state that the info was not found. Do not hallucinate.
 
             ### CRITICAL EFFICIENCY RULES
             - **No Redundancy**: Never call the same tool with the same parameters twice in a row. 

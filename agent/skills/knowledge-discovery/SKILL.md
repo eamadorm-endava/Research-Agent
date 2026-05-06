@@ -35,12 +35,20 @@ Maximize information gathering by querying multiple sources in parallel.
 4.  **GCS (Raw Data Reference)**:
     -   Identify and store specific `gcs_uri` references for high-relevance files found in the metadata.
 
-### Phase 3: Synthesis & Targeted Deep Dive
-If high-level summaries are insufficient for a comprehensive answer:
-1.  **Multisource Ingestion**: Import and load content from:
-    -   Specific **GCS URIs** (using `import_gcs_to_artifact`).
-    -   **Google Drive** files and **Calendar Attachments** flagged in Phase 2.
-2.  **Upcoming Meetings Extraction**: Identify and format all relevant meetings occurring after the current date found during Phase 2 discovery.
-3.  **Synthesis & Output**: 
+### Phase 3: Synthesis & Targeted Deep Dive (Escalation Path)
+If high-level summaries or metadata are insufficient for a comprehensive answer, follow this strict escalation order:
+
+1.  **Level 1: EKB Deep-Dive (GCS)**:
+    -   Use `gcs_read_file` or equivalent tools to analyze the full content of high-relevance `gcs_uri` references found in Phase 1 and 2.
+    -   Prioritize technical specifications, architecture diagrams, and project charters stored in EKB.
+2.  **Level 2: Drive Deep-Dive**:
+    -   If Level 1 is insufficient, proceed to search and read the full content of relevant Google Drive documents found in Phase 2.
+    -   Focus on collaborative docs, meeting notes, and spreadsheets that might contain the specific missing detail.
+3.  **Level 3: Final Conclusion**:
+    -   If the information is not found after both deep-dives, concisely state that the specific data was not found in the available Enterprise Knowledge Base or personal Drive. Do not hallucinate or guess.
+
+### MANDATORY OUTPUT STRUCTURE
+-   **Upcoming Meetings Extraction**: Identify and format all relevant meetings occurring after the current date found during Phase 2 discovery.
+-   **Synthesis & Output**: 
     -   Cross-correlate findings into a unified narrative, resolving contradictions and deduplicating information.
     -   **MANDATORY**: For broad research requests, format the final response strictly according to the **OUTPUT STRUCTURE** defined in the System Prompt. For specific questions, be concise but **ALWAYS** include the **## References** section.
