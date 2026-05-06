@@ -1,9 +1,15 @@
 from unittest.mock import patch, MagicMock
 
 from agent.core_agent.security import (
-    get_id_token,
+    clear_id_token_cache,
     get_ge_oauth_token,
+    get_id_token,
 )
+
+
+def setup_function():
+    """Clear cache before each test to ensure deterministic results."""
+    clear_id_token_cache()
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────

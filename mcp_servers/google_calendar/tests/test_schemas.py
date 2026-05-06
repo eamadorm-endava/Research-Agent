@@ -56,7 +56,7 @@ def test_base_response_validation():
 
 def test_list_calendar_events_request_defaults():
     req = ListCalendarEventsRequest()
-    assert req.max_events == 10
+    assert req.max_events == 30
     assert req.date_min is None
     assert req.query is None
 

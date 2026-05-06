@@ -55,6 +55,7 @@ def test_list_events_delegation(events_client):
         date_max=None,
         time_max=None,
         query="test",
+        sort_order="asc",
     )
 
 

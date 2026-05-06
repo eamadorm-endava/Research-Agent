@@ -99,6 +99,13 @@ def get_id_token(audience: str) -> Optional[str]:
     return None
 
 
+def clear_id_token_cache() -> None:
+    """Clears the global ID token cache. Primarily used for testing."""
+    with _CACHE_LOCK:
+        _ID_TOKEN_CACHE.clear()
+        logger.debug("ID token cache cleared")
+
+
 def get_ge_oauth_token(
     readonly_context: ReadonlyContext, auth_id: str
 ) -> Optional[str]:
