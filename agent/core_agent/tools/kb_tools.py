@@ -5,7 +5,7 @@ from google.genai import types
 from loguru import logger
 from typing_extensions import override
 
-from ..config import AGENT_CONFIG
+from ..config import INGESTION_AGENT_CONFIG as AGENT_CONFIG
 from ..security import get_id_token
 from .kb_schemas import (
     TriggerEKBPipelineRequest,

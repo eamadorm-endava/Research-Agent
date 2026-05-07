@@ -44,8 +44,8 @@ class GCPConfig(BaseSettings):
     ]
 
 
-class AgentConfig(BaseSettings):
-    """Holds configuration values for the ADK agent: model, generation, retry, and system prompt."""
+class BaseAgentConfig(BaseSettings):
+    """Holds base configuration values for the ADK agent: model, generation, and retry settings."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -54,6 +54,13 @@ class AgentConfig(BaseSettings):
         validate_assignment=True,
     )
 
+    AGENT_DESCRIPTION: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Short description of the agent's role, used as the AgentTool function declaration description when this agent is mounted as a sub-agent.",
+        ),
+    ]
     MODEL_NAME: Annotated[
         str,
         Field(
@@ -135,13 +142,6 @@ class AgentConfig(BaseSettings):
             description="Maximum delay in seconds to retry the request in case of failure.",
         ),
     ]
-    AGENT_NAME: Annotated[
-        str,
-        Field(
-            default="core_agent",
-            description="Name of the agent",
-        ),
-    ]
     EKB_PIPELINE_URL: Annotated[
         str,
         Field(
@@ -162,6 +162,54 @@ class AgentConfig(BaseSettings):
         Field(
             default=-1,
             description="Indicates the thinking budget in tokens. 0 is DISABLED. -1 is AUTOMATIC. The default values and allowed ranges are model dependent.",
+        ),
+    ]
+
+
+class CoordinatorConfig(BaseAgentConfig):
+    """Configuration for the Coordinator Agent."""
+
+    AGENT_NAME: Annotated[
+        str,
+        Field(default="core_agent", description="Name of the coordinator agent"),
+    ]
+    AGENT_INSTRUCTION: Annotated[
+        str,
+        Field(
+            default="""
+            You are the **Coordinator Agent**, the primary interface for the user. Your job is to analyze the user's request and efficiently route it.
+
+            ### OPERATIONAL GUIDELINES
+            1. **Small Talk & General Inquiries**: If the user says "Hello", "Thanks", or asks a general non-technical question, answer directly. DO NOT delegate to any specialist.
+            2. **File Uploads & Delegation**: If the user uploads a file and asks a complex question about it, use `get_artifact_uri` to retrieve its GCS URI. Pass this URI explicitly when delegating to the `research_specialist` so they can analyze it.
+            3. **Deep Research & Meetings**: If the user asks for meeting summaries, deep research, or specific document searches, delegate to the `research_specialist`.
+            4. **Ingestion & Status**: If the user wants to ingest a file or check an ingestion status, delegate to the `ingestion_specialist`.
+            5. **Response Synthesis**: When a specialist returns a result, present it clearly to the user without adding unnecessary fluff.
+            """,
+            description="Agent's System Prompt",
+        ),
+    ]
+
+
+class ResearchAgentConfig(BaseAgentConfig):
+    """Configuration for the Research and Meeting Specialist Agent."""
+
+    AGENT_NAME: Annotated[
+        str,
+        Field(
+            default="research_specialist", description="Name of the research specialist"
+        ),
+    ]
+    AGENT_DESCRIPTION: Annotated[
+        Optional[str],
+        Field(
+            default=(
+                "Retrieves and synthesizes organizational knowledge from the Enterprise "
+                "Knowledge Base (EKB), BigQuery, Google Drive, Google Calendar, and GCS. "
+                "Use for meeting summaries, document discovery, company or project research, "
+                "and any multi-hop data queries that require cross-referencing multiple sources."
+            ),
+            description="AgentTool description exposed to the Coordinator for routing decisions.",
         ),
     ]
     AGENT_INSTRUCTION: Annotated[
@@ -271,6 +319,43 @@ If high-level summaries or metadata are insufficient for a comprehensive answer,
     ]
 
 
+class IngestionAgentConfig(BaseAgentConfig):
+    """Configuration for the EKB Ingestion Specialist Agent."""
+
+    AGENT_NAME: Annotated[
+        str,
+        Field(
+            default="ingestion_specialist",
+            description="Name of the ingestion specialist",
+        ),
+    ]
+    AGENT_DESCRIPTION: Annotated[
+        Optional[str],
+        Field(
+            default=(
+                "Triggers and monitors the Enterprise Knowledge Base (EKB) document ingestion "
+                "pipeline. Use when the user wants to ingest a new file into the knowledge base "
+                "or check the status of an existing ingestion job."
+            ),
+            description="AgentTool description exposed to the Coordinator for routing decisions.",
+        ),
+    ]
+    AGENT_INSTRUCTION: Annotated[
+        str,
+        Field(
+            default="""
+            You are the **EKB Ingestion Specialist**. Your sole responsibility is to trigger knowledge base pipelines and check their execution status.
+            
+            ### OPERATIONAL GUIDELINES
+            1. When asked to ingest a file, use the appropriate tools to trigger the EKB ingestion pipeline.
+            2. When asked to check ingestion status, poll the status using the provided tools.
+            3. Report the result back concisely to the Coordinator.
+            """,
+            description="Agent's System Prompt",
+        ),
+    ]
+
+
 class GoogleAuthConfig(BaseSettings):
     """Holds shared Google OAuth 2.0 credentials used across all MCP server connections."""
 
@@ -319,6 +404,9 @@ class GoogleAuthConfig(BaseSettings):
 
 
 # Global configuration instances
+# Global configuration instances
 GCP_CONFIG = GCPConfig()
-AGENT_CONFIG = AgentConfig()
+COORDINATOR_CONFIG = CoordinatorConfig()
+RESEARCH_AGENT_CONFIG = ResearchAgentConfig()
+INGESTION_AGENT_CONFIG = IngestionAgentConfig()
 GOOGLE_AUTH_CONFIG = GoogleAuthConfig()

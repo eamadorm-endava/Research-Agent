@@ -1,8 +1,13 @@
 from .agent_settings import (
-    AGENT_CONFIG,
     GCP_CONFIG,
     GOOGLE_AUTH_CONFIG,
-    AgentConfig,
+    COORDINATOR_CONFIG,
+    RESEARCH_AGENT_CONFIG,
+    INGESTION_AGENT_CONFIG,
+    BaseAgentConfig,
+    CoordinatorConfig,
+    ResearchAgentConfig,
+    IngestionAgentConfig,
     GCPConfig,
     GoogleAuthConfig,
 )
@@ -19,7 +24,10 @@ from .mcp_settings import (
 )
 
 __all__ = [
-    "AgentConfig",
+    "BaseAgentConfig",
+    "CoordinatorConfig",
+    "ResearchAgentConfig",
+    "IngestionAgentConfig",
     "GCPConfig",
     "GoogleAuthConfig",
     "BaseMCPConfig",
@@ -28,7 +36,9 @@ __all__ = [
     "DriveMCPConfig",
     "GCSMCPConfig",
     "GCP_CONFIG",
-    "AGENT_CONFIG",
+    "COORDINATOR_CONFIG",
+    "RESEARCH_AGENT_CONFIG",
+    "INGESTION_AGENT_CONFIG",
     "GOOGLE_AUTH_CONFIG",
     "BIGQUERY_MCP_CONFIG",
     "DRIVE_MCP_CONFIG",
