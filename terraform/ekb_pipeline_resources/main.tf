@@ -468,9 +468,12 @@ resource "google_storage_bucket_iam_member" "ekb_sa_rag_admin" {
 }
 
 # GCS Bucket Access (Domain Buckets)
+# roles/storage.admin is required (over objectAdmin) because the pipeline must call
+# getIamPolicy/setIamPolicy on each domain bucket to grant uploaders conditional access
+# to their own folder after routing.
 resource "google_storage_bucket_iam_member" "ekb_sa_domain_admin" {
   for_each = google_storage_bucket.kb_domain_buckets
   bucket   = each.value.name
-  role     = "roles/storage.objectAdmin"
+  role     = "roles/storage.admin"
   member   = "serviceAccount:${module.ekb-pipeline-service-account.email}"
 }
