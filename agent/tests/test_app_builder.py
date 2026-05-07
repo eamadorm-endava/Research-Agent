@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from agent.core_agent.builder import AppBuilder
-from agent.core_agent.config import GCPConfig, AgentConfig
+from agent.core_agent.config import GCPConfig, CoordinatorConfig
 from agent.core_agent.plugins.ingestion.plugin import (
     GeminiEnterpriseFileIngestionPlugin,
 )
@@ -31,7 +31,7 @@ def mock_configs():
             PROD_EXECUTION=True, ARTIFACT_BUCKET="test-bucket", REGION="us-central1"
         ),
         "gcp_local": GCPConfig(PROD_EXECUTION=False),
-        "agent": AgentConfig(AGENT_NAME="test_agent"),
+        "agent": CoordinatorConfig(AGENT_NAME="test_agent"),
     }
 
 

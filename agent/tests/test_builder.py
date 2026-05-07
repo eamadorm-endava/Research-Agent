@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from agent.core_agent.builder import AgentBuilder
 from agent.core_agent.config import (
-    AgentConfig,
+    CoordinatorConfig,
     GCPConfig,
     GoogleAuthConfig,
     BigQueryMCPConfig,
@@ -12,7 +12,7 @@ from agent.core_agent.config import (
 @pytest.fixture
 def mock_configs():
     return {
-        "agent": AgentConfig(),
+        "agent": CoordinatorConfig(),
         "gcp": GCPConfig(PROJECT_ID="test-project", REGION="us-central1"),
         "auth": GoogleAuthConfig(),
     }
@@ -94,3 +94,128 @@ def test_agent_builder_empty_registered_tools(mock_vertex_client, mock_configs):
     with patch("agent.core_agent.builder.agent_builder.Agent") as mock_agent:
         builder.build()
         assert mock_agent.call_args[1]["tools"] == []
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+def test_agent_builder_with_subagents(mock_vertex_client, mock_configs):
+    """Test that with_subagents appends each agent to _sub_agents for LLM-transfer delegation."""
+    builder = AgentBuilder(
+        agent_config=mock_configs["agent"],
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    )
+
+    mock_sub_agent = MagicMock()
+    mock_sub_agent.name = "test_specialist"
+
+    result = builder.with_subagents([mock_sub_agent])
+
+    assert mock_sub_agent in builder._sub_agents
+    assert mock_sub_agent not in builder._registered_tools
+    assert result is builder
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+@patch("agent.core_agent.builder.agent_builder.Agent")
+def test_agent_builder_subagents_appear_in_sub_agents_param(
+    mock_agent_class, mock_vertex_client, mock_configs
+):
+    """Test that sub-agents mounted via with_subagents are passed via sub_agents=, not tools=."""
+    builder = AgentBuilder(
+        agent_config=mock_configs["agent"],
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    )
+
+    mock_sub_agent = MagicMock()
+    mock_sub_agent.name = "specialist"
+
+    builder.with_subagents([mock_sub_agent]).build()
+
+    _, kwargs = mock_agent_class.call_args
+    assert mock_sub_agent in kwargs["sub_agents"]
+    assert mock_sub_agent not in kwargs["tools"]
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+@patch("agent.core_agent.builder.agent_builder.Agent")
+def test_build_default_enables_artifact_rendering(
+    mock_agent_class, mock_vertex_client, mock_configs
+):
+    """Test that build() with default args sets after_agent_callback to render_pending_artifacts."""
+    from agent.core_agent.callbacks.artifact_rendering import render_pending_artifacts
+
+    builder = AgentBuilder(
+        agent_config=mock_configs["agent"],
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    )
+    builder.build()
+
+    _, kwargs = mock_agent_class.call_args
+    assert kwargs["after_agent_callback"] is render_pending_artifacts
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+@patch("agent.core_agent.builder.agent_builder.Agent")
+def test_build_disable_artifact_rendering_clears_callback(
+    mock_agent_class, mock_vertex_client, mock_configs
+):
+    """Test that build(enable_artifact_rendering=False) sets after_agent_callback to None.
+
+    Sub-agents must not have render_pending_artifacts as after_agent_callback because
+    AgentTool discards file_data parts and only returns merged text, so any rendering
+    done inside the sub-agent is lost and the state keys are cleared before the
+    coordinator's callback can render them.
+    """
+    builder = AgentBuilder(
+        agent_config=mock_configs["agent"],
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    )
+    builder.build(enable_artifact_rendering=False)
+
+    _, kwargs = mock_agent_class.call_args
+    assert kwargs["after_agent_callback"] is None
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+@patch("agent.core_agent.builder.agent_builder.Agent")
+def test_with_output_key_sets_key_on_agent(
+    mock_agent_class, mock_vertex_client, mock_configs
+):
+    """Test that with_output_key persists the key to the built Agent for session state memory."""
+    builder = AgentBuilder(
+        agent_config=mock_configs["agent"],
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    )
+    result = builder.with_output_key("research_context")
+
+    assert result is builder
+    assert builder._output_key == "research_context"
+
+    builder.build()
+
+    _, kwargs = mock_agent_class.call_args
+    assert kwargs["output_key"] == "research_context"
+
+
+@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
+@patch("agent.core_agent.builder.agent_builder.Agent")
+def test_build_passes_description_to_agent(
+    mock_agent_class, mock_vertex_client, mock_configs
+):
+    """Test that build() passes the config's AGENT_DESCRIPTION to Agent for AgentTool declarations."""
+    from agent.core_agent.config import ResearchAgentConfig
+
+    builder = AgentBuilder(
+        agent_config=ResearchAgentConfig(),
+        gcp_config=mock_configs["gcp"],
+        auth_config=mock_configs["auth"],
+    )
+    builder.build()
+
+    _, kwargs = mock_agent_class.call_args
+    assert kwargs["description"] != ""
+    assert "knowledge" in kwargs["description"].lower()
