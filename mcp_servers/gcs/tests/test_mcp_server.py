@@ -267,10 +267,36 @@ def test_make_gcs_manager_uses_sa_credentials_when_requested():
         manager = _make_gcs_manager(use_sa=True)
 
     assert manager == "manager"
-    mock_build_sa.assert_called_once_with(scopes=GCS_API_CONFIG.read_write_scopes)
+    # SA credentials must be fetched without explicit scopes so the Cloud Run
+    # metadata server returns its full cloud-platform token unrestricted.
+    mock_build_sa.assert_called_once_with()
     mock_manager.assert_called_once_with(
         "sa-creds", default_project=GCS_SERVER_CONFIG.default_project_id
     )
+
+
+def test_sa_credentials_do_not_pass_explicit_scopes():
+    """build_sa_credentials must be called without scopes.
+
+    Passing explicit OAuth scopes to google.auth.default() on Cloud Run restricts
+    the metadata-server token. IAM roles on the SA already govern permissions;
+    scopes should be left to the execution environment.
+    """
+    with (
+        patch(
+            "mcp_servers.gcs.app.mcp_server.build_sa_credentials",
+            return_value="sa-creds",
+        ) as mock_build_sa,
+        patch(
+            "mcp_servers.gcs.app.mcp_server.GCSManager",
+            return_value="manager",
+        ),
+    ):
+        _make_gcs_manager(use_sa=True)
+
+    mock_build_sa.assert_called_once_with()
+    assert mock_build_sa.call_args.args == ()
+    assert mock_build_sa.call_args.kwargs == {}
 
 
 def test_mcp_update_object_metadata_success_sa_flow(mock_gcs_manager):
