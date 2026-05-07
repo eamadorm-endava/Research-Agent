@@ -62,8 +62,15 @@ ingestion_agent = (
         auth_config=GOOGLE_AUTH_CONFIG,
     )
     .with_skills(["kb-file-ingestion"])
+    .with_mcp_servers(
+        [
+            BIGQUERY_MCP_CONFIG,
+            GCS_MCP_CONFIG,
+        ]
+    )
     .with_native_tools(
         [
+            GetArtifactUriTool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
             load_artifacts,
