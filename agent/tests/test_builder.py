@@ -163,10 +163,8 @@ def test_build_disable_artifact_rendering_clears_callback(
 ):
     """Test that build(enable_artifact_rendering=False) sets after_agent_callback to None.
 
-    Sub-agents must not have render_pending_artifacts as after_agent_callback because
-    AgentTool discards file_data parts and only returns merged text, so any rendering
-    done inside the sub-agent is lost and the state keys are cleared before the
-    coordinator's callback can render them.
+    Used for specialists that never produce file_data output (e.g., ingestion-only agents)
+    to skip the render_pending_artifacts callback overhead.
     """
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
@@ -206,7 +204,7 @@ def test_with_output_key_sets_key_on_agent(
 def test_build_passes_description_to_agent(
     mock_agent_class, mock_vertex_client, mock_configs
 ):
-    """Test that build() passes the config's AGENT_DESCRIPTION to Agent for AgentTool declarations."""
+    """Test that build() passes the config's AGENT_DESCRIPTION to Agent for sub_agents= routing."""
     from agent.core_agent.config import ResearchAgentConfig
 
     builder = AgentBuilder(

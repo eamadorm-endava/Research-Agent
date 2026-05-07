@@ -58,7 +58,7 @@ class BaseAgentConfig(BaseSettings):
         Optional[str],
         Field(
             default=None,
-            description="Short description of the agent's role, used as the AgentTool function declaration description when this agent is mounted as a sub-agent.",
+            description="Short description of the agent's role, passed to Agent(description=) and used by the coordinator LLM to identify which specialist to transfer to.",
         ),
     ]
     MODEL_NAME: Annotated[
@@ -209,7 +209,7 @@ class ResearchAgentConfig(BaseAgentConfig):
                 "Use for meeting summaries, document discovery, company or project research, "
                 "and any multi-hop data queries that require cross-referencing multiple sources."
             ),
-            description="AgentTool description exposed to the Coordinator for routing decisions.",
+            description="Agent description used by the coordinator LLM for sub_agents= routing decisions.",
         ),
     ]
     AGENT_INSTRUCTION: Annotated[
@@ -337,7 +337,7 @@ class IngestionAgentConfig(BaseAgentConfig):
                 "pipeline. Use when the user wants to ingest a new file into the knowledge base "
                 "or check the status of an existing ingestion job."
             ),
-            description="AgentTool description exposed to the Coordinator for routing decisions.",
+            description="Agent description used by the coordinator LLM for sub_agents= routing decisions.",
         ),
     ]
     AGENT_INSTRUCTION: Annotated[
