@@ -17,15 +17,12 @@ from .kb_schemas import (
 # Key for storing pending jobs in session state
 PENDING_INGESTIONS_KEY = "pending_ingestions"
 
-# Global client to share connection pool across multiple requests
-limits = httpx.Limits(max_keepalive_connections=50, max_connections=100)
-http_client = httpx.AsyncClient(limits=limits)
+# Connection pool limits for outbound HTTP requests
+_CLIENT_LIMITS = httpx.Limits(max_keepalive_connections=50, max_connections=100)
 
 
 class TriggerEKBPipelineTool(BaseTool):
     """Triggers the Enterprise Knowledge Base (EKB) ingestion pipeline."""
-
-    client = http_client
 
     def __init__(self) -> None:
         """Registers the tool for background processing of documents."""
@@ -73,43 +70,80 @@ class TriggerEKBPipelineTool(BaseTool):
         Returns:
             dict -> Serialised TriggerEKBPipelineResponse.
         """
-        logger.info(f"Triggering EKB pipeline for {args.get('gcs_uri')}")
+        raw_uri = args.get("gcs_uri")
+        logger.info(f"[trigger_ekb_pipeline] Invoked with gcs_uri='{raw_uri}'")
+
         try:
+            # Step 1: Validate and parse input via Pydantic schema
+            logger.debug(
+                "[trigger_ekb_pipeline] Step 1/5: Validating request schema..."
+            )
             request = TriggerEKBPipelineRequest(**args)
             gcs_uri = request.gcs_uri
+            filename = request.filename
+            logger.debug(
+                f"[trigger_ekb_pipeline] Step 1/5: Schema valid. URI='{gcs_uri}', filename='{filename}'"
+            )
 
+            # Step 2: Resolve target URL
             url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/ingest"
-            id_token = get_id_token(AGENT_CONFIG.EKB_PIPELINE_URL)
+            logger.debug(
+                f"[trigger_ekb_pipeline] Step 2/5: Target URL resolved to '{url}'"
+            )
 
+            # Step 3: Obtain OIDC identity token
+            logger.debug(
+                "[trigger_ekb_pipeline] Step 3/5: Fetching OIDC identity token..."
+            )
+            id_token = get_id_token(AGENT_CONFIG.EKB_PIPELINE_URL)
             if not id_token:
+                logger.error(
+                    "[trigger_ekb_pipeline] Step 3/5: FAILED — could not obtain ID token. "
+                    f"Target audience: '{AGENT_CONFIG.EKB_PIPELINE_URL}'"
+                )
                 return TriggerEKBPipelineResponse(
                     execution_status="error",
                     execution_message="Authentication failed: Could not obtain ID token.",
                     job_id="N/A",
                 ).model_dump()
+            logger.debug(
+                "[trigger_ekb_pipeline] Step 3/5: ID token obtained successfully."
+            )
 
+            # Step 4: POST to Cloud Run /ingest
             headers = {
                 "Authorization": f"Bearer {id_token}",
                 "Content-Type": "application/json",
             }
             payload = {"gcs_uri": gcs_uri}
+            logger.debug(
+                f"[trigger_ekb_pipeline] Step 4/5: POSTing payload to '{url}': {payload}"
+            )
 
-            response = await self.client.post(
-                url, json=payload, headers=headers, timeout=30.0
+            async with httpx.AsyncClient(limits=_CLIENT_LIMITS) as client:
+                response = await client.post(
+                    url, json=payload, headers=headers, timeout=30.0
+                )
+
+            logger.debug(
+                f"[trigger_ekb_pipeline] Step 4/5: Received HTTP {response.status_code} from EKB service."
             )
             response.raise_for_status()
             data = response.json()
+            logger.debug(f"[trigger_ekb_pipeline] Step 4/5: Response body: {data}")
 
+            # Step 5: Persist job in session state
             job_id = data.get("job_id")
-            filename = request.filename
-
-            # Store in session state for proactive status checks
+            logger.debug(
+                f"[trigger_ekb_pipeline] Step 5/5: Persisting job_id='{job_id}' for file='{filename}' in session state..."
+            )
             pending = list(tool_context.state.get(PENDING_INGESTIONS_KEY, []))
             pending.append({"job_id": job_id, "filename": filename})
             tool_context.state[PENDING_INGESTIONS_KEY] = pending
 
             logger.info(
-                f"Stored pending ingestion in state: {filename} ({job_id}). Total pending: {len(pending)}"
+                f"[trigger_ekb_pipeline] Step 5/5: Done. job_id='{job_id}', filename='{filename}'. "
+                f"Total pending jobs in state: {len(pending)}"
             )
 
             return TriggerEKBPipelineResponse(
@@ -122,8 +156,11 @@ class TriggerEKBPipelineTool(BaseTool):
                 job_id=job_id,
                 response=data,
             ).model_dump()
+
         except Exception as e:
-            logger.error(f"Failed to trigger EKB pipeline: {e}")
+            logger.opt(exception=True).error(
+                f"[trigger_ekb_pipeline] FAILED for uri='{raw_uri}': {type(e).__name__}: {e}"
+            )
             return TriggerEKBPipelineResponse(
                 execution_status="error",
                 execution_message=f"Internal Error: {str(e)}",
@@ -133,8 +170,6 @@ class TriggerEKBPipelineTool(BaseTool):
 
 class CheckIngestionStatusTool(BaseTool):
     """Checks the status of a specific EKB ingestion job."""
-
-    client = http_client
 
     def __init__(self) -> None:
         super().__init__(
@@ -176,13 +211,32 @@ class CheckIngestionStatusTool(BaseTool):
         Returns:
             dict -> Serialised CheckIngestionStatusResponse.
         """
-        logger.info(f"Checking ingestion status for job_id: {args.get('job_id')}")
-        try:
-            request = CheckIngestionStatusRequest(**args)
-            url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{request.job_id}"
-            id_token = get_id_token(AGENT_CONFIG.EKB_PIPELINE_URL)
+        raw_job_id = args.get("job_id")
+        logger.info(f"[check_ingestion_status] Invoked with job_id='{raw_job_id}'")
 
+        try:
+            # Step 1: Validate input
+            logger.debug(
+                "[check_ingestion_status] Step 1/3: Validating request schema..."
+            )
+            request = CheckIngestionStatusRequest(**args)
+            logger.debug(
+                f"[check_ingestion_status] Step 1/3: Schema valid. job_id='{request.job_id}'"
+            )
+
+            # Step 2: Resolve URL and obtain auth token
+            url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{request.job_id}"
+            logger.debug(f"[check_ingestion_status] Step 2/3: Status URL='{url}'")
+
+            logger.debug(
+                "[check_ingestion_status] Step 2/3: Fetching OIDC identity token..."
+            )
+            id_token = get_id_token(AGENT_CONFIG.EKB_PIPELINE_URL)
             if not id_token:
+                logger.error(
+                    "[check_ingestion_status] Step 2/3: FAILED — could not obtain ID token. "
+                    f"Target audience: '{AGENT_CONFIG.EKB_PIPELINE_URL}'"
+                )
                 return CheckIngestionStatusResponse(
                     job_id=request.job_id,
                     status="error",
@@ -190,19 +244,30 @@ class CheckIngestionStatusTool(BaseTool):
                     execution_status="error",
                     execution_message="Authentication failed",
                 ).model_dump()
+            logger.debug("[check_ingestion_status] Step 2/3: ID token obtained.")
 
+            # Step 3: GET status from EKB service
             headers = {"Authorization": f"Bearer {id_token}"}
-            response = await self.client.get(url, headers=headers, timeout=10.0)
             logger.debug(
-                f"Response status from EKB for {request.job_id}: {response.status_code}"
+                f"[check_ingestion_status] Step 3/3: GETting status for job_id='{request.job_id}'..."
+            )
+            async with httpx.AsyncClient(limits=_CLIENT_LIMITS) as client:
+                response = await client.get(url, headers=headers, timeout=10.0)
+
+            logger.debug(
+                f"[check_ingestion_status] Step 3/3: Received HTTP {response.status_code} for job_id='{request.job_id}'."
             )
             response.raise_for_status()
             data = response.json()
-            logger.info(f"Retrieved status for {request.job_id}: {data.get('status')}")
+            job_status = data.get("status")
+            logger.info(
+                f"[check_ingestion_status] Step 3/3: job_id='{request.job_id}' → status='{job_status}'"
+            )
             return CheckIngestionStatusResponse(**data).model_dump()
+
         except Exception as e:
-            logger.error(
-                f"Error checking ingestion status for job {args.get('job_id')}: {e}"
+            logger.opt(exception=True).error(
+                f"[check_ingestion_status] FAILED for job_id='{raw_job_id}': {type(e).__name__}: {e}"
             )
             return CheckIngestionStatusResponse(
                 job_id=args.get("job_id", "N/A"),
