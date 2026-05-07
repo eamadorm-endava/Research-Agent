@@ -34,7 +34,7 @@ Maximize information gathering by querying multiple sources in parallel.
     -   **Data Capture**: Retrieve and store all metadata, especially the **document summary/description**, linked to the identified project, domain, or company.
 3.  **Google Drive (Personal Context)**:
     -   **Best Practice**: Perform searches using **single keywords** or very short phrases (e.g., search "Alpha" instead of "Project Alpha"). This avoids missing files with naming variations like "Alpha Follow-up" or "Project Continuation - Alpha".
-    -   **Keywords**: Use company names, technologies, stacks, and project names found in Phase 1.
+    -   **Keywords**: Use company names, technologies, stacks, and project names found in Phase 1. If no keywords were found in Phase 1, use the project_name, company name, or any information that the user provided in the prompt that could be used as keywords.
 4.  **GCS (Raw Data Reference)**:
     -   Identify and store specific `gcs_uri` references for high-relevance files found in the metadata.
 
