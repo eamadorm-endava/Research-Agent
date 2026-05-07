@@ -296,6 +296,14 @@ class ClassificationPipeline:
         # 1. Copy Original
         self.gcs.copy_blob(request.original_landing_uri, final_original_uri)
 
+        # Grant uploader Storage Object Admin on their entire folder in the domain bucket.
+        # One folder-level IAM condition covers both the original and any sanitized copy,
+        # since both land under the same dest_base prefix.
+        folder_prefix = f"{request.project_name}/{tier_label}/{uploader_prefix}/"
+        self.gcs.grant_iam_conditional_binding(
+            f"kb-{request.final_domain}", folder_prefix, request.uploader_email
+        )
+
         # 2. Copy Masked (if exists)
         final_sanitized_uri = None
         if (

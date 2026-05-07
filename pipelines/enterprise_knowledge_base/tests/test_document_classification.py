@@ -279,6 +279,50 @@ def test_run_orchestrates_full_pipeline_successfully(
     mock_bq.insert_metadata.assert_called()
 
 
+def test_file_routing_grants_iam_binding_on_uploader_folder(pipeline, mock_gcs):
+    """Verifies grant_iam_conditional_binding is called with the correct folder prefix."""
+    from pipelines.enterprise_knowledge_base.app.document_classification.schemas import (
+        FileRoutingRequest,
+    )
+
+    request = FileRoutingRequest(
+        original_landing_uri="gs://landing/proj/doc.pdf",
+        sanitized_landing_uri=None,
+        final_domain="it",
+        final_security_tier=1,
+        project_name="proj",
+        uploader_email="user@example.com",
+    )
+
+    pipeline.file_routing(request)
+
+    mock_gcs.grant_iam_conditional_binding.assert_called_once_with(
+        "kb-it", "proj/public/user/", "user@example.com"
+    )
+
+
+def test_file_routing_grants_iam_binding_once_even_with_sanitized(pipeline, mock_gcs):
+    """Verifies only one IAM binding call is made even when a sanitized copy also exists."""
+    from pipelines.enterprise_knowledge_base.app.document_classification.schemas import (
+        FileRoutingRequest,
+    )
+
+    request = FileRoutingRequest(
+        original_landing_uri="gs://landing/proj/secret.pdf",
+        sanitized_landing_uri="gs://landing/proj/secret_masked.pdf",
+        final_domain="hr",
+        final_security_tier=5,
+        project_name="proj",
+        uploader_email="admin@hr.com",
+    )
+
+    pipeline.file_routing(request)
+
+    mock_gcs.grant_iam_conditional_binding.assert_called_once_with(
+        "kb-hr", "proj/strictly-confidential/admin/", "admin@hr.com"
+    )
+
+
 def test_run_performs_cleanup_on_failure(pipeline, mock_gcs, mock_dlp, mock_gemini):
     """Verifies that intermediate masked files are deleted if the pipeline fails."""
     landing_uri = "gs://landing/doc.pdf"

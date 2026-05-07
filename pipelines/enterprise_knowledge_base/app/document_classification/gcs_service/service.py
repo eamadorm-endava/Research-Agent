@@ -164,6 +164,65 @@ class GCSService:
         blob = bucket.blob(uri_parts["blob_name"])
         self._execute_with_exponential_backoff(blob.delete)
 
+    def grant_iam_conditional_binding(
+        self, bucket_name: str, folder_prefix: str, uploader_email: str
+    ) -> None:
+        """Grants roles/storage.objectAdmin to the uploader on their folder in the domain bucket.
+
+        Uses a folder-level IAM condition (startsWith) so the single binding covers all current
+        and future files the uploader stores in that project/tier path. Skips silently if the
+        exact binding already exists.
+
+        Args:
+            bucket_name (str): Domain bucket name (e.g. "kb-it").
+            folder_prefix (str): Object path prefix for the user folder
+                (e.g. "project alpha/client-confidential/eamadorm11/").
+            uploader_email (str): Email address to receive the binding.
+
+        Returns:
+            None
+        """
+        logger.info(
+            f"Granting roles/storage.objectAdmin to {uploader_email} "
+            f"on gs://{bucket_name}/{folder_prefix}"
+        )
+        resource_prefix = f"projects/_/buckets/{bucket_name}/objects/{folder_prefix}"
+        condition_expr = f'resource.name.startsWith("{resource_prefix}")'
+
+        bucket = self.client.bucket(bucket_name)
+        iam_policy = self._execute_with_exponential_backoff(
+            bucket.get_iam_policy, requested_policy_version=3
+        )
+        iam_policy.version = 3
+
+        already_granted = any(
+            binding.get("role") == "roles/storage.objectAdmin"
+            and f"user:{uploader_email}" in binding.get("members", set())
+            and (binding.get("condition") or {}).get("expression") == condition_expr
+            for binding in iam_policy.bindings
+        )
+
+        if already_granted:
+            logger.debug(
+                f"IAM binding already exists for '{uploader_email}' on '{resource_prefix}'"
+            )
+            return
+
+        iam_policy.bindings.append(
+            {
+                "role": "roles/storage.objectAdmin",
+                "members": {f"user:{uploader_email}"},
+                "condition": {
+                    "title": "uploader-folder-access",
+                    "expression": condition_expr,
+                },
+            }
+        )
+        self._execute_with_exponential_backoff(bucket.set_iam_policy, iam_policy)
+        logger.info(
+            f"Granted roles/storage.objectAdmin to '{uploader_email}' on '{resource_prefix}'"
+        )
+
     def _parse_uri(self, gcs_uri: str) -> dict[str, str]:
         """Helper to split gs://bucket/path into dictionary components.
         Ensures the URI follows the expected gs:// protocol format.
