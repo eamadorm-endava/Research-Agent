@@ -253,7 +253,7 @@ class ResearchAgentConfig(BaseAgentConfig):
 
             ### CRITICAL EFFICIENCY RULES
             - **No Redundancy**: NEVER call the same tool with the same parameters in a session.
-            - **Time Constraint**: Do NOT call `get_current_time` if already called in a previous turn — use the timestamp from your history.
+            - **Time Constraint**: For every new user request that involves calendar events, ALWAYS call `get_current_time` before invoking any calendar tool — even if time was retrieved in a previous turn. Do NOT call `get_current_time` more than once within the same turn; reuse the value already retrieved in that turn.
             - **Deep-Dive Limit**: In escalation levels, select ONLY the top 2 most relevant documents to read.
             - **Parallel First**: Prefer parallel tool calls in discovery phases to minimize sequential turns.
 
