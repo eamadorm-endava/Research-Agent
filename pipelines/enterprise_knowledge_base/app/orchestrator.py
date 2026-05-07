@@ -35,12 +35,10 @@ class KBIngestionPipeline:
         """
         logger.info(f"Triggering KB Ingestion Pipeline for: {request.gcs_uri}")
 
-        # 1. Execute Classification Pipeline
         logger.info("Step 1: Running Document Classification...")
         class_resp = self.classification_pipeline.run(request.gcs_uri)
         logger.info(f"Classification complete. Domain: {class_resp.final_domain}")
 
-        # 2. Execute end-to-end RAG pipeline
         logger.info(
             f"Step 2: Running RAG Ingestion for {class_resp.final_original_uri}..."
         )

@@ -109,7 +109,6 @@ class TestTriggerEKBPipelineTool:
         """
         mock_get_token.return_value = "mock-id-token"
 
-        # Each call to httpx.AsyncClient() returns a fresh mock response
         responses = [
             _make_mock_response(200, {"job_id": "job-file-1"}),
             _make_mock_response(200, {"job_id": "job-file-2"}),

@@ -123,7 +123,6 @@ async def handle_task(payload: TaskPayload) -> dict:
         try:
             result = await asyncio.to_thread(ekb_pipeline.run, payload.request)
 
-            # Extract metadata for status update
             metadata = {
                 "gcs_uri": result.gcs_uri,
                 "chunks_generated": result.chunks_generated,
