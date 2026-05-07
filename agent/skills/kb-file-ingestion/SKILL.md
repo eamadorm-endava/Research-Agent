@@ -26,6 +26,8 @@ Maintain this state throughout the interaction:
 - [ ] Step 3b: Stamp metadata on uploaded files (all files in parallel, after 3a completes)
 - [ ] Step 4: Trigger EKB pipeline (all files in parallel) + consolidated final summary
 
+**On retry**: Steps 1 and 2 are already complete — jump directly to Step 3a using the previously confirmed file URIs and metadata.
+
 ## Gotchas
 - **GCS URIs**: The agent landing zone is always `gs://ai_agent_landing_zone/`. 
 - **KB Landing Zone**: The KB ingestion bucket is **`gs://ag-core-dev-fdx7-kb-landing-zone/`**. You MUST use this exact name for the `destination_bucket` to trigger the Service Account authentication switch.
@@ -156,6 +158,17 @@ Call `trigger_ekb_pipeline(gcs_uri='<destination_uri_returned_in_Step_3a>')` for
 | <file1.pdf> | <project_id> | <job_id> | <current job status> |
 | <file2.pdf> | <project_id> | <job_id> | <current job status> |
 
-All documents are being processed and will be available in the KB shortly.
 ```
+Include a brief summary like, how many files are being processed, and if any of them has succeded or failed.
+
 For a single file, use the original single-entry format instead of the table.
+
+### Retry Protocol
+
+When the user asks to retry a failed ingestion (e.g., "retry", "try again", "re-upload"):
+
+1. **Skip Steps 1 and 2 entirely** — file identity and metadata were already confirmed in the original attempt. Do NOT ask the user to re-confirm or re-provide any information.
+2. **Start directly at Step 3a**: Re-upload the affected file(s) to the KB landing zone using the same source URIs, destination bucket, filenames, and project paths from the previous attempt.
+3. **Proceed through Step 3b and Step 4** exactly as defined — stamp metadata and trigger the EKB pipeline — running all tool calls in parallel.
+4. Present the consolidated summary from Step 4 once all pipeline triggers respond.
+5. If the retry also fails, report the error clearly and ask the user how they would like to proceed.
