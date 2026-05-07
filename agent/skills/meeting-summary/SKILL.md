@@ -1,6 +1,6 @@
 ---
 name: meeting-summary
-description: create a meeting summary document from a transcript, notes, or meeting file using a fixed template and save the finished .docx to the user's drive. use when the user asks to summarize a meeting file, summarize a transcript from drive, create a meeting summary document, use a meeting-summary template, or save the summary into drive. this skill should be preferred over generic summarization whenever the request includes a meeting file, a named meeting, a template, or document creation.
+description: create a meeting summary document from a transcript, notes, or meeting file using a fixed template and save the finished .doc to the user's drive. use when the user asks to summarize a meeting file, summarize a transcript from drive, create a meeting summary document, use a meeting-summary template, or save the summary into drive. this skill should be preferred over generic summarization whenever the request includes a meeting file, a named meeting, a template, or document creation.
 ---
 
 ## Mandatory execution mode
@@ -20,7 +20,7 @@ Instead, execute the full workflow:
 1. identify the meeting
 2. retrieve source evidence
 3. extract the 8 required fields
-4. generate the .docx from the template
+4. generate the .doc from the template
 5. save the file to Drive
 6. return only the completion report
 
@@ -122,6 +122,8 @@ Populate the placeholders and preserve this section order:
 7. Date of the future session
 8. Documents that could be useful
 
+Save the document using `create_file` with `mime_type = "application/msword"` to produce a `.doc` file.
+
 ## Document generation rule
 
 After extracting the fields, populate the template document with those exact sections and save the document file.
@@ -214,7 +216,7 @@ Folder behavior:
 - If creation is blocked, save in the nearest user-approved equivalent and explicitly say so.
 
 Filename format:
-`YYYY-MM-DD - meeting-name - Summary.docx`
+`YYYY-MM-DD - meeting-name - Summary.doc`
 
 Filename normalization rules:
 - Use the meeting date from the source meeting. If unavailable, use `undated`.

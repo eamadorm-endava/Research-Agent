@@ -4,7 +4,7 @@ from google.adk.events.event import Event
 from google.genai import types
 from loguru import logger
 
-from ..config import AGENT_CONFIG
+from ..config import INGESTION_AGENT_CONFIG as AGENT_CONFIG
 from ..security import get_id_token
 from ..tools.kb_tools import PENDING_INGESTIONS_KEY
 

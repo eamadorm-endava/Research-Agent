@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent.core_agent.config import (
-    AgentConfig,
+    CoordinatorConfig,
     BigQueryMCPConfig,
     CalendarMCPConfig,
     DriveMCPConfig,
@@ -71,21 +71,21 @@ def test_gcs_mcp_config_default_scopes_include_identity():
 
 
 def test_agent_config_validation():
-    """Test that AgentConfig enforces data types and constraints."""
+    """Test that CoordinatorConfig enforces data types and constraints inherited from BaseAgentConfig."""
     with patch.dict(os.environ, clear=True):
-        config = AgentConfig()
+        config = CoordinatorConfig()
         assert config.TEMPERATURE == 0.3
 
     mock_env_invalid = {"TEMPERATURE": "1.5"}
     with patch.dict(os.environ, mock_env_invalid, clear=True):
         with pytest.raises(ValidationError) as exc_info:
-            AgentConfig()
+            CoordinatorConfig()
         assert "Input should be less than or equal to 1" in str(exc_info.value)
 
     mock_env_invalid_low = {"TEMPERATURE": "-0.5"}
     with patch.dict(os.environ, mock_env_invalid_low, clear=True):
         with pytest.raises(ValidationError) as exc_info:
-            AgentConfig()
+            CoordinatorConfig()
         assert "Input should be greater than or equal to 0" in str(exc_info.value)
 
 
