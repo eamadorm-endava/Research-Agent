@@ -7,7 +7,7 @@ from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifac
 from loguru import logger
 from vertexai.agent_engines import AdkApp
 
-from ..config import AgentConfig, GCPConfig
+from ..config import BaseAgentConfig, GCPConfig
 from ..plugins.ingestion.plugin import GeminiEnterpriseFileIngestionPlugin
 from ..artifact_management.service import StorageService
 
@@ -19,14 +19,14 @@ class AppBuilder:
         self,
         agent: BaseAgent,
         gcp_config: GCPConfig,
-        agent_config: AgentConfig,
+        agent_config: BaseAgentConfig,
     ) -> None:
         """Initializes the AppBuilder with required configurations and the root agent.
 
         Args:
             agent: BaseAgent -> The root ADK agent instance.
             gcp_config: GCPConfig -> Google Cloud Platform project settings.
-            agent_config: AgentConfig -> Core agent and application settings.
+            agent_config: BaseAgentConfig -> Core agent and application settings.
         """
         self.agent = agent
         self.gcp_config = gcp_config
