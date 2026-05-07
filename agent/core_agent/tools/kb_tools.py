@@ -14,6 +14,7 @@ from .kb_schemas import (
     CheckIngestionStatusResponse,
 )
 
+# Key for storing pending jobs in session state
 PENDING_INGESTIONS_KEY = "pending_ingestions"
 
 _CLIENT_LIMITS = httpx.Limits(max_keepalive_connections=50, max_connections=100)
