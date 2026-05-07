@@ -186,3 +186,4 @@ If you prefer direct command usage without `make`:
 ```bash
 uv run --group mcp_gcs python mcp_servers/gcs/scripts/mcp_smoke_test.py --endpoint http://localhost:8080/mcp --bucket mikes-bucket --prefix docs/ --bucket-prefix my- 
 ```
+ 

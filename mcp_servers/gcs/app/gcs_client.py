@@ -332,13 +332,19 @@ def build_gcs_credentials(
     )
 
 
-def build_sa_credentials(scopes: Optional[Sequence[str]] = None) -> Credentials:
+def build_sa_credentials() -> Credentials:
     """
     Builds credentials using Application Default Credentials (the Cloud Run SA).
+
+    Scopes are intentionally not specified: on Cloud Run the metadata server issues
+    a cloud-platform token by default, and passing explicit scopes would restrict it.
+    IAM roles on the SA govern what operations are permitted, not OAuth scopes.
+
+    Returns:
+        Credentials -> The ADC credentials for the ambient service account.
     """
-    scopes = list(scopes or GCS_API_CONFIG.read_write_scopes)
     try:
-        creds, _ = google.auth.default(scopes=scopes)
+        creds, _ = google.auth.default()
         logger.info("Using Application Default Credentials (SA).")
         return creds
     except Exception as e:

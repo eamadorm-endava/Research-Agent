@@ -450,7 +450,7 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
 def _make_gcs_manager(use_sa: bool = False) -> GCSManager:
     """Creates a GCS manager using either the delegated user token or the environment SA."""
     if use_sa:
-        creds = build_sa_credentials(scopes=GCS_API_CONFIG.read_write_scopes)
+        creds = build_sa_credentials()
     else:
         access_token = _get_current_token()
         creds = build_gcs_credentials(
