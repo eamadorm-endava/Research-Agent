@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from fastapi import FastAPI, HTTPException, Request
 from loguru import logger
@@ -9,7 +10,6 @@ from .schemas import (
     JobStatusResponse,
     JobStatus,
 )
-from .config import EKB_CONFIG
 from .jobs import JobService
 from .cloud_tasks.service import CloudTasksService
 from .cloud_tasks.schemas import TaskPayload
@@ -41,8 +41,8 @@ app = FastAPI(
 )
 
 job_service = JobService()
-ekb_pipeline = KBIngestionPipeline(EKB_CONFIG.PROJECT_ID)
 cloud_tasks_service = CloudTasksService()
+ekb_pipeline = KBIngestionPipeline()
 
 
 @app.post("/ingest", response_model=OrchestratorRunResponse)
@@ -63,11 +63,14 @@ async def ingest_document(
     logger.info(f"Received ingestion request for URI: {request.gcs_uri}")
     try:
         filename = request.filename
-        job_id = job_service.create_job(filename)
+        job_id = await asyncio.to_thread(job_service.create_job, filename)
 
         service_url = str(fastapi_req.base_url)
-        cloud_tasks_service.enqueue_ingestion_task(
-            job_id, request.model_dump(), service_url
+        await asyncio.to_thread(
+            cloud_tasks_service.enqueue_ingestion_task,
+            job_id,
+            request.model_dump(),
+            service_url,
         )
 
         return OrchestratorRunResponse(
@@ -106,14 +109,19 @@ async def get_status(job_id: str) -> JobStatusResponse:
 @app.post("/task-handler")
 async def handle_task(payload: TaskPayload) -> dict:
     """
-    Synchronous execution of the pipeline, triggered by Cloud Tasks.
-    This maintains an active HTTP connection so Cloud Run can scale horizontally
-    and allocate full CPU resources.
+    Executes the full pipeline for a single document, triggered by Cloud Tasks.
+    Holds the HTTP connection open until completion so Cloud Tasks can track success or failure.
+
+    Args:
+        payload: TaskPayload -> Contains the job_id and the original ingestion request.
+
+    Returns:
+        dict -> A status dict with key 'status' set to 'success' on completion.
     """
     with logger.contextualize(job_id=payload.job_id):
         logger.info(f"Received Cloud Task for job_id: {payload.job_id}")
         try:
-            result = ekb_pipeline.run(payload.request)
+            result = await asyncio.to_thread(ekb_pipeline.run, payload.request)
 
             # Extract metadata for status update
             metadata = {

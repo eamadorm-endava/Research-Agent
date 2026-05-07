@@ -59,6 +59,7 @@ module "ekb_pipeline_cloud_run" {
           cpu    = var.ekb_pipeline_cloud_run_cpu
           memory = var.ekb_pipeline_cloud_run_memory
         }
+        cpu_idle = false
       }
     }
   }
@@ -66,6 +67,7 @@ module "ekb_pipeline_cloud_run" {
   service_config = {
     timeout = "3600s"
     scaling = {
+      min_instance_count = 1
       max_instance_count = 100
     }
   }

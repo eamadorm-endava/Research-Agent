@@ -74,11 +74,11 @@ variable "ekb_pipeline_cloud_run_env" {
 variable "ekb_pipeline_cloud_run_cpu" {
   description = "The number of vCPUs to allocate to the Cloud Run container."
   type        = string
-  default     = "2"
+  default     = "8"
 }
 
 variable "ekb_pipeline_cloud_run_memory" {
   description = "The amount of memory to allocate to the Cloud Run container."
   type        = string
-  default     = "8Gi"
+  default     = "16Gi"
 }

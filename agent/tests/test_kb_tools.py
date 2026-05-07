@@ -207,6 +207,74 @@ class TestTriggerEKBPipelineTool:
         assert result["execution_status"] == "error"
         assert "Internal Error" in result["execution_message"]
 
+    @patch("agent.core_agent.tools.kb_tools.get_id_token")
+    @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
+    async def test_trigger_pipeline_handles_read_timeout(
+        self, mock_async_client_cls, mock_get_token
+    ):
+        """
+        Failure mode: Cloud Run cold-start causes a ReadTimeout.
+        The tool must return execution_status='error' rather than raising,
+        and the message must surface the timeout clearly.
+        """
+        mock_get_token.return_value = "mock-id-token"
+
+        client_mock = MagicMock()
+        client_mock.post = AsyncMock(side_effect=httpx.ReadTimeout(""))
+        async_ctx = MagicMock()
+        async_ctx.__aenter__ = AsyncMock(return_value=client_mock)
+        async_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_async_client_cls.return_value = async_ctx
+
+        tool = TriggerEKBPipelineTool()
+        ctx = MagicMock()
+
+        result = await tool.run_async(
+            args={"gcs_uri": "gs://kb-landing-zone/project/doc.pdf"},
+            tool_context=ctx,
+        )
+
+        assert result["execution_status"] == "error"
+        assert "ReadTimeout" in result["execution_message"]
+
+    @patch("agent.core_agent.tools.kb_tools.get_id_token")
+    @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
+    async def test_trigger_pipeline_timeout_is_at_least_120s(
+        self, mock_async_client_cls, mock_get_token
+    ):
+        """
+        Regression guard: the POST to the EKB pipeline must use a timeout of at
+        least 120 seconds to survive Cloud Run cold starts (which previously caused
+        failures at the 30-second default).
+        """
+        mock_get_token.return_value = "mock-id-token"
+
+        post_mock = AsyncMock(
+            return_value=_make_mock_response(200, {"job_id": "job-timeout-check"})
+        )
+        client_mock = MagicMock()
+        client_mock.post = post_mock
+        async_ctx = MagicMock()
+        async_ctx.__aenter__ = AsyncMock(return_value=client_mock)
+        async_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_async_client_cls.return_value = async_ctx
+
+        tool = TriggerEKBPipelineTool()
+        ctx = MagicMock()
+        ctx.state = {}
+
+        await tool.run_async(
+            args={"gcs_uri": "gs://kb-landing-zone/project/doc.pdf"},
+            tool_context=ctx,
+        )
+
+        _, call_kwargs = post_mock.call_args
+        actual_timeout = call_kwargs.get("timeout", 0)
+        assert actual_timeout >= 120.0, (
+            f"EKB pipeline POST timeout is {actual_timeout}s — must be ≥ 120s "
+            "to survive Cloud Run cold starts"
+        )
+
 
 # ---------------------------------------------------------------------------
 # CheckIngestionStatusTool

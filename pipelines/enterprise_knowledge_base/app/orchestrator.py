@@ -1,6 +1,7 @@
 import sys
 from loguru import logger
 
+from .config import EKB_CONFIG
 from .document_classification import ClassificationPipeline
 from .document_classification.config import CLASSIFICATION_CONFIG
 from .rag_ingestion import (
@@ -17,13 +18,9 @@ class KBIngestionPipeline:
     the sequential execution of security classification and semantic indexing.
     """
 
-    def __init__(self, project_id: str):
-        """Initializes the orchestrator with required sub-services.
-
-        Args:
-            project_id: str -> The GCP Project ID for all operations.
-        """
-        self.project_id = project_id
+    def __init__(self) -> None:
+        """Initializes the orchestrator with required sub-services."""
+        self.project_id = EKB_CONFIG.PROJECT_ID
         self.classification_pipeline = ClassificationPipeline()
         self.rag_pipeline = RAGIngestion()
 
@@ -75,16 +72,15 @@ class KBIngestionPipeline:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print(
-            "Usage: uv run python -m pipelines.enterprise_knowledge_base.app.orchestrator <project_id> <gcs_uri>"
+            "Usage: uv run python -m pipelines.enterprise_knowledge_base.app.orchestrator <gcs_uri>"
         )
         sys.exit(1)
 
-    proj_id = sys.argv[1]
-    input_uri = sys.argv[2]
+    input_uri = sys.argv[1]
 
-    pipeline = KBIngestionPipeline(proj_id)
+    pipeline = KBIngestionPipeline()
     run_req = OrchestratorRunRequest(gcs_uri=input_uri)
     response = pipeline.run(run_req)
     print(response.model_dump_json(indent=2))

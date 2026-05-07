@@ -17,7 +17,7 @@ def test_orchestrator_run_returns_pipeline_result():
         ),
         patch("pipelines.enterprise_knowledge_base.app.orchestrator.RAGIngestion"),
     ):
-        pipeline = KBIngestionPipeline("test-project")
+        pipeline = KBIngestionPipeline()
 
         # Mock internal pipeline responses
         mock_class_resp = MagicMock()

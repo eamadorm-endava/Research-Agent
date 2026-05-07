@@ -19,11 +19,12 @@ or similar requests.
 ## Progress Tracker
 Maintain this state throughout the interaction:
 - [ ] Step 1: Identify and validate all uploaded PDF files
-- [ ] Step 2a: Collect shared metadata (single message for all files)
-- [ ] Step 2b: Semantic project validation + deduplication check (per file)
+- [ ] Step 2a: Metadata collection — auto-fill from context if available, otherwise ask in one message
+- [ ] Step 2b: Semantic project validation + deduplication check (per file, run in parallel)
 - [ ] Step 2c: Present confirmation table → handle per-file overrides → await explicit user confirmation
-- [ ] Step 3: Relocate and stamp metadata (parallel — all files simultaneously)
-- [ ] Step 4: Trigger EKB pipeline (parallel — all files simultaneously) + consolidated final summary
+- [ ] Step 3a: Upload files to KB landing zone (all files in parallel)
+- [ ] Step 3b: Stamp metadata on uploaded files (all files in parallel, after 3a completes)
+- [ ] Step 4: Trigger EKB pipeline (all files in parallel) + consolidated final summary
 
 ## Gotchas
 - **GCS URIs**: The agent landing zone is always `gs://ai_agent_landing_zone/`. 
@@ -31,6 +32,7 @@ Maintain this state throughout the interaction:
 - **Project IDs**: In BigQuery, `project_id` is case-sensitive in some operations but should be checked case-insensitively for duplicates.
 - **Job IDs**: Always return the `job_id` from the pipeline response to the user as a confirmation.
 - **Proactive Notifications**: The agent core automatically checks pending `job_id`s before every response. You do not need to poll manually; a system update will appear in your history once the job is finished.
+- **Parallelism**: Steps 3a, 3b, and 4 each launch ALL their tool calls at the same time. Never loop one-by-one.
 
 ## Mandatory Workflow
 
@@ -45,7 +47,22 @@ Maintain this state throughout the interaction:
 
 #### 2a — Metadata Collection
 
-**Single file**: Ask for all metadata in one message immediately after Step 1:
+**Auto-fill from context (applies to both single and batch):**
+
+Before asking the user for metadata, check whether you already have project context in the current conversation (e.g., the user mentioned a project name, you retrieved project records earlier, or there is a confirmed `project_id` in the session). If you have enough context to propose values for any of the four metadata fields (Project, Domain, Trust-level, PII Status), pre-fill them and ask the user to confirm rather than asking from scratch:
+
+> "Based on our conversation, I have pre-filled the following metadata. Please confirm or correct any values before I proceed:
+> - **Files**: `<file1.pdf>`, `<file2.pdf>`, …
+> - **Project**: `<inferred_project>` ← *inferred from context*
+> - **Domain**: `<inferred_domain>` ← *inferred from context* (or blank if unknown)
+> - **Trust-level**: `<inferred_trust_level>` ← *inferred from context* (or blank if unknown)
+> - **PII Status**: `<inferred_pii_status>` ← *inferred from context* (or blank if unknown)
+>
+> Is everything correct? If anything needs to change, let me know before I continue."
+
+Only ask the full question below when no context is available.
+
+**No context — Single file**: Ask for all metadata in one message immediately after Step 1:
 
 > "Before publishing the file to the EKB, please provide me the following information:
 > - **Project the file belongs to**:
@@ -53,7 +70,7 @@ Maintain this state throughout the interaction:
 > - **Trust-level**: (`Published` — verified & ready for company-wide use | `WIP` — draft still being refined | `Archived` — historical reference, no longer active)
 > - **PII Status**: Does this document contain any Personally Identifiable Information (names, emails, IDs)?"
 
-**Multiple files (Batch Mode)**: List all detected filenames, then ask for shared metadata in one message:
+**No context — Multiple files (Batch Mode)**: List all detected filenames, then ask for shared metadata in one message:
 
 > "Before publishing those files to the EKB, please provide me the following information:
 > - **Files detected**: `<file1.pdf>`, `<file2.pdf>`, … *(list all)*
@@ -62,9 +79,9 @@ Maintain this state throughout the interaction:
 > - **Trust-level**: (`Published` | `WIP` | `Archived`)
 > - **PII Status**: Do any of these documents contain Personally Identifiable Information (names, emails, IDs)?"
 
-#### 2b — Validation (run for every file)
+#### 2b — Validation (run all checks in parallel for every file simultaneously)
 
-Once the user provides the information, perform the following in sequence:
+Once the user confirms or provides metadata, launch the following for **all files at the same time**:
 
 1.  **Semantic Project Validation**: Use `ekb_semantic_search(query='<user_input_project_name>')`.
     - If a high-confidence match exists, proceed with that `project_id`.
@@ -97,34 +114,48 @@ Or *(multiple files)*:
 - If the user specifies per-file overrides, update the plan for those files, re-display the corrected table, and ask for final confirmation before continuing.
 - Do NOT proceed to Step 3 until the user explicitly confirms.
 
-### Step 3: Relocation & Stamping *(execute in parallel for all files in the confirmed batch)*
-1.  **Move File**: Use `upload_object` (from GCS MCP) to copy the file using these parameters:
-    - `source_gcs_uri`: The URI identified in Step 1 for this file.
-    - `destination_bucket`: "ag-core-dev-fdx7-kb-landing-zone"
-    - `filename`: The confirmed filename.
-    - `path_inside_bucket`: The confirmed `<project_id>` for this file.
-    - **Note**: The relocation process automatically preserves the source metadata.
-2.  **Stamp Metadata**: Use `update_object_metadata` (GCS) to attach the confirmed metadata for this file. This will be **merged** with existing metadata:
-    ```json
-    {
-      "project": "<project>",
-      "domain": "<domain>",
-      "trust-level": "<trust_level>",
-      "pii_status": "<status>"
-    }
-    ```
+### Step 3a: Upload Files *(all files launched in parallel simultaneously)*
 
-### Step 4: Trigger Pipeline *(execute in parallel for all files in the confirmed batch)*
-1.  Call `trigger_ekb_pipeline(gcs_uri='<destination_uri_returned_in_Step_3>')` for each file simultaneously.
-    - **Note**: This MUST be exactly the same URI returned by the `upload_object` tool for that file.
-2.  **Final Confirmation**: After all files have been processed, provide a single consolidated summary:
-    ```markdown
-    ### Ingestion Started
-    | File | Project | Job ID | Status |
-    |:---:|:---:|:---:|:---:|
-    | <file1.pdf> | <project_id> | <job_id> | <current job status> |
-    | <file2.pdf> | <project_id> | <job_id> | <current job status> |
+Call `upload_object` for **every file at the same time** — do not wait for one to finish before starting the next:
 
-    All documents are being processed and will be available in the KB shortly.
-    ```
-    For a single file, use the original single-entry format instead of the table.
+For each file use:
+- `source_gcs_uri`: The URI identified in Step 1 for this file.
+- `destination_bucket`: "ag-core-dev-fdx7-kb-landing-zone"
+- `filename`: The confirmed filename.
+- `path_inside_bucket`: The confirmed `<project_id>` for this file.
+
+Wait for **all** uploads to complete before proceeding to Step 3b.
+
+### Step 3b: Stamp Metadata *(all files launched in parallel simultaneously)*
+
+Once all uploads from Step 3a have finished, call `update_object_metadata` for **every file at the same time**:
+
+```json
+{
+  "project": "<project>",
+  "domain": "<domain>",
+  "trust-level": "<trust_level>",
+  "pii_status": "<status>"
+}
+```
+
+Wait for **all** metadata stamps to complete before proceeding to Step 4.
+
+### Step 4: Trigger Pipeline *(all files launched in parallel simultaneously)*
+
+Call `trigger_ekb_pipeline(gcs_uri='<destination_uri_returned_in_Step_3a>')` for **every file at the same time** — do not wait for one to finish before starting the next.
+
+- **Note**: The `gcs_uri` MUST be exactly the URI returned by the `upload_object` tool in Step 3a for that file.
+
+**Final Confirmation**: After all pipeline triggers have responded, provide a single consolidated summary:
+
+```markdown
+### Ingestion Started
+| File | Project | Job ID | Status |
+|:---:|:---:|:---:|:---:|
+| <file1.pdf> | <project_id> | <job_id> | <current job status> |
+| <file2.pdf> | <project_id> | <job_id> | <current job status> |
+
+All documents are being processed and will be available in the KB shortly.
+```
+For a single file, use the original single-entry format instead of the table.
