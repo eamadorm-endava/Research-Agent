@@ -228,7 +228,14 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
         f"Tool call: read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
-        gcs_manager = _make_gcs_manager()
+        use_sa = (
+            request.bucket_name.lower() == GCS_SERVER_CONFIG.kb_ingestion_bucket.lower()
+        )
+        if use_sa:
+            logger.info(
+                f"Using Service Account for read_object on restricted bucket {request.bucket_name}"
+            )
+        gcs_manager = _make_gcs_manager(use_sa=use_sa)
         blob = await asyncio.to_thread(
             gcs_manager.get_object_metadata,
             request.bucket_name,
