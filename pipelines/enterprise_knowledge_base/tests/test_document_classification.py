@@ -269,7 +269,7 @@ def test_run_orchestrates_full_pipeline_successfully(
     assert result.final_domain == "it"
     assert result.final_security_tier == 1
     # Should return original destination URI because no masking occurred
-    assert result.final_sanitized_uri == "gs://kb-it/p1/public/u1/doc.pdf"
+    assert result.final_sanitized_uri == "gs://kb-it/p1/public/u1@e.com/doc.pdf"
 
     # Verify sequence
     mock_gcs.get_blob_metadata.assert_called()
@@ -297,7 +297,7 @@ def test_file_routing_grants_iam_binding_on_uploader_folder(pipeline, mock_gcs):
     pipeline.file_routing(request)
 
     mock_gcs.grant_iam_conditional_binding.assert_called_once_with(
-        "kb-it", "proj/public/user/", "user@example.com"
+        "kb-it", "proj/public/user@example.com/", "user@example.com"
     )
 
 
@@ -319,7 +319,7 @@ def test_file_routing_grants_iam_binding_once_even_with_sanitized(pipeline, mock
     pipeline.file_routing(request)
 
     mock_gcs.grant_iam_conditional_binding.assert_called_once_with(
-        "kb-hr", "proj/strictly-confidential/admin/", "admin@hr.com"
+        "kb-hr", "proj/strictly-confidential/admin@hr.com/", "admin@hr.com"
     )
 
 
@@ -406,5 +406,5 @@ def test_run_returns_masked_uri_when_sanitized(
     # Should return the final destination of the MASKED file
     assert (
         result.final_sanitized_uri
-        == "gs://kb-executives/top-secret/strictly-confidential/admin/secret_masked.txt"
+        == "gs://kb-executives/top-secret/strictly-confidential/admin@gov.com/secret_masked.txt"
     )
