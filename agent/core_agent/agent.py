@@ -71,12 +71,13 @@ ingestion_agent = (
     .with_native_tools(
         [
             GetArtifactUriTool(),
+            ImportGcsToArtifactTool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
             load_artifacts,
         ]
     )
-    .build(enable_artifact_rendering=False)
+    .build(enable_artifact_rendering=True)
 )
 
 # ---------------------------------------------------------------------------
