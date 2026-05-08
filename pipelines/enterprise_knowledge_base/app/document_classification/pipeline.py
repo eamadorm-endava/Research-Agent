@@ -288,9 +288,8 @@ class ClassificationPipeline:
             request.final_security_tier, "unknown"
         )
         filename = request.original_landing_uri.split("/")[-1]
-        uploader_prefix = request.uploader_email.split("@")[0]
 
-        dest_base = f"gs://kb-{request.final_domain}/{request.project_name}/{tier_label}/{uploader_prefix}/"
+        dest_base = f"gs://kb-{request.final_domain}/{request.project_name}/{tier_label}/{request.uploader_email}/"
         final_original_uri = f"{dest_base}{filename}"
 
         # 1. Copy Original
@@ -299,10 +298,18 @@ class ClassificationPipeline:
         # Grant uploader Storage Object Admin on their entire folder in the domain bucket.
         # One folder-level IAM condition covers both the original and any sanitized copy,
         # since both land under the same dest_base prefix.
-        folder_prefix = f"{request.project_name}/{tier_label}/{uploader_prefix}/"
-        self.gcs.grant_iam_conditional_binding(
-            f"kb-{request.final_domain}", folder_prefix, request.uploader_email
-        )
+        # Skip grant when uploader identity is unavailable — "unknown" is not a valid IAM principal.
+        if request.uploader_email != "unknown":
+            folder_prefix = (
+                f"{request.project_name}/{tier_label}/{request.uploader_email}/"
+            )
+            self.gcs.grant_iam_conditional_binding(
+                f"kb-{request.final_domain}", folder_prefix, request.uploader_email
+            )
+        else:
+            logger.warning(
+                "Skipping IAM grant: uploader email not set in blob metadata."
+            )
 
         # 2. Copy Masked (if exists)
         final_sanitized_uri = None
