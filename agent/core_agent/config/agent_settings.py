@@ -302,6 +302,7 @@ class ResearchAgentConfig(BaseAgentConfig):
             Minimum: when both company and project keywords exist, at least 6 calls must be launched. Do NOT read file contents in this wave.
             From every result, capture and store in the candidate pool: `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by`. The `file_id` is the only accepted identifier for `get_file_text`.
             **Inline triage** (after all Wave 1 results arrive): classify each file as High (filename contains a project, company, or technology term), Medium (plausibly related), or Low (unrelated — deprioritize).
+            **Folder Expansion** (run in parallel immediately after inline triage): For any result where `mime_type = "application/vnd.google-apps.folder"`, launch a `list_files(folder_name=<file_name>)` call to list its contents. Run all expansion calls simultaneously. Add the returned files to the candidate pool and apply the same High/Medium/Low triage. Never add the folder itself to the candidate pool for Stage 4 file reading — only the files found inside it.
 
             **Wave 2 — Relational Refinement (parallel):**
             Using the relationship map from Stage 0 and Wave 1 triage results, search for gaps:
@@ -309,6 +310,7 @@ class ResearchAgentConfig(BaseAgentConfig):
             - Use remaining decomposed keywords from Stage 1 not consumed in Wave 1.
             - Extract any new candidate terms surfaced by Wave 1 filenames (aliases, codes, short names).
             Launch up to 3 additional `list_files` calls simultaneously. Capture `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by` and merge into the triage pool with High/Medium/Low classification.
+            **Folder Expansion** (run in parallel immediately after Wave 2 triage): Apply the same rule as Wave 1 — for any folder result (`mime_type = "application/vnd.google-apps.folder"`), call `list_files(folder_name=<file_name>)` to expand its contents, triage the returned files, and add them to the candidate pool. Never add folders themselves to the candidate pool.
 
             **Stage 4 — Prioritized File Reading (max 5 per turn):**
             Sort the candidate pool: High first, then Medium. Never read Low-classified files unless the pool is exhausted.
@@ -372,6 +374,13 @@ class ResearchAgentConfig(BaseAgentConfig):
 
             Separate each event block with a horizontal rule (`---`). Never expose raw event IDs, GCS URIs, or internal identifiers in the display.
 
+            ### BIGQUERY QUERY PROTOCOL
+            This protocol applies every time you are about to call `execute_query`, regardless of context.
+            1. **Discover tables** (skip if already done this session for the same dataset): Call `list_tables` to confirm which tables exist inside the target dataset.
+            2. **Fetch and cache schema** (skip if already fetched this session for the same table): Call `get_table_schema` for each table you intend to query. Store the returned field names and types in working memory — do **not** call `get_table_schema` again for the same table later in the same session.
+            3. **Construct the query**: Build the SQL using only column names confirmed in step 2. Never guess column names.
+            4. **Execute**: Call `execute_query` with the validated query.
+
             ### GCS FILE READING RULE
             Storing a `gcs_uri` reference found in metadata is always fine. This rule applies only when the agent actively decides to read a file's full content from GCS. In that case, ALWAYS load it via `import_gcs_to_artifact` followed by `load_artifacts` to read it as a multimodal artifact. NEVER download raw bytes or extract text directly from GCS.
             """,
@@ -411,6 +420,13 @@ class IngestionAgentConfig(BaseAgentConfig):
             1. When asked to ingest a file, use the appropriate tools to trigger the EKB ingestion pipeline.
             2. When asked to check ingestion status, poll the status using the provided tools.
             3. Report the result back concisely to the Coordinator.
+
+            ### BIGQUERY QUERY PROTOCOL
+            If you ever need to query BigQuery directly (e.g., to inspect a status table), apply this protocol before calling `execute_query`:
+            1. **Discover tables** (skip if already done this session for the same dataset): Call `list_tables`.
+            2. **Fetch and cache schema** (skip if already done this session for the same table): Call `get_table_schema`. Never re-fetch for the same table in the same session.
+            3. **Construct the query**: Use only column names confirmed in step 2. Never guess column names.
+            4. **Execute**: Call `execute_query`.
             """,
             description="Agent's System Prompt",
         ),
