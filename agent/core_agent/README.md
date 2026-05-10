@@ -9,12 +9,13 @@ The agent is an [**LLM Agent**](../../docs/ADK/ADK-01-Intro.md#llm-agents-llmage
 ```
 core_agent/
 ├── __init__.py          # Package entry point, exports the agent module
-├── agent.py             # Application entry point, wires config → builders → app
+├── agent.py             # Application entry point, wires config → builders → agents → app
 ├── .env                 # Environment variables (Vertex AI, MCP URLs, OAuth)
 │
 ├── config/              # Centralized Pydantic Settings (classes + singletons)
 │   ├── __init__.py      # Re-exports classes and UPPER_CASE singleton instances
-│   ├── agent_settings.py    # GCPConfig, AgentConfig, GoogleAuthConfig
+│   ├── agent_settings.py    # GCPConfig, BaseAgentConfig, CoordinatorConfig,
+│   │                        # ResearchAgentConfig, IngestionAgentConfig, GoogleAuthConfig
 │   └── mcp_settings.py     # BaseMCPConfig + per-service subclasses
 │
 ├── builder/             # Builder pattern for agent and app construction
@@ -22,7 +23,7 @@ core_agent/
 │   ├── agent_builder.py     # Fluent AgentBuilder orchestrator
 │   ├── app_builder.py       # Orchestrates AdkApp vs. standard App construction
 │   ├── mcp_factory.py       # MCPToolsetBuilder (auth + connection setup)
-│   └── skills_factory.py    # get_skill_toolset (ADK Skill loader)
+│   └── skills_factory.py    # get_skill (ADK Skill loader)
 │
 ├── artifact_management/ # Infrastructure: GCS persistence and IAM security
 │   ├── __init__.py      
@@ -31,11 +32,15 @@ core_agent/
 │
 ├── tools/               # Agent Capabilities: Standalone tool definitions
 │   ├── __init__.py      
-│   └── artifact_tools.py # Tools for GCS URI discovery and ingestion
+│   ├── artifact_tools.py    # GetArtifactUriTool, ImportGcsToArtifactTool
+│   ├── kb_schemas.py        # Pydantic schemas for EKB pipeline tools
+│   ├── kb_tools.py          # TriggerEKBPipelineTool, CheckIngestionStatusTool
+│   └── time_tools.py        # GetCurrentTimeTool (Central Time)
 │
 ├── callbacks/           # Lifecycle Hooks: Post-turn renderers and interceptors
 │   ├── __init__.py      
-│   └── artifact_rendering.py # Unified GCS/Local renderer
+│   ├── artifact_rendering.py    # after_agent_callback: renders queued artifacts
+│   └── ingestion_status.py     # before_agent_callback: polls EKB jobs, injects updates
 │
 ├── plugins/             # Integrated Behaviors: Message interceptors
 │   ├── __init__.py      
@@ -50,7 +55,7 @@ core_agent/
 
 The package is organized into dedicated domains, each with a single responsibility:
 
-- **`config/`** — Centralized configuration management. Contains Pydantic `BaseSettings` classes that validate environment variables at import time. Exposes both the **classes** (for type hints and testing) and **singleton instances** (for runtime usage), so consumers never need to call `os.getenv()` directly.
+- **`config/`** — Centralized configuration management. Contains Pydantic `BaseSettings` classes that validate environment variables at import time: `GCPConfig` (project/region/bucket), `BaseAgentConfig` (model, generation, retry settings), and three per-agent subclasses — `CoordinatorConfig`, `ResearchAgentConfig`, and `IngestionAgentConfig` — each carrying the agent's name, description, and system prompt. Exposes both the **classes** (for type hints and testing) and **singleton instances** (for runtime usage), so consumers never need to call `os.getenv()` directly.
 
 - **`artifact_management/`** — The infrastructure layer. Contains the `StorageService`, which handles low-level GCS operations, MIME type resolution, and identity-aware IAM binding conditions. It is optimized for Gemini Enterprise by using `file_data` URI references instead of binary payloads.
 
@@ -72,36 +77,58 @@ The following sequence diagram shows the data flow between components during age
 
 ```mermaid
 sequenceDiagram
-    agent.py->>AgentBuilder: AgentConfig, GCPConfig, GoogleAuthConfig
-    AgentBuilder->>MCPToolsetBuilder: GoogleAuthConfig
-    agent.py->>AgentBuilder: skill names list
-    AgentBuilder->>get_skill_toolset: skill name
-    get_skill_toolset-->>AgentBuilder: SkillToolset
-    agent.py->>AgentBuilder: MCP configs list
-    AgentBuilder->>MCPToolsetBuilder: BaseMCPConfig, prod_execution
-    MCPToolsetBuilder->>security: audience URL
-    security-->>MCPToolsetBuilder: ID token
-    MCPToolsetBuilder->>security: ReadonlyContext, auth_id
-    security-->>MCPToolsetBuilder: OAuth token
-    MCPToolsetBuilder-->>AgentBuilder: McpToolset
-    agent.py->>AgentBuilder: .build()
-    AgentBuilder-->>agent.py: Agent
-    agent.py->>AppBuilder: Agent, AgentConfig, GCPConfig
-    agent.py->>AppBuilder: .build()
-    AppBuilder-->>agent.py: AdkApp / App
+    participant ap as agent.py
+    participant rb as AgentBuilder (research)
+    participant ib as AgentBuilder (ingestion)
+    participant cb as AgentBuilder (coordinator)
+    participant mcp as MCPToolsetBuilder
+    participant sec as security
+    participant sf as get_skill
+    participant ab as AppBuilder
+
+    Note over ap,ab: ── 1. Research Specialist ──
+    ap->>rb: ResearchAgentConfig, GCPConfig, GoogleAuthConfig
+    rb->>mcp: GoogleAuthConfig
+    ap->>rb: .with_skills(["meeting-summary","knowledge-discovery"])
+    rb->>sf: skill name ×2
+    sf-->>rb: SkillToolset ×2
+    ap->>rb: .with_mcp_servers([BQ, Drive, Calendar, GCS])
+    rb->>mcp: BaseMCPConfig, prod_execution ×4
+    mcp->>sec: audience URL / ReadonlyContext
+    sec-->>mcp: ID token / OAuth token
+    mcp-->>rb: McpToolset ×4
+    ap->>rb: .with_native_tools([GetArtifactUri, ImportGcs, GetCurrentTime, load_artifacts])
+    ap->>rb: .with_output_key("research_context")
+    rb-->>ap: research_agent
+
+    Note over ap,ab: ── 2. Ingestion Specialist ──
+    ap->>ib: IngestionAgentConfig, GCPConfig, GoogleAuthConfig
+    ap->>ib: .with_skills(["kb-file-ingestion"])
+    ap->>ib: .with_mcp_servers([BQ, GCS])
+    ap->>ib: .with_native_tools([GetArtifactUri, ImportGcs, TriggerEKB, CheckStatus, load_artifacts])
+    ib-->>ap: ingestion_agent
+
+    Note over ap,ab: ── 3. Coordinator (root_agent) ──
+    ap->>cb: CoordinatorConfig, GCPConfig, GoogleAuthConfig
+    ap->>cb: .with_subagents([research_agent, ingestion_agent])
+    ap->>cb: .with_before_agent_callback(sync_ingestion_status)
+    ap->>cb: .with_native_tools([GetArtifactUri, load_artifacts])
+    cb-->>ap: root_agent
+
+    Note over ap,ab: ── 4. App wrapping ──
+    ap->>ab: root_agent, CoordinatorConfig, GCPConfig
+    ab-->>ap: AdkApp / App
 ```
 
 ### Reading the Diagram
 
-1. **Initialization** — `agent.py` creates an `AgentBuilder` by passing the three configuration singletons. The builder internally instantiates an `MCPToolsetBuilder` with the auth config it needs.
+1. **Research Specialist** — Built first. Receives `ResearchAgentConfig`, loads two skills (`meeting-summary`, `knowledge-discovery`), mounts all four MCP servers (BigQuery, Drive, Calendar, GCS), and registers native tools including `GetCurrentTimeTool` for time-anchored calendar queries. Its final text response is persisted to session state under `"research_context"` via `output_key`.
 
-2. **Skill registration** — When `agent.py` calls `.with_skills(...)`, the builder delegates each skill name to `get_skill_toolset`, which loads the skill from disk and returns a `SkillToolset`.
+2. **Ingestion Specialist** — Built second. Receives `IngestionAgentConfig`, loads the `kb-file-ingestion` skill, mounts BigQuery and GCS MCP servers, and registers the EKB pipeline tools (`TriggerEKBPipelineTool`, `CheckIngestionStatusTool`). The `build(enable_artifact_rendering=True)` call registers `render_pending_artifacts` as its `after_agent_callback`.
 
-3. **MCP registration** — When `agent.py` calls `.with_mcp_servers(...)`, the builder passes each MCP config to `MCPToolsetBuilder.build()`. The MCP builder uses the `security` module to obtain an ID token (for Cloud Run access) and an OAuth token (for delegated user data), then returns a fully configured `McpToolset`.
+3. **Coordinator** — Built last from `CoordinatorConfig`. Receives the two already-constructed specialists as `sub_agents` for LLM-transfer delegation. The `sync_ingestion_status` function is registered as a `before_agent_callback`, so it polls pending EKB jobs and injects status updates into session history before every turn.
 
-4. **Agent assembly** — `agent.py` calls `AgentBuilder.build()`, which assembles the `Agent` with the accumulated tools and settings.
-
-5. **Application wrapping** — Finally, `agent.py` passes the constructed `Agent` to the `AppBuilder`. Calling `.build()` on the app builder produces the final `AdkApp` (for production) or `App` (for local), pre-configured with the necessary plugins and artifact storage settings.
+4. **Application wrapping** — `AppBuilder.build()` wraps `root_agent` in an `AdkApp` (production) or `App` (local), pre-configured with the `GeminiEnterpriseFileIngestionPlugin` and `StorageService` artifact backend.
 
 ## Benefits of This Architecture
 
@@ -167,7 +194,9 @@ The agent connects to backend services via **MCP servers** and exposes **ADK Ski
 - **Google Cloud Storage (GCS)**: Search and read unstructured files from buckets
 
 ### ADK Skills
-- **meeting-summary**: Summarizes meeting notes and action items
+- **meeting-summary** (Research Specialist): Generates structured meeting summary documents from transcripts or notes and saves them to Drive.
+- **knowledge-discovery** (Research Specialist): Expert protocol for high-fidelity retrieval across EKB, BigQuery, Drive, Calendar, and GCS using contextual anchoring and parallel discovery.
+- **kb-file-ingestion** (Ingestion Specialist): Orchestrates the upload, classification, metadata tagging, and pipeline triggering for documents entering the Enterprise Knowledge Base.
 
 > **Authentication Model**: Drive, BigQuery, Calendar, and GCS share a delegated Google OAuth token so MCP servers act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.
 
@@ -185,8 +214,15 @@ GOOGLE_CLOUD_LOCATION=us-central1
 PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
 REGION=${GOOGLE_CLOUD_LOCATION}
 
+# ─── Execution Mode ───
+PROD_EXECUTION=False          # Set to True in production (enables GE-managed OAuth)
+ARTIFACT_BUCKET=your-artifact-bucket-name
+
 # ─── Agent Config ───
-MODEL_ARMOR_TEMPLATE_ID=your-model-armor-template-id
+MODEL_ARMOR_TEMPLATE_ID=your-model-armor-template-id   # Omit to disable Model Armor
+
+# ─── EKB Pipeline ───
+EKB_PIPELINE_URL=https://ekb-pipeline-xxxxx-uc.a.run.app
 
 # ─── Gemini Enterprise Delegated OAuth ───
 GEMINI_GOOGLE_AUTH_ID=shared-oauth-resource-id
