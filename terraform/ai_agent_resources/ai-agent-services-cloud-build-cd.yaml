@@ -1,6 +1,6 @@
 substitutions:
   _REGION: "us-central1"
-  _AGENT_DISPLAY_NAME: "Research Agent"
+  _AGENT_DISPLAY_NAME: "OSIRIS"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
   _BIGQUERY_URL: "https://bigquery-mcp-server-1035423789253.us-central1.run.app"
@@ -10,7 +10,7 @@ substitutions:
   _EKB_PIPELINE_URL: "https://ekb-pipeline-1035423789253.us-central1.run.app"
   _GE_APP_ID: "gemini-enterprise-17762829_1776282953068"
   _GE_REGION: "global"
-  _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar. It provides unified research and manages EKB document ingestion."
+  _GE_AGENT_DESCRIPTION: "OSIRIS (Organizational Search, Information Retrieval, and Intelligence System): A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar, and managing EKB document ingestion."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
 
 steps:

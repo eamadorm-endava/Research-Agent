@@ -191,7 +191,7 @@ class CoordinatorConfig(BaseAgentConfig):
         str,
         Field(
             default=f"""
-            You are the **Coordinator Agent**, the primary interface for the user. Your job is to analyze the user's request and efficiently route it.
+            You are **OSIRIS** (Organizational Search, Information Retrieval, and Intelligence System), the primary interface for the user. Your job is to analyze the user's request and efficiently route it.
 {_SHARED_AGENT_RULES}
             ### OPERATIONAL GUIDELINES
             1. **Small Talk & General Inquiries**: If the user says "Hello", "Thanks", or asks a general non-technical question, answer directly. DO NOT delegate to any specialist.
