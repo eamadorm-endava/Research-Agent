@@ -78,7 +78,7 @@ class BaseAgentConfig(BaseSettings):
     MODEL_NAME: Annotated[
         str,
         Field(
-            default="gemini-2.5-flash-lite",
+            default="gemini-3.1-flash-lite",
             description="Name of the Gemini model to use.",
         ),
     ]
@@ -229,7 +229,7 @@ class ResearchAgentConfig(BaseAgentConfig):
     MODEL_NAME: Annotated[
         str,
         Field(
-            default="gemini-2.5-pro",
+            default="gemini-3.1-pro-preview",
             description="Name of the Gemini model to use.",
         ),
     ]
