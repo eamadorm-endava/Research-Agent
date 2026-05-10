@@ -7,6 +7,7 @@ shift
 # Default values
 GE_LOCATION="global"
 GE_AGENT_DESCRIPTION="Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
+ICON_URI="https://yt3.googleusercontent.com/lufyX7Ule20Ss0fpVdiFbRn8LfdUlKK2SpG2vHbRw2xQRlpG0egcgnepZvmD26wwdETKad4VcaA=s900-c-k-c0x00ffffff-no-rj"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
@@ -22,6 +23,7 @@ while [[ "$#" -gt 0 ]]; do
         --agent-engine-agent-id) AGENT_ENGINE_AGENT_ID="$2"; shift ;;
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
         --agent-description) GE_AGENT_DESCRIPTION="$2"; shift ;;
+        --icon-uri) ICON_URI="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -153,10 +155,14 @@ case "$COMMAND" in
             --arg displayName "$AGENT_DISPLAY_NAME" \
             --arg adkResourceId "$REASONING_ENGINE_PATH" \
             --arg description "$GE_AGENT_DESCRIPTION" \
+            --arg iconUri "$ICON_URI" \
             --argjson authIds "$AUTH_ARRAY_JSON" \
             '{
               "displayName": $displayName,
               "description": $description,
+              "icon": {
+                "uri": $iconUri
+              },
               "adk_agent_definition": {
                 "provisioned_reasoning_engine": {
                   "reasoning_engine": $adkResourceId
@@ -178,6 +184,7 @@ case "$COMMAND" in
     
     *)
         echo "Usage: $0 {delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
+        echo "  register-agent flags: --project --app-id --agent-display-name --agent-engine-agent-id --auth-ids --agent-engine-location [--agent-description] [--icon-uri] [--ge-location]"
         exit 1
         ;;
 esac
