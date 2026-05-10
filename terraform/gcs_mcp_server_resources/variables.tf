@@ -64,6 +64,24 @@ variable "mcp_server_cloud_run_env" {
   default     = {}
 }
 
+variable "mcp_server_cloud_run_min_instances" {
+  description = "The minimum number of instances to keep running for the Cloud Run service."
+  type        = number
+  default     = 0
+}
+
+variable "mcp_server_cloud_run_cpu" {
+  description = "The number of vCPUs to allocate to the Cloud Run container."
+  type        = string
+  default     = "1"
+}
+
+variable "mcp_server_cloud_run_memory" {
+  description = "The amount of memory to allocate to the Cloud Run container."
+  type        = string
+  default     = "512Mi"
+}
+
 variable "landing_zone_bucket" {
   description = "The name of the GCS bucket used as the landing zone for user uploads."
   type        = string
