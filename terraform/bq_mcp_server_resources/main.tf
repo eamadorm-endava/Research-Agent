@@ -51,6 +51,12 @@ module "mcp_server_cloud_run" {
     mcp-server = {
       image = "${local.cloud_run_image}:${var.mcp_server_cloud_run_image_tag}"
       env   = var.mcp_server_cloud_run_env
+      resources = {
+        limits = {
+          cpu    = var.mcp_server_cloud_run_cpu
+          memory = var.mcp_server_cloud_run_memory
+        }
+      }
     }
   }
 
@@ -63,7 +69,7 @@ module "mcp_server_cloud_run" {
 
   service_config = {
     scaling = {
-      min_instance_count = 1
+      min_instance_count = var.mcp_server_cloud_run_min_instances
     }
   }
 
