@@ -10,7 +10,7 @@ substitutions:
   _EKB_PIPELINE_URL: "https://ekb-pipeline-1035423789253.us-central1.run.app"
   _GE_APP_ID: "gemini-enterprise-17762829_1776282953068"
   _GE_REGION: "global"
-  _GE_AGENT_DESCRIPTION: "Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
+  _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar. It provides unified research and manages EKB document ingestion."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
 
 steps:
