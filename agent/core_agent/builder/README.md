@@ -21,12 +21,13 @@ The central entry point for agent construction. It accepts configuration objects
 ```python
 root_agent = (
     AgentBuilder(
-        agent_config=AGENT_CONFIG,
+        agent_config=COORDINATOR_CONFIG,
         gcp_config=GCP_CONFIG,
         auth_config=GOOGLE_AUTH_CONFIG,
     )
-    .with_skills(["meeting-summary"])
-    .with_mcp_servers([BIGQUERY_MCP_CONFIG, DRIVE_MCP_CONFIG])
+    .with_subagents([research_agent, ingestion_agent])
+    .with_before_agent_callback(sync_ingestion_status)
+    .with_native_tools([GetArtifactUriTool(), load_artifacts])
     .build()
 )
 ```
@@ -34,15 +35,19 @@ root_agent = (
 **Responsibilities:**
 - Initializes the VertexAI client with GCP project and region
 - Creates an internal `MCPToolsetBuilder` for MCP server construction
-- Accumulates tools (MCP toolsets + skill toolsets) via fluent method calls
-- Assembles the final `Agent` with model, planner, instructions, and tools
+- Accumulates tools (MCP toolsets, skill toolsets, native tools, sub-agents) via fluent method calls
+- Assembles the final `Agent` with model, planner, instructions, tools, callbacks, and output key
 
-**Private helpers:**
+**Fluent methods:**
 | Method | Purpose |
 |---|---|
-| `_build_agent_settings()` | Maps `AgentConfig` fields to `GenerateContentConfig` |
-| `_build_retry_options()` | Configures HTTP retry logic (attempts, backoff) |
-| `_build_planner()` | Initializes the `BuiltInPlanner` with thinking budget |
+| `with_skills(names)` | Loads ADK skills from `agent/skills/` and registers them |
+| `with_mcp_servers(configs)` | Builds and registers `McpToolset` instances |
+| `with_native_tools(tools)` | Registers `BaseTool` instances or plain callables (auto-wrapped in `FunctionTool`) |
+| `with_subagents(agents)` | Registers specialist agents for LLM-transfer delegation via `sub_agents=` |
+| `with_output_key(key)` | Persists the agent's final text response to session state under the given key |
+| `with_before_agent_callback(fn)` | Sets the `before_agent_callback` executed before each agent turn |
+| `build(enable_artifact_rendering)` | Assembles and returns the `Agent`; when `True` (default), registers `render_pending_artifacts` as `after_agent_callback` |
 
 ---
 
