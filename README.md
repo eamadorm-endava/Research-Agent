@@ -1,4 +1,6 @@
-# AI Agents in Gemini Enterprise
+# System OSIRIS: Organizational Search, Information Retrieval, and Intelligence System
+
+A multi-agent system designed to break information silos within your organization by searching through different sources like BigQuery, GCS, Google Drive, and Google Calendar, integrated in Gemini Enterprise.
 
 This repository is planned to be an accelerator for implementing Gemini Enterprise in any company; allowing to integrate AI Agents capable of reading/writing data from multiple sources (based on user's permissions), such as:
 
@@ -15,7 +17,7 @@ This project is divided into three main systems:
 
 - Data Pipelines
 - MCP Servers
-- AI Agents
+- OSIRIS (AI Agents)
 
 ### Data Pipelines
 
@@ -39,7 +41,7 @@ graph TD
     end
 
     subgraph Core ["Agent Logic (ADK Agent Engine)"]
-        Coordinator["<b>Coordinator</b><br/>root_agent"]
+        Coordinator["<b>OSIRIS</b><br/>Coordinator Agent"]
         ResSpec["<b>Research Specialist</b><br/>research_agent"]
         IngSpec["<b>Ingestion Specialist</b><br/>ingestion_agent"]
         Coordinator -->|delegate| ResSpec
@@ -67,7 +69,7 @@ graph TD
     %% User entry
     User --> Coordinator
 
-    %% Research agent MCP access
+    %% OSIRIS (Research Specialist) MCP access
     ResSpec --> BQ_MCP
     ResSpec --> GCS_MCP
     ResSpec --> Drive_MCP
@@ -95,7 +97,7 @@ Detailed view of each agent's skills, native tools, and connectors.
 
 | Agent | Native Tools | Callbacks | MCP Servers | Skills | Description |
 |---|---|---|---|---|---|
-| **Coordinator** `root_agent` | `get_artifact_uri` · `load_artifacts` | `sync_ingestion_status` (before) | — | — | Primary user-facing interface. Analyzes every request and routes it to the appropriate specialist via LLM-transfer delegation. On each turn, proactively polls pending EKB ingestion jobs and injects status updates into session history before responding. |
+| **OSIRIS** (Coordinator) | `get_artifact_uri` · `load_artifacts` | `sync_ingestion_status` (before) | — | — | Primary user-facing interface. Analyzes every request and routes it to the appropriate specialist via LLM-transfer delegation. On each turn, proactively polls pending EKB ingestion jobs and injects status updates into session history before responding. |
 | **Research Specialist** `research_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `get_current_time` · `load_artifacts` | — | BigQuery · Google Drive · Google Calendar · GCS | `meeting-summary` · `knowledge-discovery` | Searches for documents, generates meeting summaries, queries the Enterprise Knowledge Base, and cross-references information across all connected data sources. Saves its final response to session state (`research_context`) so follow-up questions can build on prior results. |
 | **Ingestion Specialist** `ingestion_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `trigger_ekb_pipeline` · `check_ingestion_status` · `load_artifacts` | — | BigQuery · GCS | `kb-file-ingestion` | Orchestrates the full document ingestion lifecycle into the Enterprise Knowledge Base: guides the user through metadata collection, copies the file to the landing GCS bucket, triggers the EKB classification and indexing pipeline, and stores the returned job ID in session state for status tracking. |
 
