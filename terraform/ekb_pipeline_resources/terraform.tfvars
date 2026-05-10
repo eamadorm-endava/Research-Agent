@@ -40,7 +40,7 @@ ekb_pipeline_cloud_run_name          = "ekb-pipeline"
 ekb_pipeline_cloud_run_image_tag     = "latest"
 ekb_pipeline_cloud_run_cpu           = "8"
 ekb_pipeline_cloud_run_memory        = "32Gi"
-ekb_pipeline_cloud_run_min_instances = 1
+ekb_pipeline_cloud_run_min_instances = 0
 
 ekb_pipeline_cloud_run_env = {
   "LOG_LEVEL" = "INFO"
