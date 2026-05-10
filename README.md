@@ -32,13 +32,18 @@ AI Agents are the core of the system, allowing to address different use cases wi
 ### High-Level Architecture
 
 ```mermaid
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
 graph TD
     subgraph Entry ["Access Interface"]
         User(["<b>User Query</b><br/>(Gemini Enterprise)"])
     end
 
-    subgraph Core ["Agent Logic"]
-        Agent["<b>AI Agent</b><br/>(ADK Agent Engine)"]
+    subgraph Core ["Agent Logic (ADK Agent Engine)"]
+        Coordinator["<b>Coordinator</b><br/>root_agent"]
+        ResSpec["<b>Research Specialist</b><br/>research_agent"]
+        IngSpec["<b>Ingestion Specialist</b><br/>ingestion_agent"]
+        Coordinator -->|delegate| ResSpec
+        Coordinator -->|delegate| IngSpec
     end
 
     subgraph Gateway ["Protocol Layer (MCP)"]
@@ -48,36 +53,51 @@ graph TD
         Calendar_MCP["<b>Calendar MCP Server</b>"]
     end
 
-    subgraph Service ["GCP API Resources"]
-        BQ_Res[("<b>BigQuery</b><br/>Datasets/Tables")]
-        GCS_Res[("<b>Cloud Storage</b><br/>Buckets/Blobs")]
-        Drive_Res[("<b>Google Drive</b><br/>Docs/Folders")]
-        Calendar_Res[("<b>Google Calendar</b><br/>Events")]
+    subgraph Service ["GCP Resources"]
+        BQ_Res[("<b>BigQuery</b><br/>Datasets / Tables")]
+        GCS_Res[("<b>Cloud Storage</b><br/>Buckets / Blobs")]
+        Drive_Res[("<b>Google Drive</b><br/>Docs / Folders")]
+        Calendar_Res[("<b>Google Calendar / Meet</b><br/>Events / Transcripts")]
     end
 
-    subgraph Processing ["Data Pipelines"]
-        BQ_Pipe["<b>BQ Ingestion Pipeline</b>"]
-        GCS_Pipe["<b>GCS Ingestion Pipeline</b>"]
-        Drive_Pipe["<b>Drive Ingestion Pipeline</b>"]
+    subgraph EKBPipeline ["Enterprise Knowledge Base Pipeline"]
+        EKB["<b>EKB Pipeline</b><br/>DLP → classify → chunk → embed → index"]
     end
 
-    %% Flow through MCP
-    User --> Agent
-    Agent --> BQ_MCP
-    Agent --> GCS_MCP
-    Agent --> Drive_MCP
-    Agent --> Calendar_MCP
+    %% User entry
+    User --> Coordinator
 
+    %% Research agent MCP access
+    ResSpec --> BQ_MCP
+    ResSpec --> GCS_MCP
+    ResSpec --> Drive_MCP
+    ResSpec --> Calendar_MCP
+
+    %% Ingestion agent MCP + EKB access
+    IngSpec --> BQ_MCP
+    IngSpec --> GCS_MCP
+    IngSpec -->|HTTP trigger / poll| EKB
+
+    %% MCP ↔ GCP
     BQ_MCP <--> BQ_Res
     GCS_MCP <--> GCS_Res
     Drive_MCP <--> Drive_Res
     Calendar_MCP <--> Calendar_Res
 
-    %% Ingestion Flow (visually below Databases)
-    BQ_Res <--- BQ_Pipe
-    GCS_Res <--- GCS_Pipe
-    Drive_Res <--- Drive_Pipe
+    %% EKB writes to storage
+    EKB --> GCS_Res
+    EKB --> BQ_Res
 ```
+
+### Multi-Agent Architecture
+
+Detailed view of each agent's skills, native tools, and connectors.
+
+| Agent | Native Tools | Callbacks | MCP Servers | Skills | Description |
+|---|---|---|---|---|---|
+| **Coordinator** `root_agent` | `get_artifact_uri` · `load_artifacts` | `sync_ingestion_status` (before) | — | — | Primary user-facing interface. Analyzes every request and routes it to the appropriate specialist via LLM-transfer delegation. On each turn, proactively polls pending EKB ingestion jobs and injects status updates into session history before responding. |
+| **Research Specialist** `research_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `get_current_time` · `load_artifacts` | — | BigQuery · Google Drive · Google Calendar · GCS | `meeting-summary` · `knowledge-discovery` | Searches for documents, generates meeting summaries, queries the Enterprise Knowledge Base, and cross-references information across all connected data sources. Saves its final response to session state (`research_context`) so follow-up questions can build on prior results. |
+| **Ingestion Specialist** `ingestion_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `trigger_ekb_pipeline` · `check_ingestion_status` · `load_artifacts` | — | BigQuery · GCS | `kb-file-ingestion` | Orchestrates the full document ingestion lifecycle into the Enterprise Knowledge Base: guides the user through metadata collection, copies the file to the landing GCS bucket, triggers the EKB classification and indexing pipeline, and stores the returned job ID in session state for status tracking. |
 
 ## Project Structure
 
@@ -85,11 +105,18 @@ graph TD
 Research-Agent/
 ├── agent/                      # ADK Agent implementation
 │   ├── core_agent/            # Agent package (entry point + internal modules)
-│   │   ├── agent.py           # Application entry point (wires config → builder → agent)
+│   │   ├── agent.py           # Application entry point (wires config → builders → agents → app)
 │   │   ├── config/            # Pydantic Settings (centralized env var validation)
 │   │   ├── builder/           # Builder pattern (AgentBuilder, MCPToolsetBuilder, skills)
+│   │   ├── artifact_management/ # GCS persistence and IAM security (StorageService)
+│   │   ├── tools/             # Native tools: artifact, EKB pipeline, time
+│   │   ├── callbacks/         # Lifecycle hooks: artifact rendering, ingestion status sync
+│   │   ├── plugins/           # Message interceptors: GE file ingestion plugin
 │   │   └── security/          # Token utilities (ID tokens, delegated OAuth)
-│   ├── skills/                # ADK Skills (meeting-summary, etc.)
+│   ├── skills/                # ADK Skills
+│   │   ├── meeting-summary/   # Generates structured meeting summary documents
+│   │   ├── knowledge-discovery/ # High-fidelity cross-source data retrieval protocol
+│   │   └── kb-file-ingestion/ # Enterprise Knowledge Base document ingestion
 │   ├── deployment/            # Vertex AI / Agent Engine deployment scripts
 │   └── tests/                 # Agent unit and integration tests
 ├── mcp_servers/               # MCP server implementations
@@ -97,12 +124,18 @@ Research-Agent/
 │   ├── gcs/                   # Cloud Storage MCP server
 │   ├── google_drive/          # Google Drive MCP server
 │   └── google_calendar/       # Google Calendar & Meet MCP server
-├── terraform/                 # Infrastructure as Code
-│   ├── ai_agent_resources/    # Service accounts, IAM, and APIs
-│   ├── bq_mcp_server_resources/
-│   ├── gcs_mcp_server_resources/
-│   ├── shared_resources/      # Shared state and Artifact Registry
-│   └── scripts/               # Bootstrap and trigger scripts
+├── pipelines/                 # Data ingestion pipelines
+│   └── enterprise_knowledge_base/ # EKB: DLP scan → classify → chunk → embed → index
+├── terraform/                 # Infrastructure as Code (Cloud Foundation Fabric modules)
+│   ├── ai_agent_resources/            # Service accounts, IAM, and APIs for the agent
+│   ├── bq_mcp_server_resources/       # BigQuery MCP server infrastructure
+│   ├── gcs_mcp_server_resources/      # GCS MCP server infrastructure
+│   ├── drive_mcp_server_resources/    # Google Drive MCP server infrastructure
+│   ├── google_calendar_mcp_server_resources/ # Calendar MCP server infrastructure
+│   ├── ekb_pipeline_resources/        # EKB pipeline Cloud Run and supporting resources
+│   ├── base_modules/                  # Shared reusable Terraform modules
+│   ├── shared_resources/              # Shared state bucket and Artifact Registry
+│   └── scripts/                       # Bootstrap and CI/CD trigger scripts
 ├── docs/                      # Detailed documentation
 ├── notebooks/                 # Exploration and research notebooks
 ├── Makefile                   # Development automation commands
