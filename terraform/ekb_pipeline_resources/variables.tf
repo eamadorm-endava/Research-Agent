@@ -82,3 +82,9 @@ variable "ekb_pipeline_cloud_run_memory" {
   type        = string
   default     = "16Gi"
 }
+
+variable "ekb_pipeline_cloud_run_min_instances" {
+  description = "The minimum number of instances to keep running for the Cloud Run service."
+  type        = number
+  default     = 0
+}
