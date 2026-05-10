@@ -78,7 +78,7 @@ class BaseAgentConfig(BaseSettings):
     MODEL_NAME: Annotated[
         str,
         Field(
-            default="gemini-3.1-flash-lite",
+            default="gemini-3-flash-preview",
             description="Name of the Gemini model to use.",
         ),
     ]
