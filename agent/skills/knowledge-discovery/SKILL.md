@@ -3,6 +3,24 @@ name: knowledge-discovery
 description: Expert protocol for high-fidelity data retrieval and analysis using Contextual Anchoring and Parallel Discovery.
 ---
 
+## Pre-Search Validation
+
+Before doing anything else, check whether the user has clearly stated what they want to search for.
+
+**A query is unclear when it:**
+- Expresses intent without a topic (e.g., "search the EKB", "do a research", "look it up", "find something")
+- Names only a source, not a subject (e.g., "check the knowledge base", "query the EKB")
+- Is too vague to form a meaningful search (e.g., "find documents", "search for info")
+
+**When the query is unclear**, stop and ask:
+> "What topic, document, project, or information would you like me to search for?"
+
+Do not guess, infer, or proceed with a search. Wait for the user's answer before continuing.
+
+**When the query is clear** (contains at least one concrete subject — a project name, company, person, technology, document title, or specific question), proceed immediately to Intent Classification below.
+
+---
+
 ## Intent Classification
 Before any retrieval, classify the user's request into one of two modes:
 
@@ -93,7 +111,7 @@ Launch all the following simultaneously. *Efficiency Rule: never repeat the same
 
 **2a. Calendar** — Follow the **CALENDAR SEARCH PROTOCOL** defined in the system prompt exactly.
 
-**2b. BigQuery (Structural Context)** — Follow the **BIGQUERY QUERY PROTOCOL** defined in the system prompt. Target the `documents_metadata` table inside the `knowledge_base` dataset. Retrieve metadata (summaries, domain, project associations) linked to the entities identified in Phase 1. Skip if Phase 1 returned zero EKB results.
+**2b. BigQuery (Structural Context)** — Follow the **BIGQUERY QUERY PROTOCOL** defined in the system prompt. Target the `documents_metadata` table inside the `knowledge_base` dataset. Retrieve metadata (summaries, domain, project associations) linked to the entities identified in Phase 1. Skip if Phase 1 returned zero EKB results. Include always the filter: where latest = true. So it always get the last version of the document.
 
 **2c. Google Drive** — Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt (Stage 0 through Wave 2 only). Do NOT execute Stage 4 file reading in Phase 2 — file reading is deferred to Phase 3 Level 3.
 
@@ -157,7 +175,7 @@ Before writing the response, classify the question:
 ---
 
 #### Concise Mode
-Respond directly in plain prose (1–3 sentences). Append only the `## References` table. Skip all other sections.
+Respond directly in plain prose (1–3 sentences). Always append the `## References` table when any data source was used — never omit it. Skip all other sections.
 
 ---
 
@@ -196,15 +214,19 @@ Include the escalation message verbatim from the **Final Escalation** section ab
 
 ---
 
-**## References** *(both modes — omit entirely if no referenceable sources were used)*
+**## References** *(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
 Include ONLY files, documents, and events from which data was explicitly extracted to produce this response. Never include broad discovery results or unused tool outputs.
 
 | Source | Filename | Owner | Created at / Last Update |
 |:---:|:---:|:---:|:---:|
-| EKB / Drive / Cloud Storage / BigQuery (`dataset.table`) | Human-readable file or event name | Author email or display name | `YYYY-MM-DD` |
+| EKB / Drive / Cloud Storage / BigQuery | Human-readable file or event name | Author email or display name | `YYYY-MM-DD` |
 
-- **Source**: `EKB`, `Drive`, `Cloud Storage`, or `BigQuery (dataset.table)`.
-- **Filename**: human-readable name only. NEVER show raw IDs, hashes, or GCS URIs.
+- **Source**: exactly one of `EKB`, `Drive`, `Cloud Storage`, or `BigQuery`.
+  - **`EKB`**: use for ANY data that originates from the Enterprise Knowledge Base — this includes results from `ekb_semantic_search`, data retrieved from the `documents_chunks` or `documents_metadata` tables, and GCS URIs returned by those results (domain-specific buckets). Never expose the dataset name, table name, or GCS URI in the Source column.
+  - **`Drive`**: Google Drive files retrieved via the Drive MCP tools.
+  - **`Cloud Storage`**: GCS files read directly from personal or non-EKB buckets (e.g., user-provided buckets in Final Escalation).
+  - **`BigQuery`**: results from non-EKB BigQuery tables queried via `execute_query` against user-provided datasets.
+- **Filename**: human-readable name only. NEVER show raw IDs, hashes, GCS URIs, dataset names, or table names.
 - **Drive entries**: only cite actual files — never include folders (`mime_type = "application/vnd.google-apps.folder"`) as references, even if a folder was used during discovery.
 - **Owner**: uploader email, document owner, or event organizer. `Unknown` if unavailable.
 - **Created at / Last Update**: `YYYY-MM-DD`. `Unknown` if unavailable.
