@@ -38,7 +38,7 @@ mcp_server_cloud_run_env = {
   "GCS_KB_INGESTION_BUCKET" = "ag-core-dev-fdx7-kb-landing-zone"
 }
 
-mcp_server_cloud_run_min_instances = 0
+mcp_server_cloud_run_min_instances = 1
 mcp_server_cloud_run_cpu           = "1"
 mcp_server_cloud_run_memory        = "512Mi"
 

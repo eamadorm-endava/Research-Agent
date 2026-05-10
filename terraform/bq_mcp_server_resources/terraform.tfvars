@@ -39,6 +39,6 @@ mcp_server_cloud_run_env = {
   "LOG_LEVEL" = "INFO"
 }
 
-mcp_server_cloud_run_min_instances = 0
+mcp_server_cloud_run_min_instances = 1
 mcp_server_cloud_run_cpu           = "1"
 mcp_server_cloud_run_memory        = "512Mi"
