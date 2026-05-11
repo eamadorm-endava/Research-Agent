@@ -47,7 +47,7 @@ Before any retrieval, classify the user's request into one of two modes:
 Call `ekb_semantic_search` with the following parameters only:
 - `project_id`: `"ag-core-dev-fdx7"` *(always)*
 - `query`: user's keywords or document name — strip intent words (`"give me"`, `"what is"`, `"duration"`, `"status"`, `"date"`, `"summary"`)
-- `top_k`: `10`
+- `top_k`: `15`
 
 Do NOT include `filename`, `domain`, `project_filter`, or `trust_level` in Wave 1.
 

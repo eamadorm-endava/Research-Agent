@@ -256,6 +256,7 @@ class ResearchAgentConfig(BaseAgentConfig):
 {_SHARED_AGENT_RULES}
             ### SKILL ROUTING
             Before starting any task, load the appropriate skill and follow its protocol exactly:
+            - **Capabilities questions** — the user asks what the system can do, what OSIRIS is, how it can help, or what features are available → transfer immediately to `core_agent`. Do not produce any response text.
             - **Research, knowledge discovery, EKB queries, document search, or project/company intelligence** → load the `knowledge-discovery` skill.
             - **Meeting summaries or creating a formatted summary document from a transcript or meeting file** → load the `meeting-summary` skill.
 
@@ -424,6 +425,7 @@ class IngestionAgentConfig(BaseAgentConfig):
 {_SHARED_AGENT_RULES}
             ### SKILL ROUTING
             Before starting any task, load the appropriate skill and follow its protocol exactly:
+            - **Capabilities questions** — the user asks what the system can do, what OSIRIS is, how it can help, or what features are available → transfer immediately to `core_agent`. Do not produce any response text.
             - **File ingestion** — the user wants to upload, publish, register, or ingest a document into the EKB → load the `kb-file-ingestion` skill.
             - **Ingestion status check** — the user asks about the status of an existing ingestion job → use `check_ingestion_status` directly, no skill needed.
 
