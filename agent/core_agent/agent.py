@@ -49,7 +49,7 @@ research_agent = (
         ]
     )
     .with_output_key("research_context")
-    .build()
+    .build(enable_artifact_rendering=False)
 )
 
 # ---------------------------------------------------------------------------
