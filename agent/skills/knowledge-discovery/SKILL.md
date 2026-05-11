@@ -37,26 +37,57 @@ Before any retrieval, classify the user's request into one of two modes:
 - "What do we know about company Y?"
 - "Find all documents related to Z"
 - "Summarize everything we have on this topic"
+- "Give me all the projects that are related with the technology X"
+- "Tell me all the projects related to the specific sector Y"
 → Cast a wide net across all sources. Synthesize across EKB, Calendar, BQ, and Drive.
 
 ---
 
 ## Targeted Mode Protocol
 
-### Wave 1 — Broad Semantic Discovery
-Call `ekb_semantic_search` with the following parameters only:
+### Wave 1 — Broad Semantic + Keyword Discovery
+Run both calls simultaneously:
+
+**1a. Semantic Search** — `ekb_semantic_search`:
 - `project_id`: `"ag-core-dev-fdx7"` *(always)*
 - `query`: user's keywords or document name — strip intent words (`"give me"`, `"what is"`, `"duration"`, `"status"`, `"date"`, `"summary"`)
 - `top_k`: `15`
 
-Do NOT include `filename`, `domain`, `project_filter`, or `trust_level` in Wave 1.
+Do NOT include `filename`, `domain`, `project_filter`, or `trust_level`.
 
-From every result, extract and store: `filename`, `gcs_uri`, `chunk_data`, `document_summary`, `domain`.
+**1b. Keyword Search** — `ekb_keyword_search`:
+- `project_id`: `"ag-core-dev-fdx7"` *(always)*
+- `keyword`: the primary entity from the user's query — a technology name, sector, company, or person. Strip all intent words and keep only a single word (e.g., `"React"`, `"healthcare"`, `"banking"`, `"Acme"`).
 
-**If Wave 1 returns zero results:** skip Wave 2 and GCS Long Context. Proceed immediately to the Calendar Search Protocol + Drive Search Protocol running in parallel.
+**After both complete — merge and store:**
+- Build a unified file pool: combine all `filename` values from both results, deduplicated.
+- From semantic results, also extract and store: `gcs_uri`, `chunk_data`, `document_summary`, `domain`.
+- From keyword results, also extract and store: `gcs_uri`, `uploader_email`, `description`, `project_id`.
+- Files that appear in both results are the highest-confidence anchors and must be ranked first for Wave 2.
+
+**Zero-result fallback rules:**
+- Both return zero → skip Wave 2 and GCS Long Context. Proceed immediately to Calendar Search Protocol + Drive Search Protocol in parallel.
+- Only `ekb_semantic_search` returns zero → use keyword search results as the sole anchor pool and proceed to Wave 2 normally.
+- Only `ekb_keyword_search` returns zero → proceed to Wave 2 using semantic results only.
+
+### Wave 1.5 — Focused Semantic Search on Keyword-Identified Files
+*(Run immediately after Wave 1 completes. Only if `ekb_keyword_search` returned results.)*
+
+For every file returned by `ekb_keyword_search`, launch one `ekb_semantic_search` call. Run all simultaneously:
+- `project_id`: `"ag-core-dev-fdx7"` *(always)*
+- `query`: the user's specific final information need — articulate the exact answer being sought, not the user's raw phrasing (e.g., for "give me React projects", use "React project name, client, deliverables, and outcomes")
+- `filename`: exact verbatim value from the `ekb_keyword_search` result `filename` field — never paraphrase
+- `top_k`: `10`
+
+Merge the returned chunks into the unified file pool from Wave 1.
+
+**Hard Rules:**
+- Maximum 10 parallel calls. If `ekb_keyword_search` returned more than 10 files, take the first 10.
+- `filename` MUST come verbatim from an `ekb_keyword_search` result in this session.
+- Files searched here must NOT be re-searched in Wave 2.
 
 ### Wave 2 — Per-File Focused Search (only if Wave 1 returned results)
-Select the top 3 most relevant files from Wave 1, ranked by ascending cosine distance. For each, launch one `ekb_semantic_search` call. Run all simultaneously:
+Select the top 3 most relevant files from Wave 1, ranked by ascending cosine distance, that were NOT already covered in Wave 1.5. For each, launch one `ekb_semantic_search` call. Run all simultaneously:
 - `project_id`: `"ag-core-dev-fdx7"` *(always)*
 - `query`: the user's actual information need — what they want to know, not the filename
 - `filename`: exact verbatim value from the `filename` field of a Wave 1 result — never paraphrase or rewrite
@@ -88,23 +119,41 @@ Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt using keywords
 ## Discovery Mode Protocol
 
 ### Phase 1: Contextual Anchoring (The Hook)
-1. **Semantic Search**: Call `ekb_semantic_search` with the following parameters only:
+1. **Parallel Search**: Run both calls simultaneously:
+
+   **1a. Semantic Search** — `ekb_semantic_search`:
    - `project_id`: `"ag-core-dev-fdx7"` *(always)*
    - `query`: user's natural language question
    - `top_k`: `10`
 
-   Never add `filename`, `domain`, `project_filter`, or `trust_level` in Phase 1.
+   Never add `filename`, `domain`, `project_filter`, or `trust_level`.
 
-2. **Anchor Extraction**: Build a "Context Graph" from the results:
-   - **Identities**: `filename`, `gcs_uri`, `document_summary`.
-   - **Context**: `document_summary` / `description` — key for generating Phase 2 Drive keywords.
+   **1b. Keyword Search** — `ekb_keyword_search`:
+   - `project_id`: `"ag-core-dev-fdx7"` *(always)*
+   - `keyword`: the primary entity from the user's query — a technology name, sector, company, or person. Strip all intent words and keep only a single word (e.g., `"React"`, `"healthcare"`, `"banking"`, `"Acme"`).
+
+2. **Anchor Extraction**: Build a "Context Graph" from the merged results of both calls:
+   - **Identities**: `filename`, `gcs_uri`, `document_summary` / `description`.
+   - **Context**: `description` — key for generating Phase 2 Drive keywords.
    - **Entities**: company names (clients/partners), technologies, technical stacks.
-   - **Relational Mapping**: map project names to their associated companies and tech stacks — use these as primary anchors for Phase 2 Drive and Calendar searches.
+   - **Relational Mapping**: map project names (`project_id`) to their associated companies and tech stacks — use these as primary anchors for Phase 2 Drive and Calendar searches.
    - **People**: `uploader_email` and stakeholders mentioned in summaries.
    - **Locations**: `gcs_uri` values (for GCS deep-dive in Phase 3 Level 1).
 
-3. **Expansion**: If results are narrow, broaden using extracted entities before moving to Phase 2.
-   - **Zero-Result Fallback**: If `ekb_semantic_search` returns no results, extract keywords directly from the user's original prompt (company names, project names, technologies, dates, people) and use those as Phase 2 anchors. Skip Phase 2b (no BQ project context to anchor against).
+3. **Focused Keyword-File Search**: Immediately after Anchor Extraction, for every file returned by `ekb_keyword_search`, launch one `ekb_semantic_search` call. Run all simultaneously:
+   - `project_id`: `"ag-core-dev-fdx7"` *(always)*
+   - `query`: the user's specific final information need — articulate the exact answer being sought, not the raw question
+   - `filename`: exact verbatim value from an `ekb_keyword_search` result `filename` field — never paraphrase
+   - `top_k`: `10`
+
+   Merge the returned chunks into the Context Graph. Files searched here must NOT be re-searched in Phase 3 Level 1.
+
+   **Hard Rules:**
+   - Maximum 10 parallel calls. If `ekb_keyword_search` returned more than 10 files, take the first 10.
+
+4. **Expansion**: If results are narrow, broaden using extracted entities before moving to Phase 2.
+   - **Zero-Result Fallback**: If both searches return no results, extract keywords directly from the user's original prompt (company names, project names, technologies, dates, people) and use those as Phase 2 anchors. Skip Phase 2b (no BQ project context to anchor against).
+   - If only one of the two searches returns results, use those results as the sole anchor pool and proceed normally.
 
 ### Phase 2: Parallel Context Acquisition (Broad Search)
 Launch all the following simultaneously. *Efficiency Rule: never repeat the same tool call with the same parameters in the same session.*
@@ -118,7 +167,7 @@ Launch all the following simultaneously. *Efficiency Rule: never repeat the same
 ### Phase 3: Synthesis & Targeted Deep Dive (Escalation Path)
 
 **Level 1: EKB Deep-Dive (GCS)**
-For the top 3 high-relevance `gcs_uri` values from Phase 1, run in parallel (following the **GCS FILE READING RULE** from the system prompt):
+For the top 3 high-relevance `gcs_uri` values from Phase 1 that were NOT already covered in Phase 1 step 3, run in parallel (following the **GCS FILE READING RULE** from the system prompt):
 1. Parse each `gcs_uri` → `bucket_name` (everything between `gs://` and the first `/`) and `object_name` (everything after).
 2. `read_object(bucket_name=<bucket_name>, object_name=<object_name>)` → get `mime_type`.
 3. `import_gcs_to_artifact(gcs_uri=<gcs_uri>, mime_type=<mime_type>)`.
@@ -145,7 +194,7 @@ Produce the standard output. Write `No information found` under any section wher
 If Targeted Mode has exhausted all steps without finding the answer, continue with Discovery Mode's unique steps — skipping any tool calls already made:
 - Run Phase 2b BQ `documents_metadata` query if not already executed.
 - Re-run Drive search with full keyword decomposition if the entity map differs meaningfully from keywords already used. Do not repeat identical `list_files` calls.
-- Do NOT repeat `ekb_semantic_search`, `get_current_time`, or `list_calendar_events` calls already made.
+- Do NOT repeat `ekb_semantic_search`, `ekb_keyword_search`, `get_current_time`, or `list_calendar_events` calls already made.
 
 **Discovery → Targeted Fallback:**
 If Discovery Mode has exhausted all phases (Phase 1 through Level 4) without finding the answer, run Targeted Mode's unique steps — skipping any tool calls already made:

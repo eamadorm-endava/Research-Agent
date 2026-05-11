@@ -179,6 +179,86 @@ def test_build_bq_credentials_from_access_token(mock_credentials, mock_validate)
     )
 
 
+def test_keyword_search_happy_path(mock_client):
+    """
+    Tests that keyword_search returns distinct filenames and project names for a matching keyword.
+    Implementation: Mocks the BigQuery query job to return two rows and verifies the query uses
+    CONTAINS_SUBSTR against documents_chunks with the correct parameterized keyword.
+    """
+    manager = BigQueryManager(creds=MagicMock())
+    mock_job = MagicMock()
+    mock_rows = [
+        {
+            "gcs_uri": "gs://bucket/doc1.pdf",
+            "uploader_email": "user@example.com",
+            "description": "Alpha project overview",
+            "filename": "doc1.pdf",
+            "project_id": "Alpha Project",
+        },
+        {
+            "gcs_uri": "gs://bucket/doc2.pdf",
+            "uploader_email": "other@example.com",
+            "description": "Beta project overview",
+            "filename": "doc2.pdf",
+            "project_id": "Beta Project",
+        },
+    ]
+    mock_job.result.return_value = mock_rows
+    manager.client.query.return_value = mock_job
+
+    from mcp_servers.big_query.app.schemas import KeywordSearchRequest, AvailableProject
+
+    request = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="React")
+    result = manager.keyword_search(request)
+
+    assert result == mock_rows
+    args, kwargs = manager.client.query.call_args
+    query_text = args[0]
+    assert "CONTAINS_SUBSTR" in query_text
+    assert "documents_chunks" in query_text
+    assert "SELECT DISTINCT" in query_text
+    params = {p.name: p.value for p in kwargs["job_config"].query_parameters}
+    assert params["keyword"] == "React"
+
+
+def test_keyword_search_no_results(mock_client):
+    """
+    Tests that keyword_search returns an empty list when no chunks match the given keyword.
+    Implementation: Mocks the query job to return an empty result set and verifies the method
+    handles the zero-result edge case without raising.
+    """
+    manager = BigQueryManager(creds=MagicMock())
+    mock_job = MagicMock()
+    mock_job.result.return_value = []
+    manager.client.query.return_value = mock_job
+
+    from mcp_servers.big_query.app.schemas import KeywordSearchRequest, AvailableProject
+
+    request = KeywordSearchRequest(
+        project_id=AvailableProject.DEV, keyword="nonexistentkeyword123"
+    )
+    result = manager.keyword_search(request)
+
+    assert result == []
+
+
+def test_keyword_search_bq_failure(mock_client):
+    """
+    Tests that keyword_search raises ValueError when BigQuery raises an exception.
+    Implementation: Configures the mock client to raise a generic exception and verifies the
+    method re-raises it as a ValueError with a descriptive message.
+    """
+    manager = BigQueryManager(creds=MagicMock())
+    manager.client.query.side_effect = Exception("BQ connection error")
+
+    from mcp_servers.big_query.app.schemas import KeywordSearchRequest, AvailableProject
+
+    request = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="React")
+
+    with pytest.raises(ValueError, match="Error performing keyword search"):
+        manager.keyword_search(request)
+
+
 def test_semantic_search(mock_client):
     """
     Tests the semantic search functionality.
