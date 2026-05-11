@@ -28,6 +28,8 @@ from .schemas import (
     AddRowsResponse,
     ExecuteQueryRequest,
     ExecuteQueryResponse,
+    KeywordSearchRequest,
+    KeywordSearchResponse,
     SemanticSearchRequest,
     SemanticSearchResponse,
 )
@@ -411,6 +413,39 @@ async def ekb_semantic_search(request: SemanticSearchRequest) -> SemanticSearchR
         )
     except Exception as e:
         return SemanticSearchResponse(
+            results=[],
+            execution_status="error",
+            execution_message=_format_execution_error(e),
+        )
+
+
+@mcp.tool()
+async def ekb_keyword_search(request: KeywordSearchRequest) -> KeywordSearchResponse:
+    """
+    Performs a deterministic keyword search against the Enterprise Knowledge Base chunks.
+    Returns distinct filenames and project names for all documents containing the keyword.
+    Args:
+        request (KeywordSearchRequest): Structured request containing project_id and a single keyword.
+    Returns:
+        KeywordSearchResponse: Distinct filenames and project names matching the keyword.
+    """
+    logger.info(f"Tool call: ekb_keyword_search(keyword={request.keyword})")
+    try:
+        bq_manager = _make_bq_manager()
+        results = await asyncio.to_thread(bq_manager.keyword_search, request)
+        return KeywordSearchResponse(
+            results=results,
+            execution_status="success",
+            execution_message=f"Keyword search completed successfully, returned {len(results)} distinct documents.",
+        )
+    except AuthenticationError as e:
+        return KeywordSearchResponse(
+            results=[],
+            execution_status="error",
+            execution_message=f"Authentication Error: {e}",
+        )
+    except Exception as e:
+        return KeywordSearchResponse(
             results=[],
             execution_status="error",
             execution_message=_format_execution_error(e),

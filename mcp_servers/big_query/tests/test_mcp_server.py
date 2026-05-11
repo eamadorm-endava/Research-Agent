@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from mcp_servers.big_query.app.mcp_server import (
     create_dataset,
     create_table,
+    ekb_keyword_search,
     get_table_schema,
     add_rows,
     execute_query,
@@ -15,6 +16,7 @@ from mcp_servers.big_query.app.schemas import (
     GetTableSchemaRequest,
     AddRowsRequest,
     ExecuteQueryRequest,
+    KeywordSearchRequest,
     ListTablesRequest,
     AvailableProject,
 )
@@ -163,6 +165,66 @@ async def test_mcp_execute_query_authorized_user_success(mock_bq_manager):
 
     assert result.execution_status == "success"
     assert result.results == [{"id": 1, "name": "allowed"}]
+
+
+@pytest.mark.asyncio
+async def test_mcp_ekb_keyword_search_success(mock_bq_manager):
+    """
+    Tests the successful execution of the ekb_keyword_search MCP tool.
+    Implementation: Mocks keyword_search to return two distinct rows and verifies the tool
+    returns a success status with the expected results list.
+    """
+    mock_bq_manager.keyword_search.return_value = [
+        {
+            "gcs_uri": "gs://bucket/report.pdf",
+            "uploader_email": "user@example.com",
+            "description": "Alpha project report",
+            "filename": "report.pdf",
+            "project_id": "Alpha Project",
+        },
+        {
+            "gcs_uri": "gs://bucket/spec.pdf",
+            "uploader_email": "other@example.com",
+            "description": "Beta project spec",
+            "filename": "spec.pdf",
+            "project_id": "Beta Project",
+        },
+    ]
+    req = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="kubernetes")
+
+    result = await ekb_keyword_search(req)
+
+    assert result.execution_status == "success"
+    assert len(result.results) == 2
+    assert result.results[0]["filename"] == "report.pdf"
+    mock_bq_manager.keyword_search.assert_called_once_with(req)
+
+
+@pytest.mark.asyncio
+async def test_mcp_ekb_keyword_search_empty_keyword_validation_error():
+    """
+    Tests that KeywordSearchRequest rejects an empty string keyword at schema validation time.
+    Implementation: Attempts to instantiate the request with an empty keyword and asserts
+    Pydantic raises a ValidationError before any tool execution occurs.
+    """
+    with pytest.raises(ValidationError):
+        KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="")
+
+
+@pytest.mark.asyncio
+async def test_mcp_ekb_keyword_search_bq_error(mock_bq_manager):
+    """
+    Tests that ekb_keyword_search returns an error status when the underlying BQ call raises.
+    Implementation: Configures keyword_search to raise a generic exception and verifies the
+    tool wraps it in an error response rather than propagating the exception.
+    """
+    mock_bq_manager.keyword_search.side_effect = Exception("BQ failure")
+    req = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="react")
+
+    result = await ekb_keyword_search(req)
+
+    assert result.execution_status == "error"
+    assert "BQ failure" in result.execution_message
 
 
 @pytest.mark.asyncio

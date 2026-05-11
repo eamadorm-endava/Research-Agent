@@ -8,7 +8,7 @@ from google.cloud.exceptions import GoogleCloudError, NotFound
 from google.oauth2.credentials import Credentials
 
 from .config import BIGQUERY_API_CONFIG, BIGQUERY_AUTH_CONFIG
-from .schemas import AuthenticationError, SemanticSearchRequest
+from .schemas import AuthenticationError, KeywordSearchRequest, SemanticSearchRequest
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -352,6 +352,60 @@ class BigQueryManager:
         except Exception as e:
             logger.error(f"Error performing semantic search: {e}")
             raise ValueError(f"Error performing semantic search: {e}")
+
+    def keyword_search(self, request: KeywordSearchRequest) -> List[Dict[str, Any]]:
+        """
+        Performs a deterministic keyword search against knowledge base chunks using CONTAINS_SUBSTR.
+        Returns distinct filenames and project names for all chunks containing the keyword.
+
+        Args:
+            request: KeywordSearchRequest -> Structured request containing project_id and a single keyword.
+
+        Returns:
+            List[Dict[str, Any]] -> A list of dicts with 'filename' and 'project_id' keys.
+        """
+        query = """
+        SELECT DISTINCT
+          m.gcs_uri,
+          m.uploader_email,
+          m.description,
+          c.filename,
+          m.project_id
+        FROM `knowledge_base.documents_chunks` c
+        JOIN `knowledge_base.documents_metadata` m ON c.document_id = m.document_id
+        WHERE m.latest = TRUE
+          AND CONTAINS_SUBSTR(c.chunk_data, @keyword)
+        """
+
+        query_params = [
+            bigquery.ScalarQueryParameter("keyword", "STRING", request.keyword),
+        ]
+
+        try:
+            job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+            query_job = self.client.query(
+                query, project=request.project_id, job_config=job_config
+            )
+            results = query_job.result()
+
+            output = [dict(row) for row in results]
+
+            def make_serializable(obj):
+                if isinstance(obj, dict):
+                    return {k: make_serializable(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [make_serializable(v) for v in obj]
+                else:
+                    try:
+                        json.dumps(obj)
+                        return obj
+                    except (TypeError, ValueError):
+                        return str(obj)
+
+            return make_serializable(output)
+        except Exception as e:
+            logger.error(f"Error performing keyword search: {e}")
+            raise ValueError(f"Error performing keyword search: {e}")
 
 
 def build_bq_credentials(

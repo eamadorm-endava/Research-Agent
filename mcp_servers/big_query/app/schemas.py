@@ -246,3 +246,27 @@ class SemanticSearchResponse(BaseResponse):
     """
 
     results: ROWS
+
+
+class KeywordSearchRequest(BaseModel):
+    """
+    Request model for a deterministic keyword search against knowledge base chunks.
+    """
+
+    project_id: PROJECT_ID
+    keyword: Annotated[
+        str,
+        Field(
+            description="Single keyword to search for using case-insensitive matching.",
+            min_length=1,
+            max_length=200,
+        ),
+    ]
+
+
+class KeywordSearchResponse(BaseResponse):
+    """
+    Response model for keyword search returning distinct filenames and project names.
+    """
+
+    results: ROWS
