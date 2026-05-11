@@ -281,7 +281,9 @@ class BigQueryManager:
           m.project_id,
           m.uploader_email,
           m.description AS document_summary,
-          v.distance
+          v.distance,
+          m.ingested_at
+     
         FROM VECTOR_SEARCH(
           TABLE `knowledge_base.documents_chunks`,
           'embedding',
