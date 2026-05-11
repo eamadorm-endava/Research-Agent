@@ -156,8 +156,9 @@ class AgentBuilder:
 
         Specialists using sub_agents= delegation run in the same invocation context,
         so their after_agent_callbacks and OAuth events propagate correctly to the user.
-        Set enable_artifact_rendering=False only for agents that never produce file_data
-        output (e.g., ingestion-only agents) to skip unnecessary callback overhead.
+        Set enable_artifact_rendering=False for all sub-agents — rendering must happen
+        only at the root agent level so that PENDING_URI_KEY is cleared in session scope,
+        not in a transient sub-agent callback context that may not flush back to the session.
 
         Args:
             enable_artifact_rendering: bool -> When True (default), registers

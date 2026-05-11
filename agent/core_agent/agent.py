@@ -77,7 +77,8 @@ ingestion_agent = (
             load_artifacts,
         ]
     )
-    .build(enable_artifact_rendering=True)
+    .with_output_key("ekb_ingestion_context")
+    .build(enable_artifact_rendering=False)
 )
 
 # ---------------------------------------------------------------------------

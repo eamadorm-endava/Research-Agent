@@ -18,6 +18,7 @@ We recommend reviewing these documents logically as they walk through building, 
 10. **[10-User-Uploads-ACL.md](10-User-Uploads-ACL.md)**: IAM identity management for user-uploaded files in Gemini Enterprise.
 11. **[11-KB-Ingestion-Pipeline.md](11-KB-Ingestion-Pipeline.md)**: KB ingestion module: tools for triggering and monitoring EKB pipeline runs.
 12. **[12-Multi-Agent-Architecture.md](12-Multi-Agent-Architecture.md)**: Coordinator → Specialist multi-agent topology: rationale, delegation patterns, OAuth, and artifact rendering.
+13. **[13-Artifact-Rendering-Callback-Scope.md](13-Artifact-Rendering-Callback-Scope.md)**: Why `render_pending_artifacts` must only run on the root Coordinator, the cross-turn state leak that occurs when sub-agents render, and which document-reading paths remain available inside sub-agents.
 
 ## Reference
 

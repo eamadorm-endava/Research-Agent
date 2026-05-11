@@ -183,15 +183,20 @@ sequenceDiagram
 
 ## 7. Artifact Rendering in the Multi-Agent Context
 
-With `sub_agents=` delegation, each specialist's `after_agent_callback` fires within the same session and its output is visible to the user:
+`render_pending_artifacts` must fire **only on the Coordinator (root agent)**. Sub-agents must always be built with `enable_artifact_rendering=False`.
 
 | Agent | `enable_artifact_rendering` | Rationale |
 | :--- | :---: | :--- |
-| Research Specialist | `True` (default) | Imports GCS files and uses `render_pending_artifacts`; rendered `file_data` parts must reach the user. |
-| Ingestion Specialist | `False` | Produces only text status responses; no file rendering needed. |
-| Coordinator | `True` (default) | Root agent — renders any artifacts queued by tools it called directly. |
+| Research Specialist | `False` | Sub-agents must not render. See note below. |
+| Ingestion Specialist | `False` | Sub-agents must not render. Produces text-only status responses anyway. |
+| Coordinator | `True` (default) | Root agent — the sole owner of the render lifecycle. |
 
-The `render_pending_artifacts` callback clears `PENDING_RENDER_KEY` and `PENDING_URI_KEY` from session state after rendering. If both a specialist and the coordinator attempt to render, only the first caller finds data — no duplication occurs.
+> [!IMPORTANT]
+> Setting `enable_artifact_rendering=True` on a sub-agent causes stale URIs to leak across turns, resulting in follow-up questions returning no information. The ADK sub-agent callback context does not reliably flush its state delta back to the persistent session when the callback returns a non-`None` `Content`. Clearing `PENDING_URI_KEY` inside a sub-agent callback only affects that callback's transient scope — the session-level key remains populated. On the next turn the same stale URIs are rendered again, replacing the sub-agent's actual response with raw `file_data` parts.
+>
+> The Coordinator's `after_agent_callback` runs at session scope; its state mutations always persist. Making the Coordinator the sole renderer guarantees `PENDING_URI_KEY` is cleared exactly once, at the right level.
+
+Sub-agents can still read documents through their own tools — `enable_artifact_rendering=False` only removes the callback. See [13-Artifact-Rendering-Callback-Scope.md](13-Artifact-Rendering-Callback-Scope.md) for a full explanation of the state-scope issue, the fix, and what document-reading capabilities remain available inside sub-agents.
 
 For a full description of the stash-and-render pattern, see [09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md).
 
@@ -202,17 +207,17 @@ For a full description of the stash-and-render pattern, see [09-Architecture-and
 All three agents are assembled using the fluent `AgentBuilder` in `agent/core_agent/agent.py`:
 
 ```python
-# Research Specialist
+# Research Specialist — sub-agent: never renders artifacts
 research_agent = (
     AgentBuilder(agent_config=RESEARCH_AGENT_CONFIG, gcp_config=GCP_CONFIG, auth_config=GOOGLE_AUTH_CONFIG)
     .with_skills(["meeting-summary", "knowledge-discovery"])
     .with_mcp_servers([BIGQUERY_MCP_CONFIG, DRIVE_MCP_CONFIG, CALENDAR_MCP_CONFIG, GCS_MCP_CONFIG])
     .with_native_tools([GetArtifactUriTool(), ImportGcsToArtifactTool(), GetCurrentTimeTool(), load_artifacts])
     .with_output_key("research_context")
-    .build()
+    .build(enable_artifact_rendering=False)
 )
 
-# Ingestion Specialist
+# Ingestion Specialist — sub-agent: never renders artifacts
 ingestion_agent = (
     AgentBuilder(agent_config=INGESTION_AGENT_CONFIG, gcp_config=GCP_CONFIG, auth_config=GOOGLE_AUTH_CONFIG)
     .with_skills(["kb-file-ingestion"])
@@ -240,7 +245,7 @@ root_agent = (
 | `with_subagents(agents)` | Registers specialist agents via `sub_agents=` LLM-transfer delegation. |
 | `with_output_key(key)` | Persists the agent's final text to `session.state[key]` for cross-turn memory. |
 | `with_before_agent_callback(fn)` | Sets the `before_agent_callback` (e.g., `sync_ingestion_status`). |
-| `build(enable_artifact_rendering)` | Assembles the `Agent`. Pass `False` for specialists that never emit `file_data`. |
+| `build(enable_artifact_rendering)` | Assembles the `Agent`. Always `False` for sub-agents; only the root Coordinator uses the default `True`. |
 
 ---
 
