@@ -1,6 +1,6 @@
 ---
 name: kb-file-ingestion
-description: Orchestrates ingestion of user-uploaded PDF files into the Enterprise Knowledge Base using a metadata-first workflow. Use when a user asks to save, add, publish, register, upload, or ingest documents into the EKB/KB. The skill prioritizes user-provided project, domain, trust-level, and PII metadata to avoid unnecessary PDF reads, and only reads file contents as a targeted fallback when required metadata cannot be resolved from the conversation or filename context.
+description: Orchestrates privacy-preserving ingestion of user-uploaded PDF files into the Enterprise Knowledge Base using a metadata-first workflow. Use when a user asks to save, add, publish, register, upload, or ingest documents into the EKB/KB, or asks which EKB project IDs are available for file metadata. The skill prioritizes user-provided project, domain, trust-level, and PII metadata, must not read uploaded file contents unless the user explicitly requests content-based inspection, and can query the KB BigQuery dataset to list or validate available project IDs.
 ---
 
 ## Mandatory execution mode
@@ -14,26 +14,56 @@ Trigger this skill when a user asks to:
 - "Upload the file to the database"
 - "Register this document in EKB"
 - "Upload it to KB"
+- "What projects can I use for the metadata?"
+- "Which project IDs are available in the KB?"
+- "Show me the EKB projects I can ingest into"
 or similar requests.
 
-## Core Optimization Rule
+## Core Privacy and Optimization Rule
 
-Use a **metadata-first ingestion flow**. The goal is to minimize file processing time.
+Use a **privacy-preserving metadata-first ingestion flow**. The goal is to minimize processing time while avoiding unnecessary access to uploaded file contents.
 
-- Do **not** read every PDF by default.
+- Do **not** read, parse, OCR, preview, summarize, or extract text from uploaded PDFs by default.
+- Do **not** call `import_gcs_to_artifact` or `load_artifacts` for uploaded PDFs unless the user explicitly asks the agent to read or infer metadata from file contents.
+- Treat requests like "ingest this", "upload these", "add to KB", or "fill metadata" as **not consent** to inspect file contents.
 - First use the user's current message, prior conversation context, uploaded filenames, and lightweight URI/file metadata to infer the four required metadata fields.
-- Skip `import_gcs_to_artifact` and `load_artifacts` for any file whose required metadata can be resolved from user input and lightweight context.
-- Read PDF contents only as a **targeted fallback** for specific files and specific unresolved fields, or when the user explicitly asks the agent to infer metadata from the file contents.
-- Prefer asking the user to confirm or fill missing metadata over bulk-reading many PDFs.
+- Prefer asking the user to confirm or fill missing metadata over reading file contents.
+- If the user asks which projects are available for metadata, query the KB BigQuery dataset and answer from that query; do not inspect uploaded files.
 - Never start upload/stamping/pipeline steps until the user explicitly confirms the final metadata plan.
 
 ## Required Metadata
 
 Every ingested file must have:
-- **Project**: confirmed EKB `project_id` after semantic validation.
+- **Project**: confirmed EKB `project_id` after validation against the KB dataset or semantic project validation.
 - **Domain**: one of `IT`, `Finance`, `HR`, `Sales`, `Executives`, `Legal`, `Operations`.
 - **Trust-level**: one of `Published`, `WIP`, `Archived`.
 - **PII**: `Yes` or `No`.
+
+## Project ID Discovery Requests
+
+When the user asks which projects can be used for metadata, which project IDs are available, or asks for help choosing a project before ingestion:
+
+1. Do **not** read any uploaded files.
+2. Query BigQuery using `execute_query` with `project_id="ag-core-dev-fdx7"`.
+3. Use this read-only SQL:
+   ```sql
+   SELECT
+     project_id,
+     COUNTIF(latest = TRUE) AS latest_document_count,
+     ARRAY_AGG(DISTINCT domain IGNORE NULLS ORDER BY domain LIMIT 10) AS domains
+   FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
+   WHERE project_id IS NOT NULL
+     AND TRIM(project_id) != ''
+   GROUP BY project_id
+   ORDER BY project_id
+   LIMIT 500
+   ```
+4. Return the available `project_id` values in a concise table. Include document counts and domains when returned by the query.
+5. If the query returns no rows, say that no project IDs were found in the KB metadata table.
+6. If the query fails, report the BigQuery error and do not guess project IDs.
+7. If files are already uploaded, ask the user to choose one of the returned project IDs and provide or confirm the remaining metadata before continuing ingestion.
+
+Use the query results as a metadata aid only. Do not auto-select a project ID for a file unless the user clearly asked for a specific project or there is a high-confidence semantic match that the user later confirms.
 
 ## Metadata Source Precedence
 
@@ -42,19 +72,21 @@ When multiple sources provide a value for the same field, apply this precedence:
 1. Explicit per-file user input.
 2. Explicit batch-level user input, such as "all files are for project X" or "same metadata for all PDFs".
 3. Previously confirmed values in the same conversation.
-4. Lightweight filename/URI hints.
-5. Targeted PDF content read, only when needed.
-6. Blank (`—`) and ask the user.
+4. BigQuery project ID discovery or validation results, when matching a user-provided project name or ID.
+5. Lightweight filename/URI hints.
+6. User-authorized file-content inspection results, only when the user explicitly requested content-based inference.
+7. Blank (`—`) and ask the user.
 
 **Duplicate replace exception**: If the user chooses **Replace** for a duplicate file, override that file's `domain` and `trust-level` with the values fetched from the existing BigQuery metadata record. This override beats all inferred or user-typed values for those two fields.
 
 ## Progress Tracker
 
 Maintain this state throughout the interaction:
+- [ ] Optional project lookup: If the user asks for available projects, query BigQuery and show project IDs without reading files
 - [ ] Step 1a: Get URIs for all uploads → validate every file is a PDF
 - [ ] Step 1b: Parse user-provided metadata and lightweight file hints → build metadata candidates without reading PDFs
-- [ ] Step 1c: Optional targeted PDF reads only for files/fields still unresolved, if beneficial and not a bulk-read fallback
-- [ ] Step 2 (background, all in parallel): Semantic project validation + deduplication check for every resolvable file simultaneously
+- [ ] Step 1c: Privacy gate → read file contents only if the user explicitly requested content-based inspection for specific files or fields
+- [ ] Step 2 (background, all in parallel): Project validation + deduplication check for every resolvable file simultaneously
 - [ ] Step 2 (user-facing): Present ONE combined message — pre-filled metadata table + any ambiguity/duplicate/missing-field questions + confirmation ask
 - [ ] Step 2 (await): Wait for explicit user approval covering metadata AND all open questions
 - [ ] Step 3a: Upload files to KB landing zone (all files in parallel)
@@ -68,14 +100,23 @@ Maintain this state throughout the interaction:
 
 - **GCS URIs**: The agent landing zone is always `gs://ai_agent_landing_zone/`.
 - **KB Landing Zone**: The KB ingestion bucket is **`gs://ag-core-dev-fdx7-kb-landing-zone/`**. You MUST use this exact name for the `destination_bucket` to trigger the Service Account authentication switch.
+- **BigQuery project for KB metadata queries**: Use `ag-core-dev-fdx7` as the BigQuery tool `project_id` and query `ag-core-dev-fdx7.knowledge_base.documents_metadata`.
 - **Project IDs**: In BigQuery, `project_id` is case-sensitive in some operations but should be checked case-insensitively for duplicates.
 - **Job IDs**: Always return the `job_id` from the pipeline response to the user as a confirmation.
 - **Parallelism**: Steps 2 background checks, 3a, 3b, 3c, and 4 each launch ALL eligible tool calls at the same time. Never loop one-by-one.
-- **No bulk content reads**: Never read every PDF merely to pre-fill metadata. Reading content is allowed only for a narrowed subset of files that still need it.
+- **No file-content reads without consent**: Never read PDF content to pre-fill metadata unless the user explicitly requests it. Missing metadata should remain blank and be asked for.
 
 ## Mandatory Workflow
 
-### Step 1: Identify, Validate, and Infer Metadata Without Bulk Reads
+### Step 0: Answer Available-Project Questions Before Ingestion
+
+If the user asks which projects are available or which project ID to use, run the **Project ID Discovery Requests** protocol before any ingestion-specific metadata inference. This applies even if the user uploaded files in the same message.
+
+After showing the available project IDs:
+- If the user has not chosen a project, ask them to choose one and provide or confirm the remaining required metadata.
+- If the user already provided enough metadata, continue to Step 1 without reading file contents.
+
+### Step 1: Identify, Validate, and Infer Metadata Without File Reads
 
 #### 1a — Identify & Validate
 
@@ -124,26 +165,29 @@ Use filenames and URIs only for lightweight hints. Examples:
 - `finance-forecast-final.pdf` can hint `Finance` and `Published`.
 - `archive-legal-contract.pdf` can hint `Legal` and `Archived`.
 
-Do not infer `PII = No` from silence alone. If the user does not provide PII status and the file name does not clearly indicate redacted/anonymized content, leave PII blank (`—`) and ask the user, unless a targeted read is appropriate under Step 1c.
+Do not infer `PII = No` from silence alone. If the user does not provide PII status and the file name does not clearly indicate redacted/anonymized content, leave PII blank (`—`) and ask the user.
 
-#### 1c — Targeted PDF Content Fallback *(only when needed)*
+#### 1c — Privacy Gate for Optional File-Content Inspection
 
-For each file, decide whether reading content is actually necessary.
+File-content inspection is **opt-in only**.
 
-Do **not** call `import_gcs_to_artifact` or `load_artifacts` for a file when all four required metadata fields have a non-blank candidate from user input or lightweight context.
+Only read uploaded PDF contents when the user explicitly asks for it using language such as:
+- "Read the file and infer the metadata."
+- "You may inspect the documents to fill missing metadata."
+- "Auto-detect PII/domain/trust level from the contents."
+- "Scan the PDFs and tell me the metadata."
 
-Read a specific PDF only when one of these is true:
-1. The user explicitly asked the agent to infer metadata from contents.
-2. A required field remains blank after Step 1b and the batch is small enough that targeted reads are reasonable.
-3. A filename/content contradiction is likely and resolving it is necessary before asking for confirmation.
+When the user has not explicitly requested content-based inspection:
+- Do **not** call `import_gcs_to_artifact`.
+- Do **not** call `load_artifacts`.
+- Leave unresolved fields blank (`—`) and ask the user for the missing metadata in Step 2.
 
-When targeted reading is used:
-- Launch reads only for the unresolved subset, not the entire batch.
+When the user explicitly requests content-based inspection:
+- Read only the specific files or fields the user authorized, not the entire batch unless the user clearly authorized the entire batch.
 - For every selected PDF, call `import_gcs_to_artifact(gcs_uri=<uri>, mime_type="application/pdf")` then `load_artifacts`.
-- Extract only the missing/ambiguous metadata hints needed for that file.
+- Extract only the missing or requested metadata hints needed for that file.
 - If a selected file cannot be read, leave unresolved fields blank (`—`) and continue.
-
-When many files still have unresolved metadata, do **not** read them all. Instead, leave blanks in the table and ask the user for batch-level or per-file values in Step 2.
+- In the Step 2 message, state that user-authorized file-content checks were used.
 
 ### Step 2: Background Validation → Single User-Facing Message
 
@@ -151,21 +195,32 @@ When many files still have unresolved metadata, do **not** read them all. Instea
 
 Merge metadata candidates from Step 1b/1c using the precedence rules above.
 
-1. **Semantic Project Validation** — for every unique project name or project-like value inferred, call `ekb_semantic_search(query='<inferred_project_name>')`:
-   - Direct `project_id` supplied by the user and semantically valid → use that `project_id`.
-   - High-confidence single match → resolve to that `project_id`.
+1. **Project Validation** — for every unique project name or project-like value inferred:
+   - If the user provided an exact-looking `project_id`, validate it against BigQuery with a read-only `execute_query` against `ag-core-dev-fdx7.knowledge_base.documents_metadata`.
+   - If the user provided a project name or description rather than an exact ID, call `ekb_semantic_search(query='<inferred_project_name>')` and resolve only high-confidence matches.
+   - Direct `project_id` supplied by the user and validated → use that `project_id`.
+   - High-confidence single semantic match → resolve to that `project_id`.
    - Multiple plausible matches → collect the candidates; surface them as an inline ⚠️ question in the user-facing message.
    - No match → leave the project cell blank; flag it as missing input in the message.
 
+   Exact project ID validation query:
+   ```sql
+   SELECT DISTINCT project_id
+   FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
+   WHERE LOWER(project_id) = LOWER('<user_supplied_project_id>')
+   LIMIT 5
+   ```
+
 2. **Deduplication Check** — for each file whose project resolved to a confirmed `project_id`, run:
    ```sql
-   SELECT filename, domain, classification_tier
-   FROM `knowledge_base.documents_metadata`
+   SELECT filename, domain, trust_level
+   FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
    WHERE project_id = '<confirmed_project_id>'
      AND lower(filename) = lower('<uploaded_filename>')
      AND latest = TRUE
+   LIMIT 1
    ```
-   - Duplicate found → record the existing `domain` and `classification_tier`; surface a replace-or-rename question in the user-facing message.
+   - Duplicate found → record the existing `domain` and `trust_level`; surface a replace-or-rename question in the user-facing message.
    - No duplicate → no extra question for this file.
    - If the project was ambiguous or unresolved, skip the dedup check for that file — it will run after the user confirms the project.
 
@@ -173,7 +228,7 @@ Merge metadata candidates from Step 1b/1c using the precedence rules above.
 
 Send a single message with this structure:
 
-> "Based on your instructions and the available file metadata, I have pre-filled the metadata to be used. Please let me know if it's correct or if you want to make changes, and answer any questions below before I proceed:
+> "Based on your instructions and the available file metadata, I have pre-filled the metadata to be used without reading the uploaded file contents. Please let me know if it's correct or if you want to make changes, and answer any questions below before I proceed:
 >
 > | File | Project | Domain | Trust-level | PII |
 > |:---:|:---:|:---:|:---:|:---:|
@@ -198,9 +253,9 @@ Send a single message with this structure:
 >
 > Please confirm the metadata and answer any question(s) above to proceed."
 
-If any targeted PDF reads were actually performed, use this first sentence instead:
+If user-authorized file-content checks were actually performed, use this first sentence instead:
 
-> "Based on your instructions, available file metadata, and targeted file-content checks where needed, I have pre-filled the metadata to be used."
+> "Based on your instructions, available file metadata, and user-authorized file-content checks, I have pre-filled the metadata to be used."
 
 **Cell formatting rules:**
 - Write only the metadata value in every cell, regardless of how it was obtained.
@@ -210,7 +265,7 @@ If any targeted PDF reads were actually performed, use this first sentence inste
 **⚠️ Issue blocks** (append below the table, one block per open issue; omit entirely if no issues exist):
 
 For missing required metadata:
-> ⚠️ **Metadata missing for `<filename>`**: Please provide `<Project/Domain/Trust-level/PII>` for this file.
+> ⚠️ **Metadata missing for `<filename>`**: Please provide `<Project/Domain/Trust-level/PII>` for this file. I will not read the file to infer this unless you explicitly ask me to inspect its contents.
 
 For an ambiguous project match:
 > ⚠️ **Project unclear for `<filename>`**: I found multiple possible matches in the EKB. Is it one of these?
@@ -218,7 +273,7 @@ For an ambiguous project match:
 > - `<Project Name B>` (ID: `<id_b>`)
 
 For a duplicate filename:
-> ⚠️ **Duplicate detected for `<filename>`**: A version already exists in `<project_id>` (Domain: `<existing_domain>`, Trust-level: `<existing_tier>`). Should I:
+> ⚠️ **Duplicate detected for `<filename>`**: A version already exists in `<project_id>` (Domain: `<existing_domain>`, Trust-level: `<existing_trust_level>`). Should I:
 > - **Replace** the existing file (its domain and trust-level will be preserved from the existing record)
 > - **Rename** `<filename>` — please provide the new filename
 
@@ -232,11 +287,11 @@ Do NOT start Step 3a until all conditions are met:
 3. Every blank (`—`) required metadata cell has been resolved.
 4. Every project value has been resolved to a confirmed `project_id`.
 
-If the user corrects a project name that was previously unresolved or wrong, re-run `ekb_semantic_search` for the corrected name and, if it resolves, run the dedup check for that file before proceeding.
+If the user corrects a project name that was previously unresolved or wrong, re-run project validation and, if it resolves, run the dedup check for that file before proceeding.
 
 If the user provides missing metadata in response to the table, update the affected rows, re-display the corrected table, and ask for confirmation again before continuing.
 
-If the user asks the agent to auto-detect missing fields from the documents after seeing the table, run targeted PDF reads only for the files and fields the user asked to auto-detect, then re-display the corrected table.
+If the user asks the agent to auto-detect missing fields from the documents after seeing the table, run user-authorized file-content inspection only for the files and fields the user asked to auto-detect, then re-display the corrected table.
 
 ### Step 3a: Upload Files *(all files launched in parallel simultaneously)*
 
