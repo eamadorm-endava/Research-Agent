@@ -281,7 +281,9 @@ class BigQueryManager:
           m.project_id,
           m.uploader_email,
           m.description AS document_summary,
-          v.distance
+          v.distance,
+          m.ingested_at
+     
         FROM VECTOR_SEARCH(
           TABLE `knowledge_base.documents_chunks`,
           'embedding',
@@ -370,7 +372,9 @@ class BigQueryManager:
           m.uploader_email,
           m.description,
           c.filename,
-          m.project_id
+          m.project_id,
+          m.ingested_at
+
         FROM `knowledge_base.documents_chunks` c
         JOIN `knowledge_base.documents_metadata` m ON c.document_id = m.document_id
         WHERE m.latest = TRUE
