@@ -111,7 +111,6 @@ For the top 3 files used in Wave 2, run all steps in parallel (following the **G
 After all 3 imports complete, call `load_artifacts` once.
 
 ### Drive Search (Targeted Mode)
-Trigger when Wave 1 returned zero EKB results, OR when GCS Long Context did not yield the answer.
 Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt using keywords extracted from the user's query.
 
 ---
@@ -266,7 +265,7 @@ Include the escalation message verbatim from the **Final Escalation** section ab
 **## References** *(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
 Include ONLY files, documents, and events from which data was explicitly extracted to produce this response. Never include broad discovery results or unused tool outputs.
 
-| Source | Filename | Owner | Created at / Last Update |
+| Source | Project Name | Filename | Owner | Created at / Last Update |
 |:---:|:---:|:---:|:---:|
 | EKB / Drive / Cloud Storage / BigQuery | Human-readable file or event name | Author email or display name | `YYYY-MM-DD` |
 
@@ -275,6 +274,7 @@ Include ONLY files, documents, and events from which data was explicitly extract
   - **`Drive`**: Google Drive files retrieved via the Drive MCP tools.
   - **`Cloud Storage`**: GCS files read directly from personal or non-EKB buckets (e.g., user-provided buckets in Final Escalation).
   - **`BigQuery`**: results from non-EKB BigQuery tables queried via `execute_query` against user-provided datasets.
+- **Project Name**: project name only. NEVER show raw IDs, hashes, or URIs. Example: `Alpha`, `Beta`
 - **Filename**: human-readable name only. NEVER show raw IDs, hashes, GCS URIs, dataset names, or table names.
 - **Drive entries**: only cite actual files — never include folders (`mime_type = "application/vnd.google-apps.folder"`) as references, even if a folder was used during discovery.
 - **Owner**: uploader email, document owner, or event organizer. `Unknown` if unavailable.
