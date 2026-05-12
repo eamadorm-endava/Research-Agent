@@ -333,8 +333,8 @@ class ClassificationPipeline:
         that any earlier failure leaves the files in place for a clean retry.
 
         Args:
-            original_uri (str): Landing zone URI of the original document.
-            sanitized_uri (Optional[str]): Landing zone URI of the masked file, if one was created.
+            original_uri: str -> Landing zone URI of the original document.
+            sanitized_uri: Optional[str] -> Landing zone URI of the masked file, if one was created.
 
         Returns:
             None

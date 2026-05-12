@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,6 +8,7 @@ from pipelines.enterprise_knowledge_base.app.rag_ingestion import (
     IngestDocumentRequest,
     RAGIngestion,
 )
+from pipelines.enterprise_knowledge_base.app.rag_ingestion.schemas import DocumentChunk
 
 
 @pytest.fixture(autouse=True)
@@ -137,3 +139,55 @@ def test_generate_embeddings_failure(mock_bq):
 
     assert response.success is False
     assert "BQ Error" in response.execution_status
+
+
+@pytest.fixture
+def sample_chunks():
+    return [
+        DocumentChunk(
+            chunk_id="1",
+            document_id="doc1",
+            chunk_data="sample text",
+            gcs_uri="gs://kb-it/proj/doc.pdf",
+            filename="doc.pdf",
+            page_number=1,
+            structural_metadata={"page": 1},
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+    ]
+
+
+def test_stage_chunks_bq_retries_on_rate_limit(mock_bq, sample_chunks):
+    """Regression: _stage_chunks_bq must retry on 429 rateLimitExceeded and succeed
+    on the next attempt, not propagate the error immediately."""
+    service = RAGIngestion()
+
+    mock_job = MagicMock()
+    mock_job.result.side_effect = [
+        Exception("429 rateLimitExceeded: too many table update operations"),
+        None,
+    ]
+    mock_bq.load_table_from_json.return_value = mock_job
+
+    with patch(
+        "pipelines.enterprise_knowledge_base.app.rag_ingestion.pipeline.time.sleep"
+    ):
+        service._stage_chunks_bq(sample_chunks)
+
+    assert mock_bq.load_table_from_json.call_count == 2
+
+
+def test_stage_chunks_bq_raises_immediately_on_non_rate_limit_error(
+    mock_bq, sample_chunks
+):
+    """Verifies _stage_chunks_bq does not retry on non-rate-limit errors."""
+    service = RAGIngestion()
+
+    mock_job = MagicMock()
+    mock_job.result.side_effect = Exception("Permission denied")
+    mock_bq.load_table_from_json.return_value = mock_job
+
+    with pytest.raises(RuntimeError, match="Permission denied"):
+        service._stage_chunks_bq(sample_chunks)
+
+    assert mock_bq.load_table_from_json.call_count == 1
