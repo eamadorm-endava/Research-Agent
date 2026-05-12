@@ -98,12 +98,12 @@ resource "google_cloud_tasks_queue" "ekb_ingestion_queue" {
   location = var.main_region
 
   rate_limits {
-    max_concurrent_dispatches = 10
-    max_dispatches_per_second = 5
+    max_concurrent_dispatches = 5
+    max_dispatches_per_second = 2
   }
 
   retry_config {
-    max_attempts = 5
+    max_attempts = 1
     min_backoff  = "10s"
     max_backoff  = "300s"
   }
