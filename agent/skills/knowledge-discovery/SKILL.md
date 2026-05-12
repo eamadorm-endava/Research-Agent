@@ -66,7 +66,7 @@ Do NOT include `filename`, `domain`, `project_filter`, or `trust_level`.
 - Files that appear in both results are the highest-confidence anchors and must be ranked first for Wave 2.
 
 **Zero-result fallback rules:**
-- Both return zero → skip Wave 2 and GCS Long Context. Proceed immediately to Calendar Search Protocol + Drive Search Protocol in parallel.
+- Both return zero → skip Wave 2 and GCS Long Context. Proceed immediately to Calendar Search Protocol + Drive Search Protocol in parallel. **Keyword source for Drive**: extract entities (companies, projects, technologies, people) directly from the user's original prompt — do not wait for EKB results. These user-prompt keywords are the primary input for Drive (Stage 0 entity extraction). Do not use EKB-derived terms as input because there are none.
 - Only `ekb_semantic_search` returns zero → use keyword search results as the sole anchor pool and proceed to Wave 2 normally.
 - Only `ekb_keyword_search` returns zero → proceed to Wave 2 using semantic results only.
 
@@ -93,7 +93,7 @@ Select the top 3 most relevant files from Wave 1, ranked by ascending cosine dis
 - `filename`: exact verbatim value from the `filename` field of a Wave 1 result — never paraphrase or rewrite
 - `top_k`: `30`
 
-Run the **CALENDAR SEARCH PROTOCOL** (from the system prompt) in parallel with Wave 2, starting both immediately after Wave 1 completes. Calendar runs regardless of Wave 1 outcome.
+Run the **CALENDAR SEARCH PROTOCOL** and the **DRIVE SEARCH PROTOCOL** (from the system prompt) in parallel with Wave 2, starting all three immediately after Wave 1 completes. Both Calendar and Drive run regardless of Wave 1 outcome — they are never skipped, even when EKB returned results. **Keyword priority for Drive**: first use terms extracted from the user's original prompt (company names, project names, technologies, people); then supplement with any entities derived from Wave 1 EKB results.
 
 **Hard Rules:**
 - Run all Wave 2 calls simultaneously.
@@ -111,7 +111,10 @@ For the top 3 files used in Wave 2, run all steps in parallel (following the **G
 After all 3 imports complete, call `load_artifacts` once.
 
 ### Drive Search (Targeted Mode)
-Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt using keywords extracted from the user's query.
+Drive search always runs — it is not conditional on EKB results. It runs in parallel with Wave 2 and Calendar (see above). Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**:
+1. **Primary**: entities and keywords extracted directly from the user's original prompt (companies, projects, technologies, people).
+2. **Supplementary**: entities found in Wave 1 / Wave 1.5 EKB results — add these to the keyword pool after user-prompt extraction to expand coverage.
+3. **EKB empty**: if Wave 1 returned zero results, proceed with user-prompt keywords only.
 
 ---
 
@@ -161,7 +164,7 @@ Launch all the following simultaneously. *Efficiency Rule: never repeat the same
 
 **2b. BigQuery (Structural Context)** — Follow the **BIGQUERY QUERY PROTOCOL** defined in the system prompt. Target the `documents_metadata` table inside the `knowledge_base` dataset. Retrieve metadata (summaries, domain, project associations) linked to the entities identified in Phase 1. Skip if Phase 1 returned zero EKB results. Include always the filter: where latest = true. So it always get the last version of the document.
 
-**2c. Google Drive** — Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt (Stage 0 through Wave 2 only). Do NOT execute Stage 4 file reading in Phase 2 — file reading is deferred to Phase 3 Level 3.
+**2c. Google Drive** — Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt (Stage 0 through Wave 2 only). Do NOT execute Stage 4 file reading in Phase 2 — file reading is deferred to Phase 3 Level 3. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**: (1) primary — entities and keywords extracted directly from the user's original prompt; (2) supplementary — entities found in Phase 1 EKB results, added to the keyword pool after user-prompt extraction to expand coverage. If Phase 1 returned zero results, proceed with user-prompt keywords only.
 
 ### Phase 3: Synthesis & Targeted Deep Dive (Escalation Path)
 
@@ -228,7 +231,7 @@ Respond directly in plain prose (1–3 sentences). Always append the `## Referen
 ---
 
 #### Full Report Mode
-Cross-correlate all findings into a unified narrative before writing. Follow this exact section order. If genuinely no data exists for a section, write `No information found` under that heading — do not skip it.
+Cross-correlate all findings into a unified narrative before writing. Follow this exact section order. If genuinely no data exists for a section, write `No information found` under that heading — do not skip it. **Exception: the `## Upcoming Meetings` and `## Previous Meetings` sections** — omit both entirely if no calendar search was executed or if calendar searches returned no events relevant to the topic. Do not render these sections with placeholder text in that case.
 
 **Summary** *(always present)*
 1–2 paragraphs. Brief context of what was found, the topic, and its relevance. No bullet points.
@@ -245,15 +248,15 @@ Bullet list of people involved: name, role or relationship to the topic, and con
 
 ---
 
-**## Upcoming Meetings**
+**## Upcoming Meetings** *(omit this section entirely if no calendar search was run)*
 List ONLY meetings after the current date related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
-If none: `No upcoming meetings found for this topic.`
+If no relevant meetings are found: `No upcoming meetings found for this topic.`
 
 ---
 
-**## Previous Meetings**
+**## Previous Meetings** *(omit this section entirely if no calendar search was run)*
 List past meetings related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
-If none: `No recent meetings found for this topic.`
+If no relevant meetings are found: `No previous meetings found for this topic.`
 
 ---
 
