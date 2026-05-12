@@ -104,6 +104,11 @@ class ClassificationPipeline:
                 or routing_resp.final_original_uri,
                 final_security_tier=llm_resp.final_classification_tier,
                 final_domain=llm_resp.final_domain,
+                sanitized_landing_uri=(
+                    sanitized_landing_uri
+                    if sanitized_landing_uri != landing_zone_original_uri
+                    else None
+                ),
             )
 
         except Exception as e:
@@ -314,18 +319,34 @@ class ClassificationPipeline:
             final_sanitized_uri = f"{dest_base}{sanitized_filename}"
             self.gcs.copy_blob(request.sanitized_landing_uri, final_sanitized_uri)
 
-        # 3. Cleanup Landing Zone
-        self.gcs.delete_blob(request.original_landing_uri)
-        if (
-            request.sanitized_landing_uri
-            and request.sanitized_landing_uri != request.original_landing_uri
-        ):
-            self.gcs.delete_blob(request.sanitized_landing_uri)
-
         return FileRoutingResponse(
             final_original_uri=final_original_uri,
             final_sanitized_uri=final_sanitized_uri,
         )
+
+    def cleanup_landing_zone(
+        self, original_uri: str, sanitized_uri: Optional[str] = None
+    ) -> None:
+        """Deletes the original and masked files from the landing zone.
+
+        Called only after all pipeline steps (classification + RAG) succeed, so
+        that any earlier failure leaves the files in place for a clean retry.
+
+        Args:
+            original_uri: str -> Landing zone URI of the original document.
+            sanitized_uri: Optional[str] -> Landing zone URI of the masked file, if one was created.
+
+        Returns:
+            None
+        """
+        logger.info(f"Cleaning up landing zone for: {original_uri}")
+        for uri in filter(None, [original_uri, sanitized_uri]):
+            try:
+                self.gcs.delete_blob(uri)
+            except Exception as e:
+                logger.warning(
+                    f"Landing zone cleanup failed for {uri} (non-fatal): {e}"
+                )
 
     def ingest_metadata_bq(self, request: IngestMetadataBQRequest) -> bool:
         """Persists the document metadata into BQ with versioning logic.

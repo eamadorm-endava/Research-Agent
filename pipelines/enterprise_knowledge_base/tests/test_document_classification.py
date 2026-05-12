@@ -408,3 +408,53 @@ def test_run_returns_masked_uri_when_sanitized(
         result.final_sanitized_uri
         == "gs://kb-executives/top-secret/strictly-confidential/admin/secret_masked.txt"
     )
+
+
+def test_file_routing_does_not_delete_landing_zone_blobs(pipeline, mock_gcs):
+    """Regression: file_routing must only copy files to the domain bucket, never delete
+    from the landing zone. Deletion is deferred to cleanup_landing_zone after RAG succeeds."""
+    from pipelines.enterprise_knowledge_base.app.document_classification.schemas import (
+        FileRoutingRequest,
+    )
+
+    request = FileRoutingRequest(
+        original_landing_uri="gs://landing/proj/doc.pdf",
+        sanitized_landing_uri="gs://landing/proj/doc_masked.pdf",
+        final_domain="it",
+        final_security_tier=1,
+        project_name="proj",
+        uploader_email="user@example.com",
+    )
+
+    pipeline.file_routing(request)
+
+    mock_gcs.delete_blob.assert_not_called()
+
+
+def test_cleanup_landing_zone_deletes_original_and_sanitized(pipeline, mock_gcs):
+    """Verifies cleanup_landing_zone deletes both the original and masked landing zone files."""
+    original_uri = "gs://landing/proj/doc.pdf"
+    sanitized_uri = "gs://landing/proj/doc_masked.pdf"
+
+    pipeline.cleanup_landing_zone(original_uri, sanitized_uri)
+
+    mock_gcs.delete_blob.assert_any_call(original_uri)
+    mock_gcs.delete_blob.assert_any_call(sanitized_uri)
+    assert mock_gcs.delete_blob.call_count == 2
+
+
+def test_cleanup_landing_zone_skips_sanitized_when_none(pipeline, mock_gcs):
+    """Verifies cleanup_landing_zone only deletes the original when no masked file exists."""
+    original_uri = "gs://landing/proj/doc.pdf"
+
+    pipeline.cleanup_landing_zone(original_uri, None)
+
+    mock_gcs.delete_blob.assert_called_once_with(original_uri)
+
+
+def test_cleanup_landing_zone_is_non_fatal_on_gcs_error(pipeline, mock_gcs):
+    """Verifies cleanup_landing_zone does not raise if GCS deletion fails,
+    so a stale landing zone file never fails an otherwise successful pipeline."""
+    mock_gcs.delete_blob.side_effect = Exception("GCS Error")
+
+    pipeline.cleanup_landing_zone("gs://landing/doc.pdf", None)
