@@ -248,13 +248,15 @@ Bullet list of people involved: name, role or relationship to the topic, and con
 
 ---
 
-**## Upcoming Meetings** *(omit this section entirely if no calendar search was run or no relevant events were found)*
+**## Upcoming Meetings** *(omit this section entirely if no calendar search was run)*
 List ONLY meetings after the current date related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
+If no relevant meetings are found: `No upcoming meetings found for this topic.`
 
 ---
 
-**## Previous Meetings** *(omit this section entirely if no calendar search was run or no relevant events were found)*
+**## Previous Meetings** *(omit this section entirely if no calendar search was run)*
 List past meetings related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
+If no relevant meetings are found: `No previous meetings found for this topic.`
 
 ---
 
