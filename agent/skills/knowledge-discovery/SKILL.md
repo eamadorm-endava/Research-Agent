@@ -265,7 +265,7 @@ Include the escalation message verbatim from the **Final Escalation** section ab
 **## References** *(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
 Include ONLY files, documents, and events from which data was explicitly extracted to produce this response. Never include broad discovery results or unused tool outputs.
 
-| Source | Filename | Owner | Created at / Last Update |
+| Source | Project Name | Filename | Owner | Created at / Last Update |
 |:---:|:---:|:---:|:---:|
 | EKB / Drive / Cloud Storage / BigQuery | Human-readable file or event name | Author email or display name | `YYYY-MM-DD` |
 
