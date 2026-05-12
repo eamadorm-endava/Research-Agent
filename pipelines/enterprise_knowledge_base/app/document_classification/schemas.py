@@ -62,3 +62,10 @@ class RunResponse(BaseModel):
         int, Field(description="The definitive security tier.")
     ]
     final_domain: Annotated[str, Field(description="The validated target domain.")]
+    sanitized_landing_uri: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Landing zone URI of the masked file, if masking occurred. Used for deferred cleanup.",
+        ),
+    ]

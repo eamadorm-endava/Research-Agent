@@ -1,3 +1,4 @@
+import random
 import time
 import unicodedata
 import uuid
@@ -432,13 +433,26 @@ class RAGIngestion:
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
         )
 
-        try:
-            job = self.bq_client.load_table_from_json(
-                json_rows, self.table_id, job_config=job_config
-            )
-            job.result()
-        except Exception as e:
-            raise RuntimeError(f"BigQuery batch load failed: {str(e)}")
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                job = self.bq_client.load_table_from_json(
+                    json_rows, self.table_id, job_config=job_config
+                )
+                job.result()
+                return
+            except Exception as e:
+                is_rate_limit = "429" in str(e) or "rateLimitExceeded" in str(e)
+                if attempt == max_retries - 1 or not is_rate_limit:
+                    raise RuntimeError(f"BigQuery batch load failed: {str(e)}")
+                wait_time = 5 * (2**attempt) + random.uniform(
+                    0, 3
+                )  # 5–8s, 10–13s, 20–23s
+                logger.warning(
+                    f"BQ table.write rate limit on attempt {attempt + 1}, "
+                    f"retrying in {wait_time:.1f}s..."
+                )
+                time.sleep(wait_time)
 
     def _copy_to_staging(self, source_uri: str, destination_uri: str) -> None:
         """Copies a document from its source (Domain) to the RAG Staging bucket.

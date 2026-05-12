@@ -48,6 +48,11 @@ class KBIngestionPipeline:
         )
         ingest_resp = self.rag_pipeline.run(ingest_req)
 
+        # Delete from landing zone only after both classification and RAG succeed.
+        self.classification_pipeline.cleanup_landing_zone(
+            request.gcs_uri, class_resp.sanitized_landing_uri
+        )
+
         if "SUCCESS" in ingest_resp.execution_status:
             logger.success(
                 f"Pipeline finished successfully. Chunks: {ingest_resp.chunk_count}"
