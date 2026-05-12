@@ -274,6 +274,7 @@ Include ONLY files, documents, and events from which data was explicitly extract
   - **`Drive`**: Google Drive files retrieved via the Drive MCP tools.
   - **`Cloud Storage`**: GCS files read directly from personal or non-EKB buckets (e.g., user-provided buckets in Final Escalation).
   - **`BigQuery`**: results from non-EKB BigQuery tables queried via `execute_query` against user-provided datasets.
+- **Project Name**: project name only. NEVER show raw IDs, hashes, or URIs. Example: `Alpha`, `Beta`
 - **Filename**: human-readable name only. NEVER show raw IDs, hashes, GCS URIs, dataset names, or table names.
 - **Drive entries**: only cite actual files — never include folders (`mime_type = "application/vnd.google-apps.folder"`) as references, even if a folder was used during discovery.
 - **Owner**: uploader email, document owner, or event organizer. `Unknown` if unavailable.
