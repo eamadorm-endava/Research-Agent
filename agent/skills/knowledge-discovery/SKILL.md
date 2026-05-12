@@ -111,7 +111,6 @@ For the top 3 files used in Wave 2, run all steps in parallel (following the **G
 After all 3 imports complete, call `load_artifacts` once.
 
 ### Drive Search (Targeted Mode)
-Trigger when Wave 1 returned zero EKB results, OR when GCS Long Context did not yield the answer.
 Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt using keywords extracted from the user's query.
 
 ---
