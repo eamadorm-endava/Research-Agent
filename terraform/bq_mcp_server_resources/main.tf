@@ -46,6 +46,11 @@ module "mcp_server_cloud_run" {
   project_id = var.project_id
   region     = local.cloud_run_region
   name       = var.mcp_server_cloud_run_name
+  labels     = var.mcp_server_cloud_run_labels
+
+  revision = {
+    labels = var.mcp_server_cloud_run_labels
+  }
 
   containers = {
     mcp-server = {

@@ -41,6 +41,10 @@ mcp_server_cloud_run_env = {
 mcp_server_cloud_run_min_instances = 0
 mcp_server_cloud_run_cpu           = "1"
 mcp_server_cloud_run_memory        = "512Mi"
+mcp_server_cloud_run_labels = {
+  "service"   = "gcs-mcp-server"
+  "component" = "mcp-server"
+}
 
 landing_zone_bucket = "ai_agent_landing_zone"
 kb_ingestion_bucket = "ag-core-dev-fdx7-kb-landing-zone"

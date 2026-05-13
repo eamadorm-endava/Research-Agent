@@ -82,6 +82,12 @@ variable "mcp_server_cloud_run_memory" {
   default     = "512Mi"
 }
 
+variable "mcp_server_cloud_run_labels" {
+  description = "A map of labels to apply to the Cloud Run service and revision."
+  type        = map(string)
+  default     = {}
+}
+
 variable "landing_zone_bucket" {
   description = "The name of the GCS bucket used as the landing zone for user uploads."
   type        = string
