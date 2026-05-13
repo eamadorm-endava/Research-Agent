@@ -81,3 +81,9 @@ variable "mcp_server_cloud_run_memory" {
   type        = string
   default     = "512Mi"
 }
+
+variable "mcp_server_cloud_run_labels" {
+  description = "A map of labels to apply to the Cloud Run service and revision."
+  type        = map(string)
+  default     = {}
+}
