@@ -7,8 +7,10 @@ locals {
 }
 
 module "enable_apis" {
-  source           = "../base_modules/api-manager"
-  project_services = var.project_services
+  source = "../base_modules/api-manager"
+  project_services = {
+    (var.project_id) = var.services_to_enable
+  }
 }
 
 module "artifact_registry" {
