@@ -16,13 +16,34 @@ if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then
 fi
 
 # Note: Cloud build trigger names must match with names thar was created from the bootstrap.sh script
+# List of triggers created in cicd_triggers_creation.sh
+TRIGGERS=(
+    "ai-agent-services-plan"
+    "ai-agent-services-apply"
+    "bq-mcp-server-services-plan"
+    "bq-mcp-server-services-apply"
+    "gcs-mcp-server-services-plan"
+    "gcs-mcp-server-services-apply"
+    "drive-mcp-server-services-plan"
+    "drive-mcp-server-services-apply"
+    "calendar-mcp-server-services-plan"
+    "calendar-mcp-server-services-apply"
+    "ekb-pipeline-services-plan"
+    "ekb-pipeline-services-apply"
+)
+
 echo "---------------------------------------"
-echo "Deleting Cloud Build Triggers..."
-# Using '-' before the command or '|| true' allows the script to continue if a trigger is already gone
-gcloud alpha builds triggers delete ai-agent-services-plan --region=us-central1 --project=$PROJECT_ID --quiet || echo "ai-agent-services-plan not found."
-gcloud alpha builds triggers delete ai-agent-services-apply --region=us-central1 --project=$PROJECT_ID --quiet || echo "ai-agent-services-apply not found."
-gcloud alpha builds triggers delete bq-mcp-server-services-plan --region=us-central1 --project=$PROJECT_ID --quiet || echo "bq-mcp-server-services-plan not found."
-gcloud alpha builds triggers delete bq-mcp-server-services-apply --region=us-central1 --project=$PROJECT_ID --quiet || echo "bq-mcp-server-services-apply not found."
+echo "Deleting specific Cloud Build Triggers..."
+
+for TRIGGER in "${TRIGGERS[@]}"; do
+    if gcloud builds triggers describe "$TRIGGER" --region=us-central1 --project=$PROJECT_ID > /dev/null 2>&1; then
+        echo "Deleting trigger: $TRIGGER..."
+        gcloud alpha builds triggers delete "$TRIGGER" --region=us-central1 --project=$PROJECT_ID --quiet
+    else
+        echo "Trigger $TRIGGER not found, skipping."
+    fi
+done
+echo "Trigger cleanup complete."
 
 echo "---------------------------------------"
 echo "Deleting Service Account..."
