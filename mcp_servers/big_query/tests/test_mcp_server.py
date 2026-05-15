@@ -43,7 +43,7 @@ async def test_mcp_create_dataset_success(mock_bq_manager):
     Implementation: Mocks the BigQueryManager's create_dataset response and verifies the ToolResponse contains a 'success' status and the correct message.
     """
     mock_bq_manager.create_dataset.return_value = (
-        "projects/ag-core-dev-fdx7/datasets/my_ds"
+        "projects/ag-core-ops-auj0/datasets/my_ds"
     )
     req = CreateDatasetRequest(
         project_id=AvailableProject.DEV, dataset_id="my_ds", location="US"
@@ -158,7 +158,7 @@ async def test_mcp_execute_query_authorized_user_success(mock_bq_manager):
     mock_bq_manager.execute_query.return_value = [{"id": 1, "name": "allowed"}]
     req = ExecuteQueryRequest(
         project_id=AvailableProject.DEV,
-        query="SELECT id, name FROM `ag-core-dev-fdx7.ds.allowed_table` LIMIT 10",
+        query="SELECT id, name FROM `ag-core-ops-auj0.ds.allowed_table` LIMIT 10",
     )
 
     result = await execute_query(req)

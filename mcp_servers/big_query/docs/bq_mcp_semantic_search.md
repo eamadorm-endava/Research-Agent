@@ -49,7 +49,7 @@ The tool executes a complex BigQuery SQL statement that:
 
 ```json
 {
-  "project_id": "ag-core-dev-fdx7",
+  "project_id": "mock-project-id",
   "query": "How do I configure the GCS landing zone?",
   "top_k": 5,
   "domain": "it"

@@ -1,13 +1,13 @@
 ################ Project configuration ################
 
-project_id             = "ag-core-dev-fdx7"
+project_id             = "ag-core-ops-auj0"
 main_region            = "us-central1"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 
 ################ APIs to enable ################
 
 apis_to_enable = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "bigquery.googleapis.com",
     "run.googleapis.com",
     "artifactregistry.googleapis.com"
@@ -19,7 +19,7 @@ apis_to_enable = {
 mcp_server_service_account_name = "bq-mcp-server"
 
 mcp_server_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "roles/bigquery.dataEditor",
     "roles/bigquery.jobUser"
   ]
