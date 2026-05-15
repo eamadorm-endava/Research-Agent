@@ -1,8 +1,8 @@
 
-project_id             = "ag-core-dev-fdx7"
+project_id             = "ag-core-ops-auj0"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "aiplatform.googleapis.com",
     "modelarmor.googleapis.com",
     "cloudresourcemanager.googleapis.com",
@@ -13,7 +13,7 @@ ai_agent_service_account_name = "adk-agent"
 artifact_bucket_name          = "ai-agent-landing-zone"
 
 ai_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "roles/aiplatform.user",
     "roles/modelarmor.user",
     "roles/run.invoker",
@@ -23,14 +23,14 @@ ai_agent_iam_project_roles = {
   ]
 }
 vertex_ai_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "roles/modelarmor.user",
     "roles/cloudtrace.agent"
   ]
 }
 
 discovery_engine_service_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "roles/aiplatform.user",
     "roles/modelarmor.user",
     "roles/discoveryengine.user",

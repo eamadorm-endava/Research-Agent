@@ -132,24 +132,24 @@ To create service accounts, define the service account names and IAM role mappin
 Example:
 
 ```
-project_id             = "ag-core-dev-fdx7"
+project_id             = "mock-project-id"
 developers_group_email = "gcu_latam_team_devs@endava.com"
 main_region            = "us-central1"
 apis_to_enable = {
-  "ag-core-dev-fdx7" = [
+  "mock-project-id" = [
     "aiplatform.googleapis.com",
     "modelarmor.googleapis.com",
   ]
 }
 ai_agent_service_account_name = "adk-agent"
 ai_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "mock-project-id" = [
     "roles/aiplatform.user",
     "roles/modelarmor.user"
   ]
 }
 vertex_ai_agent_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "mock-project-id" = [
     "roles/modelarmor.user"
   ]
 }
