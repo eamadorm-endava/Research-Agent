@@ -1,4 +1,4 @@
-PROJECT_ID?=ag-core-ops-auj0# ?= is used to set a default value if the variable is not set in the .env file
+PROJECT_ID?=ag-core-dev-fdx7 # ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
 BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
@@ -13,10 +13,6 @@ gcloud-auth:
 	gcloud config unset auth/impersonate_service_account
 	gcloud auth application-default login --project=$(PROJECT_ID)
 	gcloud config set project $(PROJECT_ID)
-
-gcloud-auth-terraform:
-	gcloud auth application-default login --impersonate-service-account=terraform-sa-gemini-project@$(PROJECT_ID).iam.gserviceaccount.com
-	gcloud config set auth/impersonate_service_account terraform-sa-gemini-project@$(PROJECT_ID).iam.gserviceaccount.com
 
 install-precommit:
 	uvx pre-commit install
