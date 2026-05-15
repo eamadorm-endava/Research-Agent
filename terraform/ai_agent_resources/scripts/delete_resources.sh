@@ -61,3 +61,6 @@ terraform destroy -auto-approve -var="project_id=$PROJECT_ID"
 popd > /dev/null
 
 echo "--- Cleanup completed successfully! ---"
+echo ""
+echo "IMPORTANT: Please remember to manually delete the App in the Gemini Enterprise (Discovery Engine) Console"
+echo ""
