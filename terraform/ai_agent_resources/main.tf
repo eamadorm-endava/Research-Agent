@@ -12,13 +12,15 @@ module "enable_apis" {
 
 ################ Service Accounts ################
 resource "google_project_service_identity" "vertex_ai_sa" {
-  project = var.project_id
-  service = "aiplatform.googleapis.com"
+  provider = google-beta
+  project  = var.project_id
+  service  = "aiplatform.googleapis.com"
 }
 
 resource "google_project_service_identity" "discovery_engine_sa" {
-  project = var.project_id
-  service = "discoveryengine.googleapis.com"
+  provider = google-beta
+  project  = var.project_id
+  service  = "discoveryengine.googleapis.com"
 }
 
 locals {
