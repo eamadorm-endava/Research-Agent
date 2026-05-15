@@ -23,6 +23,18 @@ Before running the script, ensure the following conditions are met:
 
 4. Developer group: the developer Google Group must already exist in your organization.
 
+5. Cloud Build Service Agent Permissions (Mandatory for GitHub Connection):
+    - When creating a 2nd Gen GitHub Connection, Cloud Build needs to store tokens in Secret Manager.
+    - You must grant the **Secret Manager Admin** role to the Cloud Build Service Agent (`service-PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com`).
+    - **Command**:
+      ```bash
+      PROJECT_NUMBER=$(gcloud projects describe YOUR_PROJECT_ID --format='value(projectNumber)')
+      gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+          --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
+          --role="roles/secretmanager.admin"
+      ```
+    - Ensure the **Secret Manager API** is enabled before creating the connection.
+
 ## Architecture Flow
 The script performs the following steps:
 

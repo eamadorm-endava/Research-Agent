@@ -45,3 +45,14 @@ ekb_pipeline_cloud_run_min_instances = 0
 ekb_pipeline_cloud_run_env = {
   "LOG_LEVEL" = "INFO"
 }
+
+################ Naming Configuration for Shared Resources ################
+
+bq_vertex_connection_id       = "vertex_ai_connection"
+bq_dataset_id                 = "knowledge_base"
+bq_chunks_table_id            = "documents_chunks"
+bq_metadata_table_id          = "documents_metadata"
+bq_jobs_table_id              = "ingestion_jobs"
+kb_landing_zone_bucket_suffix = "-kb-landing-zone"
+rag_staging_bucket_suffix     = "-rag-staging"
+kb_domain_bucket_prefix       = "kb-"
