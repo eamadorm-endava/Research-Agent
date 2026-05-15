@@ -37,10 +37,17 @@ resource "google_bigquery_connection" "vertex_ai_connection" {
   depends_on = [module.enable_apis]
 }
 
+resource "time_sleep" "wait_for_bq_connection_sa" {
+  depends_on      = [google_bigquery_connection.vertex_ai_connection]
+  create_duration = "30s"
+}
+
 resource "google_project_iam_member" "connection_ai_user" {
   project = var.project_id
   role    = "roles/aiplatform.user"
   member  = "serviceAccount:${google_bigquery_connection.vertex_ai_connection.cloud_resource[0].service_account_id}"
+
+  depends_on = [time_sleep.wait_for_bq_connection_sa]
 }
 
 resource "google_bigquery_dataset" "knowledge_base" {
