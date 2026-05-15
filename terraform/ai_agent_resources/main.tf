@@ -67,7 +67,7 @@ resource "google_storage_bucket" "artifact_bucket" {
   name                        = var.artifact_bucket_name
   location                    = var.main_region
   uniform_bucket_level_access = true
-  force_destroy               = false
+  force_destroy               = true
 
   versioning {
     enabled = true

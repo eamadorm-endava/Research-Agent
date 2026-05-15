@@ -163,8 +163,8 @@ if [[ "$APPLY_SHARED_RESOURCES" == "true" ]]; then
     terraform init -reconfigure \
         -backend-config="bucket=${BUCKET_NAME}" \
         -backend-config="prefix=terraform/state/shared-resources"
-    terraform plan -var="project_id=$PROJECT_ID"
-    terraform apply -auto-approve -var="project_id=$PROJECT_ID"
+    terraform plan -var="project_id=$PROJECT_ID" -var="main_region=$LOCATION"
+    terraform apply -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$LOCATION"
     popd >/dev/null
 else
     echo "Skipping shared_resources apply (APPLY_SHARED_RESOURCES=${APPLY_SHARED_RESOURCES})."
