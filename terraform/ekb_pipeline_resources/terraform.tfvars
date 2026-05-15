@@ -1,14 +1,14 @@
 ################ Project configuration ################
 
-project_id                  = "ag-core-dev-fdx7"
+project_id                  = "ag-core-ops-auj0"
 main_region                 = "us-central1"
 developers_group_email      = "gcu_latam_team_devs@endava.com"
-agent_service_account_email = "adk-agent@ag-core-dev-fdx7.iam.gserviceaccount.com"
+agent_service_account_email = "adk-agent@ag-core-ops-auj0.iam.gserviceaccount.com"
 
 ################ APIs to enable ################
 
 project_services = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "run.googleapis.com",
     "dlp.googleapis.com",
     "aiplatform.googleapis.com",
@@ -22,7 +22,7 @@ project_services = {
 ekb_pipeline_service_account_name = "ekb-pipeline-sa"
 
 ekb_pipeline_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "ag-core-ops-auj0" = [
     "roles/dlp.admin",
     "roles/aiplatform.user",
     "roles/bigquery.jobUser",
