@@ -85,6 +85,8 @@ module "ekb_pipeline_cloud_run" {
     email  = module.ekb-pipeline-service-account.email
   }
 
+  deletion_protection = false
+
   depends_on = [
     module.enable_apis
   ]
@@ -168,19 +170,21 @@ EOF
 ################ EKB Infrastructure (Migrated) ################
 
 resource "google_bigquery_dataset" "knowledge_base" {
-  project       = var.project_id
-  dataset_id    = "knowledge_base"
-  friendly_name = "knowledge_base"
-  description   = "Enterprise Knowledge Base dataset"
-  location      = var.main_region
+  project                    = var.project_id
+  dataset_id                 = "knowledge_base"
+  friendly_name              = "knowledge_base"
+  description                = "Enterprise Knowledge Base dataset"
+  location                   = var.main_region
+  delete_contents_on_destroy = true
 
   depends_on = [module.enable_apis]
 }
 
 resource "google_bigquery_table" "documents_chunks" {
-  project    = var.project_id
-  dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
-  table_id   = "documents_chunks"
+  project             = var.project_id
+  dataset_id          = google_bigquery_dataset.knowledge_base.dataset_id
+  table_id            = "documents_chunks"
+  deletion_protection = false
 
   schema = <<EOF
 [
@@ -249,9 +253,10 @@ EOF
 }
 
 resource "google_bigquery_table" "documents_metadata" {
-  project    = var.project_id
-  dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
-  table_id   = "documents_metadata"
+  project             = var.project_id
+  dataset_id          = google_bigquery_dataset.knowledge_base.dataset_id
+  table_id            = "documents_metadata"
+  deletion_protection = false
 
   schema = <<EOF
 [
@@ -338,9 +343,10 @@ EOF
 }
 
 resource "google_bigquery_table" "ingestion_jobs" {
-  project    = var.project_id
-  dataset_id = google_bigquery_dataset.knowledge_base.dataset_id
-  table_id   = "ingestion_jobs"
+  project             = var.project_id
+  dataset_id          = google_bigquery_dataset.knowledge_base.dataset_id
+  table_id            = "ingestion_jobs"
+  deletion_protection = false
 
   schema = <<EOF
 [
