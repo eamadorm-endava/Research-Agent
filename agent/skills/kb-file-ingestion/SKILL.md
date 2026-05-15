@@ -44,14 +44,14 @@ Every ingested file must have:
 When the user asks which projects can be used for metadata, which project IDs are available, or asks for help choosing a project before ingestion:
 
 1. Do **not** read any uploaded files.
-2. Query BigQuery using `execute_query` with `project_id="ag-core-dev-fdx7"`.
+2. Query BigQuery using `execute_query` with `project_id="ag-core-ops-auj0"`.
 3. Use this read-only SQL:
    ```sql
    SELECT
      project_id,
      COUNTIF(latest = TRUE) AS latest_document_count,
      ARRAY_AGG(DISTINCT domain IGNORE NULLS ORDER BY domain LIMIT 10) AS domains
-   FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
+   FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
    WHERE project_id IS NOT NULL
      AND TRIM(project_id) != ''
    GROUP BY project_id
@@ -98,9 +98,9 @@ Maintain this state throughout the interaction:
 
 ## Gotchas
 
-- **GCS URIs**: The agent landing zone is always `gs://ai_agent_landing_zone/`.
-- **KB Landing Zone**: The KB ingestion bucket is **`gs://ag-core-dev-fdx7-kb-landing-zone/`**. You MUST use this exact name for the `destination_bucket` to trigger the Service Account authentication switch.
-- **BigQuery project for KB metadata queries**: Use `ag-core-dev-fdx7` as the BigQuery tool `project_id` and query `ag-core-dev-fdx7.knowledge_base.documents_metadata`.
+- **GCS URIs**: The agent landing zone is always `gs://ag-core-ops-auj0-ai-agent-landing-zone/`.
+- **KB Landing Zone**: The KB ingestion bucket is **`gs://ag-core-ops-auj0-kb-landing-zone/`**. You MUST use this exact name for the `destination_bucket` to trigger the Service Account authentication switch.
+- **BigQuery project for KB metadata queries**: Use `ag-core-ops-auj0` as the BigQuery tool `project_id` and query `ag-core-ops-auj0.knowledge_base.documents_metadata`.
 - **Project IDs**: In BigQuery, `project_id` is case-sensitive in some operations but should be checked case-insensitively for duplicates.
 - **Job IDs**: Always return the `job_id` from the pipeline response to the user as a confirmation.
 - **Parallelism**: Steps 2 background checks, 3a, 3b, 3c, and 4 each launch ALL eligible tool calls at the same time. Never loop one-by-one.
@@ -196,7 +196,7 @@ When the user explicitly requests content-based inspection:
 Merge metadata candidates from Step 1b/1c using the precedence rules above.
 
 1. **Project Validation** — for every unique project name or project-like value inferred:
-   - If the user provided an exact-looking `project_id`, validate it against BigQuery with a read-only `execute_query` against `ag-core-dev-fdx7.knowledge_base.documents_metadata`.
+   - If the user provided an exact-looking `project_id`, validate it against BigQuery with a read-only `execute_query` against `ag-core-ops-auj0.knowledge_base.documents_metadata`.
    - If the user provided a project name or description rather than an exact ID, call `ekb_semantic_search(query='<inferred_project_name>')` and resolve only high-confidence matches.
    - Direct `project_id` supplied by the user and validated → use that `project_id`.
    - High-confidence single semantic match → resolve to that `project_id`.
@@ -206,7 +206,7 @@ Merge metadata candidates from Step 1b/1c using the precedence rules above.
    Exact project ID validation query:
    ```sql
    SELECT DISTINCT project_id
-   FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
+   FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
    WHERE LOWER(project_id) = LOWER('<user_supplied_project_id>')
    LIMIT 5
    ```
@@ -214,7 +214,7 @@ Merge metadata candidates from Step 1b/1c using the precedence rules above.
 2. **Deduplication Check** — for each file whose project resolved to a confirmed `project_id`, run:
    ```sql
    SELECT filename, domain, trust_level
-   FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
+   FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
    WHERE project_id = '<confirmed_project_id>'
      AND lower(filename) = lower('<uploaded_filename>')
      AND latest = TRUE
@@ -298,7 +298,7 @@ If the user asks the agent to auto-detect missing fields from the documents afte
 Call `upload_object` for **every confirmed file at the same time** — do not wait for one to finish before starting the next:
 
 - `source_gcs_uri`: The URI identified in Step 1a for this file.
-- `destination_bucket`: `ag-core-dev-fdx7-kb-landing-zone`
+- `destination_bucket`: `ag-core-ops-auj0-kb-landing-zone`
 - `filename`: The confirmed filename (or the renamed filename if the user chose Rename).
 - `path_inside_bucket`: The confirmed `<project_id>` for this file.
 
@@ -322,7 +322,7 @@ Wait for **all** metadata stamps to complete before proceeding to Step 3c.
 ### Step 3c: Verify Uploads *(all files launched in parallel simultaneously)*
 
 After all metadata stamps from Step 3b have completed, call `read_object` for **every file at the same time**:
-- `bucket_name`: `ag-core-dev-fdx7-kb-landing-zone`
+- `bucket_name`: `ag-core-ops-auj0-kb-landing-zone`
 - `object_name`: `<project_id>/<filename>`
 
 For each file verify **both conditions**:
