@@ -75,7 +75,6 @@ module "ekb_pipeline_cloud_run" {
   iam = {
     "roles/run.invoker" = [
       "group:${var.developers_group_email}",
-      "serviceAccount:${var.agent_service_account_email}",
       "serviceAccount:${module.ekb-pipeline-service-account.email}"
     ]
   }

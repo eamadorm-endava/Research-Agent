@@ -11,9 +11,21 @@ module "enable_apis" {
 
 
 ################ Service Accounts ################
+resource "google_project_service_identity" "vertex_ai_sa" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "aiplatform.googleapis.com"
+}
+
+resource "google_project_service_identity" "discovery_engine_sa" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "discoveryengine.googleapis.com"
+}
+
 locals {
-  vertex_ai_agent_email          = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
-  discovery_engine_service_agent = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-discoveryengine.iam.gserviceaccount.com"
+  vertex_ai_agent_email          = "serviceAccount:${google_project_service_identity.vertex_ai_sa.email}"
+  discovery_engine_service_agent = "serviceAccount:${google_project_service_identity.discovery_engine_sa.email}"
 }
 
 module "ai-agent-service-account" {
