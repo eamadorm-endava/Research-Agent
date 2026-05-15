@@ -60,26 +60,8 @@ resource "google_project_iam_member" "discovery_engine_service_agent_roles" {
   ]
 }
 
-################ Storage ################
-
-resource "google_storage_bucket" "artifact_bucket" {
-  project                     = var.project_id
-  name                        = var.artifact_bucket_name
-  location                    = var.main_region
-  uniform_bucket_level_access = true
-  force_destroy               = true
-
-  versioning {
-    enabled = true
-  }
-
-  depends_on = [
-    module.enable_apis
-  ]
-}
-
 resource "google_storage_bucket_iam_member" "ai_agent_artifact_bucket_admin" {
-  bucket = google_storage_bucket.artifact_bucket.name
+  bucket = "${var.project_id}-${var.artifact_bucket_name}"
   role   = "roles/storage.admin"
   member = "serviceAccount:${module.ai-agent-service-account.email}"
 }
