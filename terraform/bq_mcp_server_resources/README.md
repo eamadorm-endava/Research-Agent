@@ -124,18 +124,18 @@ To create service accounts, define the service account names and IAM role mappin
 Example:
 
 ```
-project_id             = "ag-core-dev-fdx7"
+project_id             = "mock-project-id"
 main_region            = "us-central1"
-developers_group_email = "gcu_latam_team_devs@endava.com"
+developers_group_email = "my-dev-team@email.com"
 apis_to_enable = {
-  "ag-core-dev-fdx7" = [
+  "mock-project-id" = [
     "bigquery.googleapis.com",
     "storage.googleapis.com",
   ]
 }
 mcp_server_service_account_name = "mcp-server"
 mcp_server_iam_project_roles = {
-  "ag-core-dev-fdx7" = [
+  "mock-project-id" = [
     "roles/bigquery.dataViewer",
     "roles/bigquery.jobUser",
     "roles/storage.objectUser"
