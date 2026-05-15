@@ -67,7 +67,7 @@ deploy-agent:
 		--entrypoint-module=agent.core_agent.agent \
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
-		--service-account=adk-agent@ag-core-dev-fdx7.iam.gserviceaccount.com \
+		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
 		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL}"
 	rm agent/core_agent/requirements.txt
 
