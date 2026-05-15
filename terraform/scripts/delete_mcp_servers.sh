@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # --- Configuration ---
-PROJECT_ID="${PROJECT_ID:-ag-core-dev-fdx7}"
+PROJECT_ID="${PROJECT_ID:-ag-core-ops-auj0}"
 REGION="${REGION:-us-central1}"
 SA_NAME="${SA_NAME:-terraform-sa-gemini-project}"
 SA_EMAIL="${SA_EMAIL:-${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com}"
