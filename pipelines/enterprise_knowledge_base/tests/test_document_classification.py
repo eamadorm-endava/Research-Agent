@@ -269,7 +269,7 @@ def test_run_orchestrates_full_pipeline_successfully(
     assert result.final_domain == "it"
     assert result.final_security_tier == 1
     # Should return original destination URI because no masking occurred
-    assert result.final_sanitized_uri == "gs://kb-it/p1/public/doc.pdf"
+    assert result.final_sanitized_uri == "gs://ag-core-ops-auj0-kb-it/p1/public/doc.pdf"
 
     # Verify sequence
     mock_gcs.get_blob_metadata.assert_called()
@@ -362,7 +362,7 @@ def test_run_returns_masked_uri_when_sanitized(
     # Should return the final destination of the MASKED file
     assert (
         result.final_sanitized_uri
-        == "gs://kb-executives/top-secret/strictly-confidential/secret_masked.txt"
+        == "gs://ag-core-ops-auj0-kb-executives/top-secret/strictly-confidential/secret_masked.txt"
     )
 
 
