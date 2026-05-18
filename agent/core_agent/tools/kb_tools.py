@@ -68,7 +68,7 @@ class TriggerEKBPipelineTool(BaseTool):
                 properties={
                     "gcs_uri": types.Schema(
                         type=types.Type.STRING,
-                        description="The canonical GCS URI of the document to ingest (e.g., gs://kb-landing-zone/project/file.pdf)",
+                        description="The canonical GCS URI of the document to ingest (e.g., gs://ag-core-ops-auj0-kb-landing-zone/project/file.pdf)",
                     ),
                 },
                 required=["gcs_uri"],

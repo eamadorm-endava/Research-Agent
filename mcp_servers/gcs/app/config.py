@@ -159,7 +159,7 @@ class GcsServerConfig(GcsMcpConfigBase):
     landing_zone_bucket: Annotated[
         str,
         Field(
-            default="ai_agent_landing_zone",
+            default="ag-core-ops-auj0-ai-agent-landing-zone",
             validation_alias=AliasChoices("GCS_LANDING_ZONE_BUCKET"),
             description="The GCS bucket acting as the AI Agent landing zone.",
         ),
@@ -167,7 +167,7 @@ class GcsServerConfig(GcsMcpConfigBase):
     kb_ingestion_bucket: Annotated[
         str,
         Field(
-            default="kb-landing-zone",
+            default="ag-core-ops-auj0-kb-landing-zone",
             validation_alias=AliasChoices("GCS_KB_INGESTION_BUCKET"),
             description="The GCS bucket acting as the Knowledge Base ingestion zone.",
         ),

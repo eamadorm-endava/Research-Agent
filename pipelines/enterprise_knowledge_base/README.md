@@ -25,7 +25,7 @@ The following APIs must be enabled:
 | :--- | :--- |
 | **Landing Zone** | `${PROJECT_ID}-kb-landing-zone` |
 | **RAG Staging** | `${PROJECT_ID}-rag-staging` |
-| **Domain Storage** | `kb-finance`, `kb-it`, `kb-hr`, etc. |
+| **Domain Storage** | `ag-core-ops-auj0-kb-finance`, `ag-core-ops-auj0-kb-it`, `ag-core-ops-auj0-kb-hr`, etc. |
 
 ### BigQuery Dataset: `knowledge_base`
 - **`documents_metadata`**: Stores classification, routing, and versioning information.
@@ -109,7 +109,7 @@ Returns the current state and results of a job. This endpoint is used by the AI 
   "message": "Pipeline completed successfully.",
   "final_domain": "it",
   "security_tier": "confidential",
-  "gcs_uri": "gs://kb-it/project/file.pdf"
+  "gcs_uri": "gs://ag-core-ops-auj0-kb-it/project/file.pdf"
 }
 ```
 

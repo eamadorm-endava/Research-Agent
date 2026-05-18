@@ -144,7 +144,7 @@ main_region            = "us-central1"
 developers_group_email = "my-dev-team@email.com"
 
 apis_to_enable = {
-  "ag-core-ops-auj0" = [
+  "mock-project-id" = [
     "drive.googleapis.com",
     "run.googleapis.com",
     "artifactregistry.googleapis.com"

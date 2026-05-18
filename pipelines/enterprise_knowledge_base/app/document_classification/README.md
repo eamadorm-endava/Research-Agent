@@ -49,7 +49,7 @@ Since Cloud DLP does not natively redact binary PDF content, we implement the **
 ## 4. Technical Foundations
 
 - **Auth**: Operates under the **delegated OAuth context** of the end-user.
-- **Routing**: Successful scans trigger the `KBIngestionPipeline` orchestrator to move files to domain buckets (e.g., `gs://kb-it/`, `gs://kb-hr/`).
+- **Routing**: Successful scans trigger the `KBIngestionPipeline` orchestrator to move files to domain buckets (e.g., `gs://ag-core-ops-auj0-kb-it/`, `gs://ag-core-ops-auj0-kb-hr/`).
 - **Standards**: NIST SP 800-171 CUI handling requirements.
 
 ## 5. Package Structure
