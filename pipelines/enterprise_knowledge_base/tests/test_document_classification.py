@@ -263,13 +263,17 @@ def test_run_orchestrates_full_pipeline_successfully(
     )
     mock_bq.insert_metadata.return_value = True
 
-    result = pipeline.run(landing_uri)
+    with patch(
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.EKB_CONFIG"
+    ) as mock_config:
+        mock_config.PROJECT_ID = "ag-core-ops-auj0"
+        result = pipeline.run(landing_uri)
 
     assert isinstance(result, RunResponse)
     assert result.final_domain == "it"
     assert result.final_security_tier == 1
     # Should return original destination URI because no masking occurred
-    assert result.final_sanitized_uri == "gs://kb-it/p1/public/u1/doc.pdf"
+    assert result.final_sanitized_uri == "gs://ag-core-ops-auj0-kb-it/p1/public/doc.pdf"
 
     # Verify sequence
     mock_gcs.get_blob_metadata.assert_called()
@@ -277,50 +281,6 @@ def test_run_orchestrates_full_pipeline_successfully(
     mock_gemini.classify_document.assert_called()
     mock_gcs.copy_blob.assert_called()
     mock_bq.insert_metadata.assert_called()
-
-
-def test_file_routing_grants_iam_binding_on_uploader_folder(pipeline, mock_gcs):
-    """Verifies grant_iam_conditional_binding is called with the correct folder prefix."""
-    from pipelines.enterprise_knowledge_base.app.document_classification.schemas import (
-        FileRoutingRequest,
-    )
-
-    request = FileRoutingRequest(
-        original_landing_uri="gs://landing/proj/doc.pdf",
-        sanitized_landing_uri=None,
-        final_domain="it",
-        final_security_tier=1,
-        project_name="proj",
-        uploader_email="user@example.com",
-    )
-
-    pipeline.file_routing(request)
-
-    mock_gcs.grant_iam_conditional_binding.assert_called_once_with(
-        "kb-it", "proj/public/user/", "user@example.com"
-    )
-
-
-def test_file_routing_grants_iam_binding_once_even_with_sanitized(pipeline, mock_gcs):
-    """Verifies only one IAM binding call is made even when a sanitized copy also exists."""
-    from pipelines.enterprise_knowledge_base.app.document_classification.schemas import (
-        FileRoutingRequest,
-    )
-
-    request = FileRoutingRequest(
-        original_landing_uri="gs://landing/proj/secret.pdf",
-        sanitized_landing_uri="gs://landing/proj/secret_masked.pdf",
-        final_domain="hr",
-        final_security_tier=5,
-        project_name="proj",
-        uploader_email="admin@hr.com",
-    )
-
-    pipeline.file_routing(request)
-
-    mock_gcs.grant_iam_conditional_binding.assert_called_once_with(
-        "kb-hr", "proj/strictly-confidential/admin/", "admin@hr.com"
-    )
 
 
 def test_run_performs_cleanup_on_failure(pipeline, mock_gcs, mock_dlp, mock_gemini):
@@ -399,14 +359,18 @@ def test_run_returns_masked_uri_when_sanitized(
     )
     mock_bq.insert_metadata.return_value = True
 
-    result = pipeline.run(landing_uri)
+    with patch(
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.EKB_CONFIG"
+    ) as mock_config:
+        mock_config.PROJECT_ID = "ag-core-ops-auj0"
+        result = pipeline.run(landing_uri)
 
     assert result.final_domain == "executives"
     assert result.final_security_tier == 5
     # Should return the final destination of the MASKED file
     assert (
         result.final_sanitized_uri
-        == "gs://kb-executives/top-secret/strictly-confidential/admin/secret_masked.txt"
+        == "gs://ag-core-ops-auj0-kb-executives/top-secret/strictly-confidential/secret_masked.txt"
     )
 
 

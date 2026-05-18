@@ -151,13 +151,13 @@ The system maintains a strict separation between classification safety and RAG a
 Documents are routed to domain-specific buckets with the following internal structure:
 
 **Domain Buckets:**
-- `gs://kb-it/`
-- `gs://kb-finance/`
-- `gs://kb-hr/`
-- `gs://kb-sales/`
-- `gs://kb-executives/`
-- `gs://kb-legal/`
-- `gs://kb-operations/`
+- `gs://ag-core-ops-auj0-kb-it/`
+- `gs://ag-core-ops-auj0-kb-finance/`
+- `gs://ag-core-ops-auj0-kb-hr/`
+- `gs://ag-core-ops-auj0-kb-sales/`
+- `gs://ag-core-ops-auj0-kb-executives/`
+- `gs://ag-core-ops-auj0-kb-legal/`
+- `gs://ag-core-ops-auj0-kb-operations/`
 
 
 **Folder Structure within each bucket:**
@@ -167,7 +167,7 @@ Documents are routed to domain-specific buckets with the following internal stru
     {uploader_email_prefix}/
       {filename}
 ```
-*Example: `gs://kb-it/project-alpha/client-confidential/maria.gutierrez/architecture.pdf`*
+*Example: `gs://ag-core-ops-auj0-kb-it/project-alpha/client-confidential/maria.gutierrez/architecture.pdf`*
 
 ### Security Rationale: IAM & Group-Based ACLs
 Access to domain buckets is managed via **Google Groups** mapped to `project` and `tier`.

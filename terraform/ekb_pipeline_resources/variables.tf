@@ -88,3 +88,36 @@ variable "ekb_pipeline_cloud_run_min_instances" {
   type        = number
   default     = 0
 }
+
+variable "bq_vertex_connection_id" {
+  type = string
+}
+
+variable "bq_dataset_id" {
+  type = string
+}
+
+variable "bq_chunks_table_id" {
+  type = string
+}
+
+variable "bq_metadata_table_id" {
+  type = string
+}
+
+variable "bq_jobs_table_id" {
+  type = string
+}
+
+variable "kb_landing_zone_bucket_suffix" {
+  type = string
+}
+
+variable "rag_staging_bucket_suffix" {
+  type = string
+}
+
+variable "kb_domain_bucket_prefix" {
+  type = string
+}
+

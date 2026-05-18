@@ -5,6 +5,7 @@ import unicodedata
 from datetime import datetime, timezone
 from loguru import logger
 from .config import CLASSIFICATION_CONFIG
+from ..config import EKB_CONFIG
 from .gcs_service.service import GCSService
 from .dlp_service.service import DLPService
 from .gemini_service.service import GeminiService
@@ -293,21 +294,12 @@ class ClassificationPipeline:
             request.final_security_tier, "unknown"
         )
         filename = request.original_landing_uri.split("/")[-1]
-        uploader_prefix = request.uploader_email.split("@")[0]
 
-        dest_base = f"gs://kb-{request.final_domain}/{request.project_name}/{tier_label}/{uploader_prefix}/"
+        dest_base = f"gs://{EKB_CONFIG.PROJECT_ID}-kb-{request.final_domain}/{request.project_name}/{tier_label}/"
         final_original_uri = f"{dest_base}{filename}"
 
         # 1. Copy Original
         self.gcs.copy_blob(request.original_landing_uri, final_original_uri)
-
-        # Grant uploader Storage Object Admin on their entire folder in the domain bucket.
-        # One folder-level IAM condition covers both the original and any sanitized copy,
-        # since both land under the same dest_base prefix.
-        folder_prefix = f"{request.project_name}/{tier_label}/{uploader_prefix}/"
-        self.gcs.grant_iam_conditional_binding(
-            f"kb-{request.final_domain}", folder_prefix, request.uploader_email
-        )
 
         # 2. Copy Masked (if exists)
         final_sanitized_uri = None

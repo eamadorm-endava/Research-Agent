@@ -49,14 +49,14 @@ Before any retrieval, classify the user's request into one of two modes:
 Run both calls simultaneously:
 
 **1a. Semantic Search** — `ekb_semantic_search`:
-- `project_id`: `"ag-core-dev-fdx7"` *(always)*
+- `project_id`: `"ag-core-ops-auj0"` *(always)*
 - `query`: user's keywords or document name — strip intent words (`"give me"`, `"what is"`, `"duration"`, `"status"`, `"date"`, `"summary"`)
 - `top_k`: `15`
 
 Do NOT include `filename`, `domain`, `project_filter`, or `trust_level`.
 
 **1b. Keyword Search** — `ekb_keyword_search`:
-- `project_id`: `"ag-core-dev-fdx7"` *(always)*
+- `project_id`: `"ag-core-ops-auj0"` *(always)*
 - `keyword`: the primary entity from the user's query — a technology name, sector, company, or person. Strip all intent words and keep only a single word (e.g., `"React"`, `"healthcare"`, `"banking"`, `"Acme"`).
 
 **After both complete — merge and store:**
@@ -74,7 +74,7 @@ Do NOT include `filename`, `domain`, `project_filter`, or `trust_level`.
 *(Run immediately after Wave 1 completes. Only if `ekb_keyword_search` returned results.)*
 
 For every file returned by `ekb_keyword_search`, launch one `ekb_semantic_search` call. Run all simultaneously:
-- `project_id`: `"ag-core-dev-fdx7"` *(always)*
+- `project_id`: `"ag-core-ops-auj0"` *(always)*
 - `query`: the user's specific final information need — articulate the exact answer being sought, not the user's raw phrasing (e.g., for "give me React projects", use "React project name, client, deliverables, and outcomes")
 - `filename`: exact verbatim value from the `ekb_keyword_search` result `filename` field — never paraphrase
 - `top_k`: `10`
@@ -88,7 +88,7 @@ Merge the returned chunks into the unified file pool from Wave 1.
 
 ### Wave 2 — Per-File Focused Search (only if Wave 1 returned results)
 Select the top 3 most relevant files from Wave 1, ranked by ascending cosine distance, that were NOT already covered in Wave 1.5. For each, launch one `ekb_semantic_search` call. Run all simultaneously:
-- `project_id`: `"ag-core-dev-fdx7"` *(always)*
+- `project_id`: `"ag-core-ops-auj0"` *(always)*
 - `query`: the user's actual information need — what they want to know, not the filename
 - `filename`: exact verbatim value from the `filename` field of a Wave 1 result — never paraphrase or rewrite
 - `top_k`: `30`
@@ -124,14 +124,14 @@ Drive search always runs — it is not conditional on EKB results. It runs in pa
 1. **Parallel Search**: Run both calls simultaneously:
 
    **1a. Semantic Search** — `ekb_semantic_search`:
-   - `project_id`: `"ag-core-dev-fdx7"` *(always)*
+   - `project_id`: `"ag-core-ops-auj0"` *(always)*
    - `query`: user's natural language question
    - `top_k`: `10`
 
    Never add `filename`, `domain`, `project_filter`, or `trust_level`.
 
    **1b. Keyword Search** — `ekb_keyword_search`:
-   - `project_id`: `"ag-core-dev-fdx7"` *(always)*
+   - `project_id`: `"ag-core-ops-auj0"` *(always)*
    - `keyword`: the primary entity from the user's query — a technology name, sector, company, or person. Strip all intent words and keep only a single word (e.g., `"React"`, `"healthcare"`, `"banking"`, `"Acme"`).
 
 2. **Anchor Extraction**: Build a "Context Graph" from the merged results of both calls:
@@ -143,7 +143,7 @@ Drive search always runs — it is not conditional on EKB results. It runs in pa
    - **Locations**: `gcs_uri` values (for GCS deep-dive in Phase 3 Level 1).
 
 3. **Focused Keyword-File Search**: Immediately after Anchor Extraction, for every file returned by `ekb_keyword_search`, launch one `ekb_semantic_search` call. Run all simultaneously:
-   - `project_id`: `"ag-core-dev-fdx7"` *(always)*
+   - `project_id`: `"ag-core-ops-auj0"` *(always)*
    - `query`: the user's specific final information need — articulate the exact answer being sought, not the raw question
    - `filename`: exact verbatim value from an `ekb_keyword_search` result `filename` field — never paraphrase
    - `top_k`: `10`

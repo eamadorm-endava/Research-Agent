@@ -63,7 +63,7 @@ class TestTriggerEKBPipelineTool:
         ctx = MagicMock()
         ctx.state = {}
 
-        args = {"gcs_uri": "gs://kb-landing-zone/project/doc.pdf"}
+        args = {"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"}
         result = await tool.run_async(args=args, tool_context=ctx)
 
         assert result["execution_status"] == "success"
@@ -88,7 +88,9 @@ class TestTriggerEKBPipelineTool:
         ctx.state = {}
 
         await tool.run_async(
-            args={"gcs_uri": "gs://kb-landing-zone/project/report.pdf"},
+            args={
+                "gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/report.pdf"
+            },
             tool_context=ctx,
         )
 
@@ -123,11 +125,11 @@ class TestTriggerEKBPipelineTool:
         ctx.state = {}
 
         result1 = await tool.run_async(
-            args={"gcs_uri": "gs://kb-landing-zone/project/file1.pdf"},
+            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/file1.pdf"},
             tool_context=ctx,
         )
         result2 = await tool.run_async(
-            args={"gcs_uri": "gs://kb-landing-zone/project/file2.pdf"},
+            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/file2.pdf"},
             tool_context=ctx,
         )
 
@@ -150,7 +152,7 @@ class TestTriggerEKBPipelineTool:
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
 
-        args = {"gcs_uri": "gs://kb-landing-zone/project/doc.pdf"}
+        args = {"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"}
         result = await tool.run_async(args=args, tool_context=ctx)
 
         assert result["execution_status"] == "error"
@@ -200,7 +202,7 @@ class TestTriggerEKBPipelineTool:
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
 
-        args = {"gcs_uri": "gs://kb-landing-zone/project/doc.pdf"}
+        args = {"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"}
         result = await tool.run_async(args=args, tool_context=ctx)
 
         assert result["execution_status"] == "error"
@@ -229,7 +231,7 @@ class TestTriggerEKBPipelineTool:
         ctx = MagicMock()
 
         result = await tool.run_async(
-            args={"gcs_uri": "gs://kb-landing-zone/project/doc.pdf"},
+            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"},
             tool_context=ctx,
         )
 
@@ -263,7 +265,7 @@ class TestTriggerEKBPipelineTool:
         ctx.state = {}
 
         await tool.run_async(
-            args={"gcs_uri": "gs://kb-landing-zone/project/doc.pdf"},
+            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"},
             tool_context=ctx,
         )
 

@@ -53,9 +53,9 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 
 ## Gotchas
 
-- **Agent landing zone**: always `gs://ai_agent_landing_zone/`.
-- **KB Landing Zone**: use `ag-core-dev-fdx7-kb-landing-zone` as `destination_bucket` — this triggers the Service Account authentication switch.
-- **BigQuery project**: use `ag-core-dev-fdx7` as the tool `project_id`; query `ag-core-dev-fdx7.knowledge_base.documents_metadata`.
+- **Agent landing zone**: always `gs://ag-core-ops-auj0-ai-agent-landing-zone/`.
+- **KB Landing Zone**: use `ag-core-ops-auj0-kb-landing-zone` as `destination_bucket` — this triggers the Service Account authentication switch.
+- **BigQuery project**: use `ag-core-ops-auj0` as the tool `project_id`; query `ag-core-ops-auj0.knowledge_base.documents_metadata`.
 - **Job IDs**: always return the `job_id` from the pipeline response to the user.
 - **Parallelism**: when ingesting more than one file, all upload, stamp, and pipeline calls must be launched simultaneously — never one-by-one.
 
@@ -73,29 +73,47 @@ Proceed only with confirmed PDF files.
 
 ---
 
-### Step 2 — Infer and Collect Metadata
+### Step 2 — Infer Metadata
 
-For each valid PDF, infer metadata from the user's message, conversation history, and filename using the mappings above. Do not read file contents.
+Extract all metadata fields for every valid PDF. Priority order — use the first source that provides a value:
 
-- If the user provided batch-level metadata (e.g., *"all files are project X, domain IT, published, no PII"*), apply it to all files.
-- If the user provided per-file metadata, apply it per file and use batch values as defaults for the rest.
-- Leave any field that cannot be inferred as `—`.
+1. **User's message** (explicit, highest priority): e.g., *"upload this to project Alpha, domain IT, WIP, no PII"*
+2. **Conversation history**: values confirmed or mentioned in prior turns
+3. **Filename**: keywords that map to domain or trust-level (see mappings above)
+
+Do not read file contents. Leave any field that cannot be obtained as `—`.
+
+**As soon as the project name is known** — whether the user stated it directly or it was inferred — fire the **Project Validation Query** (see appendix) *immediately in parallel* with assembling the metadata table. Do not wait for user confirmation first. Build the token pattern before querying (see appendix).
 
 ---
 
-### Step 3 — Project Validation and Dedup Check
+### Step 3 — Present Metadata Table and Confirm
 
-#### 3a — Project Validation
+Assemble the metadata table and — if the project validation result is already available — present both in a single message:
 
-For each unique project value provided or inferred, run the **Project Validation Query** (see appendix).
+> | File | Project | Domain | Trust-level | PII |
+> |:---:|:---:|:---:|:---:|:---:|
+> | `<file1.pdf>` | `<value>` | `<value>` | `<value>` | `<Yes/No>` |
+>
+> **Domain**: `IT` · `Finance` · `HR` · `Sales` · `Executives` · `Legal` · `Operations`
+> **Trust-level**: `Published` (official) · `WIP` (draft) · `Archived` (historical)
+>
+> *(List any blank `—` fields here and ask the user to fill them)*
 
-- **One or more matches found** → inform the user:
-  > *"I found project(s) with a similar name in the EKB: `<list>`. Would you like to use one of these, or proceed with `<user's value>` as a new project?"*
-  - User selects an existing project → use that `project_id`, then run **3b**.
-  - User creates a new project → use the user-provided value as the `project_id`, skip 3b.
-- **No match found** → proceed with the user-provided value as the `project_id`, skip 3b.
+Handle the project validation result:
 
-#### 3b — Dedup Check *(only when the user selected an existing project)*
+- **Matches found** → append to the same message:
+  > *"I also found existing project(s) with a similar name in the EKB: `<list>`. Would you like to use one of these, or proceed with `<user's value>` as a new project?"*
+  - User picks an existing project → use that `project_id`, proceed to **Step 4**.
+  - User creates a new project → skip Step 4, proceed to **Step 5**.
+- **No matches found** → show the table normally; project proceeds as new, skip Step 4.
+- **Project was blank** (`—`) → ask the user to fill it. Once provided, immediately run the Project Validation Query and present the result before proceeding.
+
+**Do not proceed to Step 4 or 5 until all required fields are filled and the user confirms.**
+
+---
+
+### Step 4 — Dedup Check *(only when the user selected an existing project)*
 
 Run the **Dedup Query** (see appendix) once for all files simultaneously. Strip the extension from every filename before building the query (e.g., `report.pdf` → `report`).
 
@@ -111,33 +129,18 @@ The query returns one row per uploaded file with an array of matching EKB record
 
 ---
 
-### Step 4 — Confirm Metadata, Upload, and Trigger
+### Step 5 — Upload, Stamp, and Trigger
 
-Present the complete metadata table to the user for confirmation:
+For all files **simultaneously**:
 
-> | File | Project | Domain | Trust-level | PII |
-> |:---:|:---:|:---:|:---:|:---:|
-> | `<file1.pdf>` | `<value>` | `<value>` | `<value>` | `<Yes/No>` |
->
-> **Domain**: `IT` · `Finance` · `HR` · `Sales` · `Executives` · `Legal` · `Operations`
-> **Trust-level**: `Published` (official) · `WIP` (draft) · `Archived` (historical)
->
-> *(List any blank `—` fields here and ask the user to fill them before confirming)*
->
-> Please confirm the metadata to proceed with ingestion.
-
-**Do not proceed until the user explicitly confirms and all required fields are filled.**
-
-Once confirmed, for all files **simultaneously**:
-
-**4a — Upload**
+**5a — Upload**
 Call `upload_object` for every file at the same time:
 - `source_gcs_uri`: URI from Step 1.
-- `destination_bucket`: `ag-core-dev-fdx7-kb-landing-zone`
+- `destination_bucket`: `ag-core-ops-auj0-kb-landing-zone`
 - `filename`: confirmed filename.
 - `path_inside_bucket`: confirmed `project_id`.
 
-**4b — Stamp Metadata** *(after all uploads complete)*
+**5b — Stamp Metadata** *(after all uploads complete)*
 Call `update_object_metadata` for every file at the same time:
 ```json
 {
@@ -148,7 +151,7 @@ Call `update_object_metadata` for every file at the same time:
 }
 ```
 
-**4c — Trigger Pipeline** *(after all stamps complete)*
+**5c — Trigger Pipeline** *(after all stamps complete)*
 Call `trigger_ekb_pipeline(gcs_uri='<uri_returned_by_upload_object>')` for every file at the same time.
 
 **Final Summary:**
@@ -163,7 +166,7 @@ Call `trigger_ekb_pipeline(gcs_uri='<uri_returned_by_upload_object>')` for every
 
 ### Retry Protocol
 
-Skip Steps 1–3. Execute Steps 4a → 4b → 4c using the previously confirmed URIs, filenames, project IDs, and metadata. If the retry also fails, report the error and ask how to proceed.
+Skip Steps 1–4. Execute Steps 5a → 5b → 5c using the previously confirmed URIs, filenames, project IDs, and metadata. If the retry also fails, report the error and ask how to proceed.
 
 ---
 
@@ -184,7 +187,7 @@ SELECT
   project_id,
   COUNTIF(latest = TRUE) AS latest_document_count,
   ARRAY_AGG(DISTINCT domain IGNORE NULLS ORDER BY domain LIMIT 10) AS domains
-FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
+FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
 WHERE project_id IS NOT NULL
   AND TRIM(project_id) != ''
 GROUP BY project_id
@@ -193,10 +196,14 @@ LIMIT 500
 ```
 
 ### Project Validation Query
+
+Construct `<token_pattern>` before running: tokenize the confirmed project name on spaces, hyphens, and underscores; join with `%` and wrap with leading/trailing `%`.
+Examples: `"Project Alpha"` → `%project%alpha%` · `"My-Cool Project"` → `%my%cool%project%`.
+
 ```sql
 SELECT DISTINCT project_id
-FROM `ag-core-dev-fdx7.knowledge_base.documents_metadata`
-WHERE LOWER(project_id) LIKE LOWER('%<user_supplied_project_id>%')
+FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
+WHERE LOWER(project_id) LIKE LOWER('<token_pattern>')
 LIMIT 5
 ```
 
@@ -215,7 +222,7 @@ SELECT
     IGNORE NULLS
   ) AS ekb_matches
 FROM uploaded_files u
-LEFT JOIN `ag-core-dev-fdx7.knowledge_base.documents_metadata` m
+LEFT JOIN `ag-core-ops-auj0.knowledge_base.documents_metadata` m
   ON LOWER(m.filename) LIKE LOWER(CONCAT('%', u.filename_base, '%'))
   AND m.project_id = '<confirmed_project_id>'
   AND m.latest = TRUE

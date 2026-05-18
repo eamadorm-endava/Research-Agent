@@ -23,6 +23,18 @@ Before running the script, ensure the following conditions are met:
 
 4. Developer group: the developer Google Group must already exist in your organization.
 
+5. Cloud Build Service Agent Permissions (Mandatory for GitHub Connection):
+    - When creating a 2nd Gen GitHub Connection, Cloud Build needs to store tokens in Secret Manager.
+    - You must grant the **Secret Manager Admin** role to the Cloud Build Service Agent (`service-PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com`).
+    - **Command**:
+      ```bash
+      PROJECT_NUMBER=$(gcloud projects describe YOUR_PROJECT_ID --format='value(projectNumber)')
+      gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+          --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
+          --role="roles/secretmanager.admin"
+      ```
+    - Ensure the **Secret Manager API** is enabled before creating the connection.
+
 ## Architecture Flow
 The script performs the following steps:
 
@@ -151,6 +163,31 @@ FORCE_RECREATE=true ./terraform/scripts/run_once.sh
 | Resource | Name / Scope | Purpose |
 |----------|--------------|----------|
 | Cloud Build Triggers | MCP plan/apply triggers | Automates CI/CD workflows for MCP Terraform folders. |
+
+
+## MCP Server Deletion
+
+Use `delete_mcp_servers.sh` when you want to destroy only the MCP server Terraform stacks while leaving shared resources, the AI Agent, the EKB pipeline, the Terraform state bucket, and the Terraform service account in place.
+
+```
+chmod +x terraform/scripts/delete_mcp_servers.sh
+./terraform/scripts/delete_mcp_servers.sh
+```
+
+The script destroys these stacks using the same backend prefixes as the Cloud Build pipelines:
+
+- `terraform/gcs_mcp_server_resources`
+- `terraform/bq_mcp_server_resources`
+- `terraform/drive_mcp_server_resources`
+- `terraform/google_calendar_mcp_server_resources`
+
+To also remove the MCP Cloud Build triggers after the Terraform destroy completes, run:
+
+```
+DELETE_MCP_TRIGGERS=true ./terraform/scripts/delete_mcp_servers.sh
+```
+
+The MCP Cloud Run modules set `deletion_protection = false` so Terraform can safely apply that change before creating the destroy plan.
 
 ##  Cleanup
 To remove resources created by these scripts:

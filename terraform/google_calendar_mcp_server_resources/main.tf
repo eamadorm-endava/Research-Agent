@@ -32,11 +32,12 @@ locals {
 }
 
 module "mcp_server_cloud_run" {
-  source     = "../base_modules/cloud-run-v2"
-  project_id = var.project_id
-  region     = local.cloud_run_region
-  name       = var.mcp_server_cloud_run_name
-  labels     = var.mcp_server_cloud_run_labels
+  source              = "../base_modules/cloud-run-v2"
+  project_id          = var.project_id
+  region              = local.cloud_run_region
+  name                = var.mcp_server_cloud_run_name
+  labels              = var.mcp_server_cloud_run_labels
+  deletion_protection = false
 
   revision = {
     labels = var.mcp_server_cloud_run_labels

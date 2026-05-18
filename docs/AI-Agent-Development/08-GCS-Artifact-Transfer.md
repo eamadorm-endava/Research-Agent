@@ -12,8 +12,8 @@ The `upload_object` tool in the GCS MCP server serves as the bridge for artifact
 
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `source_uri` | `str` | Yes* | The GCS URI of the source artifact (e.g., `gs://agent-landing-zone/file.pdf`). |
-| `destination_uri` | `str` | Yes* | The GCS destination path (e.g., `gs://kb-landing-zone/raw/` or `gs://kb-landing-zone/raw/renamed.pdf`). |
+| `source_uri` | `str` | Yes* | The GCS URI of the source artifact (e.g., `gs://ag-core-ops-auj0-ai-agent-landing-zone/file.pdf`). |
+| `destination_uri` | `str` | Yes* | The GCS destination path (e.g., `gs://ag-core-ops-auj0-kb-landing-zone/raw/` or `gs://ag-core-ops-auj0-kb-landing-zone/raw/renamed.pdf`). |
 | `metadata` | `dict[str, str]` | No | Optional custom metadata tags to apply to the object. |
 | `bucket_name` | `str` | No** | Target bucket name (alternative to `destination_uri`). |
 | `object_name` | `str` | No** | Target object name (alternative to `destination_uri`). |
@@ -36,11 +36,11 @@ The tool automatically injects the following metadata field:
    ```json
    {
      "source_uri": "gs://research-agent-artifacts/123-abc.pdf",
-     "destination_uri": "gs://kb-landing-zone/raw/",
+     "destination_uri": "gs://ag-core-ops-auj0-kb-landing-zone/raw/",
      "metadata": {
        "doc-type": "research-paper"
      }
    }
    ```
-3. **Resulting Object**: `gs://kb-landing-zone/raw/123-abc.pdf`
+3. **Resulting Object**: `gs://ag-core-ops-auj0-kb-landing-zone/raw/123-abc.pdf`
    - Metadata: `user-email: user@example.com`, `doc-type: research-paper"

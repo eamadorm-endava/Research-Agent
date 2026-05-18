@@ -8,7 +8,7 @@ The `kb_ingestion` module provides the logic and tools necessary to ingest user-
 - **Location**: `agent/core_agent/tools/kb_tools.py`
 - **Description**: Triggers the downstream EKB Cloud Run ingestion pipeline.
 - **Authentication**: Uses Google OIDC ID tokens for service-to-service authentication.
-- **Input**: `gcs_uri` (the canonical path in `kb-landing-zone`).
+- **Input**: `gcs_uri` (the canonical path in `ag-core-ops-auj0-kb-landing-zone`).
 
 ### 2. `kb-file-ingestion` Skill
 - **Location**: `agent/skills/kb-file-ingestion/SKILL.md`
@@ -24,12 +24,12 @@ The `kb_ingestion` module provides the logic and tools necessary to ingest user-
 ## Configuration
 The module relies on the following environment variables:
 - `EKB_PIPELINE_URL`: The base URL of the Cloud Run service.
-- `GCS_KB_INGESTION_BUCKET`: (Usually `kb-landing-zone`) where documents are moved before ingestion.
+- `GCS_KB_INGESTION_BUCKET`: (Usually `ag-core-ops-auj0-kb-landing-zone`) where documents are moved before ingestion.
 
 ## Workflow
 1. User requests ingestion.
 2. Skill collects metadata and validates against BigQuery.
-3. Skill moves the file from `ai_agent_landing_zone` to `kb-landing-zone`.
+3. Skill moves the file from `ag-core-ops-auj0-ai-agent-landing-zone` to `ag-core-ops-auj0-kb-landing-zone`.
 4. Skill stamps metadata on the destination object.
 5. Tool triggers the `/ingest` endpoint on the EKB Pipeline.
 

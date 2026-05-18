@@ -1,4 +1,4 @@
-PROJECT_ID?=ag-core-dev-fdx7 # ?= is used to set a default value if the variable is not set in the .env file
+PROJECT_ID?=ag-core-ops-auj0# ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
 BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
@@ -6,13 +6,17 @@ GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
 CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
 EKB_PIPELINE_URL?=https://ekb-pipeline-server-753988132239.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
-ARTIFACT_BUCKET?=ai_agent_landing_zone
+ARTIFACT_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 ### General Commands ###
 
 gcloud-auth:
 	gcloud config unset auth/impersonate_service_account
 	gcloud auth application-default login --project=$(PROJECT_ID)
 	gcloud config set project $(PROJECT_ID)
+
+gcloud-auth-terraform:
+	gcloud auth application-default login --project=$(PROJECT_ID) --impersonate-service-account=terraform-sa-gemini-project@$(PROJECT_ID).iam.gserviceaccount.com
+	gcloud config set auth/impersonate_service_account terraform-sa-gemini-project@$(PROJECT_ID).iam.gserviceaccount.com
 
 install-precommit:
 	uvx pre-commit install
@@ -63,8 +67,8 @@ deploy-agent:
 		--entrypoint-module=agent.core_agent.agent \
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
-		--service-account=adk-agent@ag-core-dev-fdx7.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL}"
+		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},ARTIFACT_BUCKET=${ARTIFACT_BUCKET}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
