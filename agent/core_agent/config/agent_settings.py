@@ -52,8 +52,8 @@ class GCPConfig(BaseSettings):
     ARTIFACT_BUCKET: Annotated[
         str,
         Field(
-            default="",
-            description="GCS Bucket where the user-uploaded artifacts will be stored. Set via ARTIFACT_BUCKET env var; expected format: '{project_id}-ai-agent-landing-zone'.",
+            default="ag-core-ops-auj0-ai-agent-landing-zone",
+            description="GCS Bucket where the user-uploaded artifacts will be stored. Format: '{project_id}-ai-agent-landing-zone'.",
         ),
     ]
 
