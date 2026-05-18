@@ -16,7 +16,7 @@ Both tools authenticate against the EKB Cloud Run service using a GCP OIDC ident
 
 ### `kb_schemas.py`
 Pydantic `BaseModel` schemas used by `kb_tools.py`:
-- **`TriggerEKBPipelineRequest`** / **`TriggerEKBPipelineResponse`** — input and output for the trigger tool.
+- **`TriggerEKBPipelineBatchRequest`** / **`TriggerEKBPipelineResponse`** — input and output for the trigger tool.
 - **`CheckIngestionStatusRequest`** / **`CheckIngestionStatusResponse`** — input and output for the status tool.
 
 ### `time_tools.py`

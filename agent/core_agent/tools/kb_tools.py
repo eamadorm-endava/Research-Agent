@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from typing import Optional
 from google.adk.tools import BaseTool, ToolContext
@@ -8,13 +9,12 @@ from typing_extensions import override
 from ..config import INGESTION_AGENT_CONFIG as AGENT_CONFIG
 from ..security import get_id_token
 from .kb_schemas import (
-    TriggerEKBPipelineRequest,
+    TriggerEKBPipelineBatchRequest,
     TriggerEKBPipelineResponse,
     CheckIngestionStatusRequest,
     CheckIngestionStatusResponse,
 )
 
-# Key for storing pending jobs in session state
 PENDING_INGESTIONS_KEY = "pending_ingestions"
 
 _CLIENT_LIMITS = httpx.Limits(max_keepalive_connections=50, max_connections=100)
@@ -39,17 +39,19 @@ def _get_bearer_headers(audience: str, tool_name: str) -> Optional[dict[str, str
 
 
 class TriggerEKBPipelineTool(BaseTool):
-    """Triggers the Enterprise Knowledge Base (EKB) ingestion pipeline."""
+    """Triggers the EKB ingestion pipeline for one or more files in parallel."""
 
     def __init__(self) -> None:
-        """Registers the tool for background processing of documents."""
+        """Registers the tool for parallel background processing of documents."""
         super().__init__(
             name="trigger_ekb_pipeline",
             description=(
                 "Finalizes the Enterprise Knowledge Base (EKB) ingestion by triggering "
-                "the background processing pipeline (classification, chunking, indexing). "
+                "the background processing pipeline (classification, chunking, indexing) "
+                "for one or more files simultaneously. "
                 "Use this tool ONLY as the final step of the 'kb-file-ingestion' skill "
-                "after the file has been successfully moved to the destination bucket."
+                "after all files have been successfully moved to the destination bucket. "
+                "Returns a list of results, one per file."
             ),
         )
 
@@ -66,12 +68,13 @@ class TriggerEKBPipelineTool(BaseTool):
             parameters=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
-                    "gcs_uri": types.Schema(
-                        type=types.Type.STRING,
-                        description="The canonical GCS URI of the document to ingest (e.g., gs://ag-core-ops-auj0-kb-landing-zone/project/file.pdf)",
+                    "gcs_uris": types.Schema(
+                        type=types.Type.ARRAY,
+                        description="One or more canonical GCS URIs to ingest (e.g., gs://ag-core-ops-auj0-kb-landing-zone/project/file.pdf)",
+                        items=types.Schema(type=types.Type.STRING),
                     ),
                 },
-                required=["gcs_uri"],
+                required=["gcs_uris"],
             ),
         )
 
@@ -102,83 +105,141 @@ class TriggerEKBPipelineTool(BaseTool):
         logger.debug(f"[trigger_ekb_pipeline] Response body: {data}")
         return data
 
-    def _store_pending_job(
-        self, tool_context: ToolContext, job_id: str, filename: str
+    def _store_pending_jobs(
+        self, tool_context: ToolContext, jobs: list[dict[str, str]]
     ) -> int:
         """
-        Appends a pending job entry to the session state and returns the new total.
+        Extends the session-state pending jobs list and returns the new total.
 
         Args:
             tool_context: ToolContext -> ADK context for session state access.
-            job_id: str -> The job ID returned by the pipeline service.
-            filename: str -> The filename of the document being ingested.
+            jobs: list[dict[str, str]] -> Entries with 'job_id' and 'filename' to append.
 
         Returns:
-            int -> Total number of pending jobs after appending.
+            int -> Total number of pending jobs after extending.
         """
         pending = list(tool_context.state.get(PENDING_INGESTIONS_KEY, []))
-        pending.append({"job_id": job_id, "filename": filename})
+        pending.extend(jobs)
         tool_context.state[PENDING_INGESTIONS_KEY] = pending
         return len(pending)
 
-    @override
-    async def run_async(self, *, args: dict, tool_context: ToolContext) -> dict:
+    async def _trigger_single(
+        self, url: str, headers: dict[str, str], gcs_uri: str
+    ) -> dict:
         """
-        Calls the EKB pipeline service and stores the job_id in session state.
+        Triggers the pipeline for one URI and returns a per-file result dict.
+        Catches all exceptions so asyncio.gather never aborts the batch.
 
         Args:
-            args: dict -> Must contain 'gcs_uri'.
-            tool_context: ToolContext -> ADK context for session state storage.
+            url: str -> Full URL of the /ingest endpoint.
+            headers: dict[str, str] -> Authorization and content-type headers.
+            gcs_uri: str -> Canonical GCS URI of the document to ingest.
 
         Returns:
-            dict -> Serialised TriggerEKBPipelineResponse.
+            dict -> Serialised TriggerEKBPipelineResponse for this file.
         """
-        raw_uri = args.get("gcs_uri")
-        logger.info(f"[trigger_ekb_pipeline] Invoked with gcs_uri='{raw_uri}'")
+        filename = gcs_uri.split("/")[-1]
         try:
-            request = TriggerEKBPipelineRequest(**args)
-            logger.debug(
-                f"[trigger_ekb_pipeline] Request valid — uri='{request.gcs_uri}', filename='{request.filename}'"
-            )
-            url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/ingest"
-            headers = _get_bearer_headers(
-                AGENT_CONFIG.EKB_PIPELINE_URL, "trigger_ekb_pipeline"
-            )
-            if not headers:
-                return TriggerEKBPipelineResponse(
-                    execution_status="error",
-                    execution_message="Authentication failed: Could not obtain ID token.",
-                    job_id="N/A",
-                ).model_dump()
-
-            data = await self._post_to_ingest(url, headers, request.gcs_uri)
-            job_id = data.get("job_id")
-            total_pending = self._store_pending_job(
-                tool_context, job_id, request.filename
-            )
+            data = await self._post_to_ingest(url, headers, gcs_uri)
+            job_id = data.get("job_id", "N/A")
             logger.info(
-                f"[trigger_ekb_pipeline] Done — job_id='{job_id}', filename='{request.filename}', pending={total_pending}"
+                f"[trigger_ekb_pipeline] Done — job_id='{job_id}', filename='{filename}'"
             )
             return TriggerEKBPipelineResponse(
                 execution_status="success",
                 execution_message=(
-                    f"I've started the ingestion process for '{request.filename}'. "
-                    "It usually takes about 10 minutes to classify and index the document. "
-                    "I'll let you know once it's finished!"
+                    f"Ingestion started for '{filename}'. "
+                    "Classification and indexing usually takes about 10 minutes."
                 ),
                 job_id=job_id,
+                gcs_uri=gcs_uri,
                 response=data,
             ).model_dump()
-
         except Exception as e:
             logger.opt(exception=True).error(
-                f"[trigger_ekb_pipeline] FAILED for uri='{raw_uri}': {type(e).__name__}: {e}"
+                f"[trigger_ekb_pipeline] FAILED for uri='{gcs_uri}': {type(e).__name__}: {e}"
             )
             return TriggerEKBPipelineResponse(
                 execution_status="error",
                 execution_message=f"Internal Error: {type(e).__name__}: {e}",
                 job_id="N/A",
+                gcs_uri=gcs_uri,
             ).model_dump()
+
+    @override
+    async def run_async(self, *, args: dict, tool_context: ToolContext) -> list[dict]:
+        """
+        Validates the batch request, triggers all pipelines in parallel, and stores
+        successful job IDs in session state.
+
+        Args:
+            args: dict -> Must contain 'gcs_uris' (list of GCS URIs).
+            tool_context: ToolContext -> ADK context for session state storage.
+
+        Returns:
+            list[dict] -> One serialised TriggerEKBPipelineResponse per input URI.
+        """
+        raw_uris = args.get("gcs_uris")
+        logger.info(
+            f"[trigger_ekb_pipeline] Invoked with {len(raw_uris) if isinstance(raw_uris, list) else 0} URI(s)"
+        )
+        try:
+            request = TriggerEKBPipelineBatchRequest(**args)
+            url = f"{AGENT_CONFIG.EKB_PIPELINE_URL.strip('/')}/ingest"
+            headers = _get_bearer_headers(
+                AGENT_CONFIG.EKB_PIPELINE_URL, "trigger_ekb_pipeline"
+            )
+            if not headers:
+                return [
+                    TriggerEKBPipelineResponse(
+                        execution_status="error",
+                        execution_message="Authentication failed: Could not obtain ID token.",
+                        job_id="N/A",
+                        gcs_uri=uri,
+                    ).model_dump()
+                    for uri in request.gcs_uris
+                ]
+
+            results: list[dict] = await asyncio.gather(
+                *[self._trigger_single(url, headers, uri) for uri in request.gcs_uris]
+            )
+
+            successful_jobs = [
+                {"job_id": r["job_id"], "filename": r["gcs_uri"].split("/")[-1]}
+                for r in results
+                if r["execution_status"] == "success" and r.get("gcs_uri")
+            ]
+            if successful_jobs:
+                total = self._store_pending_jobs(tool_context, successful_jobs)
+                logger.info(
+                    f"[trigger_ekb_pipeline] {len(successful_jobs)} job(s) stored — total pending: {total}"
+                )
+
+            return results
+
+        except Exception as e:
+            logger.opt(exception=True).error(
+                f"[trigger_ekb_pipeline] Batch FAILED: {type(e).__name__}: {e}"
+            )
+            error_msg = f"Internal Error: {type(e).__name__}: {e}"
+            uris = raw_uris if isinstance(raw_uris, list) else []
+            if uris:
+                return [
+                    TriggerEKBPipelineResponse(
+                        execution_status="error",
+                        execution_message=error_msg,
+                        job_id="N/A",
+                        gcs_uri=uri if isinstance(uri, str) else None,
+                    ).model_dump()
+                    for uri in uris
+                ]
+            return [
+                TriggerEKBPipelineResponse(
+                    execution_status="error",
+                    execution_message=error_msg,
+                    job_id="N/A",
+                ).model_dump()
+            ]
 
 
 class CheckIngestionStatusTool(BaseTool):

@@ -6,308 +6,140 @@ description: Orchestrates privacy-preserving ingestion of user-uploaded PDF file
 ## Mandatory execution mode
 
 Trigger this skill when a user asks to:
-- "Save this file to the knowledge base"
-- "Add this document to the general KB"
-- "Make this file available for the whole company"
-- "Ingest this into the EKB"
-- "Publish the uploaded file to the EKB"
-- "Upload the file to the database"
-- "Register this document in EKB"
-- "Upload it to KB"
-- "What projects can I use for the metadata?"
-- "Which project IDs are available in the KB?"
-- "Show me the EKB projects I can ingest into"
+- "Save / add / ingest / publish / upload / register this file to the knowledge base / EKB / KB"
+- "What projects can I use for the metadata?" or "Which project IDs are available in the KB?"
 or similar requests.
 
-## Core Privacy and Optimization Rule
+## Core Privacy Rule
 
-Use a **privacy-preserving metadata-first ingestion flow**. The goal is to minimize processing time while avoiding unnecessary access to uploaded file contents.
-
-- Do **not** read, parse, OCR, preview, summarize, or extract text from uploaded PDFs by default.
-- Do **not** call `import_gcs_to_artifact` or `load_artifacts` for uploaded PDFs unless the user explicitly asks the agent to read or infer metadata from file contents.
-- Treat requests like "ingest this", "upload these", "add to KB", or "fill metadata" as **not consent** to inspect file contents.
-- First use the user's current message, prior conversation context, uploaded filenames, and lightweight URI/file metadata to infer the four required metadata fields.
-- Prefer asking the user to confirm or fill missing metadata over reading file contents.
-- If the user asks which projects are available for metadata, query the KB BigQuery dataset and answer from that query; do not inspect uploaded files.
-- Never start upload/stamping/pipeline steps until the user explicitly confirms the final metadata plan.
+- Do **not** read, parse, OCR, preview, or extract text from uploaded files by default.
+- Do **not** call `import_gcs_to_artifact` or `load_artifacts` unless the user explicitly asks to infer metadata from file contents.
+- Leave any field that cannot be inferred blank (`—`) and ask the user — do not read file contents to fill gaps.
 
 ## Required Metadata
 
 Every ingested file must have:
-- **Project**: confirmed EKB `project_id` after validation against the KB dataset or semantic project validation.
+- **Project**: a `project_id` confirmed by the user after project validation.
 - **Domain**: one of `IT`, `Finance`, `HR`, `Sales`, `Executives`, `Legal`, `Operations`.
 - **Trust-level**: one of `Published`, `WIP`, `Archived`.
 - **PII**: `Yes` or `No`.
 
-## Project ID Discovery Requests
+## Metadata Inference
 
-When the user asks which projects can be used for metadata, which project IDs are available, or asks for help choosing a project before ingestion:
+Before asking the user, infer metadata from the current message, conversation history, and filenames using these mappings:
 
-1. Do **not** read any uploaded files.
-2. Query BigQuery using `execute_query` with `project_id="ag-core-ops-auj0"`.
-3. Use this read-only SQL:
-   ```sql
-   SELECT
-     project_id,
-     COUNTIF(latest = TRUE) AS latest_document_count,
-     ARRAY_AGG(DISTINCT domain IGNORE NULLS ORDER BY domain LIMIT 10) AS domains
-   FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
-   WHERE project_id IS NOT NULL
-     AND TRIM(project_id) != ''
-   GROUP BY project_id
-   ORDER BY project_id
-   LIMIT 500
-   ```
-4. Return the available `project_id` values in a concise table. Include document counts and domains when returned by the query.
-5. If the query returns no rows, say that no project IDs were found in the KB metadata table.
-6. If the query fails, report the BigQuery error and do not guess project IDs.
-7. If files are already uploaded, ask the user to choose one of the returned project IDs and provide or confirm the remaining metadata before continuing ingestion.
+**Domain:**
 
-Use the query results as a metadata aid only. Do not auto-select a project ID for a file unless the user clearly asked for a specific project or there is a high-confidence semantic match that the user later confirms.
+| Keywords | Domain |
+|---|---|
+| technical, engineering, architecture, software, cloud, data, integration, API | `IT` |
+| budget, invoice, forecast, financial, accounting, revenue, cost | `Finance` |
+| people, hiring, performance, benefits, employee, onboarding | `HR` |
+| proposal, pipeline, account plan, commercial, pricing, lead, opportunity | `Sales` |
+| strategy, leadership, board, executive, roadmap, operating model | `Executives` |
+| contract, compliance, legal, policy, audit, risk, privacy terms | `Legal` |
+| process, procedure, operations, runbook, support, delivery, governance | `Operations` |
 
-## Metadata Source Precedence
+**Trust-level:**
 
-When multiple sources provide a value for the same field, apply this precedence:
+| Keywords | Trust-level |
+|---|---|
+| final, approved, published, production, official, signed-off | `Published` |
+| draft, WIP, work in progress, preliminary, review, v0.x, unapproved | `WIP` |
+| archived, deprecated, superseded, obsolete, historical, retired | `Archived` |
 
-1. Explicit per-file user input.
-2. Explicit batch-level user input, such as "all files are for project X" or "same metadata for all PDFs".
-3. Previously confirmed values in the same conversation.
-4. BigQuery project ID discovery or validation results, when matching a user-provided project name or ID.
-5. Lightweight filename/URI hints.
-6. User-authorized file-content inspection results, only when the user explicitly requested content-based inference.
-7. Blank (`—`) and ask the user.
-
-**Duplicate replace exception**: If the user chooses **Replace** for a duplicate file, override that file's `domain` and `trust-level` with the values fetched from the existing BigQuery metadata record. This override beats all inferred or user-typed values for those two fields.
-
-## Progress Tracker
-
-Maintain this state throughout the interaction:
-- [ ] Optional project lookup: If the user asks for available projects, query BigQuery and show project IDs without reading files
-- [ ] Step 1a: Get URIs for all uploads → validate every file is a PDF
-- [ ] Step 1b: Parse user-provided metadata and lightweight file hints → build metadata candidates without reading PDFs
-- [ ] Step 1c: Privacy gate → read file contents only if the user explicitly requested content-based inspection for specific files or fields
-- [ ] Step 2 (background, all in parallel): Project validation + deduplication check for every resolvable file simultaneously
-- [ ] Step 2 (user-facing): Present ONE combined message — pre-filled metadata table + any ambiguity/duplicate/missing-field questions + confirmation ask
-- [ ] Step 2 (await): Wait for explicit user approval covering metadata AND all open questions
-- [ ] Step 3a: Upload files to KB landing zone (all files in parallel)
-- [ ] Step 3b: Stamp metadata on uploaded files (all files in parallel, after 3a completes)
-- [ ] Step 3c: Verify every file — object exists AND metadata is complete (all files in parallel)
-- [ ] Step 4: Trigger EKB pipeline for verified files only + consolidated final summary
-
-**On retry**: Steps 1 and 2 are already complete — jump directly to Step 3a using the previously confirmed file URIs, filenames, project IDs, and metadata.
+Do not infer `PII = No` from silence. Only set it if the user stated it or the filename clearly signals anonymized/redacted content.
 
 ## Gotchas
 
-- **GCS URIs**: The agent landing zone is always `gs://ag-core-ops-auj0-ai-agent-landing-zone/`.
-- **KB Landing Zone**: The KB ingestion bucket is **`gs://ag-core-ops-auj0-kb-landing-zone/`**. You MUST use this exact name for the `destination_bucket` to trigger the Service Account authentication switch.
-- **BigQuery project for KB metadata queries**: Use `ag-core-ops-auj0` as the BigQuery tool `project_id` and query `ag-core-ops-auj0.knowledge_base.documents_metadata`.
-- **Project IDs**: In BigQuery, `project_id` is case-sensitive in some operations but should be checked case-insensitively for duplicates.
-- **Job IDs**: Always return the `job_id` from the pipeline response to the user as a confirmation.
-- **Parallelism**: Steps 2 background checks, 3a, 3b, 3c, and 4 each launch ALL eligible tool calls at the same time. Never loop one-by-one.
-- **No file-content reads without consent**: Never read PDF content to pre-fill metadata unless the user explicitly requests it. Missing metadata should remain blank and be asked for.
+- **Agent landing zone**: always `gs://ag-core-ops-auj0-ai-agent-landing-zone/`.
+- **KB Landing Zone**: use `ag-core-ops-auj0-kb-landing-zone` as `destination_bucket` — this triggers the Service Account authentication switch.
+- **BigQuery project**: use `ag-core-ops-auj0` as the tool `project_id`; query `ag-core-ops-auj0.knowledge_base.documents_metadata`.
+- **Job IDs**: always return the `job_id` from the pipeline response to the user.
 
-## Mandatory Workflow
+---
 
-### Step 0: Answer Available-Project Questions Before Ingestion
+## Workflow
 
-If the user asks which projects are available or which project ID to use, run the **Project ID Discovery Requests** protocol before any ingestion-specific metadata inference. This applies even if the user uploaded files in the same message.
+### Step 1 — Validate File Types
 
-After showing the available project IDs:
-- If the user has not chosen a project, ask them to choose one and provide or confirm the remaining required metadata.
-- If the user already provided enough metadata, continue to Step 1 without reading file contents.
+Call `get_artifact_uri` for every uploaded file simultaneously. For each file:
+- **Not a PDF** → tell the user: *"The EKB only accepts PDF documents. Please convert `<filename>` to PDF and upload it again."* Exclude it from the batch.
+- **No valid PDFs remain** → stop and ask the user to upload PDF documents.
 
-### Step 1: Identify, Validate, and Infer Metadata Without File Reads
+Proceed only with confirmed PDF files.
 
-#### 1a — Identify & Validate
+---
 
-1. Call `get_artifact_uri` for every file the user uploaded.
-2. For each file:
-   - If not a PDF (e.g. `.docx`, `.txt`): inform the user "Endava's Knowledge Base only accepts PDF documents. Please convert `<filename>` to PDF and upload it again." Exclude it from the batch.
-   - If no PDFs are found at all: ask "Please upload the PDF document(s) you'd like to add to the knowledge base."
-3. Proceed only with the confirmed PDF files.
+### Step 2 — Infer Metadata
 
-#### 1b — Parse User Metadata and Lightweight Hints *(no PDF content reads)*
+Extract all metadata fields for every valid PDF. Priority order — use the first source that provides a value:
 
-Before reading any file content, extract metadata candidates from the current user message and conversation history.
+1. **User's message** (explicit, highest priority): e.g., *"upload this to project Alpha, domain IT, WIP, no PII"*
+2. **Conversation history**: values confirmed or mentioned in prior turns
+3. **Filename**: keywords that map to domain or trust-level (see mappings above)
 
-Recognize batch-level statements, for example:
-- "All files are for project Phoenix, domain IT, published, no PII."
-- "Same metadata for all PDFs: project = ACME migration, trust = WIP."
-- "Ingest these under project `abc-123`; they are Finance docs and contain PII."
+Do not read file contents. Leave any field that cannot be obtained as `—`.
 
-Recognize per-file statements, for example:
-- "`architecture.pdf` is IT / Published / No PII; `budget.pdf` is Finance / WIP / Yes PII."
-- Markdown tables with columns like file, project, domain, trust, pii.
-- Inline mappings such as `file1.pdf -> project X, Legal, Archived, no PII`.
+**As soon as the project name is known** — whether the user stated it directly or it was inferred — fire the **Project Validation Query** (see appendix) *immediately in parallel* with assembling the metadata table. Do not wait for user confirmation first. Build the token pattern before querying (see appendix).
 
-Normalize values using these mappings:
+---
 
-**Domain**
-- Technical, engineering, architecture, software, cloud, data, integration, API → `IT`
-- Budget, invoice, forecast, financial, accounting, revenue, cost → `Finance`
-- People, hiring, performance, benefits, employee, onboarding → `HR`
-- Proposal, pipeline, account plan, commercial, pricing, lead, opportunity → `Sales`
-- Strategy, leadership, board, executive, roadmap, operating model → `Executives`
-- Contract, compliance, legal, policy, audit, risk, privacy terms → `Legal`
-- Process, procedure, operations, runbook, support, delivery, governance → `Operations`
+### Step 3 — Present Metadata Table and Confirm
 
-**Trust-level**
-- Final, approved, published, production, official, signed-off → `Published`
-- Draft, WIP, work in progress, preliminary, review, v0.x, unapproved → `WIP`
-- Archived, deprecated, superseded, obsolete, historical, retired → `Archived`
+Assemble the metadata table and — if the project validation result is already available — present both in a single message:
 
-**PII**
-- `No`: no PII, anonymized, redacted, sanitized, public-safe, contains no personal data
-- `Yes`: contains PII, personal data, employee/customer names, emails, phone numbers, IDs, resumes, CVs, HR data
-
-Use filenames and URIs only for lightweight hints. Examples:
-- `draft-architecture.pdf` can hint `WIP` and `IT`.
-- `finance-forecast-final.pdf` can hint `Finance` and `Published`.
-- `archive-legal-contract.pdf` can hint `Legal` and `Archived`.
-
-Do not infer `PII = No` from silence alone. If the user does not provide PII status and the file name does not clearly indicate redacted/anonymized content, leave PII blank (`—`) and ask the user.
-
-#### 1c — Privacy Gate for Optional File-Content Inspection
-
-File-content inspection is **opt-in only**.
-
-Only read uploaded PDF contents when the user explicitly asks for it using language such as:
-- "Read the file and infer the metadata."
-- "You may inspect the documents to fill missing metadata."
-- "Auto-detect PII/domain/trust level from the contents."
-- "Scan the PDFs and tell me the metadata."
-
-When the user has not explicitly requested content-based inspection:
-- Do **not** call `import_gcs_to_artifact`.
-- Do **not** call `load_artifacts`.
-- Leave unresolved fields blank (`—`) and ask the user for the missing metadata in Step 2.
-
-When the user explicitly requests content-based inspection:
-- Read only the specific files or fields the user authorized, not the entire batch unless the user clearly authorized the entire batch.
-- For every selected PDF, call `import_gcs_to_artifact(gcs_uri=<uri>, mime_type="application/pdf")` then `load_artifacts`.
-- Extract only the missing or requested metadata hints needed for that file.
-- If a selected file cannot be read, leave unresolved fields blank (`—`) and continue.
-- In the Step 2 message, state that user-authorized file-content checks were used.
-
-### Step 2: Background Validation → Single User-Facing Message
-
-#### Background *(run immediately after Step 1 metadata inference, all eligible checks launched in parallel)*
-
-Merge metadata candidates from Step 1b/1c using the precedence rules above.
-
-1. **Project Validation** — for every unique project name or project-like value inferred:
-   - If the user provided an exact-looking `project_id`, validate it against BigQuery with a read-only `execute_query` against `ag-core-ops-auj0.knowledge_base.documents_metadata`.
-   - If the user provided a project name or description rather than an exact ID, call `ekb_semantic_search(query='<inferred_project_name>')` and resolve only high-confidence matches.
-   - Direct `project_id` supplied by the user and validated → use that `project_id`.
-   - High-confidence single semantic match → resolve to that `project_id`.
-   - Multiple plausible matches → collect the candidates; surface them as an inline ⚠️ question in the user-facing message.
-   - No match → leave the project cell blank; flag it as missing input in the message.
-
-   Exact project ID validation query:
-   ```sql
-   SELECT DISTINCT project_id
-   FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
-   WHERE LOWER(project_id) = LOWER('<user_supplied_project_id>')
-   LIMIT 5
-   ```
-
-2. **Deduplication Check** — for each file whose project resolved to a confirmed `project_id`, run:
-   ```sql
-   SELECT filename, domain, trust_level
-   FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
-   WHERE project_id = '<confirmed_project_id>'
-     AND lower(filename) = lower('<uploaded_filename>')
-     AND latest = TRUE
-   LIMIT 1
-   ```
-   - Duplicate found → record the existing `domain` and `trust_level`; surface a replace-or-rename question in the user-facing message.
-   - No duplicate → no extra question for this file.
-   - If the project was ambiguous or unresolved, skip the dedup check for that file — it will run after the user confirms the project.
-
-#### User-Facing Message *(one message only, sent after all background checks complete)*
-
-Send a single message with this structure:
-
-> "Based on your instructions and the available file metadata, I have pre-filled the metadata to be used without reading the uploaded file contents. Please let me know if it's correct or if you want to make changes, and answer any questions below before I proceed:
->
 > | File | Project | Domain | Trust-level | PII |
 > |:---:|:---:|:---:|:---:|:---:|
 > | `<file1.pdf>` | `<value>` | `<value>` | `<value>` | `<Yes/No>` |
-> | `<file2.pdf>` | — | `<value>` | `<value>` | `<Yes/No>` |
 >
-> **Domain options**:
->   - `IT`
->   - `Finance`
->   - `HR`
->   - `Sales`
->   - `Executives`
->   - `Legal`
->   - `Operations`
+> **Domain**: `IT` · `Finance` · `HR` · `Sales` · `Executives` · `Legal` · `Operations`
+> **Trust-level**: `Published` (official) · `WIP` (draft) · `Archived` (historical)
 >
-> **Trust-level options**:
->   - `Published` — verified & ready for company-wide use
->   - `WIP` — draft still being refined
->   - `Archived` — historical reference, no longer active
->
-> *(question blocks appear here only when there are open issues — see rules below, a bullet point per question)*
->
-> Please confirm the metadata and answer any question(s) above to proceed."
+> *(List any blank `—` fields here and ask the user to fill them)*
 
-If user-authorized file-content checks were actually performed, use this first sentence instead:
+Handle the project validation result:
 
-> "Based on your instructions, available file metadata, and user-authorized file-content checks, I have pre-filled the metadata to be used."
+- **Matches found** → append to the same message:
+  > *"I also found existing project(s) with a similar name in the EKB: `<list>`. Would you like to use one of these, or proceed with `<user's value>` as a new project?"*
+  - User picks an existing project → use that `project_id`, proceed to **Step 4**.
+  - User creates a new project → skip Step 4, proceed to **Step 5**.
+- **No matches found** → show the table normally; project proceeds as new, skip Step 4.
+- **Project was blank** (`—`) → ask the user to fill it. Once provided, immediately run the Project Validation Query and present the result before proceeding.
 
-**Cell formatting rules:**
-- Write only the metadata value in every cell, regardless of how it was obtained.
-- If a value cannot be inferred from any allowed source, use `—` with no additional text.
-- The Project cell must display the resolved `project_id` when available, not merely the raw project name.
+**Do not proceed to Step 4 or 5 until all required fields are filled and the user confirms.**
 
-**⚠️ Issue blocks** (append below the table, one block per open issue; omit entirely if no issues exist):
+---
 
-For missing required metadata:
-> ⚠️ **Metadata missing for `<filename>`**: Please provide `<Project/Domain/Trust-level/PII>` for this file. I will not read the file to infer this unless you explicitly ask me to inspect its contents.
+### Step 4 — Dedup Check *(only when the user selected an existing project)*
 
-For an ambiguous project match:
-> ⚠️ **Project unclear for `<filename>`**: I found multiple possible matches in the EKB. Is it one of these?
-> - `<Project Name A>` (ID: `<id_a>`)
-> - `<Project Name B>` (ID: `<id_b>`)
+Run the **Dedup Query** (see appendix) once for all files simultaneously. Strip the extension from every filename before building the query (e.g., `report.pdf` → `report`).
 
-For a duplicate filename:
-> ⚠️ **Duplicate detected for `<filename>`**: A version already exists in `<project_id>` (Domain: `<existing_domain>`, Trust-level: `<existing_trust_level>`). Should I:
-> - **Replace** the existing file (its domain and trust-level will be preserved from the existing record)
-> - **Rename** `<filename>` — please provide the new filename
+The query returns one row per uploaded file with an array of matching EKB records. Process the results:
 
-**MANDATORY — Replace rule**: If the user chooses Replace for any file, override that file's `domain` and `trust-level` in the ingestion plan with the values fetched from the existing BigQuery record. Do NOT use inferred or user-typed values for those two fields.
+- **`ekb_matches` is non-empty** → inform the user for each affected file:
+  > *"A file named `<filename>` already exists in project `<project_id>` (Domain: `<domain>`, Trust-level: `<trust_level>`, Classification: `<classification_tier>`). Would you like to:*
+  > - **Replace** it — the existing domain, trust-level, and classification tier will be used as the metadata for this file.
+  > - **Upload as new** — please provide a different filename."*
+  - User chooses **Replace** → override this file's `domain`, `trust_level`, and `classification_tier` with the values from the existing BigQuery record. Do not use inferred or user-typed values for those fields.
+  - User chooses **Upload as new** → update the filename to what the user provides.
+- **`ekb_matches` is empty** → no duplicate, proceed normally.
 
-#### Awaiting User Response
+---
 
-Do NOT start Step 3a until all conditions are met:
-1. The user has explicitly confirmed the metadata table or provided corrections.
-2. Every ⚠️ duplicate question has been answered (Replace, or Rename with a new filename).
-3. Every blank (`—`) required metadata cell has been resolved.
-4. Every project value has been resolved to a confirmed `project_id`.
+### Step 5 — Upload, Stamp, and Trigger
 
-If the user corrects a project name that was previously unresolved or wrong, re-run project validation and, if it resolves, run the dedup check for that file before proceeding.
+For all files **simultaneously**:
 
-If the user provides missing metadata in response to the table, update the affected rows, re-display the corrected table, and ask for confirmation again before continuing.
-
-If the user asks the agent to auto-detect missing fields from the documents after seeing the table, run user-authorized file-content inspection only for the files and fields the user asked to auto-detect, then re-display the corrected table.
-
-### Step 3a: Upload Files *(all files launched in parallel simultaneously)*
-
-Call `upload_object` for **every confirmed file at the same time** — do not wait for one to finish before starting the next:
-
-- `source_gcs_uri`: The URI identified in Step 1a for this file.
+**5a — Upload**
+Call `upload_object` for every file at the same time:
+- `source_gcs_uri`: URI from Step 1.
 - `destination_bucket`: `ag-core-ops-auj0-kb-landing-zone`
-- `filename`: The confirmed filename (or the renamed filename if the user chose Rename).
-- `path_inside_bucket`: The confirmed `<project_id>` for this file.
+- `filename`: confirmed filename.
+- `path_inside_bucket`: confirmed `project_id`.
 
-Wait for **all** uploads to complete before proceeding to Step 3b.
-
-### Step 3b: Stamp Metadata *(all files launched in parallel simultaneously)*
-
-Once all uploads from Step 3a have finished, call `update_object_metadata` for **every file at the same time**:
-
+**5b — Stamp Metadata** *(after all uploads complete)*
+Call `update_object_metadata` for every file at the same time:
 ```json
 {
   "project": "<project_id>",
@@ -317,52 +149,76 @@ Once all uploads from Step 3a have finished, call `update_object_metadata` for *
 }
 ```
 
-Wait for **all** metadata stamps to complete before proceeding to Step 3c.
+**5c — Trigger Pipeline** *(after all stamps complete)*
+Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` once with all URIs returned by the upload calls. The tool triggers all pipelines in parallel internally and returns one result per file.
 
-### Step 3c: Verify Uploads *(all files launched in parallel simultaneously)*
-
-After all metadata stamps from Step 3b have completed, call `read_object` for **every file at the same time**:
-- `bucket_name`: `ag-core-ops-auj0-kb-landing-zone`
-- `object_name`: `<project_id>/<filename>`
-
-For each file verify **both conditions**:
-1. `execution_status == "success"` — the blob is present in the KB landing zone.
-2. `metadata.custom_metadata` contains all four required keys: `project`, `domain`, `trust-level`, `pii_status`.
-
-**Automatic recovery (do not ask the user — act immediately):**
-
-- **Object not found** → automatically re-run Step 3a (`upload_object`) for this file, then immediately re-run Step 3b (`update_object_metadata`) for the same file using the confirmed metadata, then call `read_object` again to re-verify. If it passes, include the file in Step 4. If it fails a second time, report the error to the user and ask how they would like to proceed.
-- **Metadata keys missing** → automatically re-run Step 3b (`update_object_metadata`) for this file using the full confirmed metadata payload, then call `read_object` again to re-verify. If it passes, include the file in Step 4. If it fails a second time, report which keys are still absent and ask the user how they would like to proceed.
-- **Both pass on the first check** → include this file in Step 4's pipeline trigger batch immediately.
-
-Only files that pass verification (either on the first check or after automatic recovery) advance to Step 4.
-
-### Step 4: Trigger Pipeline *(all verified files launched in parallel simultaneously)*
-
-Call `trigger_ekb_pipeline(gcs_uri='<destination_uri_returned_in_Step_3a>')` for **every verified file at the same time** — do not wait for one to finish before starting the next.
-
-- **Note**: The `gcs_uri` MUST be exactly the URI returned by `upload_object` in Step 3a for that file.
-
-**Final Confirmation**: After all pipeline triggers have responded, provide a single consolidated summary:
-
+**Final Summary:**
 ```markdown
 ### Ingestion Started
 | File | Project | Job ID | Status |
 |:---:|:---:|:---:|:---:|
-| <file1.pdf> | <project_id> | <job_id> | <current job status> |
-| <file2.pdf> | <project_id> | <job_id> | <current job status> |
+| <file1.pdf> | <project_id> | <job_id> | <status> |
 ```
 
-Include a brief summary: how many files are being processed, and whether any have succeeded or failed.
-
-For a single file, use the original single-entry format instead of the table.
+---
 
 ### Retry Protocol
 
-When the user asks to retry a failed ingestion (e.g., "retry", "try again", "re-upload"):
+Skip Steps 1–4. Execute Steps 5a → 5b → 5c using the previously confirmed URIs, filenames, project IDs, and metadata. If the retry also fails, report the error and ask how to proceed.
 
-1. **Skip Steps 1 and 2 entirely** — file identity and metadata were already confirmed in the original attempt. Do NOT ask the user to re-confirm or re-provide any information.
-2. **Start directly at Step 3a**: Re-upload the affected file(s) using the same source URIs, destination bucket, filenames, and project paths from the previous attempt.
-3. **Proceed through Steps 3b, 3c, and 4** exactly as defined — stamp metadata, verify, and trigger the EKB pipeline — running all tool calls in parallel.
-4. Present the consolidated summary from Step 4 once all pipeline triggers respond.
-5. If the retry also fails, report the error clearly and ask the user how they would like to proceed.
+---
+
+### Project Discovery (no files uploaded)
+
+When the user asks which projects are available without uploading files:
+1. Run the **Project Discovery Query** (see appendix).
+2. Return a table of `project_id`, document count, and domains.
+3. If no rows are returned, say no projects were found. If the query fails, report the error.
+
+---
+
+## Queries
+
+### Project Discovery Query
+```sql
+SELECT DISTINCT project_id
+FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
+WHERE project_id IS NOT NULL
+  AND TRIM(project_id) != ''
+ORDER BY project_id
+LIMIT 100
+```
+
+### Project Validation Query
+
+Construct `<token_pattern>` before running: tokenize the confirmed project name on spaces, hyphens, and underscores; join with `%` and wrap with leading/trailing `%`.
+Examples: `"Project Alpha"` → `%project%alpha%` · `"My-Cool Project"` → `%my%cool%project%`.
+
+```sql
+SELECT DISTINCT project_id
+FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
+WHERE LOWER(project_id) LIKE LOWER('<token_pattern>')
+LIMIT 5
+```
+
+### Dedup Query
+Strip the extension from every uploaded filename before building the `UNNEST` list (e.g., `report.pdf` → `report`). One query covers all files at once and returns each user filename alongside an array of matching EKB records.
+
+```sql
+WITH uploaded_files AS (
+  SELECT filename_base
+  FROM UNNEST(['<base1>', '<base2>', ...]) AS filename_base
+)
+SELECT
+  u.filename_base AS user_filename,
+  ARRAY_AGG(
+    STRUCT(m.filename, m.domain, m.trust_level, m.classification_tier)
+    IGNORE NULLS
+  ) AS ekb_matches
+FROM uploaded_files u
+LEFT JOIN `ag-core-ops-auj0.knowledge_base.documents_metadata` m
+  ON LOWER(m.filename) LIKE LOWER(CONCAT('%', u.filename_base, '%'))
+  AND m.project_id = '<confirmed_project_id>'
+  AND m.latest = TRUE
+GROUP BY u.filename_base
+```
