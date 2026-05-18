@@ -29,7 +29,7 @@ The module relies on the following environment variables:
 ## Workflow
 1. User requests ingestion.
 2. Skill collects metadata and validates against BigQuery.
-3. Skill moves the file from `ai_agent_landing_zone` to `kb-landing-zone`.
+3. Skill moves the file from ` ag-core-ops-auj0-ai-agent-landing-zone` to `kb-landing-zone`.
 4. Skill stamps metadata on the destination object.
 5. Tool triggers the `/ingest` endpoint on the EKB Pipeline.
 
