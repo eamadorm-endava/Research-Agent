@@ -263,7 +263,11 @@ def test_run_orchestrates_full_pipeline_successfully(
     )
     mock_bq.insert_metadata.return_value = True
 
-    result = pipeline.run(landing_uri)
+    with patch(
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.EKB_CONFIG"
+    ) as mock_config:
+        mock_config.PROJECT_ID = "ag-core-ops-auj0"
+        result = pipeline.run(landing_uri)
 
     assert isinstance(result, RunResponse)
     assert result.final_domain == "it"
@@ -355,7 +359,11 @@ def test_run_returns_masked_uri_when_sanitized(
     )
     mock_bq.insert_metadata.return_value = True
 
-    result = pipeline.run(landing_uri)
+    with patch(
+        "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.EKB_CONFIG"
+    ) as mock_config:
+        mock_config.PROJECT_ID = "ag-core-ops-auj0"
+        result = pipeline.run(landing_uri)
 
     assert result.final_domain == "executives"
     assert result.final_security_tier == 5
