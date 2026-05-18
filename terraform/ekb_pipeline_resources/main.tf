@@ -163,6 +163,13 @@ resource "google_storage_bucket_iam_member" "ekb_sa_landing_admin" {
   member = "serviceAccount:${module.ekb-pipeline-service-account.email}"
 }
 
+# DLP API Service Agent access to Landing Zone (required to scan files during ingestion)
+resource "google_storage_bucket_iam_member" "dlp_sa_landing_viewer" {
+  bucket = "${var.project_id}${var.kb_landing_zone_bucket_suffix}"
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:service-${data.google_project.project.number}@dlp-api.iam.gserviceaccount.com"
+}
+
 # GCS Bucket Access (RAG Staging)
 resource "google_storage_bucket_iam_member" "ekb_sa_rag_admin" {
   bucket = "${var.project_id}${var.rag_staging_bucket_suffix}"
