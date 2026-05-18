@@ -19,7 +19,7 @@ class RAGConfig(BaseSettings):
     RAG_STAGING_BUCKET: Annotated[
         str,
         Field(
-            default="mock-rag-staging-bucket",
+            default="ag-core-ops-auj0-rag-staging",
             description="Dedicated GCS bucket for RAG ingestion staging lifecycle.",
         ),
     ]

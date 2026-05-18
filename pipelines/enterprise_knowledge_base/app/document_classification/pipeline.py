@@ -5,6 +5,7 @@ import unicodedata
 from datetime import datetime, timezone
 from loguru import logger
 from .config import CLASSIFICATION_CONFIG
+from ..config import EKB_CONFIG
 from .gcs_service.service import GCSService
 from .dlp_service.service import DLPService
 from .gemini_service.service import GeminiService
@@ -294,9 +295,7 @@ class ClassificationPipeline:
         )
         filename = request.original_landing_uri.split("/")[-1]
 
-        dest_base = (
-            f"gs://kb-{request.final_domain}/{request.project_name}/{tier_label}/"
-        )
+        dest_base = f"gs://{EKB_CONFIG.PROJECT_ID}-kb-{request.final_domain}/{request.project_name}/{tier_label}/"
         final_original_uri = f"{dest_base}{filename}"
 
         # 1. Copy Original
