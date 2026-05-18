@@ -3,30 +3,33 @@ from pydantic import BaseModel, Field
 
 JobIdType = Annotated[str, Field(description="Unique identifier for the ingestion job")]
 
+GcsUri = Annotated[
+    str,
+    Field(
+        description="Canonical GCS URI of the document (gs://bucket/project/file.pdf)",
+        pattern=r"^gs://[a-z0-9_\-\.]+/.*$",
+    ),
+]
 
-class TriggerEKBPipelineRequest(BaseModel):
-    """Request schema for triggering the EKB pipeline."""
 
-    gcs_uri: Annotated[
-        str,
-        Field(
-            description="The canonical GCS URI of the document (gs://bucket/project/file.pdf)",
-            pattern=r"^gs://[a-z0-9_\-\.]+/.*$",
-        ),
+class TriggerEKBPipelineBatchRequest(BaseModel):
+    """Request schema for triggering the EKB pipeline for one or more files."""
+
+    gcs_uris: Annotated[
+        list[GcsUri],
+        Field(description="One or more canonical GCS URIs to ingest", min_length=1),
     ]
-
-    @property
-    def filename(self) -> str:
-        """Extracts the filename from the GCS URI."""
-        return self.gcs_uri.split("/")[-1]
 
 
 class TriggerEKBPipelineResponse(BaseModel):
-    """Response schema from the agent's trigger tool (Sync wrapper)."""
+    """Per-file result from the pipeline trigger tool."""
 
     execution_status: Annotated[str, Field(description="Success or error status")]
     execution_message: Annotated[str, Field(description="Informational message")]
     job_id: JobIdType
+    gcs_uri: Annotated[
+        Optional[str], Field(description="The GCS URI that was triggered", default=None)
+    ]
     response: Annotated[
         Optional[dict],
         Field(description="Raw response from service", default=None),

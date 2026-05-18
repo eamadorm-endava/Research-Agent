@@ -33,7 +33,6 @@ def _build_async_client_mock(response: MagicMock, method: str = "post") -> Magic
     """
     client_mock = MagicMock()
     setattr(client_mock, method, AsyncMock(return_value=response))
-    # async with httpx.AsyncClient(...) as client → __aenter__ returns the mock client
     async_ctx_mock = MagicMock()
     async_ctx_mock.__aenter__ = AsyncMock(return_value=client_mock)
     async_ctx_mock.__aexit__ = AsyncMock(return_value=False)
@@ -48,7 +47,7 @@ def _build_async_client_mock(response: MagicMock, method: str = "post") -> Magic
 class TestTriggerEKBPipelineTool:
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
     @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
-    async def test_trigger_pipeline_success(
+    async def test_returns_success_result_per_file_when_pipeline_responds(
         self, mock_async_client_cls, mock_get_token
     ):
         """Happy path: pipeline is triggered successfully with OIDC auth."""
@@ -63,16 +62,18 @@ class TestTriggerEKBPipelineTool:
         ctx = MagicMock()
         ctx.state = {}
 
-        args = {"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"}
+        args = {"gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]}
         result = await tool.run_async(args=args, tool_context=ctx)
 
-        assert result["execution_status"] == "success"
-        assert result["job_id"] == "job-abc-123"
-        assert result["response"]["job_id"] == "job-abc-123"
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["execution_status"] == "success"
+        assert result[0]["job_id"] == "job-abc-123"
+        assert result[0]["response"]["job_id"] == "job-abc-123"
 
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
     @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
-    async def test_trigger_pipeline_stores_pending_job_in_state(
+    async def test_stores_pending_job_in_session_state_when_ingestion_succeeds(
         self, mock_async_client_cls, mock_get_token
     ):
         """Happy path: job_id and filename are persisted in tool_context state."""
@@ -89,7 +90,7 @@ class TestTriggerEKBPipelineTool:
 
         await tool.run_async(
             args={
-                "gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/report.pdf"
+                "gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/report.pdf"]
             },
             tool_context=ctx,
         )
@@ -101,13 +102,12 @@ class TestTriggerEKBPipelineTool:
 
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
     @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
-    async def test_trigger_pipeline_accumulates_multiple_files_in_state(
+    async def test_returns_result_per_file_and_stores_all_jobs_when_batch_provided(
         self, mock_async_client_cls, mock_get_token
     ):
         """
-        Regression test for the multi-file bug: calling trigger_ekb_pipeline
-        for two different files should accumulate both entries in session state
-        without raising an error.
+        Happy path: a single call with multiple URIs triggers all pipelines in
+        parallel and stores all job entries in session state.
         """
         mock_get_token.return_value = "mock-id-token"
 
@@ -124,20 +124,22 @@ class TestTriggerEKBPipelineTool:
         ctx = MagicMock()
         ctx.state = {}
 
-        result1 = await tool.run_async(
-            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/file1.pdf"},
-            tool_context=ctx,
-        )
-        result2 = await tool.run_async(
-            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/file2.pdf"},
+        result = await tool.run_async(
+            args={
+                "gcs_uris": [
+                    "gs://ag-core-ops-auj0-kb-landing-zone/project/file1.pdf",
+                    "gs://ag-core-ops-auj0-kb-landing-zone/project/file2.pdf",
+                ]
+            },
             tool_context=ctx,
         )
 
-        assert result1["execution_status"] == "success"
-        assert result1["job_id"] == "job-file-1"
-
-        assert result2["execution_status"] == "success"
-        assert result2["job_id"] == "job-file-2"
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["execution_status"] == "success"
+        assert result[0]["job_id"] == "job-file-1"
+        assert result[1]["execution_status"] == "success"
+        assert result[1]["job_id"] == "job-file-2"
 
         pending = ctx.state.get(PENDING_INGESTIONS_KEY, [])
         assert len(pending) == 2
@@ -145,48 +147,58 @@ class TestTriggerEKBPipelineTool:
         assert pending[1]["filename"] == "file2.pdf"
 
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
-    async def test_trigger_pipeline_auth_failure(self, mock_get_token):
+    async def test_returns_error_per_uri_when_id_token_unavailable(
+        self, mock_get_token
+    ):
         """Failure mode: tool fails gracefully when ID token cannot be obtained."""
         mock_get_token.return_value = None
 
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
 
-        args = {"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"}
+        args = {"gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]}
         result = await tool.run_async(args=args, tool_context=ctx)
 
-        assert result["execution_status"] == "error"
-        assert "Authentication failed" in result["execution_message"]
-        assert result["job_id"] == "N/A"
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["execution_status"] == "error"
+        assert "Authentication failed" in result[0]["execution_message"]
+        assert result[0]["job_id"] == "N/A"
 
-    async def test_trigger_pipeline_missing_args(self):
-        """Edge case: missing mandatory 'gcs_uri' returns Pydantic validation error."""
+    async def test_returns_validation_error_when_gcs_uris_missing(self):
+        """Edge case: missing 'gcs_uris' returns a validation error response."""
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
 
         result = await tool.run_async(args={}, tool_context=ctx)
 
-        assert result["execution_status"] == "error"
-        assert "validation error" in result["execution_message"].lower()
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["execution_status"] == "error"
+        assert "validation error" in result[0]["execution_message"].lower()
 
-    async def test_trigger_pipeline_invalid_gcs_uri(self):
+    async def test_returns_error_when_uri_fails_gcs_pattern_validation(self):
         """Edge case: a URI that fails the gs:// pattern validator is caught and returned."""
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
 
         result = await tool.run_async(
-            args={"gcs_uri": "https://not-a-gcs-uri/file.pdf"},
+            args={"gcs_uris": ["https://not-a-gcs-uri/file.pdf"]},
             tool_context=ctx,
         )
 
-        assert result["execution_status"] == "error"
+        assert isinstance(result, list)
+        assert result[0]["execution_status"] == "error"
 
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
     @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
-    async def test_trigger_pipeline_service_error(
+    async def test_returns_mixed_results_and_stores_only_successes_when_some_files_fail(
         self, mock_async_client_cls, mock_get_token
     ):
-        """Failure mode: handles HTTP 500 errors from the Cloud Run service."""
+        """
+        Failure mode: one file fails while others succeed — the batch still returns
+        a result per URI and only successful jobs are stored in state.
+        """
         mock_get_token.return_value = "mock-id-token"
 
         http_error = httpx.HTTPStatusError(
@@ -194,29 +206,45 @@ class TestTriggerEKBPipelineTool:
             request=MagicMock(),
             response=MagicMock(status_code=500, text="Internal Server Error"),
         )
-        mock_response = _make_mock_response(500, {}, raise_error=http_error)
-        mock_async_client_cls.return_value = _build_async_client_mock(
-            mock_response, "post"
-        )
+        responses = [
+            _make_mock_response(200, {"job_id": "job-ok"}),
+            _make_mock_response(500, {}, raise_error=http_error),
+        ]
+        mock_async_client_cls.side_effect = [
+            _build_async_client_mock(responses[0], "post"),
+            _build_async_client_mock(responses[1], "post"),
+        ]
 
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
+        ctx.state = {}
 
-        args = {"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"}
-        result = await tool.run_async(args=args, tool_context=ctx)
+        result = await tool.run_async(
+            args={
+                "gcs_uris": [
+                    "gs://ag-core-ops-auj0-kb-landing-zone/project/good.pdf",
+                    "gs://ag-core-ops-auj0-kb-landing-zone/project/bad.pdf",
+                ]
+            },
+            tool_context=ctx,
+        )
 
-        assert result["execution_status"] == "error"
-        assert "Internal Error" in result["execution_message"]
+        assert len(result) == 2
+        assert result[0]["execution_status"] == "success"
+        assert result[1]["execution_status"] == "error"
+
+        pending = ctx.state.get(PENDING_INGESTIONS_KEY, [])
+        assert len(pending) == 1
+        assert pending[0]["filename"] == "good.pdf"
 
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
     @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
-    async def test_trigger_pipeline_handles_read_timeout(
+    async def test_returns_error_when_service_connection_times_out(
         self, mock_async_client_cls, mock_get_token
     ):
         """
         Failure mode: Cloud Run cold-start causes a ReadTimeout.
-        The tool must return execution_status='error' rather than raising,
-        and the message must surface the timeout clearly.
+        The tool must return execution_status='error' rather than raising.
         """
         mock_get_token.return_value = "mock-id-token"
 
@@ -231,22 +259,24 @@ class TestTriggerEKBPipelineTool:
         ctx = MagicMock()
 
         result = await tool.run_async(
-            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"},
+            args={
+                "gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]
+            },
             tool_context=ctx,
         )
 
-        assert result["execution_status"] == "error"
-        assert "ReadTimeout" in result["execution_message"]
+        assert isinstance(result, list)
+        assert result[0]["execution_status"] == "error"
+        assert "ReadTimeout" in result[0]["execution_message"]
 
     @patch("agent.core_agent.tools.kb_tools.get_id_token")
     @patch("agent.core_agent.tools.kb_tools.httpx.AsyncClient")
-    async def test_trigger_pipeline_timeout_is_at_least_120s(
+    async def test_uses_minimum_120s_timeout_per_request_to_survive_cold_starts(
         self, mock_async_client_cls, mock_get_token
     ):
         """
         Regression guard: the POST to the EKB pipeline must use a timeout of at
-        least 120 seconds to survive Cloud Run cold starts (which previously caused
-        failures at the 30-second default).
+        least 120 seconds to survive Cloud Run cold starts.
         """
         mock_get_token.return_value = "mock-id-token"
 
@@ -265,7 +295,9 @@ class TestTriggerEKBPipelineTool:
         ctx.state = {}
 
         await tool.run_async(
-            args={"gcs_uri": "gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"},
+            args={
+                "gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]
+            },
             tool_context=ctx,
         )
 

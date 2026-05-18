@@ -14,7 +14,6 @@ or similar requests.
 
 - Do **not** read, parse, OCR, preview, or extract text from uploaded files by default.
 - Do **not** call `import_gcs_to_artifact` or `load_artifacts` unless the user explicitly asks to infer metadata from file contents.
-- Infer metadata from the user's message, conversation history, and filenames only.
 - Leave any field that cannot be inferred blank (`—`) and ask the user — do not read file contents to fill gaps.
 
 ## Required Metadata
@@ -57,7 +56,6 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 - **KB Landing Zone**: use `ag-core-ops-auj0-kb-landing-zone` as `destination_bucket` — this triggers the Service Account authentication switch.
 - **BigQuery project**: use `ag-core-ops-auj0` as the tool `project_id`; query `ag-core-ops-auj0.knowledge_base.documents_metadata`.
 - **Job IDs**: always return the `job_id` from the pipeline response to the user.
-- **Parallelism**: when ingesting more than one file, all upload, stamp, and pipeline calls must be launched simultaneously — never one-by-one.
 
 ---
 
@@ -152,7 +150,7 @@ Call `update_object_metadata` for every file at the same time:
 ```
 
 **5c — Trigger Pipeline** *(after all stamps complete)*
-Call `trigger_ekb_pipeline(gcs_uri='<uri_returned_by_upload_object>')` for every file at the same time.
+Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` once with all URIs returned by the upload calls. The tool triggers all pipelines in parallel internally and returns one result per file.
 
 **Final Summary:**
 ```markdown
@@ -183,16 +181,12 @@ When the user asks which projects are available without uploading files:
 
 ### Project Discovery Query
 ```sql
-SELECT
-  project_id,
-  COUNTIF(latest = TRUE) AS latest_document_count,
-  ARRAY_AGG(DISTINCT domain IGNORE NULLS ORDER BY domain LIMIT 10) AS domains
+SELECT DISTINCT project_id
 FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
 WHERE project_id IS NOT NULL
   AND TRIM(project_id) != ''
-GROUP BY project_id
 ORDER BY project_id
-LIMIT 500
+LIMIT 100
 ```
 
 ### Project Validation Query
