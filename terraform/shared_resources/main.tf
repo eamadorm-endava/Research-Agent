@@ -61,7 +61,10 @@ resource "google_bigquery_dataset" "knowledge_base" {
 }
 
 resource "google_bigquery_job" "create_multimodal_model" {
-  job_id   = "create_model_${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  # Deterministic job_id: stable within a project so re-applies don't re-run the job,
+  # but changes when project_id or connection_id change (e.g. after a project migration),
+  # which forces Terraform to destroy the stale state entry and create a fresh job.
+  job_id   = "create-multimodal-model-${substr(md5("${var.project_id}-${var.bq_vertex_connection_id}"), 0, 8)}"
   project  = var.project_id
   location = var.main_region
 
@@ -74,10 +77,6 @@ EOF
     use_legacy_sql     = false
     create_disposition = ""
     write_disposition  = ""
-  }
-
-  lifecycle {
-    ignore_changes = [job_id]
   }
 
   depends_on = [
