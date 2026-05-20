@@ -9,6 +9,7 @@ from vertexai.agent_engines import AdkApp
 
 from ..config import BaseAgentConfig, GCPConfig
 from ..plugins.ingestion.plugin import GeminiEnterpriseFileIngestionPlugin
+from ..plugins.metrics.plugin import ResponseTimeMetricsPlugin
 from ..artifact_management.service import StorageService
 
 
@@ -34,9 +35,9 @@ class AppBuilder:
         # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
         # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
         self._registered_plugins = (
-            [GeminiEnterpriseFileIngestionPlugin()]
+            [GeminiEnterpriseFileIngestionPlugin(), ResponseTimeMetricsPlugin()]
             if gcp_config.PROD_EXECUTION
-            else [SaveFilesAsArtifactsPlugin()]
+            else [SaveFilesAsArtifactsPlugin(), ResponseTimeMetricsPlugin()]
         )
         logger.debug(
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
