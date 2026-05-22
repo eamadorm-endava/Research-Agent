@@ -223,7 +223,21 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         final_time = datetime.now(timezone.utc)
         time_to_answer = (final_time - run_info["initial_time"]).total_seconds()
 
-        # Extract the text content of the agent's response from session events
+        agent_response = self._extract_agent_response(invocation_context)
+        self._insert_metrics_to_bigquery(
+            run_info, agent_response, final_time, time_to_answer
+        )
+
+    def _extract_agent_response(self, invocation_context: InvocationContext) -> str:
+        """
+        Extract the text content of the agent's response from session events.
+
+        Args:
+            invocation_context: InvocationContext -> The context to extract events from
+
+        Returns:
+            str -> The agent response text, or empty string if not found
+        """
         agent_response = ""
         try:
             events = invocation_context._get_events(current_invocation=True)
@@ -238,8 +252,27 @@ class ResponseTimeMetricsPlugin(BasePlugin):
                             break
         except Exception as e:
             logger.warning(f"Could not extract agent response from context events: {e}")
+        return agent_response
 
-        # Assemble and write the row data to BigQuery
+    def _insert_metrics_to_bigquery(
+        self,
+        run_info: dict,
+        agent_response: str,
+        final_time: datetime,
+        time_to_answer: float,
+    ) -> None:
+        """
+        Assemble and write the row data to BigQuery.
+
+        Args:
+            run_info: dict -> The raw timing dictionary
+            agent_response: str -> The extracted agent response text
+            final_time: datetime -> The final end timestamp of the turn
+            time_to_answer: float -> The total duration of the turn in seconds
+
+        Returns:
+            None -> No return
+        """
         try:
             tools_used_records = [
                 ToolUsageRecord(
