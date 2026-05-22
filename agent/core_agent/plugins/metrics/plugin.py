@@ -9,6 +9,9 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.tools import ToolContext
 from google.adk.tools.base_tool import BaseTool
 
+from .config import METRICS_CONFIG
+from .schemas import MetricsRecord, ToolUsageRecord
+
 
 class ResponseTimeMetricsPlugin(BasePlugin):
     """ADK plugin to track and log agent processing and response times to BigQuery.
@@ -21,9 +24,9 @@ class ResponseTimeMetricsPlugin(BasePlugin):
     def __init__(self, name: str = "response_time_metrics_plugin"):
         """Initializes the metrics plugin and the BigQuery client."""
         super().__init__(name)
-        self.project_id = "ag-core-ops-auj0"
-        self.dataset_id = "agent_metrics"
-        self.table_id = "response_times"
+        self.project_id = METRICS_CONFIG.project_id
+        self.dataset_id = METRICS_CONFIG.dataset_id
+        self.table_id = METRICS_CONFIG.table_id
         self.table_ref = f"{self.project_id}.{self.dataset_id}.{self.table_id}"
         self._client = None
         self._runs: dict[str, dict] = {}
@@ -160,8 +163,6 @@ class ResponseTimeMetricsPlugin(BasePlugin):
 
         # Assemble and write the row data to BigQuery
         try:
-            from .schemas import MetricsRecord, ToolUsageRecord
-
             tools_used_records = [
                 ToolUsageRecord(
                     tool_name=t["tool_name"],
