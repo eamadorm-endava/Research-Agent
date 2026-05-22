@@ -1,6 +1,6 @@
 from typing import Annotated
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MetricsConfig(BaseSettings):
@@ -16,8 +16,7 @@ class MetricsConfig(BaseSettings):
         str, Field(description="BigQuery Table ID", default="response_times")
     ]
 
-    class Config:
-        env_prefix = "METRICS_"
+    model_config = SettingsConfigDict(env_prefix="METRICS_")
 
 
 METRICS_CONFIG = MetricsConfig()
