@@ -22,7 +22,15 @@ class ResponseTimeMetricsPlugin(BasePlugin):
     """
 
     def __init__(self, name: str = "response_time_metrics_plugin"):
-        """Initializes the metrics plugin and the BigQuery client."""
+        """
+        Initializes the metrics plugin and the BigQuery client.
+
+        Args:
+            name: str -> The name of the plugin
+
+        Returns:
+            None -> No return
+        """
         super().__init__(name)
         self.project_id = METRICS_CONFIG.project_id
         self.dataset_id = METRICS_CONFIG.dataset_id
@@ -34,7 +42,12 @@ class ResponseTimeMetricsPlugin(BasePlugin):
 
     @property
     def client(self) -> bigquery.Client:
-        """Lazily instantiates the BigQuery client to avoid authentication checks at init time."""
+        """
+        Lazily instantiates the BigQuery client to avoid authentication checks at init time.
+
+        Returns:
+            bigquery.Client -> The initialized BigQuery client
+        """
         if self._client is None:
             self._client = bigquery.Client()
         return self._client
@@ -42,7 +55,15 @@ class ResponseTimeMetricsPlugin(BasePlugin):
     async def before_run_callback(
         self, *, invocation_context: InvocationContext
     ) -> Optional[types.Content]:
-        """Initializes the execution timing record at the very start of the run."""
+        """
+        Initializes the execution timing record at the very start of the run.
+
+        Args:
+            invocation_context: InvocationContext -> The context of the current agent invocation
+
+        Returns:
+            Optional[types.Content] -> Always returns None
+        """
         prompt_id = invocation_context.invocation_id
         if prompt_id not in self._runs:
             self._runs[prompt_id] = {
@@ -61,7 +82,16 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         invocation_context: InvocationContext,
         user_message: types.Content,
     ) -> Optional[types.Content]:
-        """Captures the user prompt content and resets the start time for precision."""
+        """
+        Captures the user prompt content and resets the start time for precision.
+
+        Args:
+            invocation_context: InvocationContext -> The context of the current agent invocation
+            user_message: types.Content -> The message provided by the user
+
+        Returns:
+            Optional[types.Content] -> Always returns None
+        """
         prompt_id = invocation_context.invocation_id
         prompt_text = ""
         if user_message and user_message.parts:
@@ -88,7 +118,17 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         tool_args: dict[str, Any],
         tool_context: ToolContext,
     ) -> Optional[dict]:
-        """Records the start timestamp for a tool call."""
+        """
+        Records the start timestamp for a tool call.
+
+        Args:
+            tool: BaseTool -> The tool being executed
+            tool_args: dict[str, Any] -> The arguments passed to the tool
+            tool_context: ToolContext -> The context of the tool execution
+
+        Returns:
+            Optional[dict] -> Always returns None
+        """
         self._active_tools[tool_context.function_call_id] = {
             "tool_name": tool.name,
             "initial_time": datetime.now(timezone.utc),
@@ -103,7 +143,18 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         tool_context: ToolContext,
         result: dict,
     ) -> Optional[dict]:
-        """Calculates and logs tool execution duration on successful complete."""
+        """
+        Calculates and logs tool execution duration on successful complete.
+
+        Args:
+            tool: BaseTool -> The tool that was executed
+            tool_args: dict[str, Any] -> The arguments passed to the tool
+            tool_context: ToolContext -> The context of the tool execution
+            result: dict -> The result returned by the tool
+
+        Returns:
+            Optional[dict] -> Always returns None
+        """
         self._record_tool_completion(tool_context)
         return None
 
@@ -115,12 +166,31 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         tool_context: ToolContext,
         error: Exception,
     ) -> Optional[dict]:
-        """Calculates and logs tool execution duration on error."""
+        """
+        Calculates and logs tool execution duration on error.
+
+        Args:
+            tool: BaseTool -> The tool that was executed
+            tool_args: dict[str, Any] -> The arguments passed to the tool
+            tool_context: ToolContext -> The context of the tool execution
+            error: Exception -> The error raised by the tool
+
+        Returns:
+            Optional[dict] -> Always returns None
+        """
         self._record_tool_completion(tool_context)
         return None
 
     def _record_tool_completion(self, tool_context: ToolContext) -> None:
-        """Utility to calculate duration and append tool metric records."""
+        """
+        Utility to calculate duration and append tool metric records.
+
+        Args:
+            tool_context: ToolContext -> The context of the tool execution
+
+        Returns:
+            None -> No return
+        """
         tool_info = self._active_tools.pop(tool_context.function_call_id, None)
         if tool_info:
             final_time = datetime.now(timezone.utc)
@@ -136,7 +206,15 @@ class ResponseTimeMetricsPlugin(BasePlugin):
     async def after_run_callback(
         self, *, invocation_context: InvocationContext
     ) -> None:
-        """Calculates total turn time, extracts agent response, and writes to BQ."""
+        """
+        Calculates total turn time, extracts agent response, and writes to BQ.
+
+        Args:
+            invocation_context: InvocationContext -> The context of the completed agent invocation
+
+        Returns:
+            None -> No return
+        """
         prompt_id = invocation_context.invocation_id
         run_info = self._runs.pop(prompt_id, None)
         if not run_info:
