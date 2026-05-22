@@ -30,7 +30,7 @@
 		"source=${env:USERPROFILE}\\.ssh,target=/home/vscode/.ssh,type=bind" // bring your ssh configuration
 	],
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [8000],
+	// "forwardPorts": [],
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "bash .devcontainer/setup-ssh.sh && curl -fsSL https://claude.ai/install.sh | bash",
 	// Configure tool-specific properties.
