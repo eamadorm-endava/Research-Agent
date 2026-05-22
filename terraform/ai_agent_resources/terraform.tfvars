@@ -39,8 +39,6 @@ discovery_engine_service_agent_iam_project_roles = {
 }
 
 # Metrics Plugin
-bq_metrics_dataset_id            = "agent_metrics"
-bq_metrics_dataset_friendly_name = "agent_metrics"
-bq_metrics_dataset_description   = "Dataset to collect agent and tool response time metrics"
-bq_metrics_table_id              = "response_times"
-bq_metrics_table_friendly_name   = "Response Times"
+bq_metrics_dataset_id          = "agent_metrics"
+bq_metrics_dataset_description = "Dataset to collect agent and tool response time metrics"
+bq_metrics_table_id            = "response_times"

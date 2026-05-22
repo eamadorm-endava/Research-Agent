@@ -80,12 +80,11 @@ resource "google_storage_bucket_iam_member" "ai_agent_artifact_bucket_admin" {
 
 ################ Metrics ################
 module "metrics_dataset" {
-  source        = "../base_modules/bigquery-dataset"
-  project_id    = var.project_id
-  id            = var.bq_metrics_dataset_id
-  location      = var.main_region
-  friendly_name = var.bq_metrics_dataset_friendly_name
-  description   = var.bq_metrics_dataset_description
+  source      = "../base_modules/bigquery-dataset"
+  project_id  = var.project_id
+  id          = var.bq_metrics_dataset_id
+  location    = var.main_region
+  description = var.bq_metrics_dataset_description
 
   options = {
     delete_contents_on_destroy = true
@@ -93,7 +92,6 @@ module "metrics_dataset" {
 
   tables = {
     (var.bq_metrics_table_id) = {
-      friendly_name       = var.bq_metrics_table_friendly_name
       labels              = {}
       options             = null
       partitioning        = null

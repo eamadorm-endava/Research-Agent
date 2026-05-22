@@ -59,12 +59,6 @@ variable "bq_metrics_dataset_id" {
   default     = "agent_metrics"
 }
 
-variable "bq_metrics_dataset_friendly_name" {
-  type        = string
-  description = "The friendly name for the BigQuery dataset"
-  default     = "agent_metrics"
-}
-
 variable "bq_metrics_dataset_description" {
   type        = string
   description = "The description for the BigQuery dataset"
@@ -75,10 +69,4 @@ variable "bq_metrics_table_id" {
   type        = string
   description = "The BigQuery table ID for response time metrics"
   default     = "response_times"
-}
-
-variable "bq_metrics_table_friendly_name" {
-  type        = string
-  description = "The friendly name for the BigQuery response time table"
-  default     = "Response Times"
 }
