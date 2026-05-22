@@ -77,3 +77,47 @@ resource "google_storage_bucket_iam_member" "ai_agent_artifact_bucket_admin" {
   role   = "roles/storage.admin"
   member = "serviceAccount:${module.ai-agent-service-account.email}"
 }
+
+################ Metrics ################
+module "metrics_dataset" {
+  source      = "../base_modules/bigquery-dataset"
+  project_id  = var.project_id
+  id          = var.bq_metrics_dataset_id
+  location    = var.main_region
+  description = var.bq_metrics_dataset_description
+
+  options = {
+    delete_contents_on_destroy = true
+  }
+
+  tables = {
+    (var.bq_metrics_table_id) = {
+      labels              = {}
+      options             = null
+      partitioning        = null
+      deletion_protection = false
+      schema = jsonencode([
+        { name = "session_id", type = "STRING", mode = "REQUIRED", description = "Unique identifier for the session" },
+        { name = "user_id", type = "STRING", mode = "NULLABLE", description = "Identifier for the user" },
+        { name = "prompt_id", type = "STRING", mode = "REQUIRED", description = "Unique identifier for the prompt invocation" },
+        { name = "prompt", type = "STRING", mode = "NULLABLE", description = "Text content of the user prompt" },
+        { name = "agent_response", type = "STRING", mode = "NULLABLE", description = "Text content of the agent response" },
+        { name = "initial_time", type = "TIMESTAMP", mode = "REQUIRED", description = "Timestamp when the prompt was received" },
+        { name = "final_time", type = "TIMESTAMP", mode = "REQUIRED", description = "Timestamp when the response was returned" },
+        { name = "time_to_answer", type = "FLOAT", mode = "REQUIRED", description = "Total processing time in seconds" },
+        {
+          name        = "tools_used",
+          type        = "RECORD",
+          mode        = "REPEATED",
+          description = "List of tools invoked during the turn",
+          fields = [
+            { name = "tool_name", type = "STRING", mode = "REQUIRED", description = "Name of the tool executed" },
+            { name = "initial_time", type = "TIMESTAMP", mode = "REQUIRED", description = "Timestamp when the tool started executing" },
+            { name = "final_time", type = "TIMESTAMP", mode = "REQUIRED", description = "Timestamp when the tool completed executing" },
+            { name = "tool_full_time", type = "FLOAT", mode = "REQUIRED", description = "Duration of tool execution in seconds" }
+          ]
+        }
+      ])
+    }
+  }
+}

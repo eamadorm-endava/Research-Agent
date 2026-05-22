@@ -30,6 +30,7 @@ verify-all-ci:
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
+	$(MAKE) verify-metrics-ci
 	$(MAKE) verify-ekb-ci
 
 create-cloudbuild-triggers:
@@ -159,6 +160,22 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-precommit
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
+
+### Metrics Plugin Commands ###
+
+run-metrics-precommit:
+	uvx pre-commit run --files agent/plugins/metrics/**/*
+
+run-metrics-tests:
+	cd agent && uv run --group ai-agent --group dev pytest tests/plugins/test_metrics_plugin.py
+
+verify-metrics-ci:
+	$(MAKE) run-metrics-precommit
+	$(MAKE) run-metrics-tests
+	$(MAKE) test-metrics-terraform
+
+test-metrics-terraform:
+	cd terraform/metrics_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### EKB Pipeline Commands ###
 
