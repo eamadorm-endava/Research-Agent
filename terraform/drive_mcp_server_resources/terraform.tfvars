@@ -9,6 +9,7 @@ developers_group_email = "gcu_latam_team_devs@endava.com"
 apis_to_enable = {
   "ag-core-ops-auj0" = [
     "drive.googleapis.com",
+    "docs.googleapis.com",
     "run.googleapis.com",
     "artifactregistry.googleapis.com"
   ],
