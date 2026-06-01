@@ -4,8 +4,10 @@ data "google_project" "project" {
 
 ################ APIs ################
 module "enable_apis" {
-  source           = "../base_modules/api-manager"
-  project_services = var.apis_to_enable
+  source = "../base_modules/api-manager"
+  project_services = {
+    (var.project_id) = var.apis_to_enable
+  }
 }
 
 ################ Service Accounts ################
@@ -20,7 +22,9 @@ module "mcp-server-service-account" {
   }
 
   # non-authoritative roles granted *to* the service account
-  iam_project_roles = var.mcp_server_iam_project_roles
+  iam_project_roles = {
+    (var.project_id) = var.mcp_server_iam_project_roles
+  }
 
   depends_on = [
     module.enable_apis
@@ -48,7 +52,13 @@ module "mcp_server_cloud_run" {
   containers = {
     mcp-server = {
       image = "${local.cloud_run_image}:${var.mcp_server_cloud_run_image_tag}"
-      env   = var.mcp_server_cloud_run_env
+      env = merge(
+        var.mcp_server_cloud_run_env,
+        {
+          "GCS_LANDING_ZONE_BUCKET" = var.landing_zone_bucket
+          "GCS_KB_INGESTION_BUCKET" = var.kb_ingestion_bucket
+        }
+      )
       resources = {
         limits = {
           cpu    = var.mcp_server_cloud_run_cpu
