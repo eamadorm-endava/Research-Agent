@@ -42,7 +42,7 @@ async def test_mcp_create_dataset_success(mock_bq_manager):
     Implementation: Mocks the BigQueryManager's create_dataset response and verifies the ToolResponse contains a 'success' status and the correct message.
     """
     mock_bq_manager.create_dataset.return_value = (
-        "projects/ag-core-ops-auj0/datasets/my_ds"
+        "projects/mock-bq-project-id/datasets/my_ds"
     )
     req = CreateDatasetRequest(dataset_id="my_ds", location="US")
 
@@ -63,15 +63,11 @@ async def test_mcp_create_dataset_validation_error():
     """
     # Invalid Dataset ID
     with pytest.raises(ValidationError):
-        CreateDatasetRequest(
-            project_id="ag-core-ops-auj0", dataset_id="ds@invalid", location="US"
-        )
+        CreateDatasetRequest(dataset_id="ds@invalid", location="US")
 
     # Invalid Dataset ID (Regex violation)
     with pytest.raises(ValidationError):
-        CreateDatasetRequest(
-            project_id="ag-core-ops-auj0", dataset_id="ds@invalid", location="US"
-        )
+        CreateDatasetRequest(dataset_id="ds@invalid", location="US")
 
 
 @pytest.mark.asyncio
@@ -150,7 +146,7 @@ async def test_mcp_execute_query_authorized_user_success(mock_bq_manager):
     """
     mock_bq_manager.execute_query.return_value = [{"id": 1, "name": "allowed"}]
     req = ExecuteQueryRequest(
-        query="SELECT id, name FROM `ag-core-ops-auj0.ds.allowed_table` LIMIT 10",
+        query="SELECT id, name FROM `mock-bq-project-id.ds.allowed_table` LIMIT 10",
     )
 
     result = await execute_query(req)
