@@ -57,6 +57,14 @@ class BigQueryServerConfig(BigQueryMcpConfigBase):
             description="Published name of the BigQuery MCP server.",
         ),
     ]
+    project_id: Annotated[
+        str,
+        Field(
+            default="mock-bq-project-id",
+            validation_alias="BQ_PROJECT_ID",
+            description="The BigQuery project ID to use for all requests.",
+        ),
+    ]
     default_host: Annotated[
         str,
         Field(

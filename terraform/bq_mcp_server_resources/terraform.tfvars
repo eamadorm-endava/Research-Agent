@@ -1,29 +1,25 @@
 ################ Project configuration ################
 
-project_id             = "ag-core-ops-auj0"
-main_region            = "us-central1"
+# project_id and main_region are passed dynamically via -var in CI/CD
+
 developers_group_email = "gcu_latam_team_devs@endava.com"
 
 ################ APIs to enable ################
 
-apis_to_enable = {
-  "ag-core-ops-auj0" = [
-    "bigquery.googleapis.com",
-    "run.googleapis.com",
-    "artifactregistry.googleapis.com"
-  ],
-}
+apis_to_enable = [
+  "bigquery.googleapis.com",
+  "run.googleapis.com",
+  "artifactregistry.googleapis.com"
+]
 
 ################ MCP-Server Service Account and IAM Roles ################
 
 mcp_server_service_account_name = "bq-mcp-server"
 
-mcp_server_iam_project_roles = {
-  "ag-core-ops-auj0" = [
-    "roles/bigquery.dataEditor",
-    "roles/bigquery.jobUser"
-  ]
-}
+mcp_server_iam_project_roles = [
+  "roles/bigquery.dataEditor",
+  "roles/bigquery.jobUser"
+]
 
 ################ Artifact Registry ################
 

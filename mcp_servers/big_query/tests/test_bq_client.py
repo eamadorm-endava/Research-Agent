@@ -206,9 +206,9 @@ def test_keyword_search_happy_path(mock_client):
     mock_job.result.return_value = mock_rows
     manager.client.query.return_value = mock_job
 
-    from mcp_servers.big_query.app.schemas import KeywordSearchRequest, AvailableProject
+    from mcp_servers.big_query.app.schemas import KeywordSearchRequest
 
-    request = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="React")
+    request = KeywordSearchRequest(keyword="React")
     result = manager.keyword_search(request)
 
     assert result == mock_rows
@@ -232,11 +232,9 @@ def test_keyword_search_no_results(mock_client):
     mock_job.result.return_value = []
     manager.client.query.return_value = mock_job
 
-    from mcp_servers.big_query.app.schemas import KeywordSearchRequest, AvailableProject
+    from mcp_servers.big_query.app.schemas import KeywordSearchRequest
 
-    request = KeywordSearchRequest(
-        project_id=AvailableProject.DEV, keyword="nonexistentkeyword123"
-    )
+    request = KeywordSearchRequest(keyword="nonexistentkeyword123")
     result = manager.keyword_search(request)
 
     assert result == []
@@ -251,9 +249,9 @@ def test_keyword_search_bq_failure(mock_client):
     manager = BigQueryManager(creds=MagicMock())
     manager.client.query.side_effect = Exception("BQ connection error")
 
-    from mcp_servers.big_query.app.schemas import KeywordSearchRequest, AvailableProject
+    from mcp_servers.big_query.app.schemas import KeywordSearchRequest
 
-    request = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="React")
+    request = KeywordSearchRequest(keyword="React")
 
     with pytest.raises(ValueError, match="Error performing keyword search"):
         manager.keyword_search(request)
@@ -271,12 +269,9 @@ def test_semantic_search(mock_client):
 
     from mcp_servers.big_query.app.schemas import (
         SemanticSearchRequest,
-        AvailableProject,
     )
 
-    request = SemanticSearchRequest(
-        project_id=AvailableProject.DEV, query="test query", top_k=5, domain="it"
-    )
+    request = SemanticSearchRequest(query="test query", top_k=5, domain="it")
 
     result = manager.semantic_search(request)
     assert result == [{"chunk_data": "test", "distance": 0.1}]

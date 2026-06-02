@@ -18,7 +18,6 @@ from mcp_servers.big_query.app.schemas import (
     ExecuteQueryRequest,
     KeywordSearchRequest,
     ListTablesRequest,
-    AvailableProject,
 )
 
 
@@ -43,18 +42,16 @@ async def test_mcp_create_dataset_success(mock_bq_manager):
     Implementation: Mocks the BigQueryManager's create_dataset response and verifies the ToolResponse contains a 'success' status and the correct message.
     """
     mock_bq_manager.create_dataset.return_value = (
-        "projects/ag-core-ops-auj0/datasets/my_ds"
+        "projects/mock-bq-project-id/datasets/my_ds"
     )
-    req = CreateDatasetRequest(
-        project_id=AvailableProject.DEV, dataset_id="my_ds", location="US"
-    )
+    req = CreateDatasetRequest(dataset_id="my_ds", location="US")
 
     result = await create_dataset(req)
 
     assert result.execution_status == "success"
     assert "Successfully created dataset" in result.execution_message
     mock_bq_manager.create_dataset.assert_called_once_with(
-        AvailableProject.DEV, "my_ds", "US"
+        "mock-bq-project-id", "my_ds", "US"
     )
 
 
@@ -64,15 +61,13 @@ async def test_mcp_create_dataset_validation_error():
     Tests that the CreateDatasetRequest enforces strict Pydantic validation.
     Implementation: Attempts to instantiate the request model with invalid project IDs and malformed dataset IDs, asserting that Pydantic raises a ValidationError.
     """
-    # Invalid Project ID (Literal/Enum violation)
+    # Invalid Dataset ID
     with pytest.raises(ValidationError):
-        CreateDatasetRequest(project_id="invalid-proj", dataset_id="ds", location="US")
+        CreateDatasetRequest(dataset_id="ds@invalid", location="US")
 
     # Invalid Dataset ID (Regex violation)
     with pytest.raises(ValidationError):
-        CreateDatasetRequest(
-            project_id=AvailableProject.DEV, dataset_id="ds@invalid", location="US"
-        )
+        CreateDatasetRequest(dataset_id="ds@invalid", location="US")
 
 
 @pytest.mark.asyncio
@@ -83,9 +78,7 @@ async def test_mcp_execute_query_destructive_error():
     """
     # SQL Injection / Destructive command prevention
     with pytest.raises(ValidationError) as exc:
-        ExecuteQueryRequest(
-            project_id=AvailableProject.DEV, query="DROP TABLE my_table"
-        )
+        ExecuteQueryRequest(query="DROP TABLE my_table")
     assert "Destructive command 'DROP' detected" in str(exc.value)
 
 
@@ -97,7 +90,6 @@ async def test_mcp_create_table_error_handling(mock_bq_manager):
     """
     mock_bq_manager.create_table.side_effect = Exception("BQ Error")
     req = CreateTableRequest(
-        project_id=AvailableProject.DEV,
         dataset_id="ds",
         table_id="table",
         schema_fields=[{"name": "id", "type": "INT"}],
@@ -119,9 +111,7 @@ async def test_mcp_get_table_schema_success(mock_bq_manager):
     mock_field.to_api_repr.return_value = {"name": "id", "type": "INTEGER"}
     mock_bq_manager.get_table_schema.return_value = [mock_field]
 
-    req = GetTableSchemaRequest(
-        project_id=AvailableProject.DEV, dataset_id="ds", table_id="table"
-    )
+    req = GetTableSchemaRequest(dataset_id="ds", table_id="table")
     result = await get_table_schema(req)
 
     assert result.execution_status == "success"
@@ -135,7 +125,6 @@ async def test_mcp_add_rows_success(mock_bq_manager):
     Implementation: Invokes the tool with a valid AddRowsRequest and confirms that BigQueryManager.insert_rows is called with the correct parameters, yielding a success response.
     """
     req = AddRowsRequest(
-        project_id=AvailableProject.DEV,
         dataset_id="ds",
         table_id="table",
         rows=[{"id": 1}],
@@ -146,7 +135,7 @@ async def test_mcp_add_rows_success(mock_bq_manager):
     assert result.execution_status == "success"
     assert "Successfully inserted 1 rows" in result.execution_message
     mock_bq_manager.insert_rows.assert_called_once_with(
-        AvailableProject.DEV, "ds", "table", [{"id": 1}]
+        "mock-bq-project-id", "ds", "table", [{"id": 1}]
     )
 
 
@@ -157,8 +146,7 @@ async def test_mcp_execute_query_authorized_user_success(mock_bq_manager):
     """
     mock_bq_manager.execute_query.return_value = [{"id": 1, "name": "allowed"}]
     req = ExecuteQueryRequest(
-        project_id=AvailableProject.DEV,
-        query="SELECT id, name FROM `ag-core-ops-auj0.ds.allowed_table` LIMIT 10",
+        query="SELECT id, name FROM `mock-bq-project-id.ds.allowed_table` LIMIT 10",
     )
 
     result = await execute_query(req)
@@ -190,7 +178,7 @@ async def test_mcp_ekb_keyword_search_success(mock_bq_manager):
             "project_id": "Beta Project",
         },
     ]
-    req = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="kubernetes")
+    req = KeywordSearchRequest(keyword="kubernetes")
 
     result = await ekb_keyword_search(req)
 
@@ -208,7 +196,7 @@ async def test_mcp_ekb_keyword_search_empty_keyword_validation_error():
     Pydantic raises a ValidationError before any tool execution occurs.
     """
     with pytest.raises(ValidationError):
-        KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="")
+        KeywordSearchRequest(keyword="")
 
 
 @pytest.mark.asyncio
@@ -219,7 +207,7 @@ async def test_mcp_ekb_keyword_search_bq_error(mock_bq_manager):
     tool wraps it in an error response rather than propagating the exception.
     """
     mock_bq_manager.keyword_search.side_effect = Exception("BQ failure")
-    req = KeywordSearchRequest(project_id=AvailableProject.DEV, keyword="react")
+    req = KeywordSearchRequest(keyword="react")
 
     result = await ekb_keyword_search(req)
 
@@ -236,7 +224,6 @@ async def test_mcp_list_tables_unauthorized_user_permission_denied(mock_bq_manag
         "403 Access Denied: User does not have bigquery.tables.list permission"
     )
     req = ListTablesRequest(
-        project_id=AvailableProject.DEV,
         dataset_id="restricted_ds",
     )
 

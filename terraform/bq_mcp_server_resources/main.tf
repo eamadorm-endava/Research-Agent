@@ -12,8 +12,10 @@ removed {
 
 ################ APIs ################
 module "enable_apis" {
-  source           = "../base_modules/api-manager"
-  project_services = var.apis_to_enable
+  source = "../base_modules/api-manager"
+  project_services = {
+    (var.project_id) = var.apis_to_enable
+  }
 }
 
 ################ Service Accounts ################
@@ -28,7 +30,9 @@ module "mcp-server-service-account" {
   }
 
   # non-authoritative roles granted *to* the service account
-  iam_project_roles = var.mcp_server_iam_project_roles
+  iam_project_roles = {
+    (var.project_id) = var.mcp_server_iam_project_roles
+  }
 
   depends_on = [
     module.enable_apis
@@ -56,7 +60,10 @@ module "mcp_server_cloud_run" {
   containers = {
     mcp-server = {
       image = "${local.cloud_run_image}:${var.mcp_server_cloud_run_image_tag}"
-      env   = var.mcp_server_cloud_run_env
+      env = merge(
+        var.mcp_server_cloud_run_env,
+        { "BQ_PROJECT_ID" = var.project_id }
+      )
       resources = {
         limits = {
           cpu    = var.mcp_server_cloud_run_cpu

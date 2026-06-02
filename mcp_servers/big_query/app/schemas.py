@@ -1,17 +1,9 @@
 from typing import List, Dict, Any, Annotated, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from enum import StrEnum
 import re
 
 
-class AvailableProject(StrEnum):
-    DEV = "ag-core-ops-auj0"
-
-
 # Reusable Types
-PROJECT_ID = Annotated[
-    AvailableProject, Field(description="The mandatory GCP Project ID.")
-]
 DATASET_ID = Annotated[
     str,
     Field(
@@ -76,7 +68,6 @@ class GetTableSchemaRequest(BaseModel):
     Request model for retrieving table schema.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     table_id: TABLE_ID
 
@@ -94,7 +85,6 @@ class CreateDatasetRequest(BaseModel):
     Request model for creating a dataset.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     location: LOCATION
 
@@ -113,8 +103,6 @@ class ListDatasetsRequest(BaseModel):
     Request model for listing datasets.
     """
 
-    project_id: PROJECT_ID
-
 
 class ListDatasetsResponse(ListDatasetsRequest, BaseResponse):
     """
@@ -131,7 +119,6 @@ class CreateTableRequest(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     table_id: TABLE_ID
     schema_fields: SCHEMA_DEFINITION
@@ -151,7 +138,6 @@ class ListTablesRequest(BaseModel):
     Request model for listing tables.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
 
 
@@ -168,7 +154,6 @@ class AddRowsRequest(BaseModel):
     Request model for inserting rows into a table.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     table_id: TABLE_ID
     rows: ROWS
@@ -188,7 +173,6 @@ class ExecuteQueryRequest(BaseModel):
     Request model for executing a SQL query.
     """
 
-    project_id: PROJECT_ID
     query: QUERY
 
     @field_validator("query")
@@ -216,7 +200,6 @@ class SemanticSearchRequest(BaseModel):
     Request model for performing a semantic search against the knowledge base.
     """
 
-    project_id: PROJECT_ID
     query: Annotated[
         str, Field(description="The natural language query to search for.")
     ]
@@ -253,7 +236,6 @@ class KeywordSearchRequest(BaseModel):
     Request model for a deterministic keyword search against knowledge base chunks.
     """
 
-    project_id: PROJECT_ID
     keyword: Annotated[
         str,
         Field(
