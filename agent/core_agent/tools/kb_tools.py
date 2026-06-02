@@ -70,7 +70,7 @@ class TriggerEKBPipelineTool(BaseTool):
                 properties={
                     "gcs_uris": types.Schema(
                         type=types.Type.ARRAY,
-                        description="One or more canonical GCS URIs to ingest (e.g., gs://ag-core-ops-auj0-kb-landing-zone/project/file.pdf)",
+                        description="One or more canonical GCS URIs to ingest (e.g., gs://<project_id>-kb-landing-zone/project/file.pdf)",
                         items=types.Schema(type=types.Type.STRING),
                     ),
                 },

@@ -2,6 +2,8 @@ from loguru import logger
 from pathlib import Path
 from google.adk.skills import load_skill_from_dir, Skill
 
+from ..config.agent_settings import GCP_CONFIG
+
 
 def get_skill(skill_name: str) -> Skill:
     """Dynamically loads an ADK skill from the agent/skills/ directory.
@@ -21,6 +23,13 @@ def get_skill(skill_name: str) -> Skill:
 
     logger.info(f"Loading ADK Skill from: {target_skill_path}")
     agent_skill = load_skill_from_dir(target_skill_path)
+
+    # Inject dynamic configuration into the skill instructions
+    if agent_skill.instructions:
+        agent_skill.instructions = agent_skill.instructions.replace(
+            "<project_id>", GCP_CONFIG.PROJECT_ID
+        )
+
     logger.info(f"Successfully loaded skill: {skill_name}")
 
     return agent_skill

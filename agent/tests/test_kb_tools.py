@@ -62,7 +62,7 @@ class TestTriggerEKBPipelineTool:
         ctx = MagicMock()
         ctx.state = {}
 
-        args = {"gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]}
+        args = {"gcs_uris": ["gs://mock-project-id-kb-landing-zone/project/doc.pdf"]}
         result = await tool.run_async(args=args, tool_context=ctx)
 
         assert isinstance(result, list)
@@ -90,7 +90,7 @@ class TestTriggerEKBPipelineTool:
 
         await tool.run_async(
             args={
-                "gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/report.pdf"]
+                "gcs_uris": ["gs://mock-project-id-kb-landing-zone/project/report.pdf"]
             },
             tool_context=ctx,
         )
@@ -127,8 +127,8 @@ class TestTriggerEKBPipelineTool:
         result = await tool.run_async(
             args={
                 "gcs_uris": [
-                    "gs://ag-core-ops-auj0-kb-landing-zone/project/file1.pdf",
-                    "gs://ag-core-ops-auj0-kb-landing-zone/project/file2.pdf",
+                    "gs://mock-project-id-kb-landing-zone/project/file1.pdf",
+                    "gs://mock-project-id-kb-landing-zone/project/file2.pdf",
                 ]
             },
             tool_context=ctx,
@@ -156,7 +156,7 @@ class TestTriggerEKBPipelineTool:
         tool = TriggerEKBPipelineTool()
         ctx = MagicMock()
 
-        args = {"gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]}
+        args = {"gcs_uris": ["gs://mock-project-id-kb-landing-zone/project/doc.pdf"]}
         result = await tool.run_async(args=args, tool_context=ctx)
 
         assert isinstance(result, list)
@@ -222,8 +222,8 @@ class TestTriggerEKBPipelineTool:
         result = await tool.run_async(
             args={
                 "gcs_uris": [
-                    "gs://ag-core-ops-auj0-kb-landing-zone/project/good.pdf",
-                    "gs://ag-core-ops-auj0-kb-landing-zone/project/bad.pdf",
+                    "gs://mock-project-id-kb-landing-zone/project/good.pdf",
+                    "gs://mock-project-id-kb-landing-zone/project/bad.pdf",
                 ]
             },
             tool_context=ctx,
@@ -259,9 +259,7 @@ class TestTriggerEKBPipelineTool:
         ctx = MagicMock()
 
         result = await tool.run_async(
-            args={
-                "gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]
-            },
+            args={"gcs_uris": ["gs://mock-project-id-kb-landing-zone/project/doc.pdf"]},
             tool_context=ctx,
         )
 
@@ -295,9 +293,7 @@ class TestTriggerEKBPipelineTool:
         ctx.state = {}
 
         await tool.run_async(
-            args={
-                "gcs_uris": ["gs://ag-core-ops-auj0-kb-landing-zone/project/doc.pdf"]
-            },
+            args={"gcs_uris": ["gs://mock-project-id-kb-landing-zone/project/doc.pdf"]},
             tool_context=ctx,
         )
 
