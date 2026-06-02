@@ -78,18 +78,18 @@ def test_mcp_upload_object_success_sa_flow(mock_gcs_manager):
     mock_blob.name = "ingested_file.zip"
     mock_gcs_manager.copy_blob.return_value = mock_blob
 
-    # Config values: landing_zone_bucket="ag-core-ops-auj0-ai-agent-landing-zone", kb_ingestion_bucket="ag-core-ops-auj0-kb-landing-zone"
+    # Config values: landing_zone_bucket="<mock-project-id>-ai-agent-landing-zone", kb_ingestion_bucket="<mock-project-id>-kb-landing-zone"
     request = UploadObjectRequest(
-        source_gcs_uri="gs://ag-core-ops-auj0-ai-agent-landing-zone/incoming/data.zip",
-        destination_bucket="ag-core-ops-auj0-kb-landing-zone",
+        source_gcs_uri="gs://<mock-project-id>-ai-agent-landing-zone/incoming/data.zip",
+        destination_bucket="<mock-project-id>-kb-landing-zone",
         filename="ingested_file.zip",
     )
     with (
         patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make,
         patch("mcp_servers.gcs.app.mcp_server.GCS_SERVER_CONFIG") as mock_config,
     ):
-        mock_config.landing_zone_bucket = "ag-core-ops-auj0-ai-agent-landing-zone"
-        mock_config.kb_ingestion_bucket = "ag-core-ops-auj0-kb-landing-zone"
+        mock_config.landing_zone_bucket = "<mock-project-id>-ai-agent-landing-zone"
+        mock_config.kb_ingestion_bucket = "<mock-project-id>-kb-landing-zone"
         mock_make.return_value = mock_gcs_manager
         result = asyncio.run(upload_object(request))
         # Ensure it was called with use_sa=True
@@ -305,9 +305,9 @@ def test_mcp_update_object_metadata_success_sa_flow(mock_gcs_manager):
     mock_blob.content_type = "application/pdf"
     mock_gcs_manager.update_object_metadata.return_value = mock_blob
 
-    # Config value: kb_ingestion_bucket="ag-core-ops-auj0-kb-landing-zone"
+    # Config value: kb_ingestion_bucket="<mock-project-id>-kb-landing-zone"
     request = UpdateObjectMetadataRequest(
-        bucket_name="ag-core-ops-auj0-kb-landing-zone",
+        bucket_name="<mock-project-id>-kb-landing-zone",
         object_name="test.pdf",
         metadata={"project": "test"},
     )
@@ -315,7 +315,7 @@ def test_mcp_update_object_metadata_success_sa_flow(mock_gcs_manager):
         patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make,
         patch("mcp_servers.gcs.app.mcp_server.GCS_SERVER_CONFIG") as mock_config,
     ):
-        mock_config.kb_ingestion_bucket = "ag-core-ops-auj0-kb-landing-zone"
+        mock_config.kb_ingestion_bucket = "<mock-project-id>-kb-landing-zone"
         mock_make.return_value = mock_gcs_manager
         result = asyncio.run(update_object_metadata(request))
         # Ensure it was called with use_sa=True
