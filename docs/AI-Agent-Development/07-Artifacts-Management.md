@@ -172,8 +172,8 @@ The runtime path is now:
 2. **ADK Persistence**: ADK saves the file to the `agent_landing_zone` bucket (standard ADK artifact behavior).
 3. **Agent Trigger**: The agent identifies the artifact and its `gs://` URI.
 4. **Landing Zone Promotion**: The agent calls `upload_object` with:
-   - `source_uri`: `gs://ag-core-ops-auj0-ai-agent-landing-zone/...`
-   - `destination_uri`: `gs://ag-core-ops-auj0-kb-landing-zone/raw/`
+   - `source_uri`: `gs://<project_id>-ai-agent-landing-zone/...`
+   - `destination_uri`: `gs://<project_id>-kb-landing-zone/raw/`
 5. **Metadata Injection**: The GCS MCP server extracts the user's email from the token and writes the object to the landing zone with the required metadata.
 
 This phase is essential because the acceptance criterion requires the lifecycle to be documented fully, not only that a storage API exists somewhere in the system.
