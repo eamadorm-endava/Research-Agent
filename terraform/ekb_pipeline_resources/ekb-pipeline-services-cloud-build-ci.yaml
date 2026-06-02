@@ -1,3 +1,6 @@
+substitutions:
+  _LOCATION: us-central1
+
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
   - name: 'hashicorp/terraform:1.12.2'
@@ -53,7 +56,12 @@ steps:
   # Step 7: Plan (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-var=ekb_pipeline_cloud_run_image_tag=ci', '-out=tfplan']
+    args: 
+      - 'plan'
+      - '-var=ekb_pipeline_cloud_run_image_tag=ci'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-out=tfplan'
     dir: 'terraform/ekb_pipeline_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'

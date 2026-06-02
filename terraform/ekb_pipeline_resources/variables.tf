@@ -19,9 +19,9 @@ variable "agent_service_account_email" {
 }
 
 variable "project_services" {
-  description = "Service APIs to enable, mapped by project ID."
-  type        = map(list(string))
-  default     = {}
+  description = "Service APIs to enable."
+  type        = list(string)
+  default     = []
 }
 
 # EKB Pipeline service account and IAM roles
@@ -33,9 +33,9 @@ variable "ekb_pipeline_service_account_name" {
 }
 
 variable "ekb_pipeline_iam_project_roles" {
-  description = "Map of project IDs to a list of roles to be assigned to the service account."
-  type        = map(list(string))
-  default     = {}
+  description = "List of roles to be assigned to the service account."
+  type        = list(string)
+  default     = []
 }
 
 ################ Artifact Registry ################
