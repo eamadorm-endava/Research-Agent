@@ -23,6 +23,10 @@ steps:
       - 'apply'
       - '-target=module.enable_apis'
       - '-auto-approve'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-var=landing_zone_bucket=${PROJECT_ID}-ai-agent-landing-zone'
+      - '-var=kb_ingestion_bucket=${PROJECT_ID}-kb-landing-zone'
     dir: 'terraform/gcs_mcp_server_resources'
 
   # Step 3: Docker Build
@@ -49,7 +53,14 @@ steps:
   # Step 5: Full Terraform Plan
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
+    args: 
+      - 'plan'
+      - '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-var=landing_zone_bucket=${PROJECT_ID}-ai-agent-landing-zone'
+      - '-var=kb_ingestion_bucket=${PROJECT_ID}-kb-landing-zone'
+      - '-out=tfplan'
     dir: 'terraform/gcs_mcp_server_resources'
 
   # Step 6: Full Terraform Apply

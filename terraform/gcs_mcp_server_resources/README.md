@@ -123,20 +123,6 @@ To enable services, define the `project_services` variable in your `terraform.tf
 
 To create service accounts, define the services accounts in the Terraform main modules and setup services account names in `terraform.tfvars` file.
 
-## Terraform Native Tests
-
-This module includes native Terraform tests in `gcs_mcp_server_resources.tftest.hcl`.
-
-Run from this directory:
-
-```
-terraform init -backend=false
-terraform test
-```
-
-What is covered:
-- Cloud Run region fallback to `main_region`
-- Cloud Run image naming convention
 
 ## Cloud Build Triggers (Run Once)
 
@@ -153,37 +139,36 @@ This script creates (or skips if existing) the PR/CD triggers for:
 
 Example:
 
-```
-project_id             = "mock-project-id"
-developers_group_email = "my-dev-team@email.com"
-apis_to_enable = {
-  "mock-project-id" = [
-    "aiplatform.googleapis.com",
-    "modelarmor.googleapis.com",
-  ]
-}
-ai_agent_service_account_name = "adk-agent"
-ai_agent_iam_project_roles = {
-  "mock-project-id" = [
-    "roles/aiplatform.user",
-    "roles/modelarmor.user"
-  ]
-}
-vertex_ai_agent_iam_project_roles = {
-  "mock-project-id" = [
-    "roles/modelarmor.user"
-  ]
-}
+Example `terraform.tfvars`:
 
+```hcl
+developers_group_email = "my-dev-team@email.com"
+
+apis_to_enable = [
+  "storage.googleapis.com",
+  "run.googleapis.com",
+  "artifactregistry.googleapis.com"
+]
+
+mcp_server_service_account_name = "gcs-mcp-server"
+mcp_server_iam_project_roles    = []
+artifact_registry_name          = "mcp-servers"
+mcp_server_cloud_run_name       = "gcs-mcp-server"
 ```
+
+> **Note**: `project_id`, `main_region`, `landing_zone_bucket`, and `kb_ingestion_bucket` are strictly passed dynamically via `-var` arguments during execution (e.g., by the CI/CD pipeline or orchestration script), not hardcoded in the tfvars file.
+
 
 ## Variables
 
 | Name | Description | Type | Default | Required |
 |---|---|---|---|:---:|
 | `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
+| `main_region` | The main region of the project. | `string` | n/a | yes |
 | `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
-| `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
+| `apis_to_enable` | Service APIs to enable for the project. | `list(string)` | `[]` | yes |
 | `mcp_server_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `mcp_server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
+| `mcp_server_iam_project_roles` | List of roles to be assigned to the ADK service account on the project. | `list(string)` | `[]` | no |
+| `landing_zone_bucket` | The name of the GCS bucket used as the landing zone for user uploads. | `string` | n/a | yes |
+| `kb_ingestion_bucket` | The name of the GCS bucket used for KB ingestion. | `string` | n/a | yes |
 
