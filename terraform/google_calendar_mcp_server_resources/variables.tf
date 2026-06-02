@@ -12,9 +12,8 @@ variable "main_region" {
 # ----------------- APIs Variable -----------------
 
 variable "apis_to_enable" {
-  description = "A map of project IDs to lists of APIs to enable. Enables standard Google Cloud APIs required for core GCP services."
-  type        = map(list(string))
-  default     = {}
+  type    = list(string)
+  default = []
 }
 
 # ----------------- Service Account Variables -----------------
@@ -26,7 +25,8 @@ variable "mcp_server_service_account_name" {
 
 variable "mcp_server_iam_project_roles" {
   description = "The IAM project roles to grant to the service account."
-  type        = map(list(string))
+  type        = list(string)
+  default     = []
 }
 
 # ----------------- Artifact Registry Variables -----------------

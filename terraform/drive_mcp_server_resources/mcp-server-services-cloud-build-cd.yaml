@@ -1,5 +1,5 @@
 substitutions:
-  _LOCATION: us-central1
+  _REGION: us-central1
   _REPO_NAME: mcp-servers
   _SERVICE_NAME: drive-mcp-server
 
@@ -21,6 +21,8 @@ steps:
     id: 'tf-bootstrap'
     args:
       - 'apply'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_REGION}'
       - '-target=module.enable_apis'
       - '-auto-approve'
     dir: 'terraform/drive_mcp_server_resources'
@@ -30,8 +32,8 @@ steps:
     id: 'docker-build'
     args: [
       'build',
-      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}',
-      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest',
+      '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}',
+      '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest',
       '-f', 'mcp_servers/google_drive/Dockerfile',
       '.'
     ]
@@ -43,13 +45,13 @@ steps:
     args:
       - '-c'
       - |
-        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
-        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest
+        docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
+        docker push ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest
 
   # Step 5: Full Terraform Plan
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
+    args: ['plan', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
     dir: 'terraform/drive_mcp_server_resources'
 
   # Step 6: Full Terraform Apply

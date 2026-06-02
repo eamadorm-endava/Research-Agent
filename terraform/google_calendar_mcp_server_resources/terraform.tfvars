@@ -1,23 +1,20 @@
 ################ Project configuration ################
 
-project_id  = "ag-core-ops-auj0"
-main_region = "us-central1"
+# project_id and main_region are passed dynamically via -var in CI/CD
 
 ################ APIs to enable ################
 
-apis_to_enable = {
-  "ag-core-ops-auj0" = [
-    "calendar-json.googleapis.com",
-    "meet.googleapis.com"
-  ],
-}
+apis_to_enable = [
+  "calendar-json.googleapis.com",
+  "meet.googleapis.com"
+]
 
 ################ MCP-Server Service Account and IAM Roles ################
 
 mcp_server_service_account_name = "calendar-mcp-server"
 
 # Due to authentication is handled by the OAuth token, we don't need any IAM roles for the service account
-mcp_server_iam_project_roles = {}
+mcp_server_iam_project_roles = []
 
 ################ Artifact Registry ################
 
