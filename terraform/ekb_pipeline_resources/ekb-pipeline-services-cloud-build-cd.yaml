@@ -23,6 +23,8 @@ steps:
       - 'apply'
       - '-target=module.enable_apis'
       - '-auto-approve'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
     dir: 'terraform/ekb_pipeline_resources'
 
   # Step 3: Docker Build
@@ -49,7 +51,12 @@ steps:
   # Step 5: Full Terraform Plan
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-var=ekb_pipeline_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
+    args:
+      - 'plan'
+      - '-var=ekb_pipeline_cloud_run_image_tag=${COMMIT_SHA}'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-out=tfplan'
     dir: 'terraform/ekb_pipeline_resources'
 
   # Step 6: Full Terraform Apply

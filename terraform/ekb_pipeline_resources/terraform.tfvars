@@ -1,34 +1,29 @@
 ################ Project configuration ################
 
-project_id                  = "ag-core-ops-auj0"
-main_region                 = "us-central1"
-developers_group_email      = "gcu_latam_team_devs@endava.com"
-agent_service_account_email = "adk-agent@ag-core-ops-auj0.iam.gserviceaccount.com"
+# project_id and main_region are passed dynamically via -var in CI/CD
+
+developers_group_email = "gcu_latam_team_devs@endava.com"
 
 ################ APIs to enable ################
 
-project_services = {
-  "ag-core-ops-auj0" = [
-    "run.googleapis.com",
-    "dlp.googleapis.com",
-    "aiplatform.googleapis.com",
-    "bigqueryconnection.googleapis.com",
-    "cloudtasks.googleapis.com"
-  ],
-}
+project_services = [
+  "run.googleapis.com",
+  "dlp.googleapis.com",
+  "aiplatform.googleapis.com",
+  "bigqueryconnection.googleapis.com",
+  "cloudtasks.googleapis.com"
+]
 
 ################ EKB Pipeline Service Account and IAM Roles ################
 
 ekb_pipeline_service_account_name = "ekb-pipeline-sa"
 
-ekb_pipeline_iam_project_roles = {
-  "ag-core-ops-auj0" = [
-    "roles/dlp.admin",
-    "roles/aiplatform.user",
-    "roles/bigquery.jobUser",
-    "roles/logging.logWriter"
-  ]
-}
+ekb_pipeline_iam_project_roles = [
+  "roles/dlp.admin",
+  "roles/aiplatform.user",
+  "roles/bigquery.jobUser",
+  "roles/logging.logWriter"
+]
 
 ################ Artifact Registry ################
 
