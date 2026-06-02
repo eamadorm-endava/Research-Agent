@@ -30,7 +30,11 @@ steps:
   # Creates the required permissions and service accounts to run the agent
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
-    args: ['apply', '-auto-approve']
+    args:
+      - 'apply'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_REGION}'
+      - '-auto-approve'
     dir: 'terraform/ai_agent_resources'
   
   # Step 3: Unregister the agent from GE

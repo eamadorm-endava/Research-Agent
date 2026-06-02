@@ -52,9 +52,9 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 
 ## Gotchas
 
-- **Agent landing zone**: always `gs://ag-core-ops-auj0-ai-agent-landing-zone/`.
-- **KB Landing Zone**: use `ag-core-ops-auj0-kb-landing-zone` as `destination_bucket` — this triggers the Service Account authentication switch.
-- **BigQuery project**: use `ag-core-ops-auj0` as the tool `project_id`; query `ag-core-ops-auj0.knowledge_base.documents_metadata`.
+- **Agent landing zone**: always `gs://<project_id>-ai-agent-landing-zone/`.
+- **KB Landing Zone**: use `<project_id>-kb-landing-zone` as `destination_bucket`. Note: The orchestrator should provide `<project_id>`.
+- **BigQuery project**: query `knowledge_base.documents_metadata` directly. Do not use a project prefix.
 - **Job IDs**: always return the `job_id` from the pipeline response to the user.
 
 ---
@@ -134,7 +134,7 @@ For all files **simultaneously**:
 **5a — Upload**
 Call `upload_object` for every file at the same time:
 - `source_gcs_uri`: URI from Step 1.
-- `destination_bucket`: `ag-core-ops-auj0-kb-landing-zone`
+- `destination_bucket`: `<project_id>-kb-landing-zone`
 - `filename`: confirmed filename.
 - `path_inside_bucket`: confirmed `project_id`.
 
@@ -182,7 +182,7 @@ When the user asks which projects are available without uploading files:
 ### Project Discovery Query
 ```sql
 SELECT DISTINCT project_id
-FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
+FROM `knowledge_base.documents_metadata`
 WHERE project_id IS NOT NULL
   AND TRIM(project_id) != ''
 ORDER BY project_id
@@ -196,7 +196,7 @@ Examples: `"Project Alpha"` → `%project%alpha%` · `"My-Cool Project"` → `%m
 
 ```sql
 SELECT DISTINCT project_id
-FROM `ag-core-ops-auj0.knowledge_base.documents_metadata`
+FROM `knowledge_base.documents_metadata`
 WHERE LOWER(project_id) LIKE LOWER('<token_pattern>')
 LIMIT 5
 ```
@@ -216,7 +216,7 @@ SELECT
     IGNORE NULLS
   ) AS ekb_matches
 FROM uploaded_files u
-LEFT JOIN `ag-core-ops-auj0.knowledge_base.documents_metadata` m
+LEFT JOIN `knowledge_base.documents_metadata` m
   ON LOWER(m.filename) LIKE LOWER(CONCAT('%', u.filename_base, '%'))
   AND m.project_id = '<confirmed_project_id>'
   AND m.latest = TRUE

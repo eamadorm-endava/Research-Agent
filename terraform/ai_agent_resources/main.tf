@@ -6,7 +6,7 @@ data "google_project" "project" {
 ################ APIs ################
 module "enable_apis" {
   source           = "../base_modules/api-manager"
-  project_services = var.apis_to_enable
+  project_services = { (var.project_id) = var.apis_to_enable }
 }
 
 
@@ -40,7 +40,7 @@ module "ai-agent-service-account" {
   }
 
   # non-authoritative roles granted *to* the service account
-  iam_project_roles = var.ai_agent_iam_project_roles
+  iam_project_roles = { (var.project_id) = var.ai_agent_iam_project_roles }
 
   depends_on = [
     module.enable_apis
@@ -49,7 +49,7 @@ module "ai-agent-service-account" {
 
 
 resource "google_project_iam_member" "vertex_ai_agent_roles" {
-  for_each = toset(var.vertex_ai_agent_iam_project_roles[var.project_id])
+  for_each = toset(var.vertex_ai_agent_iam_project_roles)
 
   project = var.project_id
   role    = each.value
@@ -61,7 +61,7 @@ resource "google_project_iam_member" "vertex_ai_agent_roles" {
 }
 
 resource "google_project_iam_member" "discovery_engine_service_agent_roles" {
-  for_each = toset(var.discovery_engine_service_agent_iam_project_roles[var.project_id])
+  for_each = toset(var.discovery_engine_service_agent_iam_project_roles)
 
   project = var.project_id
   role    = each.value
