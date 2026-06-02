@@ -53,7 +53,7 @@ steps:
     id: 'tf-plan'
     args: 
       - 'plan'
-      - '-var=mcp_server_cloud_run_image_tag=${SHORT_SHA}'
+      - '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_LOCATION}'
       - '-out=tfplan'
