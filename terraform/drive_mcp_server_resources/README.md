@@ -139,22 +139,18 @@ To create service accounts, define the service account names and IAM role mappin
 Example:
 
 ```hcl
-project_id             = "mock-project-id"
-main_region            = "us-central1"
 developers_group_email = "my-dev-team@email.com"
 
-apis_to_enable = {
-  "mock-project-id" = [
-    "drive.googleapis.com",
-    "run.googleapis.com",
-    "artifactregistry.googleapis.com"
-  ],
-}
+apis_to_enable = [
+  "drive.googleapis.com",
+  "run.googleapis.com",
+  "artifactregistry.googleapis.com"
+]
 
 mcp_server_service_account_name = "drive-mcp-server"
 
 # Authentication is handled by OAuth token, no project-level roles needed
-mcp_server_iam_project_roles = {}
+mcp_server_iam_project_roles = []
 
 artifact_registry_name         = "mcp-servers"
 mcp_server_cloud_run_name      = "drive-mcp-server"
@@ -166,7 +162,8 @@ mcp_server_cloud_run_image_tag = "latest"
 | Name | Description | Type | Default | Required |
 |---|---|---|---|:---:|
 | `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
+| `main_region` | The main region of the project. | `string` | n/a | yes |
 | `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
-| `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
+| `apis_to_enable` | List of Service APIs to enable in the project. | `list(string)` | `[]` | yes |
 | `mcp_server_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `mcp_server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
+| `mcp_server_iam_project_roles` | A list of roles to be assigned to the ADK service account in the project. | `list(string)` | `[]` | no |

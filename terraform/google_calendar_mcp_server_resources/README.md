@@ -59,9 +59,9 @@ chmod +x terraform/scripts/cicd_triggers_creation.sh
 |---|---|---|---|:---:|
 | `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
 | `main_region` | The main region to create the resources. | `string` | `"us-central1"` | no |
-| `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
+| `apis_to_enable` | List of Service APIs to enable in the project. | `list(string)` | `[]` | yes |
 | `mcp_server_service_account_name` | The name of the Service Account created for the Cloud Run instance. | `string` | n/a | yes |
-| `mcp_server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the Service Account. | `map(list(string))` | `{}` | yes |
+| `mcp_server_iam_project_roles` | A list of roles to be assigned to the Service Account in the project. | `list(string)` | `[]` | yes |
 | `artifact_registry_name` | The name of the Artifact Registry repository holding the Docker images. | `string` | n/a | yes |
 | `mcp_server_cloud_run_name` | The physical name of the GCP Cloud Run service in the console. | `string` | n/a | yes |
 | `mcp_server_cloud_run_image_tag` | The tag/sha of the Docker image to deploy dynamically on Cloud Run. | `string` | n/a | yes |

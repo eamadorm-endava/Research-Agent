@@ -53,8 +53,11 @@ steps:
   # Step 7: Plan (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-var=mcp_server_cloud_run_image_tag=ci', '-out=tfplan']
+    args: ['plan', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=ci', '-out=tfplan']
     dir: 'terraform/drive_mcp_server_resources'
+
+substitutions:
+  _REGION: 'us-central1'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 

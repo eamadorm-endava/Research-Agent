@@ -14,9 +14,9 @@ variable "developers_group_email" {
 }
 
 variable "apis_to_enable" {
-  description = "Service APIs to enable, mapped by project ID."
-  type        = map(list(string))
-  default     = {}
+  description = "Service APIs to enable."
+  type        = list(string)
+  default     = []
 }
 
 #Drive mcp-server service account and IAM roles
@@ -27,9 +27,9 @@ variable "mcp_server_service_account_name" {
 }
 
 variable "mcp_server_iam_project_roles" {
-  description = "Map of project IDs to a list of roles to be assigned to the service account."
-  type        = map(list(string))
-  default     = {}
+  description = "A list of roles to be assigned to the service account."
+  type        = list(string)
+  default     = []
 }
 
 ################ Artifact Registry ################
