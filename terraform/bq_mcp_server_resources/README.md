@@ -103,17 +103,19 @@ Permissions are managed (assigned) under the `service_accounts/` directory. It c
 
 ## CI/CD workflow
 
-This project uses Google Cloud Build for automated deployments:
+This project uses Google Cloud Build for automated deployments defined via YAML parameterization schemas:
 
-1. **Feature Branches:** Create a branch for your changes (e.g., `feature/add-sa-roles`).
-2. **Pull Request:** Opening a PR to `main` triggers a `terraform plan`.
-    - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
-    - The PR cannot be merged if the plan fails.
-    - The PR requires at least one approver.
-    - Note: If the build fails with "Exit Status 3", run terraform fmt locally and push again.
-
-3. **Merge to Main:** Merging the PR triggers `terraform apply`.
-   - Ensure the plan was reviewed before merging.
+1. **Feature Branches:** Create a branch for your changes (e.g., `feature/bq-integrations`).
+2. **Pull Request:** Opening a PR to `main` triggers a complete CI execution (`mcp-server-services-cloud-build-ci.yaml`):
+    - Code quality tools (`make run-bq-precommit`).
+    - Unit tests (`make run-bq-tests`).
+    - Docker container virtualized build validation.
+    - Security-compliant `terraform plan`.
+    - Note: The PR cannot be merged if any of the checks (especially formatting/linting) fail.
+3. **Merge to Main:** Merging the PR triggers the Continuous Deployment phase (`mcp-server-services-cloud-build-cd.yaml`):
+    - API Bootstrap `terraform apply -target=module.enable_apis`
+    - Parallel `docker push` tagging both the `${COMMIT_SHA}` and `latest`.
+    - Live updates in the environment orchestrating `terraform apply tfplan`.
 
 ## Usage
 
