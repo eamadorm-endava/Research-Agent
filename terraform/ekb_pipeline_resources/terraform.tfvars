@@ -2,8 +2,7 @@
 
 # project_id and main_region are passed dynamically via -var in CI/CD
 
-developers_group_email      = "gcu_latam_team_devs@endava.com"
-agent_service_account_email = "adk-agent@ag-core-ops-auj0.iam.gserviceaccount.com"
+developers_group_email = "gcu_latam_team_devs@endava.com"
 
 ################ APIs to enable ################
 

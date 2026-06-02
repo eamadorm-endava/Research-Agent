@@ -25,6 +25,7 @@ steps:
       - '-auto-approve'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_LOCATION}'
+      - '-var=agent_service_account_email=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com'
     dir: 'terraform/ekb_pipeline_resources'
 
   # Step 3: Docker Build
@@ -56,6 +57,7 @@ steps:
       - '-var=ekb_pipeline_cloud_run_image_tag=${COMMIT_SHA}'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_LOCATION}'
+      - '-var=agent_service_account_email=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com'
       - '-out=tfplan'
     dir: 'terraform/ekb_pipeline_resources'
 
