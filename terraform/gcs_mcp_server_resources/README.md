@@ -123,20 +123,6 @@ To enable services, define the `project_services` variable in your `terraform.tf
 
 To create service accounts, define the services accounts in the Terraform main modules and setup services account names in `terraform.tfvars` file.
 
-## Terraform Native Tests
-
-This module includes native Terraform tests in `gcs_mcp_server_resources.tftest.hcl`.
-
-Run from this directory:
-
-```
-terraform init -backend=false
-terraform test
-```
-
-What is covered:
-- Cloud Run region fallback to `main_region`
-- Cloud Run image naming convention
 
 ## Cloud Build Triggers (Run Once)
 
