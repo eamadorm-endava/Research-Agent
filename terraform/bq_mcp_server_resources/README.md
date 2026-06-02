@@ -123,24 +123,25 @@ To create service accounts, define the service account names and IAM role mappin
 
 Example:
 
-```
-project_id             = "mock-project-id"
-main_region            = "us-central1"
-developers_group_email = "my-dev-team@email.com"
-apis_to_enable = {
-  "mock-project-id" = [
-    "bigquery.googleapis.com",
-    "storage.googleapis.com",
-  ]
-}
-mcp_server_service_account_name = "mcp-server"
-mcp_server_iam_project_roles = {
-  "mock-project-id" = [
-    "roles/bigquery.dataViewer",
-    "roles/bigquery.jobUser",
-    "roles/storage.objectUser"
-  ]
-}
+```hcl
+# project_id and main_region must be passed via -var flags
+
+developers_group_email = "your-devs-group@domain.com"
+
+apis_to_enable = [
+  "bigquery.googleapis.com",
+  "run.googleapis.com",
+  "artifactregistry.googleapis.com"
+]
+
+mcp_server_service_account_name = "bq-mcp-server"
+
+mcp_server_iam_project_roles = [
+  "roles/bigquery.dataEditor",
+  "roles/bigquery.jobUser",
+  "roles/storage.objectUser"
+]
+
 artifact_registry_name         = "mcp-servers"
 mcp_server_cloud_run_name      = "bigquery-mcp-server"
 mcp_server_cloud_run_region    = "us-central1"
@@ -150,10 +151,10 @@ mcp_server_cloud_run_image_tag = "latest"
 ## Variables
 
 | Name | Description | Type | Default | Required |
-|---|---|---|---|:---:|
-| `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
-| `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
-| `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
-| `mcp_server_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `mcp_server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
-
+|------|-------------|------|---------|:--------:|
+| `project_id` | The ID of the project where the resources will be created. (MUST be passed dynamically) | `string` | n/a | yes |
+| `main_region` | The main region of the project. (MUST be passed dynamically) | `string` | n/a | yes |
+| `developers_group_email` | The email of the Google Group that will be granted the Service Account User role. | `string` | n/a | yes |
+| `apis_to_enable` | A list of Service APIs to enable. | `list(string)` | `[]` | no |
+| `mcp_server_service_account_name` | The name of the service account. | `string` | n/a | yes |
+| `mcp_server_iam_project_roles` | A list of roles to be assigned to the service account. | `list(string)` | `[]` | no |
