@@ -127,5 +127,5 @@ sequenceDiagram
 
 While the code is unified, the local runner (`adk web`) often requires explicit CLI configuration to match Cloud behavior.
 
-- **Storage**: Forced via `--artifact_service_uri gs://$(ARTIFACT_BUCKET)` in the `Makefile`.
-- **Bucket Resolution**: The `Makefile` and `GCPConfig` (via `AliasChoices`) both handle the mapping between `.env` names (like `ARTIFACT_STAGING_BUCKET`) and the application's required `ARTIFACT_BUCKET` field.
+- **Storage**: Forced via `--artifact_service_uri gs://$(LANDING_ZONE_BUCKET)` in the `Makefile`.
+- **Bucket Resolution**: The `Makefile` and `GCPConfig` (via `AliasChoices`) both handle the mapping between `.env` names (like `ARTIFACT_STAGING_BUCKET`) and the application's required `LANDING_ZONE_BUCKET` field.

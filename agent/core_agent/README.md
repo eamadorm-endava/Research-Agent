@@ -216,7 +216,7 @@ REGION=${GOOGLE_CLOUD_LOCATION}
 
 # ─── Execution Mode ───
 PROD_EXECUTION=False          # Set to True in production (enables GE-managed OAuth)
-ARTIFACT_BUCKET=your-artifact-bucket-name
+LANDING_ZONE_BUCKET=your-landing-zone-bucket-name
 
 # ─── Agent Config ───
 MODEL_ARMOR_TEMPLATE_ID=your-model-armor-template-id   # Omit to disable Model Armor

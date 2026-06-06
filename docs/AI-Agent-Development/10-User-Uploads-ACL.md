@@ -333,7 +333,7 @@ plugin.
 The `GcsArtifactService` writes artifacts at this path:
 
 ```
-gs://{ARTIFACT_BUCKET}/{app_name}/{user_id}/{session_id}/{filename}
+gs://{LANDING_ZONE_BUCKET}/{app_name}/{user_id}/{session_id}/{filename}
 ```
 
 Example:
@@ -383,7 +383,7 @@ flowchart TD
 ```
 
 To test the plugin locally against a real GCS bucket (not the ADK Web UI), set `PROD_EXECUTION=True`
-in `.env` and provide `ARTIFACT_BUCKET`. The plugin will run but IAM grants may fail if the local
+in `.env` and provide `LANDING_ZONE_BUCKET`. The plugin will run but IAM grants may fail if the local
 ADC does not have `storage.buckets.setIamPolicy` — this is expected and non-blocking.
 
 ---
