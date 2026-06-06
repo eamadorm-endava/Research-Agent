@@ -1,10 +1,21 @@
 from typing import Callable, Optional, Self, Union
+from google.adk.agents.base_agent import BeforeAgentCallback, AfterAgentCallback
+from google.adk.agents.llm_agent import (
+    BeforeModelCallback,
+    AfterModelCallback,
+    BeforeToolCallback,
+    AfterToolCallback,
+    OnModelErrorCallback,
+    OnToolErrorCallback,
+)
 
 import vertexai
 from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.adk.planners import BuiltInPlanner
 from google.adk.tools import BaseTool, FunctionTool
+from google.adk.tools.base_toolset import BaseToolset
+from google.adk.tools.skill_toolset import SkillToolset
 from google.genai.types import (
     GenerateContentConfig,
     HttpRetryOptions,
@@ -16,8 +27,10 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import BaseAgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
-from google.adk.tools.skill_toolset import SkillToolset
-from ..callbacks.artifact_rendering import render_pending_artifacts
+from ..callbacks.file_ingestion import (
+    FileIngestionToolWrapper,
+    FileIngestionToolsetWrapper,
+)
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill
 
@@ -38,13 +51,20 @@ class AgentBuilder:
             gcp_config: GCPConfig -> Google Cloud Platform project settings.
             auth_config: GoogleAuthConfig -> Shared authentication parameters.
         """
-        self.agent_config = agent_config
-        self.gcp_config = gcp_config
-        self._mcp_builder = MCPToolsetBuilder(auth_config)
-        self._registered_tools = []
+        self.agent_config: BaseAgentConfig = agent_config
+        self.gcp_config: GCPConfig = gcp_config
+        self._mcp_builder: MCPToolsetBuilder = MCPToolsetBuilder(auth_config)
+        self._registered_tools: list[Union[BaseTool, FunctionTool, BaseToolset]] = []
         self._sub_agents: list[Agent] = []
-        self._skills = []
-        self._before_callback = None
+        self._skills: list[str] = []
+        self._before_callback: Optional[BeforeAgentCallback] = None
+        self._after_agent_callback: Optional[AfterAgentCallback] = None
+        self._before_model_callback: Optional[BeforeModelCallback] = None
+        self._after_model_callback: Optional[AfterModelCallback] = None
+        self._before_tool_callback: Optional[BeforeToolCallback] = None
+        self._after_tool_callback: Optional[AfterToolCallback] = None
+        self._on_model_error_callback: Optional[OnModelErrorCallback] = None
+        self._on_tool_error_callback: Optional[OnToolErrorCallback] = None
         self._output_key: Optional[str] = None
 
         # Initialize VertexAI natively
@@ -138,36 +158,151 @@ class AgentBuilder:
         self._output_key = key
         return self
 
-    def with_before_agent_callback(self, callback: Callable) -> Self:
+    def with_before_agent_callback(
+        self, callback: Optional[BeforeAgentCallback]
+    ) -> Self:
         """Sets the before_agent_callback for the agent.
+        Executed right before the agent begins its main execution loop. Use this to inject system prompts, dynamic UI elements, or verify session preconditions.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/base_agent.py#L152
 
         Args:
-            callback: Callable -> The callback function to run before agent execution.
+            callback: Optional[BeforeAgentCallback] -> The callback function to run before agent execution.
 
         Returns:
             Self -> The builder instance for fluent chaining.
         """
-        logger.info(f"Registering before_agent_callback: {callback.__name__}")
+        logger.info("Registering before_agent_callback")
         self._before_callback = callback
         return self
 
-    def build(self, enable_artifact_rendering: bool = True) -> Agent:
+    def with_after_agent_callback(self, callback: Optional[AfterAgentCallback]) -> Self:
+        """Sets the after_agent_callback for the agent.
+        Executed right after the agent's main execution loop completes. Use this to format final outputs, clean up state, or track completion metrics.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/base_agent.py#L166
+
+        Args:
+            callback: Optional[AfterAgentCallback] -> The callback function to run after agent execution.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info("Registering after_agent_callback")
+        self._after_agent_callback = callback
+        return self
+
+    def with_before_model_callback(
+        self, callback: Optional[BeforeModelCallback]
+    ) -> Self:
+        """Sets the before_model_callback for the agent.
+        Executed immediately before the LLM is called. Use this to inspect prompts, track token limits, or implement caching logic.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L406
+
+        Args:
+            callback: Optional[BeforeModelCallback] -> The callback function to run before the model is called.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info("Registering before_model_callback")
+        self._before_model_callback = callback
+        return self
+
+    def with_after_model_callback(self, callback: Optional[AfterModelCallback]) -> Self:
+        """Sets the after_model_callback for the agent.
+        Executed immediately after the LLM responds. Use this to log raw model outputs, parse structured data, or enforce safety filters.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L421
+
+        Args:
+            callback: Optional[AfterModelCallback] -> The callback function to run after the model is called.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info("Registering after_model_callback")
+        self._after_model_callback = callback
+        return self
+
+    def with_before_tool_callback(self, callback: Optional[BeforeToolCallback]) -> Self:
+        """Sets the before_tool_callback for the agent.
+        Executed right before a specific tool is invoked. Use this to validate inputs, log arguments, or enforce authorization checks.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L450
+
+        Args:
+            callback: Optional[BeforeToolCallback] -> The callback function to run before a tool is executed.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info("Registering before_tool_callback")
+        self._before_tool_callback = callback
+        return self
+
+    def with_after_tool_callback(self, callback: Optional[AfterToolCallback]) -> Self:
+        """Sets the after_tool_callback for the agent.
+        Executed right after a tool finishes execution. Use this to transform raw tool outputs or handle specific return states.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L465
+
+        Args:
+            callback: Optional[AfterToolCallback] -> The callback function to run after a tool is executed.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info("Registering after_tool_callback")
+        self._after_tool_callback = callback
+        return self
+
+    def with_on_model_error_callback(
+        self, callback: Optional[OnModelErrorCallback]
+    ) -> Self:
+        """Sets the on_model_error_callback for the agent.
+        Executed when the LLM throws an exception. Use this to implement custom retries, fallback models, or user-friendly error messages.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L435
+
+        Args:
+            callback: Optional[OnModelErrorCallback] -> The callback function to handle model execution errors.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info("Registering on_model_error_callback")
+        self._on_model_error_callback = callback
+        return self
+
+    def with_on_tool_error_callback(
+        self, callback: Optional[OnToolErrorCallback]
+    ) -> Self:
+        """Sets the on_tool_error_callback for the agent.
+        Executed when a tool throws an exception. Use this to swallow non-fatal errors, reformat stack traces, or trigger alternative tools.
+        If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
+        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L480
+
+        Args:
+            callback: Optional[OnToolErrorCallback] -> The callback function to handle tool execution errors.
+
+        Returns:
+            Self -> The builder instance for fluent chaining.
+        """
+        logger.info("Registering on_tool_error_callback")
+        self._on_tool_error_callback = callback
+        return self
+
+    def build(self) -> Agent:
         """Assembles and returns the fully configured ADK Agent from all registered tools and settings.
 
         Specialists using sub_agents= delegation run in the same invocation context,
         so their after_agent_callbacks and OAuth events propagate correctly to the user.
-        Set enable_artifact_rendering=False for all sub-agents — rendering must happen
-        only at the root agent level so that PENDING_URI_KEY is cleared in session scope,
-        not in a transient sub-agent callback context that may not flush back to the session.
-
-        Args:
-            enable_artifact_rendering: bool -> When True (default), registers
-                render_pending_artifacts as the after_agent_callback.
 
         Returns:
             Agent -> The executable agent instance.
         """
-        after_callback = render_pending_artifacts if enable_artifact_rendering else None
         return Agent(
             model=Gemini(
                 model_name=self.agent_config.MODEL_NAME,
@@ -209,7 +344,13 @@ class AgentBuilder:
             tools=self._consolidate_tools(),
             sub_agents=self._sub_agents,
             before_agent_callback=self._before_callback,
-            after_agent_callback=after_callback,
+            after_agent_callback=self._after_agent_callback,
+            before_model_callback=self._before_model_callback,
+            after_model_callback=self._after_model_callback,
+            before_tool_callback=self._before_tool_callback,
+            after_tool_callback=self._after_tool_callback,
+            on_model_error_callback=self._on_model_error_callback,
+            on_tool_error_callback=self._on_tool_error_callback,
             planner=BuiltInPlanner(
                 thinking_config=ThinkingConfig(
                     thinking_budget=self.agent_config.THINKING_BUDGET,
@@ -218,13 +359,19 @@ class AgentBuilder:
             ),
         )
 
-    def _consolidate_tools(self) -> list:
+    def _consolidate_tools(self) -> list[Union[BaseTool, BaseToolset]]:
         """Combines registered tools and skills into a single list for the agent.
 
         Returns:
-            list -> The total tools including MCP, Native, and a single consolidated SkillToolset.
+            list[Union[BaseTool, BaseToolset]] -> The total tools including MCP, Native, and a single consolidated SkillToolset.
         """
-        total_tools = list(self._registered_tools)
+
+        total_tools = []
+        for tool in self._registered_tools:
+            if isinstance(tool, BaseTool):
+                total_tools.append(FileIngestionToolWrapper(tool))
+            elif isinstance(tool, BaseToolset):
+                total_tools.append(FileIngestionToolsetWrapper(tool))
 
         if self._skills:
             # Wrap all skills in one toolset to satisfy Gemini's unique function declaration rules
