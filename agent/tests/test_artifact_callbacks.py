@@ -54,6 +54,7 @@ async def test_inject_local_artifacts_returns_content_for_single_queued_artifact
     assert result.parts[0] is expected_part
     assert state[PENDING_UI_ARTIFACTS_QUEUE] == []
 
+
 @pytest.mark.asyncio
 async def test_inject_local_artifacts_returns_none_when_all_queues_empty():
     """Should return None immediately when no content is queued in any state key."""
@@ -65,4 +66,3 @@ async def test_inject_local_artifacts_returns_none_when_all_queues_empty():
 
     assert result is None
     ctx.load_artifact.assert_not_called()
-
