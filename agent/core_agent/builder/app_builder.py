@@ -9,7 +9,7 @@ from vertexai.agent_engines import AdkApp
 
 from ..config import BaseAgentConfig, GCPConfig
 from ..plugins.ingestion.plugin import GeminiEnterpriseFileIngestionPlugin
-from ..artifact_management.service import StorageService
+from ..artifact_service.gcs_service import StorageService
 
 
 class AppBuilder:
