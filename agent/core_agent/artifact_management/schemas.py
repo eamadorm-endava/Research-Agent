@@ -1,8 +1,6 @@
 from typing import Annotated, Optional
 from pydantic import BaseModel, Field
 
-PENDING_UI_ARTIFACTS_QUEUE = "pending_ui_artifacts_queue"
-
 
 class GetArtifactUriRequest(BaseModel):
     """
