@@ -39,8 +39,8 @@ core_agent/
 │
 ├── callbacks/           # Lifecycle Hooks: Post-turn renderers and interceptors
 │   ├── __init__.py      
-│   ├── artifact_rendering.py    # after_agent_callback: renders queued artifacts
-│   └── ingestion_status.py     # before_agent_callback: polls EKB jobs, injects updates
+│   ├── file_ingestion.py        # Intercepts MCP Server data and dynamically loads it into the session
+│   └── ingestion_status.py      # before_agent_callback: polls EKB jobs, injects updates
 │
 ├── plugins/             # Integrated Behaviors: Message interceptors
 │   ├── __init__.py      
@@ -63,7 +63,7 @@ The package is organized into dedicated domains, each with a single responsibili
 
 - **`tools/`** — Standalone capabilities. Explicitly registered with the agent to provide specific functionality (e.g., GCS URI retrieval).
 
-- **`callbacks/`** — Lifecycle hooks. Contains post-turn renderers that resolve and render artifacts for the Gemini Enterprise UI.
+- **`callbacks/`** — Lifecycle hooks and interceptors. Contains tools and callbacks like `file_ingestion` to dynamically inject generated files into the session.
 
 - **`plugins/`** — Integrated behaviors. Contains message interceptors like the `GeminiEnterpriseFileIngestionPlugin` that manage user-uploaded artifacts before the agent processes the message.
 
@@ -124,7 +124,7 @@ sequenceDiagram
 
 1. **Research Specialist** — Built first. Receives `ResearchAgentConfig`, loads two skills (`meeting-summary`, `knowledge-discovery`), mounts all four MCP servers (BigQuery, Drive, Calendar, GCS), and registers native tools including `GetCurrentTimeTool` for time-anchored calendar queries. Its final text response is persisted to session state under `"research_context"` via `output_key`.
 
-2. **Ingestion Specialist** — Built second. Receives `IngestionAgentConfig`, loads the `kb-file-ingestion` skill, mounts BigQuery and GCS MCP servers, and registers the EKB pipeline tools (`TriggerEKBPipelineTool`, `CheckIngestionStatusTool`). The `build(enable_artifact_rendering=True)` call registers `render_pending_artifacts` as its `after_agent_callback`.
+2. **Ingestion Specialist** — Built second. Receives `IngestionAgentConfig`, loads the `kb-file-ingestion` skill, mounts BigQuery and GCS MCP servers, and registers the EKB pipeline tools (`TriggerEKBPipelineTool`, `CheckIngestionStatusTool`).
 
 3. **Coordinator** — Built last from `CoordinatorConfig`. Receives the two already-constructed specialists as `sub_agents` for LLM-transfer delegation. The `sync_ingestion_status` function is registered as a `before_agent_callback`, so it polls pending EKB jobs and injects status updates into session history before every turn.
 
@@ -153,35 +153,11 @@ sequenceDiagram
 
 ## Gemini Enterprise Artifact Lifecycle
 
-As documented in **[ADK Python Issue #4273](https://github.com/google/adk-python/issues/4273)**, Gemini Enterprise requires explicit manual handling for both file ingestion (from user uploads) and visual rendering (for tool outputs).
+As documented in the Architecture guides, Gemini Enterprise requires explicit manual handling for file ingestion to prevent out-of-memory errors. The system uses a strict MVC triad:
 
-The following diagram illustrates how the Research-Agent orchestrates this lifecycle:
-
-```mermaid
-graph TD
-    subgraph "1. Ingestion Phase (Plugin)"
-    A[User Uploads File] --> B{GE Ingestion Plugin}
-    B -->|Save| C[(GCS Artifact Store)]
-    B -->|Replace| D[GCS URI Reference]
-    end
-
-    subgraph "2. Execution Phase (Tools)"
-    D --> E[Agent reasoning]
-    E --> F[Tool Import/Export]
-    F -->|Save| C
-    F -->|Stash| G[Session State Queue]
-    end
-
-    subgraph "3. Rendering Phase (Callback)"
-    G --> H{Post-Turn Callback}
-    C -->|Load| H
-    H -->|Inline Part| I[Gemini UI Rendering]
-    end
-```
-
-1.  **Ingestion**: User uploads arrive as inline binary data. The `GeminiEnterpriseFileIngestionPlugin` persists them to GCS and replaces them with a `file_data` reference to save tokens and avoid redundant storage.
-2.  **Execution**: Tools perform their logic and save results to GCS. Because tools must return simple types (`str`/`dict`), they "stash" the filename in the session state.
-3.  **Rendering**: The `render_pending_artifacts` callback (registered as an `after_agent_callback`) loads the stashed artifacts from GCS and returns them as inline `types.Part` objects, which is the only format Gemini Enterprise can render visually.
+1. **The Database (`StorageService`)**: Handles all GCS interactions and identity-aware IAM.
+2. **The User Hook (`GeminiEnterpriseFileIngestionPlugin`)**: Intercepts huge binary payloads sent from the UI, saves them to GCS via `StorageService`, and rewrites the payload into a lightweight `file_data` zero-copy URI.
+3. **The Tool Hook (`FileIngestionToolWrapper`)**: Dynamically catches backend MCP servers generating files mid-turn and injects the zero-copy URI directly into the conversation history.
 
 ## Integrated Tools
 

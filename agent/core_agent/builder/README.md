@@ -47,7 +47,7 @@ root_agent = (
 | `with_subagents(agents)` | Registers specialist agents for LLM-transfer delegation via `sub_agents=` |
 | `with_output_key(key)` | Persists the agent's final text response to session state under the given key |
 | `with_before_agent_callback(fn)` | Sets the `before_agent_callback` executed before each agent turn |
-| `build(enable_artifact_rendering)` | Assembles and returns the `Agent`; when `True` (default), registers `render_pending_artifacts` as `after_agent_callback` |
+| `build()` | Assembles and returns the `Agent` |
 
 ---
 

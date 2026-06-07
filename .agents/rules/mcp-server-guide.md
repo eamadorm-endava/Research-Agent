@@ -1,6 +1,5 @@
 ---
 trigger: always_on
-glob: "**/mcp_servers/**/*"
 description: "Guidelines and best practices for developing and structuring custom MCP Servers."
 ---
 
@@ -60,3 +59,13 @@ mcp_servers/<server_name>/
 - Do not put complex API logic directly inside the tool functions in `mcp_server.py`.
 - Encapsulate external API calls within dedicated client classes (e.g., `EventsClient`, `GCSClient`).
 - If an MCP server connects to multiple distinct sub-APIs (like Calendar and Meet), use a **Unified Wrapper** pattern (e.g., `connector.py` acting as an orchestrator) that delegates to specialized sub-clients.
+
+### 4. External Data Ingestion (Landing Zone)
+- Whenever an MCP Server needs to read or process files from external data sources (e.g., Google Drive, Confluence), it **MUST NOT** return the raw file content directly to the agent.
+- Instead, the server must first upload/move the file into the central GCS Landing Zone bucket (`LANDING_ZONE_BUCKET`).
+- The file must be stored using the exact folder naming convention required by the ADK Artifact system:
+  `gs://{LANDING_ZONE_BUCKET}/<app_name>/<user_id>/<session_id>/<data_source>-<ingestion-timestamp-in-UTC>-<filename>.<extension>`
+  *(Example: `gs://my-bucket/core_agent/user-email@domain.com/123434/google-drive-20231025T103000Z-session-recording.pdf`)*
+- The `app_name`, `user_id` and `session_id` must be provided to the tool via Dependency Injection (from the agent's tool context or headers), rather than expecting the LLM to provide them as arguments.
+- **Lifecycle Management**: The files ingested into the Landing Zone must have a lifecycle parameter or be placed in a bucket with Object Lifecycle Management (OLM) rules applied. By default, these ephemeral files must exist in the bucket for **only 7 days**, after which they must be automatically deleted to prevent storage bloat.
+- After uploading the file, the tool must return the GCS URI and the flag `_inject_file_data: true` in its response dictionary so the `FileIngestionToolWrapper` can intercept it and load the file natively into the agent's context.

@@ -89,7 +89,7 @@ sequenceDiagram
 ```
 
 > [!IMPORTANT]
-> The `sub_agents=` pattern preserves the **same invocation context**: coordinator and specialists share session state, credentials, and event channels. This is the key distinction from the `AgentTool` pattern. See [AgentTool-vs-SubAgents.md](AgentTool-vs-SubAgents.md) for a full technical comparison.
+> The `sub_agents=` pattern preserves the **same invocation context**: coordinator and specialists share session state, credentials, and event channels. This is the key distinction from the `AgentTool` pattern. See [10-AgentTool-vs-SubAgents.md](10-AgentTool-vs-SubAgents.md) for a full technical comparison.
 
 ---
 
@@ -101,9 +101,9 @@ The initial implementation of this branch used `AgentTool` (explicit tool invoca
 | :--- | :--- |
 | **OAuth challenges silently dropped** | `AgentTool` runs the specialist in a new `InMemorySessionService`. OAuth `requested_auth_configs` events emitted inside the isolated session cannot escape to the user's session. |
 | **`file_data` content stripped** | `AgentTool.run_async` extracts only `.text` parts from the specialist's final response. `file_data` parts (rendered artifacts) are discarded. |
-| **`after_agent_callback` ineffective** | `render_pending_artifacts` fires inside the isolated session, but its `file_data` output is dropped before the coordinator sees it. State keys are cleared, so the coordinator's own callback also finds nothing. |
+| **`after_agent_callback` ineffective** | Callbacks fire inside the isolated session, but state keys are cleared, so the coordinator's own callback also finds nothing. |
 
-Reverting to `sub_agents=` resolves all three because specialists share the parent session's event channel and storage context. See [AgentTool-vs-SubAgents.md](AgentTool-vs-SubAgents.md) for the internal mechanics.
+Reverting to `sub_agents=` resolves all three because specialists share the parent session's event channel and storage context. See [10-AgentTool-vs-SubAgents.md](10-AgentTool-vs-SubAgents.md) for the internal mechanics.
 
 ---
 
@@ -157,23 +157,19 @@ sequenceDiagram
     participant MCP as Drive MCP
     participant GE as Gemini Enterprise
 
-    rect rgb(235, 245, 235)
-        Note over User, GE: Production — token injected by Gemini Enterprise
-        GE->>Coord: Call with session.state[auth_id] = token
-        Coord->>Research: LLM-Transfer (state shared)
-        Research->>MCP: list_files() — header_provider reads state[auth_id]
-        MCP-->>Research: Files
-        Research-->>User: Results
-    end
+    Note over User, GE: Production — token injected by Gemini Enterprise
+    GE->>Coord: Call with session.state[auth_id] = token
+    Coord->>Research: LLM-Transfer (state shared)
+    Research->>MCP: list_files() — header_provider reads state[auth_id]
+    MCP-->>Research: Files
+    Research-->>User: Results
 
-    rect rgb(245, 235, 235)
-        Note over User, GE: Local dev — token not yet in state
-        Coord->>Research: LLM-Transfer
-        Research->>MCP: list_files() — no token
-        MCP-->>Research: 401 Unauthorized
-        Research-->>Coord: auth_required event propagates
-        Coord-->>User: OAuth consent URL shown to user
-    end
+    Note over User, GE: Local dev — token not yet in state
+    Coord->>Research: LLM-Transfer
+    Research->>MCP: list_files() — no token
+    MCP-->>Research: 401 Unauthorized
+    Research-->>Coord: auth_required event propagates
+    Coord-->>User: OAuth consent URL shown to user
 ```
 
 - **Production**: Gemini Enterprise injects the OAuth token into `session.state[auth_id]`. Because state is shared, `get_ge_oauth_token(ctx, auth_id)` in the MCP `header_provider` reads the token directly from the specialist's context.
@@ -181,26 +177,7 @@ sequenceDiagram
 
 ---
 
-## 7. Artifact Rendering in the Multi-Agent Context
 
-`render_pending_artifacts` must fire **only on the Coordinator (root agent)**. Sub-agents must always be built with `enable_artifact_rendering=False`.
-
-| Agent | `enable_artifact_rendering` | Rationale |
-| :--- | :---: | :--- |
-| Research Specialist | `False` | Sub-agents must not render. See note below. |
-| Ingestion Specialist | `False` | Sub-agents must not render. Produces text-only status responses anyway. |
-| Coordinator | `True` (default) | Root agent — the sole owner of the render lifecycle. |
-
-> [!IMPORTANT]
-> Setting `enable_artifact_rendering=True` on a sub-agent causes stale URIs to leak across turns, resulting in follow-up questions returning no information. The ADK sub-agent callback context does not reliably flush its state delta back to the persistent session when the callback returns a non-`None` `Content`. Clearing `PENDING_URI_KEY` inside a sub-agent callback only affects that callback's transient scope — the session-level key remains populated. On the next turn the same stale URIs are rendered again, replacing the sub-agent's actual response with raw `file_data` parts.
->
-> The Coordinator's `after_agent_callback` runs at session scope; its state mutations always persist. Making the Coordinator the sole renderer guarantees `PENDING_URI_KEY` is cleared exactly once, at the right level.
-
-Sub-agents can still read documents through their own tools — `enable_artifact_rendering=False` only removes the callback. See [13-Artifact-Rendering-Callback-Scope.md](13-Artifact-Rendering-Callback-Scope.md) for a full explanation of the state-scope issue, the fix, and what document-reading capabilities remain available inside sub-agents.
-
-For a full description of the stash-and-render pattern, see [09-Architecture-and-Deduplication.md](09-Architecture-and-Deduplication.md).
-
----
 
 ## 8. The AgentBuilder Pattern
 
@@ -214,7 +191,7 @@ research_agent = (
     .with_mcp_servers([BIGQUERY_MCP_CONFIG, DRIVE_MCP_CONFIG, CALENDAR_MCP_CONFIG, GCS_MCP_CONFIG])
     .with_native_tools([GetArtifactUriTool(), ImportGcsToArtifactTool(), GetCurrentTimeTool(), load_artifacts])
     .with_output_key("research_context")
-    .build(enable_artifact_rendering=False)
+    .build()
 )
 
 # Ingestion Specialist — sub-agent: never renders artifacts
@@ -222,7 +199,7 @@ ingestion_agent = (
     AgentBuilder(agent_config=INGESTION_AGENT_CONFIG, gcp_config=GCP_CONFIG, auth_config=GOOGLE_AUTH_CONFIG)
     .with_skills(["kb-file-ingestion"])
     .with_native_tools([TriggerEKBPipelineTool(), CheckIngestionStatusTool(), load_artifacts])
-    .build(enable_artifact_rendering=False)
+    .build()
 )
 
 # Coordinator (Root Agent)
@@ -245,7 +222,7 @@ root_agent = (
 | `with_subagents(agents)` | Registers specialist agents via `sub_agents=` LLM-transfer delegation. |
 | `with_output_key(key)` | Persists the agent's final text to `session.state[key]` for cross-turn memory. |
 | `with_before_agent_callback(fn)` | Sets the `before_agent_callback` (e.g., `sync_ingestion_status`). |
-| `build(enable_artifact_rendering)` | Assembles the `Agent`. Always `False` for sub-agents; only the root Coordinator uses the default `True`. |
+| `build()` | Assembles the `Agent`. |
 
 ---
 

@@ -6,7 +6,7 @@ GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
 CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
 EKB_PIPELINE_URL?=https://ekb-pipeline-server-753988132239.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
-ARTIFACT_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
+LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 ### General Commands ###
 
 gcloud-auth:
@@ -51,7 +51,7 @@ test-agent:
 
 run-ui-agent:
 	cd agent && \
-	uv run --group ai-agent adk web --port 8000 --artifact_service_uri gs://$(ARTIFACT_BUCKET)
+	uv run --group ai-agent adk web --port 8000 --artifact_service_uri gs://$(LANDING_ZONE_BUCKET)
 
 deploy-agent:
 	uv export \
@@ -68,7 +68,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},ARTIFACT_BUCKET=${ARTIFACT_BUCKET}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
