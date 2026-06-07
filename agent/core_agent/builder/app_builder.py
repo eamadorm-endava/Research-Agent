@@ -73,20 +73,25 @@ class AppBuilder:
         )
 
         if self.gcp_config.PROD_EXECUTION:
-            if not self.gcp_config.ARTIFACT_BUCKET:
-                logger.error("ARTIFACT_BUCKET is required for production execution")
+            if (
+                not self.gcp_config.LANDING_ZONE_BUCKET
+                or "mock" in self.gcp_config.LANDING_ZONE_BUCKET
+            ):
+                logger.error(
+                    "A valid LANDING_ZONE_BUCKET is required for production execution"
+                )
                 raise ValueError(
-                    "ARTIFACT_BUCKET must be set when PROD_EXECUTION is True"
+                    "LANDING_ZONE_BUCKET must be set to a real bucket when PROD_EXECUTION is True"
                 )
 
             logger.info(
-                f"Building AdkApp (Production) for '{self.agent_config.AGENT_NAME}' "
-                f"in {self.gcp_config.REGION} with bucket: {self.gcp_config.ARTIFACT_BUCKET}"
+                f"Configuring GCS Artifact Service "
+                f"with bucket: {self.gcp_config.LANDING_ZONE_BUCKET}"
             )
             return AdkApp(
                 app=base_application,
                 artifact_service_builder=lambda: StorageService(
-                    bucket_name=self.gcp_config.ARTIFACT_BUCKET
+                    bucket_name=self.gcp_config.LANDING_ZONE_BUCKET
                 ),
             )
 

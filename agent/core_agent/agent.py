@@ -15,10 +15,10 @@ from .config import (
 
 from .tools.artifact_tools import (
     GetArtifactUriTool,
-    ImportGcsToArtifactTool,
 )
 from .tools.kb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
 from .tools.time_tools import GetCurrentTimeTool
+
 from .callbacks.ingestion_status import sync_ingestion_status
 from loguru import logger
 
@@ -43,13 +43,12 @@ research_agent = (
     .with_native_tools(
         [
             GetArtifactUriTool(),
-            ImportGcsToArtifactTool(),
             GetCurrentTimeTool(),
             load_artifacts,
         ]
     )
     .with_output_key("research_context")
-    .build(enable_artifact_rendering=False)
+    .build()
 )
 
 # ---------------------------------------------------------------------------
@@ -71,14 +70,13 @@ ingestion_agent = (
     .with_native_tools(
         [
             GetArtifactUriTool(),
-            ImportGcsToArtifactTool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
             load_artifacts,
         ]
     )
     .with_output_key("ekb_ingestion_context")
-    .build(enable_artifact_rendering=False)
+    .build()
 )
 
 # ---------------------------------------------------------------------------
@@ -91,7 +89,7 @@ root_agent = (
         auth_config=GOOGLE_AUTH_CONFIG,
     )
     .with_subagents([research_agent, ingestion_agent])
-    .with_before_agent_callback(sync_ingestion_status)
+    .with_before_agent_callback([sync_ingestion_status])
     .with_native_tools([GetArtifactUriTool(), load_artifacts])
     .build()
 )

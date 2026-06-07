@@ -49,11 +49,11 @@ class GCPConfig(BaseSettings):
             validation_alias=AliasChoices("PROD_EXECUTION", "IS_DEPLOYED"),
         ),
     ]
-    ARTIFACT_BUCKET: Annotated[
+    LANDING_ZONE_BUCKET: Annotated[
         str,
         Field(
             default="mock-project-id-ai-agent-landing-zone",
-            description="GCS Bucket where the user-uploaded artifacts will be stored. Format: '{project_id}-ai-agent-landing-zone'.",
+            description="GCS Bucket where the user-uploaded artifacts and external files will be stored. Format: '{project_id}-ai-agent-landing-zone'.",
         ),
     ]
 
