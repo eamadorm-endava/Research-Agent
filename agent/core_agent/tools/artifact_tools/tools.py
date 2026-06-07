@@ -11,8 +11,6 @@ from .schemas import (
 )
 
 
-
-
 class GetArtifactURITool(BaseTool):
     """Retrieves the canonical GCS URI for a file registered in the current session."""
 
