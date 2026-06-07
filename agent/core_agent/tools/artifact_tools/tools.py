@@ -5,16 +5,15 @@ from google.genai import types
 from loguru import logger
 from typing_extensions import override
 
-from ..artifact_management.schemas import (
-    GetArtifactUriRequest,
-    GetArtifactUriResponse,
+from .schemas import (
+    GetArtifactURIRequest,
+    GetArtifactURIResponse,
 )
 
-_MULTIMODAL_PREFIXES = ("image/", "audio/", "video/")
-_TEXT_LIKE_TYPES = ("application/json", "application/csv", "application/xml")
 
 
-class GetArtifactUriTool(BaseTool):
+
+class GetArtifactURITool(BaseTool):
     """Retrieves the canonical GCS URI for a file registered in the current session."""
 
     def __init__(self) -> None:
@@ -62,28 +61,28 @@ class GetArtifactUriTool(BaseTool):
             tool_context: ToolContext -> ADK context for artifact access.
 
         Returns:
-            dict -> Serialised GetArtifactUriResponse.
+            dict -> Serialised GetArtifactURIResponse.
         """
         try:
-            request = GetArtifactUriRequest(**args)
+            request = GetArtifactURIRequest(**args)
             logger.info(f"Retrieving GCS URI for artifact: {request.filename}")
             artifact_version = await tool_context.get_artifact_version(
                 filename=request.filename, version=request.version
             )
             if not artifact_version:
-                return GetArtifactUriResponse(
+                return GetArtifactURIResponse(
                     gcs_uri=None,
                     execution_status="error",
                     execution_message=f"Artifact '{request.filename}' not found in the current session.",
                 ).model_dump()
-            return GetArtifactUriResponse(
+            return GetArtifactURIResponse(
                 gcs_uri=artifact_version.canonical_uri,
                 execution_status="success",
                 execution_message=f"Successfully retrieved URI for {request.filename}.",
             ).model_dump()
         except Exception as e:
             logger.error(f"Error retrieving artifact URI: {e}")
-            return GetArtifactUriResponse(
+            return GetArtifactURIResponse(
                 gcs_uri=None,
                 execution_status="error",
                 execution_message=f"Internal error: {str(e)}",

@@ -13,9 +13,7 @@ from .config import (
     GOOGLE_AUTH_CONFIG,
 )
 
-from .tools.artifact_tools import (
-    GetArtifactUriTool,
-)
+from .tools.artifact_tools import GetArtifactURITool
 from .tools.kb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
 from .tools.time_tools import GetCurrentTimeTool
 
@@ -42,7 +40,7 @@ research_agent = (
     )
     .with_native_tools(
         [
-            GetArtifactUriTool(),
+            GetArtifactURITool(),
             GetCurrentTimeTool(),
             load_artifacts,
         ]
@@ -69,7 +67,7 @@ ingestion_agent = (
     )
     .with_native_tools(
         [
-            GetArtifactUriTool(),
+            GetArtifactURITool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
             load_artifacts,
@@ -90,7 +88,7 @@ root_agent = (
     )
     .with_subagents([research_agent, ingestion_agent])
     .with_before_agent_callback([sync_ingestion_status])
-    .with_native_tools([GetArtifactUriTool(), load_artifacts])
+    .with_native_tools([GetArtifactURITool(), load_artifacts])
     .build()
 )
 
