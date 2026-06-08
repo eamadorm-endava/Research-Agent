@@ -225,34 +225,38 @@ Cross-correlate all findings into a unified narrative before writing. Follow thi
 
 ---
 
-**## Key Points**
+## Key Points
 Bullet list of the most important facts, decisions, dates, and findings extracted from the sources.
 
 ---
 
-**## Stakeholders**
+## Stakeholders
 Bullet list of people involved: name, role or relationship to the topic, and contact email when available.
 
 ---
 
-**## Upcoming Meetings** *(omit this section entirely if no calendar search was run)*
+## Upcoming Meetings
+*(omit this section entirely if no calendar search was run)*
 List ONLY meetings after the current date related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
 If no relevant meetings are found: `No upcoming meetings found for this topic.`
 
 ---
 
-**## Previous Meetings** *(omit this section entirely if no calendar search was run)*
+## Previous Meetings
+*(omit this section entirely if no calendar search was run)*
 List past meetings related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
 If no relevant meetings are found: `No previous meetings found for this topic.`
 
 ---
 
-**## Extend Search?** *(ONLY when Final Escalation is reached)*
+## Extend Search?
+*(ONLY when Final Escalation is reached)*
 Include the escalation message verbatim from the **Final Escalation** section above.
 
 ---
 
-**## References** *(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
+## References
+*(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
 Include ONLY files, documents, and events from which data was explicitly extracted to produce this response. Never include broad discovery results or unused tool outputs.
 
 | Source | Project Name | Filename | Owner | Created at / Last Update |
