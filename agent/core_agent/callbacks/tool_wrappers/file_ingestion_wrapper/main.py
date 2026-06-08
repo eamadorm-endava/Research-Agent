@@ -1,4 +1,5 @@
 from typing import Any, Optional
+from google.adk.auth.auth_tool import AuthConfig
 from google.adk.tools import BaseTool, ToolContext
 from google.adk.tools.base_toolset import BaseToolset
 from google.genai import types
@@ -94,6 +95,15 @@ class FileIngestionToolWrapper(BaseTool):
             args=args, tool_context=tool_context
         )
 
+        if (
+            self.original_tool.name == "read_object"
+            and isinstance(result, dict)
+            and result.get("execution_status") == "success"
+        ):
+            result["_inject_file_data"] = True
+            metadata = result.get("metadata", {})
+            result["mime_type"] = metadata.get("mime_type", "application/pdf")
+
         if not isinstance(result, dict) or not result.get("_inject_file_data"):
             return result
 
@@ -122,20 +132,58 @@ class FileIngestionToolWrapper(BaseTool):
 class FileIngestionToolsetWrapper(BaseToolset):
     """Wraps an entire ADK BaseToolset to ensure all its underlying tools get intercepted."""
 
+    def __new__(cls, original_toolset: BaseToolset) -> Any:
+        """Creates a dynamic subclass of FileIngestionToolsetWrapper named after the original toolset class.
+
+        This guarantees that ADK's logging and debugging outputs print the original toolset's name (e.g. McpToolset)
+        instead of the generic wrapper class name.
+        """
+        original_class = original_toolset.__class__
+        class_name = original_class.__name__
+        dynamic_subclass = type(class_name, (cls,), {})
+        instance = super(FileIngestionToolsetWrapper, dynamic_subclass).__new__(
+            dynamic_subclass
+        )
+        return instance
+
     def __init__(self, original_toolset: BaseToolset) -> None:
         """Initializes the wrapper for the given toolset.
 
         Args:
             original_toolset: BaseToolset -> The toolset to be wrapped.
         """
+        super().__init__(
+            tool_filter=getattr(original_toolset, "tool_filter", None),
+            tool_name_prefix=getattr(original_toolset, "tool_name_prefix", None),
+        )
         self.original_toolset = original_toolset
 
-    def get_tools(self) -> list[BaseTool]:
+    async def get_tools(self, readonly_context: Optional[Any] = None) -> list[BaseTool]:
         """Retrieves and wraps all tools from the original toolset.
+
+        Args:
+            readonly_context: Optional context passed by the framework.
 
         Returns:
             list[BaseTool] -> A list of FileIngestionToolWrapper instances wrapping the original tools.
         """
-        return [
-            FileIngestionToolWrapper(tool) for tool in self.original_toolset.get_tools()
-        ]
+        original_tools = await self.original_toolset.get_tools(readonly_context)
+        return [FileIngestionToolWrapper(tool) for tool in original_tools]
+
+    def get_auth_config(self) -> Optional[AuthConfig]:
+        """Delegates auth config retrieval to the original toolset.
+
+        Returns:
+            Optional[AuthConfig] -> The auth config of the original toolset.
+        """
+        return self.original_toolset.get_auth_config()
+
+    async def close(self) -> None:
+        """Closes the original toolset."""
+        await self.original_toolset.close()
+
+    async def process_llm_request(self, *, tool_context: Any, llm_request: Any) -> None:
+        """Processes the outgoing LLM request using the original toolset."""
+        await self.original_toolset.process_llm_request(
+            tool_context=tool_context, llm_request=llm_request
+        )

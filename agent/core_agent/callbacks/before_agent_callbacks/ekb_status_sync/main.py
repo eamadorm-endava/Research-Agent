@@ -9,12 +9,11 @@ from loguru import logger
 from ....security import get_id_token
 from ....tools.ekb_tools.config import EKB_TOOLS_CONFIG
 
-# Global client to share connection pool across multiple requests
+# Global client limits (client is instantiated safely per-request)
 limits = httpx.Limits(
     max_keepalive_connections=EKB_TOOLS_CONFIG.MAX_KEEPALIVE_CONNECTIONS,
     max_connections=EKB_TOOLS_CONFIG.MAX_CONNECTIONS,
 )
-http_client = httpx.AsyncClient(limits=limits)
 
 
 async def _poll_job_status(job_id: str, headers: dict[str, str]) -> Optional[dict]:
@@ -31,7 +30,8 @@ async def _poll_job_status(job_id: str, headers: dict[str, str]) -> Optional[dic
     try:
         url = f"{EKB_TOOLS_CONFIG.EKB_PIPELINE_URL.strip('/')}/status/{job_id}"
         logger.debug(f"Checking status for job {job_id} at {url}")
-        response = await http_client.get(url, headers=headers, timeout=10.0)
+        async with httpx.AsyncClient(limits=limits) as client:
+            response = await client.get(url, headers=headers, timeout=10.0)
 
         if response.status_code == 200:
             data = response.json()

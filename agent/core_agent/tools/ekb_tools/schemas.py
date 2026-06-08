@@ -42,7 +42,7 @@ class SingleTriggerResponse(BaseToolResponse):
     Result of triggering the pipeline for a single file.
     """
 
-    gcs_uri: GcsUri
+    gcs_uri: Optional[GcsUri]
     job_id: JobId
     job_status: Annotated[
         Optional[str],

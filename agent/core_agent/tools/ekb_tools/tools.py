@@ -6,7 +6,7 @@ from google.genai import types
 from loguru import logger
 from typing_extensions import override
 
-from ..security import get_id_token
+from ...security import get_id_token
 from .schemas import (
     TriggerEKBPipelineBatchRequest,
     TriggerBatchEKBPipelineResponse,
@@ -259,7 +259,8 @@ class TriggerEKBPipelineTool(BaseTool):
                     failed_jobs=1,
                     job_responses=[
                         SingleTriggerResponse(
-                            gcs_uri="N/A",
+                            gcs_uri=None,
+                            job_id=None,
                             execution_status="error",
                             execution_message=error_msg,
                         )
@@ -268,7 +269,14 @@ class TriggerEKBPipelineTool(BaseTool):
 
             errors = [
                 SingleTriggerResponse(
-                    gcs_uri=uri if isinstance(uri, str) else "N/A",
+                    gcs_uri=uri
+                    if (
+                        isinstance(uri, str)
+                        and uri.startswith("gs://")
+                        and "/" in uri[5:]
+                    )
+                    else None,
+                    job_id=None,
                     execution_status="error",
                     execution_message=error_msg,
                 )
