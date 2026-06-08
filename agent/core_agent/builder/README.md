@@ -27,7 +27,7 @@ root_agent = (
     )
     .with_subagents([research_agent, ingestion_agent])
     .with_before_agent_callback(sync_ingestion_status)
-    .with_native_tools([GetArtifactUriTool(), load_artifacts])
+    .with_native_tools([GetArtifactURITool(), load_artifacts])
     .build()
 )
 ```

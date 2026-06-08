@@ -25,26 +25,26 @@ core_agent/
 │   ├── mcp_factory.py       # MCPToolsetBuilder (auth + connection setup)
 │   └── skills_factory.py    # get_skill (ADK Skill loader)
 │
-├── artifact_management/ # Infrastructure: GCS persistence and IAM security
+├── artifact_service/ # Infrastructure: GCS persistence and IAM security
 │   ├── __init__.py      
 │   ├── schemas.py       # Shared Request/Response models and state keys
 │   └── service.py       # StorageService (Reference-based GCS storage)
 │
 ├── tools/               # Agent Capabilities: Standalone tool definitions
 │   ├── __init__.py      
-│   ├── artifact_tools.py    # GetArtifactUriTool, ImportGcsToArtifactTool
+│   ├── artifact_tools.py    # GetArtifactURITool, ImportGcsToArtifactTool
 │   ├── kb_schemas.py        # Pydantic schemas for EKB pipeline tools
-│   ├── kb_tools.py          # TriggerEKBPipelineTool, CheckIngestionStatusTool
+│   ├── ekb_tools/tools.py          # TriggerEKBPipelineTool, CheckIngestionStatusTool
 │   └── time_tools.py        # GetCurrentTimeTool (Central Time)
 │
 ├── callbacks/           # Lifecycle Hooks: Post-turn renderers and interceptors
 │   ├── __init__.py      
-│   ├── file_ingestion.py        # Intercepts MCP Server data and dynamically loads it into the session
-│   └── ingestion_status.py      # before_agent_callback: polls EKB jobs, injects updates
+│   ├── tool_wrappers/file_ingestion_wrapper/main.py        # Intercepts MCP Server data and dynamically loads it into the session
+│   └── before_agent_callbacks/sync_ekb_job_status/main.py      # before_agent_callback: polls EKB jobs, injects updates
 │
 ├── plugins/             # Integrated Behaviors: Message interceptors
 │   ├── __init__.py      
-│   └── ingestion/       # Gemini Enterprise file ingestion orchestrator
+│   └── gemini_enterprise_ingestion/       # Gemini Enterprise file ingestion orchestrator
 │
 └── security/            # Authentication utilities
     ├── __init__.py      # Re-exports get_id_token, get_ge_oauth_token
@@ -57,7 +57,7 @@ The package is organized into dedicated domains, each with a single responsibili
 
 - **`config/`** — Centralized configuration management. Contains Pydantic `BaseSettings` classes that validate environment variables at import time: `GCPConfig` (project/region/bucket), `BaseAgentConfig` (model, generation, retry settings), and three per-agent subclasses — `CoordinatorConfig`, `ResearchAgentConfig`, and `IngestionAgentConfig` — each carrying the agent's name, description, and system prompt. Exposes both the **classes** (for type hints and testing) and **singleton instances** (for runtime usage), so consumers never need to call `os.getenv()` directly.
 
-- **`artifact_management/`** — The infrastructure layer. Contains the `StorageService`, which handles low-level GCS operations, MIME type resolution, and identity-aware IAM binding conditions. It is optimized for Gemini Enterprise by using `file_data` URI references instead of binary payloads.
+- **`artifact_service/`** — The infrastructure layer. Contains the `StorageService`, which handles low-level GCS operations, MIME type resolution, and identity-aware IAM binding conditions. It is optimized for Gemini Enterprise by using `file_data` URI references instead of binary payloads.
 
 - **`builder/`** — Construction logic. Separates the _what to build_ from the _how to build it_ using the Builder pattern. The `AgentBuilder` orchestrates the core agent assembly, while the `AppBuilder` handles the final application wrapper (`AdkApp` for production or `App` for local), ensuring consistent plugin and storage configuration.
 
@@ -111,7 +111,7 @@ sequenceDiagram
     Note over ap,ab: ── 3. Coordinator (root_agent) ──
     ap->>cb: CoordinatorConfig, GCPConfig, GoogleAuthConfig
     ap->>cb: .with_subagents([research_agent, ingestion_agent])
-    ap->>cb: .with_before_agent_callback(sync_ingestion_status)
+    ap->>cb: .with_before_agent_callback(sync_ekb_job_status)
     ap->>cb: .with_native_tools([GetArtifactUri, load_artifacts])
     cb-->>ap: root_agent
 
@@ -126,7 +126,7 @@ sequenceDiagram
 
 2. **Ingestion Specialist** — Built second. Receives `IngestionAgentConfig`, loads the `kb-file-ingestion` skill, mounts BigQuery and GCS MCP servers, and registers the EKB pipeline tools (`TriggerEKBPipelineTool`, `CheckIngestionStatusTool`).
 
-3. **Coordinator** — Built last from `CoordinatorConfig`. Receives the two already-constructed specialists as `sub_agents` for LLM-transfer delegation. The `sync_ingestion_status` function is registered as a `before_agent_callback`, so it polls pending EKB jobs and injects status updates into session history before every turn.
+3. **Coordinator** — Built last from `CoordinatorConfig`. Receives the two already-constructed specialists as `sub_agents` for LLM-transfer delegation. The `sync_ekb_job_status` function is registered as a `before_agent_callback`, so it polls pending EKB jobs and injects status updates into session history before every turn.
 
 4. **Application wrapping** — `AppBuilder.build()` wraps `root_agent` in an `AdkApp` (production) or `App` (local), pre-configured with the `GeminiEnterpriseFileIngestionPlugin` and `StorageService` artifact backend.
 

@@ -189,7 +189,7 @@ research_agent = (
     AgentBuilder(agent_config=RESEARCH_AGENT_CONFIG, gcp_config=GCP_CONFIG, auth_config=GOOGLE_AUTH_CONFIG)
     .with_skills(["meeting-summary", "knowledge-discovery"])
     .with_mcp_servers([BIGQUERY_MCP_CONFIG, DRIVE_MCP_CONFIG, CALENDAR_MCP_CONFIG, GCS_MCP_CONFIG])
-    .with_native_tools([GetArtifactUriTool(), ImportGcsToArtifactTool(), GetCurrentTimeTool(), load_artifacts])
+    .with_native_tools([GetArtifactURITool(), ImportGcsToArtifactTool(), GetCurrentTimeTool(), load_artifacts])
     .with_output_key("research_context")
     .build()
 )
@@ -206,8 +206,8 @@ ingestion_agent = (
 root_agent = (
     AgentBuilder(agent_config=COORDINATOR_CONFIG, gcp_config=GCP_CONFIG, auth_config=GOOGLE_AUTH_CONFIG)
     .with_subagents([research_agent, ingestion_agent])
-    .with_before_agent_callback(sync_ingestion_status)
-    .with_native_tools([GetArtifactUriTool(), load_artifacts])
+    .with_before_agent_callback(sync_ekb_job_status)
+    .with_native_tools([GetArtifactURITool(), load_artifacts])
     .build()
 )
 ```
@@ -221,7 +221,7 @@ root_agent = (
 | `with_native_tools(tools)` | Registers `BaseTool` instances or plain callables (auto-wrapped in `FunctionTool`). |
 | `with_subagents(agents)` | Registers specialist agents via `sub_agents=` LLM-transfer delegation. |
 | `with_output_key(key)` | Persists the agent's final text to `session.state[key]` for cross-turn memory. |
-| `with_before_agent_callback(fn)` | Sets the `before_agent_callback` (e.g., `sync_ingestion_status`). |
+| `with_before_agent_callback(fn)` | Sets the `before_agent_callback` (e.g., `sync_ekb_job_status`). |
 | `build()` | Assembles the `Agent`. |
 
 ---

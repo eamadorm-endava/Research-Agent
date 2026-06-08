@@ -44,7 +44,7 @@ graph TD
 ---
 
 ## 1. Storage Service (`StorageService`)
-**Location**: `agent/core_agent/artifact_management/service.py`
+**Location**: `agent/core_agent/artifact_service/service.py`
 
 The `StorageService` is the foundational Data Access Layer. It extends the base ADK `GcsArtifactService` to implement enterprise-specific features. It has no awareness of the "Agent" or the "Chat History".
 
@@ -56,7 +56,7 @@ The `StorageService` is the foundational Data Access Layer. It extends the base 
 ---
 
 ## 2. The User Hook: Ingestion Plugin
-**Location**: `agent/core_agent/plugins/ingestion/plugin.py`
+**Location**: `agent/core_agent/plugins/gemini_enterprise_ingestion/main.py`
 
 ### `GeminiEnterpriseFileIngestionPlugin`
 - **When it fires**: On the `on_user_message_callback` (Before the agent sees the message).
@@ -70,7 +70,7 @@ The `StorageService` is the foundational Data Access Layer. It extends the base 
 ---
 
 ## 3. The Tool Hook: External Data Wrapper
-**Location**: `agent/core_agent/callbacks/file_ingestion.py`
+**Location**: `agent/core_agent/callbacks/tool_wrappers/file_ingestion_wrapper/main.py`
 
 ### `FileIngestionToolWrapper`
 - **When it fires**: Mid-turn, right after a Tool or MCP Server finishes executing.
