@@ -95,15 +95,6 @@ class FileIngestionToolWrapper(BaseTool):
             args=args, tool_context=tool_context
         )
 
-        if (
-            self.original_tool.name == "read_object"
-            and isinstance(result, dict)
-            and result.get("execution_status") == "success"
-        ):
-            result["_inject_file_data"] = True
-            metadata = result.get("metadata", {})
-            result["mime_type"] = metadata.get("mime_type", "application/pdf")
-
         if not isinstance(result, dict) or not result.get("_inject_file_data"):
             return result
 
