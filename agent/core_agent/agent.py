@@ -14,7 +14,7 @@ from .config import (
 )
 
 from .tools.artifact_tools import GetArtifactURITool
-from .tools.kb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
+from .tools.ekb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
 from .tools.time_tools import GetCurrentTimeTool
 
 from .callbacks.ingestion_status import sync_ingestion_status
