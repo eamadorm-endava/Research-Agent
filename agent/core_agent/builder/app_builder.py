@@ -3,12 +3,10 @@ from typing import Self, Union
 from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
 from google.adk.plugins.base_plugin import BasePlugin
-from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from loguru import logger
 from vertexai.agent_engines import AdkApp
 
 from ..config import BaseAgentConfig, GCPConfig
-from ..plugins.ingestion.plugin import GeminiEnterpriseFileIngestionPlugin
 from ..artifact_service.gcs_service import StorageService
 
 
@@ -31,13 +29,7 @@ class AppBuilder:
         self.agent = agent
         self.gcp_config = gcp_config
         self.agent_config = agent_config
-        # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
-        # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
-        self._registered_plugins = (
-            [GeminiEnterpriseFileIngestionPlugin()]
-            if gcp_config.PROD_EXECUTION
-            else [SaveFilesAsArtifactsPlugin()]
-        )
+        self._registered_plugins = []
         logger.debug(
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
         )

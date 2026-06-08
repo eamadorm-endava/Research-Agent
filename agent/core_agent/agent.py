@@ -18,6 +18,8 @@ from .tools.ekb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
 from .tools.time_tools import GetCurrentTimeTool
 from .callbacks.before_agent_callbacks import sync_ekb_job_status
 from loguru import logger
+from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
+from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 
 # ---------------------------------------------------------------------------
 # 1. Research & Meetings Specialist
@@ -93,10 +95,20 @@ root_agent = (
     .build()
 )
 
-app = AppBuilder(
-    agent=root_agent,
-    gcp_config=GCP_CONFIG,
-    agent_config=COORDINATOR_CONFIG,
-).build()
+app = (
+    AppBuilder(
+        agent=root_agent,
+        gcp_config=GCP_CONFIG,
+        agent_config=COORDINATOR_CONFIG,
+    )
+    .with_plugins(
+        # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
+        # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
+        [GeminiEnterpriseFileIngestionPlugin()]
+        if GCP_CONFIG.PROD_EXECUTION
+        else [SaveFilesAsArtifactsPlugin()]
+    )
+    .build()
+)
 
 logger.info("ADK Multi-Agent application initialized and ready for execution.")
