@@ -27,7 +27,7 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import BaseAgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
-from ..callbacks.file_ingestion import (
+from ..callbacks.tool_wrappers import (
     FileIngestionToolWrapper,
     FileIngestionToolsetWrapper,
 )

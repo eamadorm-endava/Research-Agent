@@ -44,6 +44,40 @@ class FileIngestionToolWrapper(BaseTool):
         """
         return self.original_tool._get_declaration()
 
+    def _inject_file_into_session(
+        self, gcs_uri: str, mime_type: str, tool_context: ToolContext
+    ) -> None:
+        """Injects a file directly into the session's event history.
+
+        Args:
+            gcs_uri: str -> The GCS URI of the file.
+            mime_type: str -> The MIME type of the file.
+            tool_context: ToolContext -> The active tool context.
+
+        Returns:
+            None -> Modifies the session history in place.
+        """
+        logger.info(f"Auto-injecting GCS URI into LLM context mid-turn: {gcs_uri}")
+        part = types.Part(
+            file_data=types.FileData(file_uri=gcs_uri, mime_type=mime_type)
+        )
+        injection_event = Event(
+            author="user",
+            content=types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        text=f"System Notification: The requested file ({gcs_uri}) has been automatically injected into the context."
+                    ),
+                    part,
+                ],
+            ),
+        )
+
+        session = tool_context._invocation_context.session
+        session.events.append(injection_event)
+        logger.debug(f"Successfully appended injection event for {gcs_uri}")
+
     async def run_async(
         self, *, args: dict[str, Any], tool_context: ToolContext
     ) -> dict[str, Any]:
@@ -60,47 +94,27 @@ class FileIngestionToolWrapper(BaseTool):
             args=args, tool_context=tool_context
         )
 
-        if isinstance(result, dict) and result.get("_inject_file_data"):
-            gcs_uri = result.get("gcs_uri")
-            mime_type = result.get("mime_type", "application/octet-stream")
+        if not isinstance(result, dict) or not result.get("_inject_file_data"):
+            return result
 
-            if gcs_uri:
-                logger.info(
-                    f"Auto-injecting GCS URI into LLM context mid-turn: {gcs_uri}"
-                )
+        gcs_uri = result.get("gcs_uri")
+        if not gcs_uri:
+            return result
 
-                try:
-                    part = types.Part(
-                        file_data=types.FileData(file_uri=gcs_uri, mime_type=mime_type)
-                    )
-                    injection_event = Event(
-                        author="user",
-                        content=types.Content(
-                            role="user",
-                            parts=[
-                                types.Part(
-                                    text=f"System Notification: The requested file ({gcs_uri}) has been automatically injected into the context."
-                                ),
-                                part,
-                            ],
-                        ),
-                    )
+        mime_type = result.get("mime_type", "application/octet-stream")
 
-                    session = tool_context._invocation_context.session
-                    session.events.append(injection_event)
-                    logger.debug(f"Successfully appended injection event for {gcs_uri}")
+        try:
+            self._inject_file_into_session(gcs_uri, mime_type, tool_context)
 
-                    result["execution_message"] = (
-                        f"{result.get('execution_message', 'Success.')} "
-                        f"The file has been injected into the conversation context as a system message. "
-                        f"You may now proceed to analyze it."
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to auto-inject {gcs_uri}: {e}")
-                    result["execution_status"] = "error"
-                    result["execution_message"] = (
-                        f"Failed to inject file {gcs_uri}: {e}"
-                    )
+            result["execution_message"] = (
+                f"{result.get('execution_message', 'Success.')} "
+                f"The file has been injected into the conversation context as a system message. "
+                f"You may now proceed to analyze it."
+            )
+        except Exception as e:
+            logger.error(f"Failed to auto-inject {gcs_uri}: {e}")
+            result["execution_status"] = "error"
+            result["execution_message"] = f"Failed to inject file {gcs_uri}: {e}"
 
         return result
 
