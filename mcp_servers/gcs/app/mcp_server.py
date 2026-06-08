@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import re
 from typing import Optional
 
@@ -169,14 +170,15 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
         UploadObjectResponse -> The resulting destination URI and status.
     """
     logger.info(
-        f"Tool call: upload_object(source={request.source_gcs_uri}, "
+        f"Tool call: upload_object(source_bucket={request.source_bucket_name}, "
+        f"source_object={request.source_object_name}, "
         f"dest_bucket={request.destination_bucket}, filename={request.filename})"
     )
     try:
         # 1. Determine Authentication Strategy
         # Logic: Use SA ONLY for internal landing-zone to KB pipeline.
         use_sa = (
-            request.source_bucket.lower()
+            request.source_bucket_name.lower()
             == GCS_SERVER_CONFIG.landing_zone_bucket.lower()
             and request.destination_bucket.lower()
             == GCS_SERVER_CONFIG.kb_ingestion_bucket.lower()
@@ -188,19 +190,18 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
 
         # 2. Execute Copy Operation
         gcs_manager = _make_gcs_manager(use_sa=use_sa)
-        blob = await asyncio.to_thread(
+        await asyncio.to_thread(
             gcs_manager.copy_blob,
-            request.source_bucket,
-            request.source_object,
+            request.source_bucket_name,
+            request.source_object_name,
             request.destination_bucket,
             request.destination_path,
         )
 
-        dest_uri = f"gs://{request.destination_bucket}/{blob.name}"
         return UploadObjectResponse(
-            destination_uri=dest_uri,
+            destination_uri=f"gs://{request.destination_bucket}/{request.destination_path}",
             execution_status="success",
-            execution_message=f"Successfully ingested object to {dest_uri}",
+            execution_message=f"Successfully copied to gs://{request.destination_bucket}/{request.destination_path}",
         )
     except Exception as e:
         return UploadObjectResponse(
@@ -215,62 +216,120 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
 @mcp.tool()
 async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
     """
-    Retrieves metadata and the canonical GCS URI for a specific file (blob).
-    Ideal for preparing files for multi-modal LLM analysis via GCS URI reference.
+    Retrieves file metadata and automatically streams external files into the Agent Landing Zone.
+
+    This tool acts as a secure boundary between user data and the LLM context by executing three critical steps:
+    1. Authorization Check: Uses human OAuth tokens to securely read from external buckets, while using the agent's Service Account (SA) for internal Landing Zone operations.
+    2. Metadata Extraction: Fetches the source file's MIME type and size. This is required so the LLM understands the file context before processing.
+    3. Zero-Copy Ingestion: If the file is external, it safely streams the data in chunks to the internal Landing Zone. This prevents the MCP container from crashing with Out of Memory (OOM)
+       errors and allows the Vertex LLM to natively read massive files (e.g., PDFs, videos) directly from the GCS URI.
 
     Args:
-        request: ReadObjectRequest -> The request parameters (bucket, object).
+        request: ReadObjectRequest -> Contains the target bucket and object name.
 
     Returns:
-        ReadObjectResponse -> The object URI and strictly typed metadata.
+        ReadObjectResponse -> Contains the canonical Landing Zone GCS URI and strictly typed metadata.
     """
     logger.info(
         f"Tool call: read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
-        use_sa = (
-            request.bucket_name.lower() == GCS_SERVER_CONFIG.kb_ingestion_bucket.lower()
-        )
+        # 1. Determine if we are reading from the Landing Zone directly
+        is_landing_zone = request.bucket_name == GCS_SERVER_CONFIG.landing_zone_bucket
+
+        # 2. If it's the landing zone, the SA has access. If it's an external bucket, we MUST use OAuth.
+        use_sa = is_landing_zone
+
         if use_sa:
             logger.info(
-                f"Using Service Account for read_object on restricted bucket {request.bucket_name}"
+                f"Using Service Account for read_object from landing zone bucket {request.bucket_name}"
             )
-        gcs_manager = _make_gcs_manager(use_sa=use_sa)
-        blob = await asyncio.to_thread(
-            gcs_manager.get_object_metadata,
+
+        # 3. Fetch the metadata to ensure the file exists and we know its size/type
+        gcs_manager_source = _make_gcs_manager(use_sa=use_sa)
+        source_blob = await asyncio.to_thread(
+            gcs_manager_source.get_object_metadata,
             request.bucket_name,
             request.object_name,
         )
 
-        # Extract and format metadata
-        creation_dt = blob.time_created
-        metadata = GcsObjectMetadata(
-            mime_type=blob.content_type or "application/octet-stream",
-            size_bytes=blob.size or 0,
+        creation_dt = source_blob.time_created
+        source_metadata = GcsObjectMetadata(
+            mime_type=source_blob.content_type or "application/octet-stream",
+            size_bytes=source_blob.size or 0,
             creation_date=creation_dt.strftime("%Y-%m-%d")
             if creation_dt
             else "unknown",
             creation_time=creation_dt.strftime("%H:%M:%S")
             if creation_dt
             else "unknown",
-            updated_at=blob.updated.isoformat() if blob.updated else "unknown",
-            custom_metadata=blob.metadata or {},
+            updated_at=source_blob.updated.isoformat()
+            if source_blob.updated
+            else "unknown",
+            custom_metadata=source_blob.metadata or {},
         )
 
+        # final_uri is the GCS URI where the agent will read the file from.
+        # It always contains the landing zone bucket, which is the one the agent has access to.
+        final_uri = f"gs://{request.bucket_name}/{request.object_name}"
+
+        if not is_landing_zone:
+            # Construct a safe path inside the landing zone using the injected identity
+            app_name = request.dependencies.app_name
+            user_id = request.dependencies.user_id
+            session_id = request.dependencies.session_id
+
+            current_timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+                "%Y%m%dT%H%M%SZ"
+            )
+            original_filename = request.object_name.split("/")[-1]
+
+            # destination path constructed based on the path defined in .agents/mcp-server-guide.md
+            dest_object = f"{app_name}/{user_id}/{session_id}/gcs-{current_timestamp}-{original_filename}"
+
+            logger.info(f"Ingesting external file to landing zone: {dest_object}")
+
+            # We must use SA to write to the landing zone, because the user's OAuth token doesn't have access to it
+            gcs_manager_destination = _make_gcs_manager(use_sa=True)
+
+            # 5. Stream the file chunk by chunk to avoid Out Of Memory
+            # We pass source_blob.content_type directly to the stream to save a dedicated API call later
+            await asyncio.to_thread(
+                gcs_manager_source.stream_to_landing_zone,
+                request.bucket_name,
+                request.object_name,
+                GCS_SERVER_CONFIG.landing_zone_bucket,
+                dest_object,
+                gcs_manager_destination,
+                source_blob.content_type,
+            )
+
+            # 6. Only execute an extra patch API call if the original blob had custom_metadata
+            if source_blob.metadata:
+                await asyncio.to_thread(
+                    gcs_manager_destination.update_object_metadata,
+                    GCS_SERVER_CONFIG.landing_zone_bucket,
+                    dest_object,
+                    {"custom_metadata": source_blob.metadata},
+                )
+            final_uri = f"gs://{GCS_SERVER_CONFIG.landing_zone_bucket}/{dest_object}"
+            exec_msg = f"File gs://{request.bucket_name}/{request.object_name} was securely copied to the internal Landing Zone ({final_uri}) for native reading."
+        else:
+            exec_msg = "Object metadata and URI retrieved successfully."
+
         return ReadObjectResponse(
-            bucket_name=request.bucket_name,
-            object_name=request.object_name,
-            gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
-            metadata=metadata,
+            gcs_uri=final_uri,
+            mime_type=source_metadata.mime_type,
+            metadata=source_metadata,
+            inject_file_data=True,
             execution_status="success",
-            execution_message="Object metadata and URI retrieved successfully.",
+            execution_message=exec_msg,
         )
     except Exception as e:
         # Fallback empty metadata on error
         return ReadObjectResponse(
-            bucket_name=request.bucket_name,
-            object_name=request.object_name,
             gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
+            mime_type="application/octet-stream",
             metadata=GcsObjectMetadata(
                 mime_type="application/octet-stream",
                 size_bytes=0,
@@ -279,6 +338,7 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
                 updated_at="error",
                 custom_metadata={},
             ),
+            inject_file_data=False,
             execution_status="error",
             execution_message=_format_execution_error(e),
         )

@@ -91,17 +91,37 @@ class FileIngestionToolWrapper(BaseTool):
         Returns:
             dict[str, Any] -> The tool's execution result.
         """
+        # Inject the user identity context so the MCP server knows where to store landing zone files
+        try:
+            logger.debug(
+                "Getting data to be injected to the tool request (user_id, session_id, app_name)"
+            )
+            session = tool_context._invocation_context.session
+            user_id = getattr(session, "user_id", "unknown-user")
+            session_id = getattr(session, "id", "unknown-session")
+            app_name = "core_agent"
+
+            logger.debug(f"Injected Data:{user_id=}, {session_id=}, {app_name=}")
+            args["dependencies"] = {
+                "app_name": app_name,
+                "user_id": str(user_id),
+                "session_id": str(session_id),
+            }
+        except Exception as e:
+            logger.warning(f"Failed to inject dependencies: {e}")
+
         result = await self.original_tool.run_async(
             args=args, tool_context=tool_context
         )
 
-        if not isinstance(result, dict) or not result.get("_inject_file_data"):
+        if not isinstance(result, dict) or not result.get("inject_file_data"):
             return result
 
         gcs_uri = result.get("gcs_uri")
         if not gcs_uri:
             return result
 
+        # The mime_type must be provided at the top level per mcp-server-guide.md
         mime_type = result.get("mime_type", "application/octet-stream")
 
         try:
