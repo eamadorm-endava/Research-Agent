@@ -121,13 +121,27 @@ class FileIngestionToolWrapper(BaseTool):
 
 
 class FileIngestionToolsetWrapper(BaseToolset):
-    """Wraps an entire ADK BaseToolset to ensure all its underlying tools get intercepted."""
+    """Wraps an entire ADK BaseToolset to ensure all its underlying tools get intercepted.
+
+    This class acts as a proxy for toolsets (such as McpToolset or SkillToolset).
+    By wrapping the toolset at the agent boundary, we ensure that every individual tool
+    returned by the toolset gets wrapped in a `FileIngestionToolWrapper` to intercept
+    GCS file references for the zero-copy ingestion flow.
+    """
 
     def __new__(cls, original_toolset: BaseToolset) -> Any:
-        """Creates a dynamic subclass of FileIngestionToolsetWrapper named after the original toolset class.
+        """Creates a dynamic subclass of FileIngestionToolsetWrapper named after the original class.
 
-        This guarantees that ADK's logging and debugging outputs print the original toolset's name (e.g. McpToolset)
-        instead of the generic wrapper class name.
+        This guarantees that ADK's logging and debugging outputs (such as runner shutdown logs)
+        print the original toolset's type name (e.g. 'McpToolset' or 'SkillToolset') instead of
+        the generic wrapper class name ('FileIngestionToolsetWrapper'), while preserving the
+        wrapper's overriding behavior.
+
+        Args:
+            original_toolset: BaseToolset -> The toolset to be wrapped.
+
+        Returns:
+            Any -> A new instance of the dynamically created subclass.
         """
         original_class = original_toolset.__class__
         class_name = original_class.__name__
@@ -142,6 +156,9 @@ class FileIngestionToolsetWrapper(BaseToolset):
 
         Args:
             original_toolset: BaseToolset -> The toolset to be wrapped.
+
+        Returns:
+            None -> Initializes the wrapper.
         """
         super().__init__(
             tool_filter=getattr(original_toolset, "tool_filter", None),
@@ -153,7 +170,7 @@ class FileIngestionToolsetWrapper(BaseToolset):
         """Retrieves and wraps all tools from the original toolset.
 
         Args:
-            readonly_context: Optional context passed by the framework.
+            readonly_context: Optional[Any] -> Optional context passed by the framework.
 
         Returns:
             list[BaseTool] -> A list of FileIngestionToolWrapper instances wrapping the original tools.
@@ -164,17 +181,48 @@ class FileIngestionToolsetWrapper(BaseToolset):
     def get_auth_config(self) -> Optional[AuthConfig]:
         """Delegates auth config retrieval to the original toolset.
 
+        By default, the ADK framework retrieves the AuthConfig from the outermost toolset
+        to trigger OAuth flows and exchange credentials. Since this wrapper sits around
+        the original McpToolset, we must explicitly forward `get_auth_config()` to ensure
+        the ADK framework performs credential exchange and populates the auth credentials,
+        preventing '401 Unauthorized' and '403 Forbidden' errors on remote Cloud Run MCP servers.
+
+        Args:
+            None -> No arguments required.
+
         Returns:
             Optional[AuthConfig] -> The auth config of the original toolset.
         """
         return self.original_toolset.get_auth_config()
 
     async def close(self) -> None:
-        """Closes the original toolset."""
+        """Closes the original toolset.
+
+        Delegates the closing of the toolset to the original toolset, ensuring all
+        resources are properly released. This is crucial for releasing HTTP connections
+        and preventing resource leaks.
+
+        Args:
+            None -> No arguments required.
+
+        Returns:
+            None -> Resolves when the original toolset is closed.
+        """
         await self.original_toolset.close()
 
     async def process_llm_request(self, *, tool_context: Any, llm_request: Any) -> None:
-        """Processes the outgoing LLM request using the original toolset."""
+        """Processes the outgoing LLM request using the original toolset.
+
+        Delegates processing to the original toolset. Needed so the wrapped toolset
+        can intercept or observe the LLM request if necessary.
+
+        Args:
+            tool_context: Any -> The context of the tool execution.
+            llm_request: Any -> The outgoing LLM request payload.
+
+        Returns:
+            None -> Resolves when the original toolset finishes processing the request.
+        """
         await self.original_toolset.process_llm_request(
             tool_context=tool_context, llm_request=llm_request
         )
