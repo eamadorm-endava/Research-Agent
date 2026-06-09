@@ -255,9 +255,19 @@ def deploy_agent_engine_app(
     click.echo(f"\n🚀 {action} agent: {display_name} (this can take 3-5 minutes)...")
 
     if matching_agents:
-        remote_agent = client.agent_engines.update(
-            name=matching_agents[0].api_resource.name, config=config
-        )
+        try:
+            remote_agent = client.agent_engines.update(
+                name=matching_agents[0].api_resource.name, config=config
+            )
+        except Exception as e:
+            if "INTERNAL" in str(e) or "13" in str(e):
+                click.echo(
+                    "\nUpdate failed with an INTERNAL error from Vertex AI. Falling back to delete and recreate..."
+                )
+                client.agent_engines.delete(name=matching_agents[0].api_resource.name)
+                remote_agent = client.agent_engines.create(config=config)
+            else:
+                raise e
     else:
         remote_agent = client.agent_engines.create(config=config)
 
