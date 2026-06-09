@@ -335,12 +335,15 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
             source_blob.content_type,
         )
 
-        # Add uploader stamp
+        # Copy original metadata and add uploader stamp
+        new_metadata = dict(source_blob.metadata or {})
+        new_metadata["uploader"] = user_id
+
         await asyncio.to_thread(
             gcs_manager_destination.update_object_metadata,
             GCS_SERVER_CONFIG.landing_zone_bucket,
             dest_object,
-            {"uploader": user_id},
+            new_metadata,
         )
 
         # Grant the IAM condition to the user for their namespace folder using the SA (which has roles/storage.admin)

@@ -217,7 +217,7 @@ def test_mcp_read_object_success(mock_gcs_manager):
     args, kwargs = mock_gcs_manager.update_object_metadata.call_args
     assert args[0] == "lz-bucket"
     assert "test-app/test-user/test-session/gcs-" in args[1]
-    assert args[2] == {"custom_metadata": {"author": "Antigravity"}}
+    assert args[2] == {"author": "Antigravity", "uploader": "test-user"}
 
 
 def test_mcp_read_object_unauthorized_user_permission_denied(mock_gcs_manager):
