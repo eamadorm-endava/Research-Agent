@@ -65,10 +65,7 @@ class AppBuilder:
         )
 
         if self.gcp_config.PROD_EXECUTION:
-            if (
-                not self.gcp_config.LANDING_ZONE_BUCKET
-                or "mock" in self.gcp_config.LANDING_ZONE_BUCKET
-            ):
+            if not self.gcp_config.LANDING_ZONE_BUCKET:
                 logger.error(
                     "A valid LANDING_ZONE_BUCKET is required for production execution"
                 )
