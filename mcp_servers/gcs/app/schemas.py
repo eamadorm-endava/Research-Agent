@@ -39,13 +39,22 @@ PROJECT_ID = Annotated[
 
 class AgentDependencies(BaseModel):
     app_name: Annotated[
-        str, Field(description="The name of the calling application or agent.")
+        str,
+        Field(
+            description="The name of the calling application or agent.",
+        ),
     ]
     user_id: Annotated[
-        str, Field(description="The unique identifier of the user using the agent")
+        str,
+        Field(
+            description="The unique identifier of the user using the agent",
+        ),
     ]
     session_id: Annotated[
-        str, Field(description="The current session or conversation ID with the agent")
+        str,
+        Field(
+            description="The current session or conversation ID with the agent",
+        ),
     ]
 
 
@@ -54,9 +63,10 @@ class BaseRequest(BaseModel):
         Optional[AgentDependencies],
         Field(
             default=None,
+            exclude=True,
             description=(
                 """
-                SYSTEM FIELD: Do NOT provide this parameter. It is automatically injected by the framework in the ToolWrapper as a dependecy injection.
+                Parameters that needs to be injected by the framework. The LLM will not see this parameters due to exclude = True to avoid LLM hallucinations.
                 """
             ),
         ),

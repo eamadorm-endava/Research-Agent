@@ -174,7 +174,7 @@ class MultimodalFileInjectionPlugin(BasePlugin):
                         )
                         content.parts.append(
                             types.Part(
-                                text=f"System Notification: The requested file ({gcs_uri}) has been successfully injected into your context as a native multimodal attachment. YOU HAVE FULL CAPABILITY to read, analyze, and extract information from this file (including PDFs, Images, etc.). Do NOT say you cannot read PDFs. Please analyze the attached file to answer the user."
+                                text=f"System Notification: The requested file ({gcs_uri}) has been successfully injected into your context as a native multimodal attachment. YOU HAVE FULL CAPABILITY to read, analyze, and extract information from this file."
                             )
                         )
                         # We don't need to pop the flag since the LLM request is transient
