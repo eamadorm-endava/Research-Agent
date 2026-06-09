@@ -54,7 +54,7 @@ class MultimodalFileInjectionPlugin(BasePlugin):
 
         try:
             logger.debug(
-                f"[{self.name}] Injecting Landing Zone dependencies into {tool.name}"
+                f"MultimodalFileIngestionPlugin - Injecting Landing Zone dependencies into {tool.name}"
             )
             session = tool_context._invocation_context.session
             user_id = getattr(session, "user_id", "unknown-user")
@@ -62,18 +62,19 @@ class MultimodalFileInjectionPlugin(BasePlugin):
             app_name = "core_agent"
 
             # Create or update the dependencies dict
-            if "dependencies" not in tool_args["request"]:
-                tool_args["request"]["dependencies"] = {}
-
-            tool_args["request"]["dependencies"].update(
-                {
-                    "app_name": app_name,
-                    "user_id": str(user_id),
-                    "session_id": str(session_id),
-                }
+            tool_args["request"]["dependencies"] = {
+                "app_name": app_name,
+                "user_id": str(user_id),
+                "session_id": str(session_id),
+            }
+            logger.debug(
+                f"Dependencies injected = {tool_args['request']['dependencies']}"
             )
+
         except Exception as e:
-            logger.warning(f"[{self.name}] Failed to inject dependencies: {e}")
+            logger.warning(
+                f"MultimodalFileIngestionPlugin - Failed to inject dependencies: {e}"
+            )
 
         return None
 
@@ -99,17 +100,15 @@ class MultimodalFileInjectionPlugin(BasePlugin):
         if not isinstance(result, dict):
             return None
 
-        # Look for the inject_file_data flag
         payload = result.get("structuredContent", result)
         if not isinstance(payload, dict) or not payload.get("inject_file_data"):
             return None
 
         gcs_uri = payload.get("gcs_uri")
         if gcs_uri:
-            # We don't append to session here, we just update the message
             payload["execution_message"] = (
                 f"File {gcs_uri} was securely copied to the internal Landing Zone "
-                f"and HAS BEEN INJECTED into the multimodal context!"
+                f"and has been injected into the multimodal context!"
             )
 
         return result
@@ -170,11 +169,6 @@ class MultimodalFileInjectionPlugin(BasePlugin):
                                 file_data=types.FileData(
                                     file_uri=gcs_uri, mime_type=mime_type
                                 )
-                            )
-                        )
-                        content.parts.append(
-                            types.Part(
-                                text=f"System Notification: The requested file ({gcs_uri}) has been successfully injected into your context as a native multimodal attachment. YOU HAVE FULL CAPABILITY to read, analyze, and extract information from this file."
                             )
                         )
                         # We don't need to pop the flag since the LLM request is transient
