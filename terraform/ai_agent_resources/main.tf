@@ -72,8 +72,8 @@ resource "google_project_iam_member" "discovery_engine_service_agent_roles" {
   ]
 }
 
-resource "google_storage_bucket_iam_member" "ai_agent_artifact_bucket_admin" {
-  bucket = "${var.project_id}-${var.artifact_bucket_name}"
+resource "google_storage_bucket_iam_member" "ai_agent_landing_zone_bucket_admin" {
+  bucket = "${var.project_id}-${var.landing_zone_bucket_name}"
   role   = "roles/storage.admin"
   member = "serviceAccount:${module.ai-agent-service-account.email}"
 }

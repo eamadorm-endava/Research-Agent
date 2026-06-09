@@ -140,7 +140,7 @@ apis_to_enable = [
 ]
 
 ai_agent_service_account_name = "adk-agent"
-artifact_bucket_name          = "ai-agent-landing-zone"
+landing_zone_bucket_name      = "ai-agent-landing-zone"
 
 ai_agent_iam_project_roles = [
   "roles/aiplatform.user",
@@ -161,7 +161,7 @@ vertex_ai_agent_iam_project_roles = [
 | `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
 | `apis_to_enable` | List of Service APIs to enable in the project. | `list(string)` | `[]` | yes |
 | `ai_agent_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `artifact_bucket_name` | The name of the GCS bucket for session artifacts. | `string` | n/a | yes |
+| `landing_zone_bucket_name` | The name of the GCS bucket for the landing zone. | `string` | n/a | yes |
 | `ai_agent_iam_project_roles` | A list of roles to be assigned to the ADK service account in the project. | `list(string)` | `[]` | no |
 | `vertex_ai_agent_iam_project_roles` | A list of roles to be assigned to the Vertex AI Search Agent service account. | `list(string)` | `[]` | no |
 | `discovery_engine_service_agent_iam_project_roles` | A list of roles to be assigned to the Discovery Engine service agent. | `list(string)` | `[]` | no |

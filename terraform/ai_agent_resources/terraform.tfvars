@@ -10,7 +10,7 @@ apis_to_enable = [
 ]
 
 ai_agent_service_account_name = "adk-agent"
-artifact_bucket_name          = "ai-agent-landing-zone"
+landing_zone_bucket_name      = "ai-agent-landing-zone"
 
 ai_agent_iam_project_roles = [
   "roles/aiplatform.user",

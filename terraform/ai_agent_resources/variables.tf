@@ -20,7 +20,7 @@ variable "main_region" {
   type        = string
 }
 
-variable "artifact_bucket_name" {
+variable "landing_zone_bucket_name" {
   description = "The name of the GCS bucket for session artifacts."
   type        = string
 }

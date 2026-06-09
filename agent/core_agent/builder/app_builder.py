@@ -3,13 +3,11 @@ from typing import Self, Union
 from google.adk.agents import BaseAgent
 from google.adk.apps.app import App
 from google.adk.plugins.base_plugin import BasePlugin
-from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from loguru import logger
 from vertexai.agent_engines import AdkApp
 
 from ..config import BaseAgentConfig, GCPConfig
-from ..plugins.ingestion.plugin import GeminiEnterpriseFileIngestionPlugin
-from ..artifact_management.service import StorageService
+from ..artifact_service.gcs_service import StorageService
 
 
 class AppBuilder:
@@ -31,13 +29,7 @@ class AppBuilder:
         self.agent = agent
         self.gcp_config = gcp_config
         self.agent_config = agent_config
-        # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
-        # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
-        self._registered_plugins = (
-            [GeminiEnterpriseFileIngestionPlugin()]
-            if gcp_config.PROD_EXECUTION
-            else [SaveFilesAsArtifactsPlugin()]
-        )
+        self._registered_plugins = []
         logger.debug(
             f"AppBuilder initialized for agent: {self.agent_config.AGENT_NAME}"
         )
@@ -73,20 +65,25 @@ class AppBuilder:
         )
 
         if self.gcp_config.PROD_EXECUTION:
-            if not self.gcp_config.ARTIFACT_BUCKET:
-                logger.error("ARTIFACT_BUCKET is required for production execution")
+            if (
+                not self.gcp_config.LANDING_ZONE_BUCKET
+                or "mock" in self.gcp_config.LANDING_ZONE_BUCKET
+            ):
+                logger.error(
+                    "A valid LANDING_ZONE_BUCKET is required for production execution"
+                )
                 raise ValueError(
-                    "ARTIFACT_BUCKET must be set when PROD_EXECUTION is True"
+                    "LANDING_ZONE_BUCKET must be set to a real bucket when PROD_EXECUTION is True"
                 )
 
             logger.info(
-                f"Building AdkApp (Production) for '{self.agent_config.AGENT_NAME}' "
-                f"in {self.gcp_config.REGION} with bucket: {self.gcp_config.ARTIFACT_BUCKET}"
+                f"Configuring GCS Artifact Service "
+                f"with bucket: {self.gcp_config.LANDING_ZONE_BUCKET}"
             )
             return AdkApp(
                 app=base_application,
                 artifact_service_builder=lambda: StorageService(
-                    bucket_name=self.gcp_config.ARTIFACT_BUCKET
+                    bucket_name=self.gcp_config.LANDING_ZONE_BUCKET
                 ),
             )
 

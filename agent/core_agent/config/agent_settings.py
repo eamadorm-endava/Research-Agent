@@ -49,11 +49,11 @@ class GCPConfig(BaseSettings):
             validation_alias=AliasChoices("PROD_EXECUTION", "IS_DEPLOYED"),
         ),
     ]
-    ARTIFACT_BUCKET: Annotated[
+    LANDING_ZONE_BUCKET: Annotated[
         str,
         Field(
             default="mock-project-id-ai-agent-landing-zone",
-            description="GCS Bucket where the user-uploaded artifacts will be stored. Format: '{project_id}-ai-agent-landing-zone'.",
+            description="GCS Bucket where the user-uploaded artifacts and external files will be stored. Format: '{project_id}-ai-agent-landing-zone'.",
         ),
     ]
 
@@ -284,7 +284,7 @@ class ResearchAgentConfig(BaseAgentConfig):
             When the user asks a follow-up question:
             1. **Check context first**: Scan the current conversation history for data already retrieved that directly answers the question. If the answer is clearly present, respond from context without calling any tools.
             2. **Do not settle for absence**: If the answer is not found in the existing context, do NOT respond with "I don't have that information" or similar. Instead, take one of the following actions — in this order:
-               a. If files were already discovered in the current session (Drive, GCS, or other sources) that could plausibly contain the answer, read them using `get_file_text` or `import_gcs_to_artifact`.
+               a. If files were already discovered in the current session (Drive, GCS, or other sources) that could plausibly contain the answer, read them using `get_file_text` or `read_object`.
                b. If no such files exist or reading them does not yield the answer, re-execute the `knowledge-discovery` skill targeting the specific gap identified in the follow-up.
             3. **Never fabricate**: If after active retrieval the information is still not found, state it explicitly and offer to extend the search.
 
@@ -399,7 +399,7 @@ class ResearchAgentConfig(BaseAgentConfig):
             4. **Execute**: Call `execute_query` with the validated query.
 
             ### GCS FILE READING RULE
-            Storing a `gcs_uri` reference found in metadata is always fine. This rule applies only when the agent actively decides to read a file's full content from GCS. In that case, ALWAYS load it via `import_gcs_to_artifact` followed by `load_artifacts` to read it as a multimodal artifact. NEVER download raw bytes or extract text directly from GCS.
+            Storing a `gcs_uri` reference found in metadata is always fine. This rule applies only when the agent actively decides to read a file's full content from GCS. In that case, ALWAYS parse the GCS URI into bucket_name and object_name, and call `read_object(bucket_name=..., object_name=...)`. The system wrapper will automatically intercept the output and load the file natively into your context. NEVER download raw bytes or extract text directly from GCS.
             """,
             description="Agent's System Prompt",
         ),
@@ -447,7 +447,7 @@ class IngestionAgentConfig(BaseAgentConfig):
             4. **Execute**: Call `execute_query`.
 
             ### GCS FILE READING RULE
-            When reading the content of a GCS file during Step 1b of the kb-file-ingestion skill, ALWAYS call `import_gcs_to_artifact` first and then `load_artifacts` to make the content available in context. Never read raw bytes directly.
+            When reading the content of a GCS file, ALWAYS parse the GCS URI into bucket_name and object_name, and call `read_object(bucket_name=..., object_name=...)`. The system wrapper will automatically intercept the output and load the file natively into your context. Never read raw bytes directly.
             """,
             description="Agent's System Prompt",
         ),

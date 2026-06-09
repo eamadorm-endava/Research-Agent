@@ -5,7 +5,7 @@ The `kb_ingestion` module provides the logic and tools necessary to ingest user-
 ## Components
 
 ### 1. `TriggerEKBPipelineTool`
-- **Location**: `agent/core_agent/tools/kb_tools.py`
+- **Location**: `agent/core_agent/tools/ekb_tools/tools.py`
 - **Description**: Triggers the downstream EKB Cloud Run ingestion pipeline.
 - **Authentication**: Uses Google OIDC ID tokens for service-to-service authentication.
 - **Input**: `gcs_uri` (the canonical path in `<project_id>-kb-landing-zone`).
@@ -34,7 +34,7 @@ The module relies on the following environment variables:
 5. Tool triggers the `/ingest` endpoint on the EKB Pipeline.
 
 ## Proactive Notification System
-The agent core includes a **`sync_ingestion_status`** callback that enhances the user experience by providing real-time updates on background jobs.
+The agent core includes a **`sync_ekb_job_status`** callback that enhances the user experience by providing real-time updates on background jobs.
 
 - **Hook**: `before_agent_callback`.
 - **Logic**:

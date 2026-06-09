@@ -13,14 +13,14 @@ from .config import (
     GOOGLE_AUTH_CONFIG,
 )
 
-from .tools.artifact_tools import (
-    GetArtifactUriTool,
-    ImportGcsToArtifactTool,
-)
-from .tools.kb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
+from .tools.artifact_tools import GetArtifactURITool
+from .tools.ekb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
 from .tools.time_tools import GetCurrentTimeTool
-from .callbacks.ingestion_status import sync_ingestion_status
+from .callbacks.before_agent_callbacks import sync_ekb_job_status
 from loguru import logger
+from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
+from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
+from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
 
 # ---------------------------------------------------------------------------
 # 1. Research & Meetings Specialist
@@ -42,14 +42,14 @@ research_agent = (
     )
     .with_native_tools(
         [
-            GetArtifactUriTool(),
-            ImportGcsToArtifactTool(),
+            GetArtifactURITool(),
             GetCurrentTimeTool(),
             load_artifacts,
         ]
     )
+    .with_before_agent_callback([sync_ekb_job_status])
     .with_output_key("research_context")
-    .build(enable_artifact_rendering=False)
+    .build()
 )
 
 # ---------------------------------------------------------------------------
@@ -70,15 +70,15 @@ ingestion_agent = (
     )
     .with_native_tools(
         [
-            GetArtifactUriTool(),
-            ImportGcsToArtifactTool(),
+            GetArtifactURITool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
             load_artifacts,
         ]
     )
+    .with_before_agent_callback([sync_ekb_job_status])
     .with_output_key("ekb_ingestion_context")
-    .build(enable_artifact_rendering=False)
+    .build()
 )
 
 # ---------------------------------------------------------------------------
@@ -91,15 +91,27 @@ root_agent = (
         auth_config=GOOGLE_AUTH_CONFIG,
     )
     .with_subagents([research_agent, ingestion_agent])
-    .with_before_agent_callback(sync_ingestion_status)
-    .with_native_tools([GetArtifactUriTool(), load_artifacts])
+    .with_before_agent_callback([sync_ekb_job_status])
+    .with_native_tools([GetArtifactURITool(), load_artifacts])
     .build()
 )
 
-app = AppBuilder(
-    agent=root_agent,
-    gcp_config=GCP_CONFIG,
-    agent_config=COORDINATOR_CONFIG,
-).build()
+app = (
+    AppBuilder(
+        agent=root_agent,
+        gcp_config=GCP_CONFIG,
+        agent_config=COORDINATOR_CONFIG,
+    )
+    .with_plugins(
+        (
+            # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
+            # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
+            [GeminiEnterpriseFileIngestionPlugin(), MultimodalFileInjectionPlugin()]
+            if GCP_CONFIG.PROD_EXECUTION
+            else [SaveFilesAsArtifactsPlugin(), MultimodalFileInjectionPlugin()]
+        )
+    )
+    .build()
+)
 
 logger.info("ADK Multi-Agent application initialized and ready for execution.")

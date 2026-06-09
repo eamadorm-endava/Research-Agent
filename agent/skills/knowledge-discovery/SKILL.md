@@ -101,10 +101,7 @@ Trigger ONLY when both waves returned results but the specific data was NOT foun
 
 For the top 3 files used in Wave 2, run all steps in parallel (following the **GCS FILE READING RULE** from the system prompt):
 1. Parse each `gcs_uri` → `bucket_name` (everything between `gs://` and the first `/`) and `object_name` (everything after that first `/`).
-2. Call `read_object(bucket_name=<bucket_name>, object_name=<object_name>)` to retrieve `mime_type`.
-3. Call `import_gcs_to_artifact(gcs_uri=<gcs_uri>, mime_type=<mime_type from step 2>)`.
-
-After all 3 imports complete, call `load_artifacts` once.
+2. Call `read_object(bucket_name=<bucket_name>, object_name=<object_name>)`. The system wrapper will automatically intercept this call and load the file natively into your context.
 
 ### Drive Search (Targeted Mode)
 Drive search always runs — it is not conditional on EKB results. It runs in parallel with Wave 2 and Calendar (see above). Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**:
@@ -164,10 +161,7 @@ Launch all the following simultaneously. *Efficiency Rule: never repeat the same
 **Level 1: EKB Deep-Dive (GCS)**
 For the top 3 high-relevance `gcs_uri` values from Phase 1 that were NOT already covered in Phase 1 step 3, run in parallel (following the **GCS FILE READING RULE** from the system prompt):
 1. Parse each `gcs_uri` → `bucket_name` (everything between `gs://` and the first `/`) and `object_name` (everything after).
-2. `read_object(bucket_name=<bucket_name>, object_name=<object_name>)` → get `mime_type`.
-3. `import_gcs_to_artifact(gcs_uri=<gcs_uri>, mime_type=<mime_type>)`.
-
-After all imports complete, call `load_artifacts` once.
+2. Call `read_object(bucket_name=<bucket_name>, object_name=<object_name>)`. The system wrapper will automatically intercept this call and load the file natively into your context.
 
 **Level 2: Calendar Deep-Dive (Personal Context)**
 From relevant events found in Phase 2a, apply the Selective Attachment Reading rule (from the **CALENDAR SEARCH PROTOCOL** in the system prompt): call `get_file_text(file_id=<EventAttachment.file_id>)` only when `EventAttachment.title` or `CalendarEvent.description` contains a term directly relevant to the query.
@@ -231,34 +225,38 @@ Cross-correlate all findings into a unified narrative before writing. Follow thi
 
 ---
 
-**## Key Points**
+## Key Points
 Bullet list of the most important facts, decisions, dates, and findings extracted from the sources.
 
 ---
 
-**## Stakeholders**
+## Stakeholders
 Bullet list of people involved: name, role or relationship to the topic, and contact email when available.
 
 ---
 
-**## Upcoming Meetings** *(omit this section entirely if no calendar search was run)*
+## Upcoming Meetings
+*(omit this section entirely if no calendar search was run)*
 List ONLY meetings after the current date related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
 If no relevant meetings are found: `No upcoming meetings found for this topic.`
 
 ---
 
-**## Previous Meetings** *(omit this section entirely if no calendar search was run)*
+## Previous Meetings
+*(omit this section entirely if no calendar search was run)*
 List past meetings related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
 If no relevant meetings are found: `No previous meetings found for this topic.`
 
 ---
 
-**## Extend Search?** *(ONLY when Final Escalation is reached)*
+## Extend Search?
+*(ONLY when Final Escalation is reached)*
 Include the escalation message verbatim from the **Final Escalation** section above.
 
 ---
 
-**## References** *(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
+## References
+*(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
 Include ONLY files, documents, and events from which data was explicitly extracted to produce this response. Never include broad discovery results or unused tool outputs.
 
 | Source | Project Name | Filename | Owner | Created at / Last Update |

@@ -183,7 +183,7 @@ resource "google_storage_bucket" "kb_domain_buckets" {
   depends_on                  = [module.enable_apis]
 }
 
-resource "google_storage_bucket" "artifact_bucket" {
+resource "google_storage_bucket" "landing_zone_bucket" {
   project                     = var.project_id
   name                        = "${var.project_id}-${var.ai_agent_landing_zone_bucket}"
   location                    = var.main_region
@@ -192,6 +192,15 @@ resource "google_storage_bucket" "artifact_bucket" {
 
   versioning {
     enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = var.landing_zone_retention_days
+    }
+    action {
+      type = "Delete"
+    }
   }
 
   depends_on = [module.enable_apis]

@@ -20,6 +20,7 @@ from mcp_servers.gcs.app.schemas import (
     ReadObjectRequest,
     UploadObjectRequest,
     UpdateObjectMetadataRequest,
+    AgentDependencies,
 )
 
 
@@ -54,7 +55,8 @@ def test_mcp_upload_object_success_oauth_flow(mock_gcs_manager):
     mock_gcs_manager.copy_blob.return_value = mock_blob
 
     request = UploadObjectRequest(
-        source_gcs_uri="gs://user-bucket/source/file.pdf",
+        source_bucket_name="user-bucket",
+        source_object_name="source/file.pdf",
         destination_bucket="dest-bucket",
         filename="new_file.pdf",
         path_inside_bucket="dest/",
@@ -80,7 +82,8 @@ def test_mcp_upload_object_success_sa_flow(mock_gcs_manager):
 
     # Config values: landing_zone_bucket="mock-project-id-ai-agent-landing-zone", kb_ingestion_bucket="mock-project-id-kb-landing-zone"
     request = UploadObjectRequest(
-        source_gcs_uri="gs://mock-project-id-ai-agent-landing-zone/incoming/data.zip",
+        source_bucket_name="mock-project-id-ai-agent-landing-zone",
+        source_object_name="incoming/data.zip",
         destination_bucket="mock-project-id-kb-landing-zone",
         filename="ingested_file.zip",
     )
@@ -106,7 +109,8 @@ def test_mcp_upload_object_root_destination(mock_gcs_manager):
 
     # Test with None path
     request_none = UploadObjectRequest(
-        source_gcs_uri="gs://src/file.txt",
+        source_bucket_name="src",
+        source_object_name="file.txt",
         destination_bucket="dest",
         filename="root_file.txt",
         path_inside_bucket=None,
@@ -115,7 +119,8 @@ def test_mcp_upload_object_root_destination(mock_gcs_manager):
 
     # Test with "/" path
     request_slash = UploadObjectRequest(
-        source_gcs_uri="gs://src/file.txt",
+        source_bucket_name="src",
+        source_object_name="file.txt",
         destination_bucket="dest",
         filename="root_file.txt",
         path_inside_bucket="/",
@@ -124,23 +129,13 @@ def test_mcp_upload_object_root_destination(mock_gcs_manager):
 
     # Test with folder path
     request_folder = UploadObjectRequest(
-        source_gcs_uri="gs://src/file.txt",
+        source_bucket_name="src",
+        source_object_name="file.txt",
         destination_bucket="dest",
         filename="root_file.txt",
         path_inside_bucket="/my-folder/",
     )
     assert request_folder.destination_path == "my-folder/root_file.txt"
-
-
-def test_mcp_upload_object_invalid_uri_error():
-    from pydantic import ValidationError
-
-    with pytest.raises(ValidationError):
-        UploadObjectRequest(
-            source_gcs_uri="invalid-uri",
-            destination_bucket="dest",
-            filename="file.txt",
-        )
 
 
 def test_mcp_list_objects_success(mock_gcs_manager):
@@ -185,16 +180,44 @@ def test_mcp_read_object_success(mock_gcs_manager):
 
     mock_gcs_manager.get_object_metadata.return_value = mock_blob
 
-    request = ReadObjectRequest(bucket_name="my-bucket", object_name="file.pdf")
-    result = asyncio.run(read_object(request))
+    request = ReadObjectRequest(
+        bucket_name="my-bucket",
+        object_name="file.pdf",
+        dependencies=AgentDependencies(
+            app_name="test-app", user_id="test-user", session_id="test-session"
+        ),
+    )
+
+    with patch("mcp_servers.gcs.app.mcp_server.GCS_SERVER_CONFIG") as mock_config:
+        mock_config.landing_zone_bucket = "lz-bucket"
+        mock_config.kb_ingestion_bucket = "kb-bucket"
+
+        result = asyncio.run(read_object(request))
 
     assert result.execution_status == "success"
-    assert result.gcs_uri == "gs://my-bucket/file.pdf"
+    # Ensure it returns the new Landing Zone URI
+    assert result.gcs_uri.startswith(
+        "gs://lz-bucket/test-app/test-user/test-session/gcs-"
+    )
+    assert result.gcs_uri.endswith("-file.pdf")
+
+    assert result.inject_file_data is True
+    assert result.mime_type == "application/pdf"
     assert result.metadata.mime_type == "application/pdf"
     assert result.metadata.size_bytes == 1024
     assert result.metadata.creation_date == "2026-01-01"
     assert result.metadata.creation_time == "12:00:00"
     assert result.metadata.custom_metadata["author"] == "Antigravity"
+
+    # Assert stream_to_landing_zone was called
+    mock_gcs_manager.stream_to_landing_zone.assert_called_once()
+
+    # Assert update_object_metadata was called with the copied metadata
+    mock_gcs_manager.update_object_metadata.assert_called_once()
+    args, kwargs = mock_gcs_manager.update_object_metadata.call_args
+    assert args[0] == "lz-bucket"
+    assert "test-app/test-user/test-session/gcs-" in args[1]
+    assert args[2] == {"author": "Antigravity", "uploader": "test-user"}
 
 
 def test_mcp_read_object_unauthorized_user_permission_denied(mock_gcs_manager):

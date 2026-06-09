@@ -13,7 +13,7 @@ or similar requests.
 ## Core Privacy Rule
 
 - Do **not** read, parse, OCR, preview, or extract text from uploaded files by default.
-- Do **not** call `import_gcs_to_artifact` or `load_artifacts` unless the user explicitly asks to infer metadata from file contents.
+- The user-uploaded file is automatically injected into the conversation context by the UI plugin, meaning you already have access to its contents natively if needed. Do NOT inspect the file contents unless the user explicitly asks you to do so to infer metadata.
 - Leave any field that cannot be inferred blank (`—`) and ask the user — do not read file contents to fill gaps.
 
 ## Required Metadata

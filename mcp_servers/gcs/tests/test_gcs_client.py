@@ -53,18 +53,6 @@ class TestGCSManager(unittest.TestCase):
             mock_source_blob, mock_dest_bucket, "dest-obj"
         )
 
-    def test_download_object_as_bytes(self):
-        mock_bucket = MagicMock()
-        mock_blob = MagicMock()
-        self.mock_client_instance.bucket.return_value = mock_bucket
-        mock_bucket.blob.return_value = mock_blob
-        mock_blob.download_as_bytes.return_value = b"test content"
-
-        result = self.gcs_manager.download_object_as_bytes("test-bucket", "doc.txt")
-
-        self.assertEqual(result, b"test content")
-        mock_blob.download_as_bytes.assert_called_once()
-
     def test_get_object_metadata_success(self):
         mock_bucket = MagicMock()
         mock_blob = MagicMock()

@@ -139,46 +139,6 @@ def test_agent_builder_subagents_appear_in_sub_agents_param(
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
 @patch("agent.core_agent.builder.agent_builder.Agent")
-def test_build_default_enables_artifact_rendering(
-    mock_agent_class, mock_vertex_client, mock_configs
-):
-    """Test that build() with default args sets after_agent_callback to render_pending_artifacts."""
-    from agent.core_agent.callbacks.artifact_rendering import render_pending_artifacts
-
-    builder = AgentBuilder(
-        agent_config=mock_configs["agent"],
-        gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
-    )
-    builder.build()
-
-    _, kwargs = mock_agent_class.call_args
-    assert kwargs["after_agent_callback"] is render_pending_artifacts
-
-
-@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
-@patch("agent.core_agent.builder.agent_builder.Agent")
-def test_build_disable_artifact_rendering_clears_callback(
-    mock_agent_class, mock_vertex_client, mock_configs
-):
-    """Test that build(enable_artifact_rendering=False) sets after_agent_callback to None.
-
-    Used for specialists that never produce file_data output (e.g., ingestion-only agents)
-    to skip the render_pending_artifacts callback overhead.
-    """
-    builder = AgentBuilder(
-        agent_config=mock_configs["agent"],
-        gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
-    )
-    builder.build(enable_artifact_rendering=False)
-
-    _, kwargs = mock_agent_class.call_args
-    assert kwargs["after_agent_callback"] is None
-
-
-@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
-@patch("agent.core_agent.builder.agent_builder.Agent")
 def test_with_output_key_sets_key_on_agent(
     mock_agent_class, mock_vertex_client, mock_configs
 ):

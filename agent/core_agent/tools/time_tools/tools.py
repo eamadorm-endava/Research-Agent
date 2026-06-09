@@ -1,26 +1,11 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Annotated, Optional, override
+from typing import Optional, override
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types
 from loguru import logger
-from pydantic import BaseModel, Field
 
-
-class GetCurrentTimeResponse(BaseModel):
-    """
-    Response containing the current time and timezone info.
-    """
-
-    current_time: Annotated[
-        str, Field(description="The current time in ISO 8601 format")
-    ]
-    timezone: Annotated[
-        str, Field(description="The timezone used (e.g. America/Chicago)")
-    ]
-    execution_status: Annotated[
-        str, Field(description="Status of the tool execution", default="success")
-    ]
+from .schemas import GetCurrentTimeResponse
 
 
 class GetCurrentTimeTool(BaseTool):

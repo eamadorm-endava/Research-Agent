@@ -95,6 +95,20 @@ resource "google_storage_bucket_iam_member" "gcs_mcp_sa_landing_viewer" {
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
 
+# Write access to the Landing Zone (for zero-copy file ingestion)
+resource "google_storage_bucket_iam_member" "gcs_mcp_sa_landing_creator" {
+  bucket = var.landing_zone_bucket
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
+
+# Admin access to the Landing Zone (for dynamically granting IAM conditions to users)
+resource "google_storage_bucket_iam_member" "gcs_mcp_sa_landing_admin" {
+  bucket = var.landing_zone_bucket
+  role   = "roles/storage.admin"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
+
 # Admin access to the KB Ingestion Bucket
 resource "google_storage_bucket_iam_member" "gcs_mcp_sa_kb_admin" {
   bucket = var.kb_ingestion_bucket

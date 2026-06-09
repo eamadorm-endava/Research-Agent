@@ -1,21 +1,15 @@
-# Agent Plugins
+# ADK Plugins
 
-This module contains integrated behaviors and message interceptors that extend the ADK Application logic.
+Plugins provide a powerful way to bundle multi-hook logic, tools, and state management into a single modular component.
 
-## Plugins Overview
+## Plugins vs. Callbacks
+- A **Callback** is typically a single function targeting one specific lifecycle hook (e.g., `before_agent`).
+- A **Plugin** is a class that can hook into multiple lifecycle events simultaneously, register its own tools, and maintain internal state across hooks. 
 
-### `ingestion/`
-- **`GeminiEnterpriseFileIngestionPlugin`**: Intercepts user messages to persist inline binary data to GCS and replace it with URI references. This ensures files uploaded via Gemini Enterprise are available for the agent's multi-modal analysis.
+## Plugin Lifecycle Hooks
+Plugins have access to all the standard ADK callbacks (`before_agent`, `after_model`, etc.), but they also expose specialized messaging hooks:
+- **`on_user_message`**: Triggers when a new user message arrives but before it is processed.
+- **`on_model_message`**: Triggers when the model is generating a message.
 
-## Registration
-
-Plugins are registered in the `App` (or `AdkApp`) via the `AppBuilder`:
-
-```python
-from .plugins.ingestion.plugin import GeminiEnterpriseFileIngestionPlugin
-
-App(
-    ...
-    plugins=[GeminiEnterpriseFileIngestionPlugin()]
-)
-```
+## When to use a Plugin
+Use a plugin when you need cohesive, reusable logic that spans multiple hooks, such as intercepting user attachments (`on_user_message`) and later validating the model's response (`after_model`) within the same domain.
