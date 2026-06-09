@@ -284,8 +284,11 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
             )
             original_filename = request.object_name.split("/")[-1]
 
+            # Sanitize the filename to avoid URI parsing issues in Vertex AI with spaces and special characters
+            sanitized_filename = re.sub(r"[^a-zA-Z0-9.\-_]", "_", original_filename)
+
             # destination path constructed based on the path defined in .agents/mcp-server-guide.md
-            dest_object = f"{app_name}/{user_id}/{session_id}/gcs-{current_timestamp}-{original_filename}"
+            dest_object = f"{app_name}/{user_id}/{session_id}/gcs-{current_timestamp}-{sanitized_filename}"
 
             logger.info(f"Ingesting external file to landing zone: {dest_object}")
 

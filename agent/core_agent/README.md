@@ -39,8 +39,8 @@ core_agent/
 │
 ├── callbacks/           # Lifecycle Hooks: Post-turn renderers and interceptors
 │   ├── __init__.py      
-│   ├── tool_wrappers/file_ingestion_wrapper/main.py        # Intercepts MCP Server data and dynamically loads it into the session
-│   └── before_agent_callbacks/sync_ekb_job_status/main.py      # before_agent_callback: polls EKB jobs, injects updates
+│   ├── before_agent_callbacks/                             # Logic that runs before the agent starts
+│   └── plugins/multimodal_file_injection/                  # Intercepts MCP Server data and natively injects it into the LLM contextors
 │
 ├── plugins/             # Integrated Behaviors: Message interceptors
 │   ├── __init__.py      
@@ -157,7 +157,7 @@ As documented in the Architecture guides, Gemini Enterprise requires explicit ma
 
 1. **The Database (`StorageService`)**: Handles all GCS interactions and identity-aware IAM.
 2. **The User Hook (`GeminiEnterpriseFileIngestionPlugin`)**: Intercepts huge binary payloads sent from the UI, saves them to GCS via `StorageService`, and rewrites the payload into a lightweight `file_data` zero-copy URI.
-3. **The Tool Hook (`FileIngestionToolWrapper`)**: Dynamically catches backend MCP servers generating files mid-turn and injects the zero-copy URI directly into the conversation history.
+3. **The Interceptor Hook (`MultimodalFileInjectionPlugin`)**: Dynamically catches backend MCP servers generating files mid-turn and injects the zero-copy URI directly into the LLM context.
 
 ## Integrated Tools
 

@@ -27,10 +27,6 @@ from google.genai.types import (
 from loguru import logger
 
 from ..config import BaseAgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
-from ..callbacks.tool_wrappers import (
-    FileIngestionToolWrapper,
-    FileIngestionToolsetWrapper,
-)
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill
 
@@ -368,10 +364,7 @@ class AgentBuilder:
 
         total_tools = []
         for tool in self._registered_tools:
-            if isinstance(tool, BaseTool):
-                total_tools.append(FileIngestionToolWrapper(tool))
-            elif isinstance(tool, BaseToolset):
-                total_tools.append(FileIngestionToolsetWrapper(tool))
+            total_tools.append(tool)
 
         if self._skills:
             # Wrap all skills in one toolset to satisfy Gemini's unique function declaration rules

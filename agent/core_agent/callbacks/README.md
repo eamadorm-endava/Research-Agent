@@ -41,4 +41,4 @@ sub_agent = AgentBuilder().with_before_agent_callback([my_callback]).build()
 Currently, this implementation specifically uses `before_agent` callbacks and **Tool Wrappers** (which hook into the tool execution cycle):
 
 - **`before_agent_callbacks/ekb_status_sync`**: A `before_agent` callback that runs automatically when an agent is invoked. It implicitly polls the status of any pending EKB ingestion jobs stored in the ADK Session State, updating the context behind the scenes without the LLM explicitly needing to call a tool.
-- **`tool_wrappers/file_ingestion_wrapper`**: A specific tool wrapper (operating similarly to an `after_tool` callback) that intercepts file paths returned by MCP servers (like Google Drive or GCS) and natively injects their contents directly into the agent's context.
+

@@ -20,6 +20,7 @@ from .callbacks.before_agent_callbacks import sync_ekb_job_status
 from loguru import logger
 from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
+from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
 
 # ---------------------------------------------------------------------------
 # 1. Research & Meetings Specialist
@@ -102,11 +103,13 @@ app = (
         agent_config=COORDINATOR_CONFIG,
     )
     .with_plugins(
-        # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
-        # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
-        [GeminiEnterpriseFileIngestionPlugin()]
-        if GCP_CONFIG.PROD_EXECUTION
-        else [SaveFilesAsArtifactsPlugin()]
+        (
+            # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
+            # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
+            [GeminiEnterpriseFileIngestionPlugin(), MultimodalFileInjectionPlugin()]
+            if GCP_CONFIG.PROD_EXECUTION
+            else [SaveFilesAsArtifactsPlugin(), MultimodalFileInjectionPlugin()]
+        )
     )
     .build()
 )

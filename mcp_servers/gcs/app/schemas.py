@@ -54,11 +54,9 @@ class BaseRequest(BaseModel):
         Optional[AgentDependencies],
         Field(
             default=None,
-            exclude=True,  # This field is not intended for the agent to fill, so it is hidden from it. Use a wrapper instead to inject this data.
             description=(
                 """
-                Field to inject dependency information to the tool. This needs to be manually injected by a wrapper or middleware during the request. The agent cannot see
-                the field due to 'exclude = True', and it has data the agent does not know.
+                SYSTEM FIELD: Do NOT provide this parameter. It is automatically injected by the framework in the ToolWrapper as a dependecy injection.
                 """
             ),
         ),
