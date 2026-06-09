@@ -113,6 +113,62 @@ class GCSManager:
             logger.error(f"Error updating labels for bucket {bucket_name}: {e}")
             raise
 
+    def grant_folder_iam_condition(
+        self,
+        bucket_name: str,
+        folder_prefix: str,
+        user_email: str,
+    ) -> None:
+        """Adds a conditional IAM binding granting roles/storage.objectAdmin on a specific user folder.
+
+        Args:
+            bucket_name: str -> The string name of the GCS bucket.
+            folder_prefix: str -> The specific folder path granting access to the user.
+            user_email: str -> The identity of the user.
+
+        Returns:
+            None -> Mutates the GCS IAM policy in place.
+        """
+        try:
+            bucket = self.client.bucket(bucket_name)
+            resource_prefix = (
+                f"projects/_/buckets/{bucket_name}/objects/{folder_prefix}"
+            )
+            condition_expr = f'resource.name.startsWith("{resource_prefix}")'
+            iam_policy = bucket.get_iam_policy(requested_policy_version=3)
+            iam_policy.version = 3
+
+            already_granted = any(
+                binding.get("role") == "roles/storage.objectAdmin"
+                and f"user:{user_email}" in binding.get("members", set())
+                and (binding.get("condition") or {}).get("expression") == condition_expr
+                for binding in iam_policy.bindings
+            )
+
+            if already_granted:
+                logger.debug(
+                    f"Folder-level IAM binding already exists for '{user_email}' on '{resource_prefix}'"
+                )
+                return
+
+            iam_policy.bindings.append(
+                {
+                    "role": "roles/storage.objectAdmin",
+                    "members": {f"user:{user_email}"},
+                    "condition": {
+                        "title": "uploader-folder-access",
+                        "expression": condition_expr,
+                    },
+                }
+            )
+            bucket.set_iam_policy(iam_policy)
+            logger.info(
+                f"Granted folder-level roles/storage.objectAdmin to '{user_email}' on '{resource_prefix}'"
+            )
+        except Exception as e:
+            logger.error(f"Error granting folder IAM condition on {bucket_name}: {e}")
+            raise
+
     def copy_blob(
         self,
         source_bucket_name: str,

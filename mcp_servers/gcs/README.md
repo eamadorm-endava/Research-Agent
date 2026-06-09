@@ -95,6 +95,12 @@ The server dynamically switches between the **Attached Service Account (SA)** an
 > [!IMPORTANT]
 > When the Service Account (SA) is used, the server relies on the identity attached to the Cloud Run service, ignoring the delegated OAuth token for that specific call. This is only allowed for protected enterprise ingestion buckets.
 
+### Landing Zone Security Constraints
+When reading external files to ingest them into the Landing Zone, the server strictly enforces:
+1. **Payload Proof Verification**: The server performs an OAuth-based 1-byte read to cryptographically prove the user possesses `storage.objects.get` payload access before ingestion. This prevents IDOR (Insecure Direct Object Reference).
+2. **Dynamic Namespace Isolation**: After copying the file using the Service Account, the server immediately injects an IAM condition into the Landing Zone bucket's policy, granting the user exclusive read access to their specific namespace folder.
+3. **Data Lifecycle Enforcement**: Files in the Landing Zone are strictly ephemeral. The infrastructure is configured with Terraform Object Lifecycle Management (OLM) rules to physically delete objects after 7 days, guaranteeing storage cleanup.
+
 For full technical details on URI-based ingestion and path construction, see [INGESTION.md](./INGESTION.md).
 
 ---

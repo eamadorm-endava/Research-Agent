@@ -194,6 +194,15 @@ resource "google_storage_bucket" "landing_zone_bucket" {
     enabled = true
   }
 
+  lifecycle_rule {
+    condition {
+      age = var.landing_zone_retention_days
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
   depends_on = [module.enable_apis]
 }
 

@@ -38,6 +38,12 @@ Important:
 - No plain-text token logging in application handlers.
 - Error messages are sanitized to redact common token fragments.
 
+### Landing Zone Data Ingestion Constraints
+When the MCP Server reads files to ingest them into the Landing Zone:
+1. **Payload Proof**: The server forces an OAuth-based 1-byte read (`f.read(1)`) to mathematically prove the user has `storage.objects.get` payload access before proceeding with ingestion. This prevents IDOR where a user might have metadata-only access but cannot read the actual file.
+2. **Namespace Isolation**: Upon ingestion, the MCP Server uses its Service Account (which holds `roles/storage.admin`) to inject an IAM condition (`resource.name.startsWith(...)`) granting the user exclusive read access to their isolated namespace inside the Landing Zone bucket.
+3. **Data Lifecycle**: The Landing Zone physically enforces a 7-day retention policy via Terraform-managed Object Lifecycle Management (OLM) rules, guaranteeing ephemeral storage cleanup.
+
 ## Automated Test Coverage
 
 Current tests cover:

@@ -26,8 +26,14 @@ variable "services_to_enable" {
 }
 
 variable "ai_agent_landing_zone_bucket" {
-  description = "The name of the global AI Agent landing zone bucket."
+  description = "Name of the landing zone bucket"
   type        = string
+}
+
+variable "landing_zone_retention_days" {
+  description = "Number of days before ephemeral files in the landing zone are automatically deleted."
+  type        = number
+  default     = 7
 }
 
 variable "kb_domains" {

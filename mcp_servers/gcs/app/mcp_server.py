@@ -218,11 +218,11 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
     """
     Retrieves file metadata and automatically streams external files into the Agent Landing Zone.
 
-    This tool acts as a secure boundary between user data and the LLM context by executing three critical steps:
-    1. Authorization Check: Uses human OAuth tokens to securely read from external buckets, while using the agent's Service Account (SA) for internal Landing Zone operations.
-    2. Metadata Extraction: Fetches the source file's MIME type and size. This is required so the LLM understands the file context before processing.
-    3. Zero-Copy Ingestion: If the file is external, it safely streams the data in chunks to the internal Landing Zone. This prevents the MCP container from crashing with Out of Memory (OOM)
-       errors and allows the Vertex LLM to natively read massive files (e.g., PDFs, videos) directly from the GCS URI.
+    This tool acts as a secure boundary between user data and the LLM context by executing critical steps:
+    1. Authorization Check: Always uses the user's OAuth token to securely read the source.
+    2. Access Verification (Payload Proof): Reads the first byte using OAuth to mathematically prove payload access.
+    3. Zero-Copy Fast-Path: If already in the landing zone and authorized, returns it instantly.
+    4. External Ingestion & IAM Granting: If external, copies using SA and grants IAM condition to the user.
 
     Args:
         request: ReadObjectRequest -> Contains the target bucket and object name.
@@ -237,36 +237,41 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
         # 1. Determine if we are reading from the Landing Zone directly
         is_landing_zone = request.bucket_name == GCS_SERVER_CONFIG.landing_zone_bucket
 
-        if is_landing_zone:
-            # 2a. Internal Landing Zone Authorization
-            # Users do not have direct IAM access to the Landing Zone, so we must use the Service Account.
-            # To prevent IDOR (reading other users' files), we strictly validate that the requested
-            # object falls within the current user's namespace.
-            app_name = request.dependencies.app_name
-            user_id = request.dependencies.user_id
-            expected_prefix = f"{app_name}/{user_id}/"
+        # 2. Always use OAuth for the source, even if it's the landing zone.
+        # This prevents IDOR because if the user doesn't have IAM access, the request fails.
+        gcs_manager_source = _make_gcs_manager(use_sa=False)
 
-            if not request.object_name.startswith(expected_prefix):
-                raise PermissionError(
-                    "Access denied: You can only read files within your own landing zone namespace."
-                )
-
-            use_sa = True
-            logger.info(
-                f"Using Service Account for landing zone read, validated namespace: {expected_prefix}"
+        try:
+            source_blob = await asyncio.to_thread(
+                gcs_manager_source.get_object_metadata,
+                request.bucket_name,
+                request.object_name,
             )
-        else:
-            # 2b. External Bucket Authorization
-            # For any other bucket, we MUST use the user's OAuth token to ensure they have IAM read access.
-            use_sa = False
 
-        # 3. Fetch the metadata to ensure the file exists and we know its size/type
-        gcs_manager_source = _make_gcs_manager(use_sa=use_sa)
-        source_blob = await asyncio.to_thread(
-            gcs_manager_source.get_object_metadata,
-            request.bucket_name,
-            request.object_name,
-        )
+            # Access Verification (Payload Proof)
+            # To mathematically prove the user has `storage.objects.get` (payload access),
+            # we open the blob and read 1 byte using their OAuth token.
+            def _prove_payload_access() -> None:
+                """
+                Synchronously reads 1 byte from the GCS blob to definitively prove payload access.
+                This is offloaded to a background thread to prevent blocking the async event loop
+                during the network I/O latency associated with opening the stream.
+
+                Args:
+                    None -> No arguments.
+
+                Returns:
+                    None -> No return value. Raises an exception if access is denied.
+                """
+                with source_blob.open("rb") as f:
+                    f.read(1)
+
+            await asyncio.to_thread(_prove_payload_access)
+
+        except Exception as e:
+            raise PermissionError(
+                f"Unauthorized: The user does not have permission to read this file payload: {e}"
+            ) from e
 
         creation_dt = source_blob.time_created
         source_metadata = GcsObjectMetadata(
@@ -284,56 +289,69 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
             custom_metadata=source_blob.metadata or {},
         )
 
-        # final_uri is the GCS URI where the agent will read the file from.
-        # It always contains the landing zone bucket, which is the one the agent has access to.
-        final_uri = f"gs://{request.bucket_name}/{request.object_name}"
-
-        if not is_landing_zone:
-            # Construct a safe path inside the landing zone using the injected identity
-            app_name = request.dependencies.app_name
-            user_id = request.dependencies.user_id
-            session_id = request.dependencies.session_id
-
-            current_timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
-                "%Y%m%dT%H%M%SZ"
-            )
-            original_filename = request.object_name.split("/")[-1]
-
-            # Sanitize the filename to avoid URI parsing issues in Vertex AI with spaces and special characters
-            sanitized_filename = re.sub(r"[^a-zA-Z0-9.\-_]", "_", original_filename)
-
-            # destination path constructed based on the path defined in .agents/mcp-server-guide.md
-            dest_object = f"{app_name}/{user_id}/{session_id}/gcs-{current_timestamp}-{sanitized_filename}"
-
-            logger.info(f"Ingesting external file to landing zone: {dest_object}")
-
-            # We must use SA to write to the landing zone, because the user's OAuth token doesn't have access to it
-            gcs_manager_destination = _make_gcs_manager(use_sa=True)
-
-            # 5. Stream the file chunk by chunk to avoid Out Of Memory
-            # We pass source_blob.content_type directly to the stream to save a dedicated API call later
-            await asyncio.to_thread(
-                gcs_manager_source.stream_to_landing_zone,
-                request.bucket_name,
-                request.object_name,
-                GCS_SERVER_CONFIG.landing_zone_bucket,
-                dest_object,
-                gcs_manager_destination,
-                source_blob.content_type,
+        # 3. Landing Zone Fast-Path
+        # If it's already in the landing zone and they just proved they have access, return it instantly!
+        if is_landing_zone:
+            logger.info("Landing Zone fast-path taken (user is authorized)")
+            final_uri = f"gs://{request.bucket_name}/{request.object_name}"
+            return ReadObjectResponse(
+                gcs_uri=final_uri,
+                mime_type=source_metadata.mime_type,
+                metadata=source_metadata,
+                inject_file_data=True,
+                execution_status="success",
+                execution_message="Successfully validated and resolved Landing Zone artifact.",
             )
 
-            # 6. Only execute an extra patch API call if the original blob had custom_metadata
-            if source_blob.metadata:
-                await asyncio.to_thread(
-                    gcs_manager_destination.update_object_metadata,
-                    GCS_SERVER_CONFIG.landing_zone_bucket,
-                    dest_object,
-                    {"custom_metadata": source_blob.metadata},
-                )
-            final_uri = f"gs://{GCS_SERVER_CONFIG.landing_zone_bucket}/{dest_object}"
-            exec_msg = f"File gs://{request.bucket_name}/{request.object_name} was securely copied to the internal Landing Zone ({final_uri}) for native reading."
-        else:
-            exec_msg = "Object metadata and URI retrieved successfully."
+        # 4. External Bucket Copy & IAM Grant
+        # User has access to the external file. We copy it to the landing zone using the SA.
+        app_name = request.dependencies.app_name
+        user_id = request.dependencies.user_id
+        session_id = request.dependencies.session_id
+
+        current_timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y%m%dT%H%M%SZ"
+        )
+        original_filename = request.object_name.split("/")[-1]
+        sanitized_filename = re.sub(r"[^a-zA-Z0-9.\-_]", "_", original_filename)
+
+        folder_prefix = f"{app_name}/{user_id}/"
+        dest_object = (
+            f"{folder_prefix}{session_id}/gcs-{current_timestamp}-{sanitized_filename}"
+        )
+
+        logger.info(f"Ingesting external file to landing zone: {dest_object}")
+
+        # The SA has roles/storage.objectCreator on the landing zone
+        gcs_manager_destination = _make_gcs_manager(use_sa=True)
+
+        await asyncio.to_thread(
+            gcs_manager_source.stream_to_landing_zone,
+            request.bucket_name,
+            request.object_name,
+            GCS_SERVER_CONFIG.landing_zone_bucket,
+            dest_object,
+            gcs_manager_destination,
+            source_blob.content_type,
+        )
+
+        # Add uploader stamp
+        await asyncio.to_thread(
+            gcs_manager_destination.update_object_metadata,
+            GCS_SERVER_CONFIG.landing_zone_bucket,
+            dest_object,
+            {"uploader": user_id},
+        )
+
+        # Grant the IAM condition to the user for their namespace folder using the SA (which has roles/storage.admin)
+        await asyncio.to_thread(
+            gcs_manager_destination.grant_folder_iam_condition,
+            GCS_SERVER_CONFIG.landing_zone_bucket,
+            folder_prefix,
+            user_id,
+        )
+
+        final_uri = f"gs://{GCS_SERVER_CONFIG.landing_zone_bucket}/{dest_object}"
 
         return ReadObjectResponse(
             gcs_uri=final_uri,
@@ -341,19 +359,19 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
             metadata=source_metadata,
             inject_file_data=True,
             execution_status="success",
-            execution_message=exec_msg,
+            execution_message=f"Successfully streamed external file to {final_uri} and granted IAM access.",
         )
+
     except Exception as e:
-        # Fallback empty metadata on error
         return ReadObjectResponse(
             gcs_uri=f"gs://{request.bucket_name}/{request.object_name}",
             mime_type="application/octet-stream",
             metadata=GcsObjectMetadata(
-                mime_type="application/octet-stream",
+                mime_type="",
                 size_bytes=0,
-                creation_date="error",
-                creation_time="error",
-                updated_at="error",
+                creation_date="",
+                creation_time="",
+                updated_at="",
                 custom_metadata={},
             ),
             inject_file_data=False,
