@@ -1,111 +1,89 @@
 # Storage & Ingestion Architecture
 
-This document explains the architecture of the artifact storage and ingestion pipeline for the Gemini Enterprise agent.
+This document explains the architecture of the artifact storage and external data ingestion pipeline for the GE Agent Engine.
 
 ## Overview
 
-The system utilizes a strict Model-View-Controller (MVC) pattern to ensure a clean separation of concerns and guarantee a **zero-copy** context ingestion strategy. Rather than passing massive binary blobs in the agent's memory, the system dynamically translates all files into lightweight `gs://` URI references.
+The system utilizes a **zero-copy** context ingestion strategy. Rather than passing massive binary blobs through the agent's memory or over JSON-RPC, the system dynamically translates all external files into lightweight `gs://` URI references using a centralized GCS Landing Zone.
 
-There are three primary layers in the ingestion triad:
-1.  **The Database (`StorageService`)**: The core utility that handles all GCS operations and identity-aware IAM security.
-2.  **The User Hook (`GeminiEnterpriseFileIngestionPlugin`)**: Intercepts files uploaded explicitly by a user via the Gemini Enterprise UI.
-3.  **The Tool Hook (`FileIngestionToolWrapper`)**: Dynamically intercepts files generated or downloaded by backend MCP Servers or Tools mid-turn.
+There are two primary actors in the external data ingestion lifecycle:
+1.  **The MCP Server**: Acts as the ingestor. It reads external data (e.g., Google Drive, OneDrive) and directly uploads it to the Landing Zone, managing IAM dynamically.
+2.  **The Framework Plugins**: The `MultimodalFileInjectionPlugin` intercepts the resulting GCS URIs mid-turn and injects them into the LLM's context window.
 
 ```mermaid
 graph TD
     subgraph Conversation Context
-        A[User Input / UI Upload]
-        B[Agent Reasoning]
-        C[MCP Tool / Sub-Agent Response]
+        A[User Request]
+        B[Agent / LLM Reasoning]
     end
 
-    subgraph Interceptors
-        UI_Hook[GeminiEnterpriseFileIngestionPlugin]
-        Tool_Hook[FileIngestionToolWrapper]
+    subgraph Framework Plugins
+        DepPlugin[Dependency Injection]
+        Hook[MultimodalFileInjectionPlugin]
+    end
+
+    subgraph External System
+        MCP[MCP Server]
+        External[External API]
     end
 
     subgraph Data Access Layer
-        Storage[StorageService]
         GCS[(GCS Landing Zone)]
     end
 
-    A -- Uploads File --> UI_Hook
-    C -- Returns gs:// URI --> Tool_Hook
-    
-    UI_Hook -- Saves raw bytes --> Storage
-    
-    Storage -- Uploads & Manages IAM --> GCS
-    Storage -- Returns gs:// URI --> UI_Hook
-    
-    UI_Hook -- Injects Zero-Copy URI --> B
-    Tool_Hook -- Injects Zero-Copy URI --> B
+    A --> B
+    B -- Calls Tool --> DepPlugin
+    DepPlugin -- Injects AppName/User/Session --> MCP
+    MCP -- Fetches Data --> External
+    MCP -- Zero-Copy Stream Upload & Grants IAM --> GCS
+    MCP -- Returns {gcs_uri, inject_file_data} --> Hook
+    Hook -- Injects Zero-Copy URI --> B
 ```
 
 ---
 
-## 1. Storage Service (`StorageService`)
-**Location**: `agent/core_agent/artifact_service/service.py`
+## 1. External Data Ingestion (The MCP Server)
 
-The `StorageService` is the foundational Data Access Layer. It extends the base ADK `GcsArtifactService` to implement enterprise-specific features. It has no awareness of the "Agent" or the "Chat History".
+When an MCP Server needs to read or process files from external data sources (Google Drive, OneDrive, Confluence), it **MUST NOT** return the raw file content directly to the agent. It relies on the GCS Landing Zone.
 
-### Key Responsibilities:
-- **Reference Management**: When asked to load an artifact (`_load_artifact`), it strictly returns a `types.Part(file_data=...)` pointing to a `gs://` URI, completely bypassing raw byte downloads to keep the prompt token-count low.
-- **MIME Type Safety**: Automatically resolves MIME types (falling back to `application/pdf` if unknown).
-- **Security Guardrails**: Implements `ensure_uploader_permissions`, protecting against SSRF and Broken Access Control by strictly verifying `bucket_name == self.bucket.name` before granting UBLA IAM Folder permissions.
+### Landing Zone Conventions
+Files are uploaded to the central GCS Landing Zone bucket (`LANDING_ZONE_BUCKET`) using a strict folder naming convention required by the ADK Artifact system:
 
----
+`gs://{LANDING_ZONE_BUCKET}/<app_name>/<user_id>/<session_id>/<data_source>-<ingestion-timestamp-in-UTC>-<filename>.<extension>`
 
-## 2. The User Hook: Ingestion Plugin
-**Location**: `agent/core_agent/plugins/gemini_enterprise_ingestion/main.py`
-
-### `GeminiEnterpriseFileIngestionPlugin`
-- **When it fires**: On the `on_user_message_callback` (Before the agent sees the message).
-- **What it catches**: Gemini Enterprise sends raw bytes (`inline_data`) in the JSON payload when a user clicks "Upload".
-- **Function**: 
-    - Intercepts the heavy payload before the agent processes it.
-    - Uses `StorageService.save_artifact` to offload the bytes to the GCS Landing Zone.
-    - Replaces the original binary data in the user's message payload with a lightweight `types.Part(file_data=...)` referencing the new GCS URI.
-- **Lazy Discovery**: If a user uploads a massively large file (like a video), the Gemini frontend "pre-stashes" it. The plugin uses `StorageService.get_artifact_metadata` to discover these pre-stashed files and securely associate them.
+### Security Constraints (MANDATORY)
+The MCP server itself is responsible for security, not the core agent engine:
+1. **IDOR Prevention**: The server validates the user has legitimate access to the external file payload *before* ingesting it (e.g., mathematically proving access by reading at least 1 byte via delegated OAuth token).
+2. **Dynamic Authorization**: After ingestion using the MCP Service Account, the MCP server automatically grants the user read access to their specific namespace folder by injecting an IAM condition into the bucket's IAM policy:
+   ```cel
+   resource.name.startsWith("projects/_/buckets/<BUCKET_NAME>/objects/<APP_NAME>/<USER_ID>/<SESSION_ID>/")
+   ```
+3. **Lifecycle Management**: The Landing Zone enforces an Object Lifecycle Management (OLM) rule to physically delete ephemeral files after 7 days.
 
 ---
 
-## 3. The Tool Hook: External Data Wrapper
-**Location**: `agent/core_agent/callbacks/tool_wrappers/file_ingestion_wrapper/main.py`
+## 2. Dependency Injection
 
-### `FileIngestionToolWrapper`
+To ensure the MCP Server constructs the correct GCS path and applies IAM policies accurately without LLM hallucination, the framework uses dependency injection.
+
+- **The Flow**: The `app_name`, `user_id`, and `session_id` are injected into the tool's payload via a Plugin's `before_tool_callback`.
+- **The Schema**: MCP tools must define their request schemas by inheriting from a `BaseRequest` that hides these dependencies from the LLM using `exclude=True`.
+
+---
+
+## 3. The Tool Hook: Multimodal File Injection Plugin
+**Location**: `agent/core_agent/plugins/multimodal_file_injection/main.py`
+
+### `MultimodalFileInjectionPlugin`
 - **When it fires**: Mid-turn, right after a Tool or MCP Server finishes executing.
-- **What it catches**: Tools returning a dictionary with `{"_inject_file_data": True}`.
+- **What it catches**: Tools returning a response schema with the canonical `gcs_uri` and the `inject_file_data: True` flag.
 - **Function**: 
-    - When a backend MCP Server (like Google Drive or BigQuery) generates or downloads a file, the user never clicked "upload", so the Plugin (#2) misses it.
-    - This ToolWrapper catches the signal and dynamically forces the GCS URI into the LLM's context window on the fly, allowing the agent to read the newly generated document in its very next reasoning loop.
+    - This Plugin catches the signal and dynamically forces the GCS URI into the LLM's context window on the fly.
+    - This allows the agent to read the newly generated document in its very next reasoning loop using native multimodal vision capabilities, preserving rich structural data (images, charts, tables) that would be lost in plain text extraction.
 
 ### Architectural Rationale: Direct MCP Uploads vs. Middleware
 It is a deliberate design choice that **MCP Servers upload directly to GCS** rather than returning raw bytes to the Agent Engine (middleware) for uploading.
 
-If the MCP Server returned raw files to the Agent Engine over JSON-RPC:
-1. **JSON Bottlenecks**: Massive binary files (like PDFs or Videos) would have to be base64-encoded, bloating the JSON payload by ~33% and risking HTTP limits.
-2. **Memory Exhaustion**: The Python Agent Engine process would have to load every byte into memory just to act as a middleman, causing severe Out-Of-Memory (OOM) crashes under concurrency.
-3. **Loss of Zero-Copy**: By having the MCP Server stream directly to GCS and return only a 50-byte `gs://` string, the heavy binary data completely bypasses the Agent Engine messaging bus.
-4. **Native Multimodal Context**: If the MCP Server tried to extract text locally and just return strings, all rich structural data (images, charts, tables) would be lost. Uploading the raw file to GCS allows the Agent Engine to pass the raw URI to Gemini, allowing the LLM's native multimodal vision capabilities to "see" the exact original file, preserving all layouts and visual elements.
-
-While this tightly couples the MCP Server to GCP infrastructure, in an Enterprise environment, the performance, stability, and scalability gains of this pure Zero-Copy approach vastly outweigh the theoretical benefits of decoupling.
-
----
-
-## Security Model: Identity-Aware IAM
-
-To comply with Enterprise security standards, the agent uses **Uniform Bucket-Level Access (UBLA)** with **IAM Conditions**.
-
-### UBLA IAM Folder Permissions
-**UBLA (Uniform Bucket-Level Access)** is GCP's standard for managing access uniformly across an entire bucket rather than individual objects. However, because we use a single Landing Zone bucket for all users, we must simulate "Folder-Level" isolation. 
-
-We achieve this by dynamically binding the `roles/storage.objectViewer` role to the user's specific identity (e.g., `user:joe@example.com`) combined with a precise **IAM Condition**. This ensures the user can only read objects within their exact session directory:
-
-```cel
-resource.name.startsWith("projects/_/buckets/<BUCKET_NAME>/objects/<APP_NAME>/<USER_EMAIL>/")
-```
-
-### Benefits:
-- **Privacy**: Users cannot list or access files belonging to other users.
-- **Scalability**: Reduces IAM policy bloat by using one binding per user per app, rather than one per file.
-- **Auditability**: Every file is stamped with `uploader: <email>` metadata.
+1. **JSON Bottlenecks**: Massive binary files would have to be base64-encoded, bloating the JSON payload by ~33% and risking HTTP limits.
+2. **Memory Exhaustion**: The Python Agent Engine process would have to load every byte into memory, causing severe Out-Of-Memory (OOM) crashes under concurrency.
+3. **Loss of Zero-Copy**: By streaming directly to GCS, the heavy binary data completely bypasses the Agent Engine messaging bus.
