@@ -237,13 +237,28 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
         # 1. Determine if we are reading from the Landing Zone directly
         is_landing_zone = request.bucket_name == GCS_SERVER_CONFIG.landing_zone_bucket
 
-        # 2. If it's the landing zone, the SA has access. If it's an external bucket, we MUST use OAuth.
-        use_sa = is_landing_zone
+        if is_landing_zone:
+            # 2a. Internal Landing Zone Authorization
+            # Users do not have direct IAM access to the Landing Zone, so we must use the Service Account.
+            # To prevent IDOR (reading other users' files), we strictly validate that the requested
+            # object falls within the current user's namespace.
+            app_name = request.dependencies.app_name
+            user_id = request.dependencies.user_id
+            expected_prefix = f"{app_name}/{user_id}/"
 
-        if use_sa:
+            if not request.object_name.startswith(expected_prefix):
+                raise PermissionError(
+                    "Access denied: You can only read files within your own landing zone namespace."
+                )
+
+            use_sa = True
             logger.info(
-                f"Using Service Account for read_object from landing zone bucket {request.bucket_name}"
+                f"Using Service Account for landing zone read, validated namespace: {expected_prefix}"
             )
+        else:
+            # 2b. External Bucket Authorization
+            # For any other bucket, we MUST use the user's OAuth token to ensure they have IAM read access.
+            use_sa = False
 
         # 3. Fetch the metadata to ensure the file exists and we know its size/type
         gcs_manager_source = _make_gcs_manager(use_sa=use_sa)
