@@ -1,12 +1,17 @@
-from typing import Optional, Literal
+from typing import Optional
 import time
-import re
 import httpx
 from loguru import logger
 
 from .gcs_connector import GCSConnector
 from pydantic import SecretStr
-from .config import ONEDRIVE_SERVER_CONFIG, MainFolder, MimeType
+from .config import ONEDRIVE_SERVER_CONFIG, MainFolder
+from .schemas import (
+    SearchFilesRequest,
+    SearchFilesResponse,
+    ReadFileRequest,
+    ReadFileResponse,
+)
 
 
 class OneDriveClient:
@@ -146,46 +151,33 @@ class OneDriveClient:
     def _build_search_endpoints(
         self,
         main_folder: MainFolder,
-        folder_id: Optional[str],
         folder_name: Optional[str],
         file_name: Optional[str],
-        mime_type: Optional[str],
-    ) -> tuple[list[str], Optional[str]]:
+    ) -> list[str]:
         """
-        Builds Graph API endpoints based on the chosen main_folder or specific folder_id.
+        Builds Graph API endpoints based on the chosen main_folder.
         Constructs the query string for searching across OneDrive.
 
         Args:
             main_folder: MainFolder -> The main space to search within (e.g., MY_FILES).
-            folder_id: Optional[str] -> The exact folder ID to list contents from.
             folder_name: Optional[str] -> The target folder name filter.
             file_name: Optional[str] -> The target file name filter.
-            mime_type: Optional[str] -> The target MIME type filter.
 
         Returns:
-            tuple[list[str], Optional[str]] -> A tuple containing the list of API endpoints and the folder filter.
+            list[str] -> A list of API endpoints to fetch from.
         """
         search_terms = []
         if file_name:
             search_terms.append(file_name)
-        if folder_name and not folder_id:
+        if folder_name:
             search_terms.append(folder_name)
-        if mime_type:
-            search_terms.append(mime_type)
+
         query = " ".join(search_terms).strip() or None
 
-        if folder_id:
-            # If a specific folder is targeted, we navigate directly into it
-            if query:
-                endpoints = [f"/me/drive/items/{folder_id}/search(q='{query}')"]
-            else:
-                endpoints = [f"/me/drive/items/{folder_id}/search(q='')"]
-            # Clear folder_name filter since we are explicitly inside the requested folder
-            folder_name = None
-        else:
-            endpoints = [main_folder.get_endpoint(query)]
+        # We search across the designated main space
+        endpoints = [main_folder.get_endpoint(query)]
 
-        return endpoints, folder_name
+        return endpoints
 
     def _fetch_all_items(
         self, endpoints: list[str], use_cache: bool = True
@@ -243,14 +235,12 @@ class OneDriveClient:
     def _filter_and_sort_items(
         self,
         items: list[dict],
-        folder_name_filter: Optional[str],
-        file_name: Optional[str],
-        mime_type: Optional[MimeType],
+        folder_tokens: list[str],
+        file_tokens: list[str],
         min_creation_date: Optional[str],
         max_creation_date: Optional[str],
         sort_by: Optional[str],
         sort_order: Optional[str],
-        limit: int,
     ) -> list[dict]:
         """
         Applies python-side filtering and sorting to the fetched items.
@@ -258,50 +248,41 @@ class OneDriveClient:
 
         Args:
             items: list[dict] -> The list of raw formatted items.
-            folder_name_filter: Optional[str] -> The fuzzy folder path filter.
-            file_name: Optional[str] -> The fuzzy file name filter.
-            mime_type: Optional[MimeType] -> The strict MIME type filter.
+            folder_tokens: list[str] -> The tokenized folder path filter.
+            file_tokens: list[str] -> The tokenized file name filter.
             min_creation_date: Optional[str] -> Minimum creation date (YYYY-MM-DD).
             max_creation_date: Optional[str] -> Maximum creation date (YYYY-MM-DD).
             sort_by: Optional[str] -> The key to sort the results by.
             sort_order: Optional[str] -> The direction of sorting ('asc' or 'desc').
-            limit: int -> The arbitrary limit parameter (currently unused but reserved).
 
         Returns:
             list[dict] -> The filtered and sorted list of items.
         """
         filtered_results = []
         for api_item in items:
-            if file_name:
+            if file_tokens:
                 target_item_name = api_item.get("name", "").lower()
                 target_folder_path = api_item.get("folder_path", "").lower()
-                tokens = [t for t in re.split(r"[\s\-_]+", file_name.lower()) if t]
-                is_name_matched = all(t in target_item_name for t in tokens)
-                is_path_matched = all(t in target_folder_path for t in tokens)
+                is_name_matched = all(
+                    token in target_item_name for token in file_tokens
+                )
+                is_path_matched = all(
+                    token in target_folder_path for token in file_tokens
+                )
                 if not (is_name_matched or is_path_matched):
                     continue
 
-            if folder_name_filter:
+            if folder_tokens:
                 target_folder_path = api_item.get("folder_path", "").lower()
                 target_file_name = api_item.get("name", "").lower()
-                tokens = [
-                    t for t in re.split(r"[\s\-_]+", folder_name_filter.lower()) if t
-                ]
 
-                is_path_matched = all(t in target_folder_path for t in tokens)
+                is_path_matched = all(
+                    token in target_folder_path for token in folder_tokens
+                )
                 is_name_matched = api_item.get("type") == "folder" and all(
-                    t in target_file_name for t in tokens
+                    token in target_file_name for token in folder_tokens
                 )
                 if not (is_path_matched or is_name_matched):
-                    continue
-
-            if mime_type:
-                target_mime_type = api_item.get("mime_type", "").lower()
-                target_item_name = api_item.get("name", "").lower()
-                if (
-                    mime_type.lower() not in target_mime_type
-                    and not target_item_name.endswith(f".{mime_type.lower()}")
-                ):
                     continue
 
             if min_creation_date and max_creation_date:
@@ -313,13 +294,15 @@ class OneDriveClient:
 
             filtered_results.append(api_item)
 
-        if sort_by in ["name", "creation_date", "last_modified_date"]:
-            reverse = (sort_order.lower() == "desc") if sort_order else False
-            filtered_results.sort(key=lambda x: x.get(sort_by) or "", reverse=reverse)
-
         return filtered_results
 
-    def _build_recursive_tree(self, items: list[dict], page: int) -> list[dict]:
+    def _build_recursive_tree(
+        self,
+        items: list[dict],
+        page: int,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+    ) -> list[dict]:
         """
         Builds a recursive directory tree from a flat list of Graph API items.
         Automatically synthesizes missing intermediate folders and dynamically roots the tree
@@ -328,6 +311,8 @@ class OneDriveClient:
         Args:
             items: list[dict] -> The completely filtered list of items.
             page: int -> The current page number to extract for the root items.
+            sort_by: Optional[str] -> Optional sorting criteria ('name', 'creation_date', 'last_modified_date').
+            sort_order: Optional[str] -> Optional sorting order ('asc', 'desc').
 
         Returns:
             list[dict] -> A nested list of ObjectMetadata dictionaries.
@@ -338,15 +323,15 @@ class OneDriveClient:
         PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
         MAX_DEPTH = ONEDRIVE_SERVER_CONFIG.max_tree_depth
 
-        def normalize(p: str) -> str:
-            p = p.replace("\\", "/")
-            while "//" in p:
-                p = p.replace("//", "/")
-            if not p.startswith("/"):
-                p = "/" + p
-            if p.endswith("/") and len(p) > 1:
-                p = p[:-1]
-            return p
+        def normalize(path_str: str) -> str:
+            path_str = path_str.replace("\\", "/")
+            while "//" in path_str:
+                path_str = path_str.replace("//", "/")
+            if not path_str.startswith("/"):
+                path_str = "/" + path_str
+            if path_str.endswith("/") and len(path_str) > 1:
+                path_str = path_str[:-1]
+            return path_str
 
         # Find the dynamic root (deepest common path among all returned items)
         all_paths = [normalize(item.get("folder_path", "")) for item in items]
@@ -363,21 +348,21 @@ class OneDriveClient:
 
         # 1. First pass: register all explicit items
         for item in items:
-            p_path = normalize(item.get("folder_path", ""))
+            parent_path = normalize(item.get("folder_path", ""))
             if item.get("type") == "folder":
-                abs_path = normalize(p_path + "/" + item.get("name", ""))
+                abs_path = normalize(parent_path + "/" + item.get("name", ""))
                 folders_dict[abs_path] = {
                     "item_id": item.get("id"),
                     "object_name": item.get("name"),
                     "creation_date": item.get("creation_date"),
                     "update_date": item.get("last_modified_date"),
                     "owner": item.get("owner"),
-                    "folder_path": p_path,
+                    "folder_path": parent_path,
                     "url": item.get("web_url"),
                     "object_type": "folder",
                     "child_objects": [],
                     "_abs_path": abs_path,
-                    "_parent_path": p_path,
+                    "_parent_path": parent_path,
                 }
             else:
                 files_list.append(
@@ -387,11 +372,11 @@ class OneDriveClient:
                         "creation_date": item.get("creation_date"),
                         "update_date": item.get("last_modified_date"),
                         "owner": item.get("owner"),
-                        "folder_path": p_path,
+                        "folder_path": parent_path,
                         "url": item.get("web_url"),
                         "object_type": "file",
                         "mime_type": item.get("mime_type"),
-                        "_parent_path": p_path,
+                        "_parent_path": parent_path,
                     }
                 )
 
@@ -401,136 +386,114 @@ class OneDriveClient:
                 return None
             if abs_path not in folders_dict:
                 parts = abs_path.rstrip("/").split("/")
-                parent_path = normalize("/".join(parts[:-1]))
+                current_parent = normalize("/".join(parts[:-1]))
                 name = parts[-1]
                 folders_dict[abs_path] = {
                     "item_id": None,
                     "object_name": name,
-                    "folder_path": parent_path,
+                    "folder_path": current_parent,
                     "object_type": "folder",
                     "child_objects": [],
                     "_abs_path": abs_path,
-                    "_parent_path": parent_path,
+                    "_parent_path": current_parent,
                 }
-                if parent_path != common_prefix and len(parent_path) > len(
+                if current_parent != common_prefix and len(current_parent) > len(
                     common_prefix
                 ):
-                    get_or_create_folder(parent_path)
+                    get_or_create_folder(current_parent)
             return folders_dict[abs_path]
 
-        for f in files_list:
-            if f["_parent_path"] != common_prefix and len(f["_parent_path"]) > len(
+        # Optimize by using a set to avoid redundant calls for the same parent path
+        paths_to_synthesize = {f["_parent_path"] for f in files_list}
+        paths_to_synthesize.update(f["_parent_path"] for f in folders_dict.values())
+
+        for synthesize_path in paths_to_synthesize:
+            if synthesize_path != common_prefix and len(synthesize_path) > len(
                 common_prefix
             ):
-                get_or_create_folder(f["_parent_path"])
-
-        for abs_path in list(folders_dict.keys()):
-            f_obj = folders_dict[abs_path]
-            if f_obj["_parent_path"] != common_prefix and len(
-                f_obj["_parent_path"]
-            ) > len(common_prefix):
-                get_or_create_folder(f_obj["_parent_path"])
+                get_or_create_folder(synthesize_path)
 
         # 3. Attach children to parents
         root_elements = []
-        for f in files_list:
-            if f["_parent_path"] == common_prefix or len(f["_parent_path"]) <= len(
-                common_prefix
-            ):
-                root_elements.append(f)
-            else:
-                if f["_parent_path"] in folders_dict:
-                    folders_dict[f["_parent_path"]]["child_objects"].append(f)
-                else:
-                    root_elements.append(f)
+        all_items = files_list + list(folders_dict.values())
 
-        for abs_path, f_obj in folders_dict.items():
-            if f_obj["_parent_path"] == common_prefix or len(
-                f_obj["_parent_path"]
-            ) <= len(common_prefix):
-                root_elements.append(f_obj)
+        for item in all_items:
+            item_parent = item["_parent_path"]
+            if item_parent == common_prefix or len(item_parent) <= len(common_prefix):
+                root_elements.append(item)
             else:
-                if f_obj["_parent_path"] in folders_dict:
-                    folders_dict[f_obj["_parent_path"]]["child_objects"].append(f_obj)
+                if item_parent in folders_dict:
+                    folders_dict[item_parent]["child_objects"].append(item)
                 else:
-                    root_elements.append(f_obj)
+                    root_elements.append(item)
 
         # 4. Paginate the root elements and process nested children constraints
         def sort_children(children):
-            children.sort(key=lambda x: x.get("object_name", "").lower())
+            if sort_by in ["name", "creation_date", "last_modified_date"]:
+                key_mapping = {
+                    "name": "object_name",
+                    "creation_date": "creation_date",
+                    "last_modified_date": "update_date",
+                }
+                sort_key = key_mapping.get(sort_by)
+                reverse = (sort_order.lower() == "desc") if sort_order else False
+                children.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
+            else:
+                # Default fallback sort by name
+                children.sort(key=lambda x: x.get("object_name", "").lower())
 
         sort_children(root_elements)
         start = (page - 1) * PAGE_LIMIT
         end = start + PAGE_LIMIT
         paginated_root = root_elements[start:end]
 
-        def process_folder(f_obj, current_depth):
-            total_items = len(f_obj["child_objects"])
-            f_obj["total_items_in_folder"] = total_items
-            f_obj["total_pages_in_folder"] = max(
+        def process_folder(folder_object, current_depth):
+            total_items = len(folder_object["child_objects"])
+            folder_object["total_items_in_folder"] = total_items
+            folder_object["total_pages_in_folder"] = max(
                 1, (total_items + PAGE_LIMIT - 1) // PAGE_LIMIT
             )
-            f_obj["current_page"] = 1
+            folder_object["current_page"] = 1
 
-            sort_children(f_obj["child_objects"])
+            sort_children(folder_object["child_objects"])
 
             if current_depth >= MAX_DEPTH:
-                f_obj["child_objects"] = []
-                f_obj["items_in_page"] = 0
+                folder_object["child_objects"] = []
+                folder_object["items_in_page"] = 0
             else:
-                f_obj["child_objects"] = f_obj["child_objects"][:PAGE_LIMIT]
-                f_obj["items_in_page"] = len(f_obj["child_objects"])
-                for child in f_obj["child_objects"]:
+                folder_object["child_objects"] = folder_object["child_objects"][
+                    :PAGE_LIMIT
+                ]
+                folder_object["items_in_page"] = len(folder_object["child_objects"])
+                for child in folder_object["child_objects"]:
                     if child["object_type"] == "folder":
                         process_folder(child, current_depth + 1)
+                    else:
+                        child.pop("_parent_path", None)
 
-            f_obj.pop("_abs_path", None)
-            f_obj.pop("_parent_path", None)
+            folder_object.pop("_abs_path", None)
+            folder_object.pop("_parent_path", None)
 
-        for el in paginated_root:
-            if el["object_type"] == "folder":
-                process_folder(el, 1)
-            el.pop("_abs_path", None)
-            el.pop("_parent_path", None)
+        for element in paginated_root:
+            if element["object_type"] == "folder":
+                process_folder(element, 1)
+            element.pop("_abs_path", None)
+            element.pop("_parent_path", None)
 
         return paginated_root
 
-    def search_files(
-        self,
-        main_folder: MainFolder,
-        folder_id: Optional[str] = None,
-        folder_name: Optional[str] = None,
-        file_name: Optional[str] = None,
-        mime_type: Optional[MimeType] = None,
-        min_creation_date: Optional[str] = None,
-        max_creation_date: Optional[str] = None,
-        sort_by: Optional[
-            Literal["name", "creation_date", "last_modified_date"]
-        ] = "last_modified_date",
-        sort_order: Optional[Literal["asc", "desc"]] = "desc",
-        page: int = 1,
-        use_cache: bool = True,
-    ) -> list[dict]:
+    def search_files(self, request: SearchFilesRequest) -> SearchFilesResponse:
         """
         Lists or searches for files in OneDrive.
         It supports searching by query, listing root/shared/recent, and strict filtering.
 
         Args:
-            main_folder: MainFolder -> The main OneDrive space to search within.
-            folder_id: Optional[str] -> Optional exact folder ID to navigate directly into.
-            folder_name: Optional[str] -> Optional fuzzy subfolder name to filter by.
-            file_name: Optional[str] -> Optional fuzzy file name to filter by.
-            mime_type: Optional[MimeType] -> Optional exact MIME type to filter by.
-            min_creation_date: Optional[str] -> Optional start of creation date window.
-            max_creation_date: Optional[str] -> Optional end of creation date window.
-            sort_by: Optional[str] -> Optional sorting criteria ('name', 'creation_date', 'last_modified_date').
-            sort_order: Optional[str] -> Optional sorting order ('asc', 'desc').
-            page: int -> Page number to retrieve (20 files per page).
-            use_cache: bool -> Set to False to bypass the class-level cache.
+            request: SearchFilesRequest -> The validated search request containing the target parameters.
 
         Returns:
-            list[dict] -> A list of formatted folder paginations.
+            SearchFilesResponse -> A structured response containing the paginated tree of items.
         """
+        main_folder = request.main_folder
         if isinstance(main_folder, str):
             # Map 'root' to 'MY_FILES' for notebook backward compatibility, otherwise use enum value
             if main_folder.lower() == "root":
@@ -538,46 +501,47 @@ class OneDriveClient:
             else:
                 main_folder = MainFolder(main_folder.upper())
 
-        if isinstance(mime_type, str):
-            mime_type = MimeType(mime_type.lower())
-
-        endpoints, folder_name_filter = self._build_search_endpoints(
-            main_folder, folder_id, folder_name, file_name, mime_type
+        endpoints = self._build_search_endpoints(
+            main_folder, request.folder_name, request.file_name
         )
 
-        all_items = self._fetch_all_items(endpoints, use_cache=use_cache)
+        all_items = self._fetch_all_items(endpoints, use_cache=request.use_cache)
 
         filtered_items = self._filter_and_sort_items(
             all_items,
-            folder_name_filter,
-            file_name,
-            mime_type,
-            min_creation_date,
-            max_creation_date,
-            sort_by,
-            sort_order,
-            limit=1000,
+            request.folder_name_tokens,
+            request.file_name_tokens,
+            request.min_creation_date,
+            request.max_creation_date,
+            request.sort_by,
+            request.sort_order,
         )
 
-        paginated_tree = self._build_recursive_tree(filtered_items, page)
-        return paginated_tree
+        paginated_tree = self._build_recursive_tree(
+            filtered_items,
+            request.page,
+            sort_by=request.sort_by,
+            sort_order=request.sort_order,
+        )
+        return SearchFilesResponse(objects_found=paginated_tree)
 
-    def read_file(
-        self, file_id: str, app_name: str, user_id: str, session_id: str
-    ) -> dict:
+    def read_file(self, request: ReadFileRequest) -> ReadFileResponse:
         """
         Reads a specific file from OneDrive, ingests it into the Landing Zone,
         and returns the GCS URI metadata required for multimodal ingestion.
 
         Args:
-            file_id: str -> The unique identifier of the file in OneDrive.
-            app_name: str -> The application namespace for GCS ingestion.
-            user_id: str -> The user identifier for GCS namespace.
-            session_id: str -> The session identifier for GCS namespace.
+            request: ReadFileRequest -> The validated read request containing the file ID and dependencies.
 
         Returns:
-            dict -> A dictionary containing the resulting GCS URI, content type, and filename.
+            ReadFileResponse -> A structured response containing the resulting GCS URI, content type, and filename.
         """
+        file_id = request.file_id
+        dependencies = request.dependencies
+
+        if not dependencies:
+            raise ValueError("AgentDependencies must be provided to ingest files.")
+
         logger.info(f"Reading file {file_id} from OneDrive to ingest into GCS.")
 
         # 1. Get file metadata to determine filename and content_type
@@ -643,19 +607,18 @@ class OneDriveClient:
                     gcs_uri = self.gcs_connector.upload_stream(
                         file_obj=file_stream,
                         content_type=content_type,
-                        app_name=app_name,
-                        user_id=user_id,
-                        session_id=session_id,
+                        app_name=dependencies.app_name,
+                        user_id=dependencies.user_id,
+                        session_id=dependencies.session_id,
                         filename=filename,
                     )
 
-            return {
-                "gcs_uri": gcs_uri,
-                "mime_type": content_type,
-                "filename": filename,
-                "file_path": folder_path,
-                "inject_file_data": True,
-            }
+            return ReadFileResponse(
+                gcs_uri=gcs_uri,
+                mime_type=content_type,
+                filename=filename,
+                inject_file_data=True,
+            )
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error downloading file content: {e.response.text}")

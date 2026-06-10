@@ -1,12 +1,13 @@
 from typing import Annotated, Literal, Optional, Self, Union
-from pydantic import BaseModel, Field, model_validator
-from .config import MimeType, MainFolder
+import re
+from pydantic import BaseModel, Field, model_validator, computed_field, field_validator
+from .config import MainFolder
 
 # --- Reusable Type Aliases ---
-FileId = Annotated[
+ItemId = Annotated[
     str,
     Field(
-        description="The unique identifier of the file.",
+        description="The unique identifier of the item.",
         min_length=1,
     ),
 ]
@@ -91,7 +92,7 @@ class ObjectMetadata(BaseModel):
     """Abstract base class for all file and folder items."""
 
     item_id: Annotated[
-        Optional[FileId],
+        Optional[ItemId],
         Field(
             description="Unique identifier of the object. Can be None if the folder is structurally synthesized.",
             default=None,
@@ -179,6 +180,16 @@ class FolderMetadata(ObjectMetadata):
 
     @model_validator(mode="after")
     def check_pagination(self) -> Self:
+        """
+        Validates that the current page does not exceed the total pages.
+        Used to ensure logical consistency in pagination logic.
+
+        Args:
+            None
+
+        Returns:
+            Self -> The validated model instance.
+        """
         if self.current_page is not None and self.total_pages_in_folder is not None:
             if self.current_page > self.total_pages_in_folder:
                 raise ValueError(
@@ -198,14 +209,7 @@ class SearchFilesRequest(BaseRequest):
             default=MainFolder.MY_FILES,
         ),
     ]
-    folder_id: Annotated[
-        Optional[str],
-        Field(
-            description="Optional unique identifier of a folder to list its exact contents.",
-            min_length=1,
-            default=None,
-        ),
-    ]
+
     folder_name: Annotated[
         Optional[str],
         Field(
@@ -222,13 +226,7 @@ class SearchFilesRequest(BaseRequest):
             default=None,
         ),
     ]
-    mime_type: Annotated[
-        Optional[MimeType],
-        Field(
-            description="Optional MIME type or extension to filter by.",
-            default=None,
-        ),
-    ]
+
     min_creation_date: Annotated[
         Optional[str],
         Field(
@@ -277,6 +275,16 @@ class SearchFilesRequest(BaseRequest):
 
     @model_validator(mode="after")
     def check_date_window(self) -> Self:
+        """
+        Validates that both min and max creation dates are provided together and are logically ordered.
+        Used to prevent invalid date range queries.
+
+        Args:
+            None
+
+        Returns:
+            Self -> The validated model instance.
+        """
         if bool(self.min_creation_date) != bool(self.max_creation_date):
             raise ValueError(
                 "Both min_creation_date and max_creation_date must be provided together."
@@ -287,6 +295,66 @@ class SearchFilesRequest(BaseRequest):
                     "min_creation_date cannot be later than max_creation_date."
                 )
         return self
+
+    @field_validator("folder_name", "file_name", mode="after")
+    @classmethod
+    def cleanse_search_terms(cls, value: Optional[str]) -> Optional[str]:
+        """
+        Cleanses search terms by replacing unescaped slashes and quotes with spaces.
+        Reason: Microsoft Graph API will crash with a 400 Bad Request if slashes are sent
+        in the raw query string. This validator protects the API.
+
+        Args:
+            value: Optional[str] -> The raw string value.
+
+        Returns:
+            Optional[str] -> The cleansed string value.
+        """
+        if value:
+            return re.sub(r"[\/\\\'\"]+", " ", value).strip()
+        return value
+
+    @computed_field
+    @property
+    def folder_name_tokens(self) -> list[str]:
+        """
+        Tokenizes the folder name for fuzzy matching.
+        Reason: Extracts tokenization logic out of the client and into the schema
+        so the client only has to loop over pre-computed arrays.
+
+        Args:
+            None
+
+        Returns:
+            list[str] -> List of fuzzy match tokens.
+        """
+        if not self.folder_name:
+            return []
+        return [
+            token
+            for token in re.split(r"[\s\-_/\\]+", self.folder_name.lower())
+            if token
+        ]
+
+    @computed_field
+    @property
+    def file_name_tokens(self) -> list[str]:
+        """
+        Tokenizes the file name for fuzzy matching.
+        Reason: Extracts tokenization logic out of the client and into the schema
+        so the client only has to loop over pre-computed arrays.
+
+        Args:
+            None
+
+        Returns:
+            list[str] -> List of fuzzy match tokens.
+        """
+        if not self.file_name:
+            return []
+        return [
+            token for token in re.split(r"[\s\-_/\\]+", self.file_name.lower()) if token
+        ]
 
 
 class SearchFilesResponse(BaseResponse):
@@ -310,7 +378,7 @@ class SearchFilesResponse(BaseResponse):
 class ReadFileRequest(BaseRequest):
     """Request model for reading and ingesting a specific file by ID."""
 
-    file_id: FileId
+    file_id: ItemId
 
 
 class ReadFileResponse(BaseResponse):

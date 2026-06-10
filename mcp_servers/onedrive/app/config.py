@@ -39,26 +39,6 @@ class MainFolder(StrEnum):
         return mapping[self]
 
 
-class MimeType(StrEnum):
-    """Enumeration of common MIME types for OneDrive files."""
-
-    PDF = "application/pdf"
-    CSV = "text/csv"
-    DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    TXT = "text/plain"
-    JPEG = "image/jpeg"
-    PNG = "image/png"
-    JSON = "application/json"
-    ZIP = "application/zip"
-    MP4 = "video/mp4"
-    MP3 = "audio/mpeg"
-    HTML = "text/html"
-    RTF = "application/rtf"
-    DOC = "application/msword"
-
-
 class OneDriveMCPConfigBase(BaseSettings):
     """Shared immutable configuration base for the OneDrive MCP server."""
 
