@@ -633,9 +633,16 @@ class OneDriveClient:
 
         logger.info(f"Reading file {file_id} from OneDrive to ingest into GCS.")
 
-        # 1. Get file metadata to determine filename and content_type
+        # 1. Fetch file metadata to get the MIME type, actual filename, and size
         meta_endpoint = f"/me/drive/items/{file_id}"
         metadata = self._get(meta_endpoint)
+
+        if "folder" in metadata:
+            return ReadFileResponse(
+                execution_status="error",
+                execution_message=f"The provided ID '{file_id}' corresponds to a folder, but read_file expects a file.",
+            )
+
         filename = metadata.get("name", f"file_{file_id}")
         content_type = metadata.get("file", {}).get(
             "mimeType", "application/octet-stream"
@@ -767,10 +774,16 @@ class OneDriveClient:
             )
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error downloading file content: {e.response.text}")
+            # Streamed responses must be explicitly read before accessing .text
+            try:
+                error_body = e.response.read().decode("utf-8")
+            except Exception:
+                error_body = str(e)
+
+            logger.error(f"HTTP error downloading file content: {error_body}")
             return ReadFileResponse(
                 execution_status="error",
-                execution_message=f"Failed to download file content: {e.response.status_code} - {e.response.text}",
+                execution_message=f"Failed to download file content: {e.response.status_code} - {error_body}",
             )
         except Exception as e:
             logger.error(f"Unexpected error streaming file to GCS: {e}")
