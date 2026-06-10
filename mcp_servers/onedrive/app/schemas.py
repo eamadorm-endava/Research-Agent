@@ -451,18 +451,31 @@ class ReadFileResponse(BaseResponse):
     """Response model returning GCS details for a read/ingested file."""
 
     gcs_uri: Annotated[
-        str,
+        Optional[str],
         Field(
-            description="The Google Cloud Storage URI where the file was ingested.",
+            description="The Google Cloud Storage URI where the file was ingested. Will be None if execution failed.",
             pattern=r"^gs://",
+            default=None,
         ),
     ]
-    mime_type: MimeTypeStr
-    filename: FileName
+    mime_type: Annotated[
+        Optional[str],
+        Field(
+            description="The MIME type of the file. Will be None if execution failed.",
+            default=None,
+        ),
+    ]
+    filename: Annotated[
+        Optional[str],
+        Field(
+            description="The name of the file. Will be None if execution failed.",
+            default=None,
+        ),
+    ]
     inject_file_data: Annotated[
         bool,
         Field(
             description="Flag to trigger multimodal file injection.",
-            default=True,
+            default=False,
         ),
     ]

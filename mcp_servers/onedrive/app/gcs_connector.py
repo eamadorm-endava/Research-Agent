@@ -30,6 +30,7 @@ class GCSConnector:
         user_id: str,
         session_id: str,
         filename: str,
+        size: int = None,
     ) -> str:
         """
         Uploads a file-like object directly to the Landing Zone bucket and sets IAM
@@ -42,6 +43,7 @@ class GCSConnector:
             user_id: str -> The unique identifier of the user
             session_id: str -> The current session or conversation ID
             filename: str -> The name of the file to be uploaded
+            size: int -> The explicit size of the file to bypass unseekable stream errors
 
         Returns:
             str -> The canonical GCS URI of the uploaded object
@@ -63,7 +65,12 @@ class GCSConnector:
                 f"Starting zero-copy stream upload to gs://{self.bucket_name}/{object_name}"
             )
             # Requires google-cloud-storage
-            blob.upload_from_file(file_obj, content_type=content_type)
+            if size is not None:
+                blob.upload_from_file(
+                    file_obj, content_type=content_type, size=size, rewind=False
+                )
+            else:
+                blob.upload_from_file(file_obj, content_type=content_type, rewind=False)
             logger.info(
                 f"Successfully uploaded object to gs://{self.bucket_name}/{object_name}"
             )

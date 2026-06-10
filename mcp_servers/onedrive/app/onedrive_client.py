@@ -183,6 +183,7 @@ class OneDriveClient:
         Args:
             endpoints: list[str] -> A list of fully constructed Graph API endpoints.
             use_cache: bool -> Whether to leverage the in-memory 5-minute cache.
+            strict: bool -> Whether to raise exceptions on HTTP errors instead of catching them.
 
         Returns:
             list[dict] -> A complete list of fetched and formatted items.
@@ -639,6 +640,7 @@ class OneDriveClient:
         content_type = metadata.get("file", {}).get(
             "mimeType", "application/octet-stream"
         )
+        file_size = metadata.get("size")
 
         parent_ref = metadata.get("parentReference", {})
         folder_path = parent_ref.get("path", "")
@@ -674,20 +676,75 @@ class OneDriveClient:
                     # Since upload_from_file accepts a file-like object, we can wrap the stream.
 
                     class StreamIOWrapper:
+                        """Wraps an httpx streaming response into a file-like object for GCS upload."""
+
                         def __init__(self, httpx_resp):
+                            """
+                            Initializes the wrapper around an active HTTP stream.
+
+                            Args:
+                                httpx_resp: httpx.Response -> The active streaming response.
+
+                            Returns:
+                                None -> Initializes the wrapper.
+                            """
                             self.iterator = httpx_resp.iter_bytes()
                             self.buffer = b""
+                            self._pos = 0
 
                         def read(self, size=-1):
+                            """
+                            Reads bytes from the active HTTP stream.
+
+                            Args:
+                                size: int -> The number of bytes to read, or -1 for all bytes.
+
+                            Returns:
+                                bytes -> The chunk of bytes read from the stream.
+                            """
                             if size == -1:
-                                return b"".join(self.iterator)
+                                data = b"".join(self.iterator)
+                                result = self.buffer + data
+                                self.buffer = b""
+                                self._pos += len(result)
+                                return result
                             while len(self.buffer) < size:
                                 try:
                                     self.buffer += next(self.iterator)
                                 except StopIteration:
                                     break
                             result, self.buffer = self.buffer[:size], self.buffer[size:]
+                            self._pos += len(result)
                             return result
+
+                        def tell(self):
+                            """
+                            Reports the current byte offset of the stream.
+
+                            Args:
+                                None
+
+                            Returns:
+                                int -> The current position in the byte stream.
+                            """
+                            return self._pos
+
+                        def seek(self, offset, whence=0):
+                            """
+                            Seeks to a specific position in the stream (only supports rewinding to 0 if already at 0).
+
+                            Args:
+                                offset: int -> The target offset.
+                                whence: int -> The reference point for the offset.
+
+                            Returns:
+                                int -> The new position.
+                            """
+                            # Allow zero-seek which some libraries do to "rewind" streams,
+                            # but if we are already at 0 it's a no-op.
+                            if offset == 0 and whence == 0 and self._pos == 0:
+                                return 0
+                            raise IOError("StreamIOWrapper does not support seeking")
 
                     file_stream = StreamIOWrapper(response)
 
@@ -699,6 +756,7 @@ class OneDriveClient:
                         user_id=dependencies.user_id,
                         session_id=dependencies.session_id,
                         filename=filename,
+                        size=file_size,
                     )
 
             return ReadFileResponse(
@@ -710,9 +768,13 @@ class OneDriveClient:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error downloading file content: {e.response.text}")
-            raise RuntimeError(
-                f"Failed to download file content: {e.response.status_code}"
+            return ReadFileResponse(
+                execution_status="error",
+                execution_message=f"Failed to download file content: {e.response.status_code} - {e.response.text}",
             )
         except Exception as e:
             logger.error(f"Unexpected error streaming file to GCS: {e}")
-            raise RuntimeError(f"Streaming error: {e}")
+            return ReadFileResponse(
+                execution_status="error",
+                execution_message=f"Streaming error: {str(e)}",
+            )
