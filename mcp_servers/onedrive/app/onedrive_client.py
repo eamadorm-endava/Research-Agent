@@ -7,8 +7,10 @@ from .gcs_connector import GCSConnector
 from pydantic import SecretStr
 from .config import ONEDRIVE_SERVER_CONFIG, MainFolder
 from .schemas import (
-    SearchFilesRequest,
-    SearchFilesResponse,
+    FindItemsRequest,
+    FindItemsResponse,
+    ListFolderContentsRequest,
+    ListFolderContentsResponse,
     ReadFileRequest,
     ReadFileResponse,
 )
@@ -151,8 +153,7 @@ class OneDriveClient:
     def _build_search_endpoints(
         self,
         main_folder: MainFolder,
-        folder_name: Optional[str],
-        file_name: Optional[str],
+        item_name: Optional[str],
     ) -> list[str]:
         """
         Builds Graph API endpoints based on the chosen main_folder.
@@ -160,19 +161,12 @@ class OneDriveClient:
 
         Args:
             main_folder: MainFolder -> The main space to search within (e.g., MY_FILES).
-            folder_name: Optional[str] -> The target folder name filter.
-            file_name: Optional[str] -> The target file name filter.
+            item_name: Optional[str] -> The target item name filter.
 
         Returns:
             list[str] -> A list of API endpoints to fetch from.
         """
-        search_terms = []
-        if file_name:
-            search_terms.append(file_name)
-        if folder_name:
-            search_terms.append(folder_name)
-
-        query = " ".join(search_terms).strip() or None
+        query = item_name.strip() if item_name else None
 
         # We search across the designated main space
         endpoints = [main_folder.get_endpoint(query)]
@@ -235,8 +229,7 @@ class OneDriveClient:
     def _filter_and_sort_items(
         self,
         items: list[dict],
-        folder_tokens: list[str],
-        file_tokens: list[str],
+        item_tokens: list[str],
         min_creation_date: Optional[str],
         max_creation_date: Optional[str],
         sort_by: Optional[str],
@@ -244,45 +237,29 @@ class OneDriveClient:
     ) -> list[dict]:
         """
         Applies python-side filtering and sorting to the fetched items.
-        Uses tokenized fuzzy matching for filenames and folder paths.
+        Uses tokenized fuzzy matching for item names and folder paths.
 
         Args:
             items: list[dict] -> The list of raw formatted items.
-            folder_tokens: list[str] -> The tokenized folder path filter.
-            file_tokens: list[str] -> The tokenized file name filter.
+            item_tokens: list[str] -> The tokenized item name filter.
             min_creation_date: Optional[str] -> Minimum creation date (YYYY-MM-DD).
             max_creation_date: Optional[str] -> Maximum creation date (YYYY-MM-DD).
             sort_by: Optional[str] -> The key to sort the results by.
             sort_order: Optional[str] -> The direction of sorting ('asc' or 'desc').
 
         Returns:
-            list[dict] -> The filtered and sorted list of items.
+            list[dict] -> The filtered list of items.
         """
         filtered_results = []
         for api_item in items:
-            if file_tokens:
+            if item_tokens:
                 target_item_name = api_item.get("name", "").lower()
                 target_folder_path = api_item.get("folder_path", "").lower()
-                is_name_matched = all(
-                    token in target_item_name for token in file_tokens
+                is_matched = all(
+                    token in target_item_name or token in target_folder_path
+                    for token in item_tokens
                 )
-                is_path_matched = all(
-                    token in target_folder_path for token in file_tokens
-                )
-                if not (is_name_matched or is_path_matched):
-                    continue
-
-            if folder_tokens:
-                target_folder_path = api_item.get("folder_path", "").lower()
-                target_file_name = api_item.get("name", "").lower()
-
-                is_path_matched = all(
-                    token in target_folder_path for token in folder_tokens
-                )
-                is_name_matched = api_item.get("type") == "folder" and all(
-                    token in target_file_name for token in folder_tokens
-                )
-                if not (is_path_matched or is_name_matched):
+                if not is_matched:
                     continue
 
             if min_creation_date and max_creation_date:
@@ -294,6 +271,19 @@ class OneDriveClient:
 
             filtered_results.append(api_item)
 
+        # Apply global sorting if needed
+        if sort_by in ["name", "creation_date", "last_modified_date"]:
+            key_mapping = {
+                "name": "name",
+                "creation_date": "creation_date",
+                "last_modified_date": "last_modified_date",
+            }
+            sort_key = key_mapping.get(sort_by)
+            reverse = (sort_order.lower() == "desc") if sort_order else False
+            filtered_results.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
+        else:
+            filtered_results.sort(key=lambda x: x.get("name", "").lower())
+
         return filtered_results
 
     def _build_recursive_tree(
@@ -302,7 +292,7 @@ class OneDriveClient:
         page: int,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
-    ) -> list[dict]:
+    ) -> tuple[list[dict], int]:
         """
         Builds a recursive directory tree from a flat list of Graph API items.
         Automatically synthesizes missing intermediate folders and dynamically roots the tree
@@ -315,7 +305,7 @@ class OneDriveClient:
             sort_order: Optional[str] -> Optional sorting order ('asc', 'desc').
 
         Returns:
-            list[dict] -> A nested list of ObjectMetadata dictionaries.
+            tuple[list[dict], int] -> A tuple containing the paginated nested tree and the total number of root elements.
         """
         from .config import ONEDRIVE_SERVER_CONFIG
         import os
@@ -480,18 +470,18 @@ class OneDriveClient:
             element.pop("_abs_path", None)
             element.pop("_parent_path", None)
 
-        return paginated_root
+        return paginated_root, len(root_elements)
 
-    def search_files(self, request: SearchFilesRequest) -> SearchFilesResponse:
+    def find_items(self, request: FindItemsRequest) -> FindItemsResponse:
         """
-        Lists or searches for files in OneDrive.
-        It supports searching by query, listing root/shared/recent, and strict filtering.
+        Searches globally for files or folders in OneDrive based on item_name.
+        This is a 'first discovery' tool that returns a paginated tree of matches.
 
         Args:
-            request: SearchFilesRequest -> The validated search request containing the target parameters.
+            request: FindItemsRequest -> The validated search request containing the target parameters.
 
         Returns:
-            SearchFilesResponse -> A structured response containing the paginated tree of items.
+            FindItemsResponse -> A structured response containing the paginated tree of items.
         """
         main_folder = request.main_folder
         if isinstance(main_folder, str):
@@ -501,29 +491,113 @@ class OneDriveClient:
             else:
                 main_folder = MainFolder(main_folder.upper())
 
-        endpoints = self._build_search_endpoints(
-            main_folder, request.folder_name, request.file_name
-        )
+        endpoints = self._build_search_endpoints(main_folder, request.item_name)
 
         all_items = self._fetch_all_items(endpoints, use_cache=request.use_cache)
 
         filtered_items = self._filter_and_sort_items(
             all_items,
-            request.folder_name_tokens,
-            request.file_name_tokens,
+            request.item_name_tokens,
             request.min_creation_date,
             request.max_creation_date,
             request.sort_by,
             request.sort_order,
         )
 
-        paginated_tree = self._build_recursive_tree(
+        # We don't slice the filtered_items here because we want the tree synthesis
+        # to construct the full tree of ALL matches so it can accurately calculate
+        # nested total_items_in_folder counts. We paginate root elements inside the builder.
+        paginated_tree, total_search_matches = self._build_recursive_tree(
             filtered_items,
-            request.page,
+            page=request.page,
             sort_by=request.sort_by,
             sort_order=request.sort_order,
         )
-        return SearchFilesResponse(objects_found=paginated_tree)
+
+        from .config import ONEDRIVE_SERVER_CONFIG
+
+        PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
+        total_pages = max(1, (total_search_matches + PAGE_LIMIT - 1) // PAGE_LIMIT)
+
+        return FindItemsResponse(
+            total_search_matches=total_search_matches,
+            total_pages=total_pages,
+            current_page=request.page,
+            items_in_page=len(paginated_tree),
+            objects_found=paginated_tree,
+        )
+
+    def list_folder_contents(
+        self, request: ListFolderContentsRequest
+    ) -> ListFolderContentsResponse:
+        """
+        Explicitly lists all files and subfolders strictly inside a specific parent folder.
+        Uses deterministic traversal rather than fuzzy search.
+
+        Args:
+            request: ListFolderContentsRequest -> The requested folder ID and pagination parameters.
+
+        Returns:
+            ListFolderContentsResponse -> A paginated list of immediate child items.
+        """
+        endpoint = f"/me/drive/items/{request.folder_id}/children"
+
+        # We don't cache folder traversals to ensure accuracy
+        all_items = self._fetch_all_items([endpoint], use_cache=False)
+
+        # Sort the items
+        if request.sort_by in ["name", "creation_date", "last_modified_date"]:
+            key_mapping = {
+                "name": "name",
+                "creation_date": "creation_date",
+                "last_modified_date": "last_modified_date",
+            }
+            sort_key = key_mapping.get(request.sort_by)
+            reverse = (
+                (request.sort_order.lower() == "desc") if request.sort_order else False
+            )
+            all_items.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
+        else:
+            all_items.sort(key=lambda x: x.get("name", "").lower())
+
+        # Paginate
+        from .config import ONEDRIVE_SERVER_CONFIG
+
+        PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
+
+        total_items_in_folder = len(all_items)
+        total_pages = max(1, (total_items_in_folder + PAGE_LIMIT - 1) // PAGE_LIMIT)
+
+        start = (request.page - 1) * PAGE_LIMIT
+        end = start + PAGE_LIMIT
+        paginated_items = all_items[start:end]
+
+        # Convert to ObjectMetadata format (flat list, no tree synthesis required)
+        formatted_objects = []
+        for item in paginated_items:
+            base_metadata = {
+                "item_id": item.get("id"),
+                "object_name": item.get("name"),
+                "creation_date": item.get("creation_date"),
+                "update_date": item.get("last_modified_date"),
+                "owner": item.get("owner"),
+                "folder_path": item.get("folder_path"),
+                "url": item.get("web_url"),
+                "object_type": item.get("type"),
+            }
+            if item.get("type") == "folder":
+                base_metadata["child_objects"] = []
+            else:
+                base_metadata["mime_type"] = item.get("mime_type")
+            formatted_objects.append(base_metadata)
+
+        return ListFolderContentsResponse(
+            total_items_in_folder=total_items_in_folder,
+            total_pages=total_pages,
+            current_page=request.page,
+            items_in_page=len(formatted_objects),
+            objects_found=formatted_objects,
+        )
 
     def read_file(self, request: ReadFileRequest) -> ReadFileResponse:
         """

@@ -199,8 +199,8 @@ class FolderMetadata(ObjectMetadata):
 
 
 # --- Tool Request / Response Models ---
-class SearchFilesRequest(BaseRequest):
-    """Request model for searching files in OneDrive with pagination."""
+class FindItemsRequest(BaseRequest):
+    """Request model for finding items globally across OneDrive with pagination."""
 
     main_folder: Annotated[
         MainFolder,
@@ -210,18 +210,10 @@ class SearchFilesRequest(BaseRequest):
         ),
     ]
 
-    folder_name: Annotated[
+    item_name: Annotated[
         Optional[str],
         Field(
-            description="Optional subfolder name to filter by.",
-            min_length=1,
-            default=None,
-        ),
-    ]
-    file_name: Annotated[
-        Optional[str],
-        Field(
-            description="Optional file name to filter by.",
+            description="Optional item name to filter by.",
             min_length=1,
             default=None,
         ),
@@ -260,7 +252,7 @@ class SearchFilesRequest(BaseRequest):
     page: Annotated[
         int,
         Field(
-            description="Page number to retrieve (20 files per page).",
+            description="Page number to retrieve (20 root items per page).",
             default=1,
             ge=1,
         ),
@@ -296,7 +288,7 @@ class SearchFilesRequest(BaseRequest):
                 )
         return self
 
-    @field_validator("folder_name", "file_name", mode="after")
+    @field_validator("item_name", mode="after")
     @classmethod
     def cleanse_search_terms(cls, value: Optional[str]) -> Optional[str]:
         """
@@ -316,9 +308,9 @@ class SearchFilesRequest(BaseRequest):
 
     @computed_field
     @property
-    def folder_name_tokens(self) -> list[str]:
+    def item_name_tokens(self) -> list[str]:
         """
-        Tokenizes the folder name for fuzzy matching.
+        Tokenizes the item name for fuzzy matching.
         Reason: Extracts tokenization logic out of the client and into the schema
         so the client only has to loop over pre-computed arrays.
 
@@ -328,43 +320,110 @@ class SearchFilesRequest(BaseRequest):
         Returns:
             list[str] -> List of fuzzy match tokens.
         """
-        if not self.folder_name:
+        if not self.item_name:
             return []
         return [
-            token
-            for token in re.split(r"[\s\-_/\\]+", self.folder_name.lower())
-            if token
-        ]
-
-    @computed_field
-    @property
-    def file_name_tokens(self) -> list[str]:
-        """
-        Tokenizes the file name for fuzzy matching.
-        Reason: Extracts tokenization logic out of the client and into the schema
-        so the client only has to loop over pre-computed arrays.
-
-        Args:
-            None
-
-        Returns:
-            list[str] -> List of fuzzy match tokens.
-        """
-        if not self.file_name:
-            return []
-        return [
-            token for token in re.split(r"[\s\-_/\\]+", self.file_name.lower()) if token
+            token for token in re.split(r"[\s\-_/\\]+", self.item_name.lower()) if token
         ]
 
 
-class SearchFilesResponse(BaseResponse):
-    """Response model returning paginated file results grouped by folders."""
+class FindItemsResponse(BaseResponse):
+    """Response model returning paginated global search results grouped by folders."""
 
     execution_message: Annotated[
         str,
         Field(
             description="A descriptive message about the execution result.",
-            default="Tool executed successfully. NOTE: The returned files and pagination counts ONLY reflect items matching the requested filters. There may be other files in these folders that were excluded.",
+            default="Tool executed successfully. NOTE: The returned files ONLY reflect items matching the requested filters.",
+        ),
+    ]
+    total_search_matches: Annotated[
+        int,
+        Field(
+            description="Total number of root items matching the global search query.",
+            ge=0,
+        ),
+    ]
+    total_pages: Annotated[
+        int,
+        Field(
+            description="Total number of pages available globally.",
+            ge=1,
+        ),
+    ]
+    current_page: Annotated[
+        int,
+        Field(description="The current page number shown.", ge=1),
+    ]
+    items_in_page: Annotated[
+        int,
+        Field(
+            description="Number of root items returned in this specific page slice.",
+            ge=0,
+        ),
+    ]
+    objects_found: Annotated[
+        list[Union[FileMetadata, FolderMetadata]],
+        Field(
+            description="List of nested file and folder objects representing the global search results.",
+        ),
+    ]
+
+
+class ListFolderContentsRequest(BaseRequest):
+    """Request model for listing exact contents of a specific folder."""
+
+    folder_id: ItemId
+    sort_by: Annotated[
+        Optional[Literal["name", "creation_date", "last_modified_date"]],
+        Field(
+            description="Sorting criteria.",
+            default="last_modified_date",
+        ),
+    ]
+    sort_order: Annotated[
+        Optional[Literal["asc", "desc"]],
+        Field(
+            description="Sorting order.",
+            default="desc",
+        ),
+    ]
+    page: Annotated[
+        int,
+        Field(
+            description="Page number to retrieve (20 items per page).",
+            default=1,
+            ge=1,
+        ),
+    ]
+
+
+class ListFolderContentsResponse(BaseResponse):
+    """Response model returning paginated files explicitly within a specific folder."""
+
+    total_items_in_folder: Annotated[
+        int,
+        Field(
+            description="Total number of items in this folder.",
+            ge=0,
+        ),
+    ]
+    total_pages: Annotated[
+        int,
+        Field(
+            description="Total number of pages available in this folder.",
+            ge=1,
+        ),
+    ]
+    current_page: Annotated[
+        int,
+        Field(description="The current page number shown.", ge=1),
+    ]
+    items_in_page: Annotated[
+        int,
+        Field(
+            description="Number of items returned in this specific page slice.",
+            ge=0,
         ),
     ]
     objects_found: Annotated[
