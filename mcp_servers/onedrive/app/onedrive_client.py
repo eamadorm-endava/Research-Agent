@@ -174,7 +174,7 @@ class OneDriveClient:
         return endpoints
 
     def _fetch_all_items(
-        self, endpoints: list[str], use_cache: bool = True
+        self, endpoints: list[str], use_cache: bool = True, strict: bool = False
     ) -> list[dict]:
         """
         Fetches and formats items from multiple Graph API endpoints with a TTL cache.
@@ -222,6 +222,8 @@ class OneDriveClient:
 
             except Exception as e:
                 logger.warning(f"Failed to fetch endpoint {endpoint}: {e}")
+                if strict:
+                    raise RuntimeError(str(e))
 
         self.__class__._cache[cache_key] = (current_time, all_items)
         return all_items
@@ -342,7 +344,7 @@ class OneDriveClient:
             if item.get("type") == "folder":
                 abs_path = normalize(parent_path + "/" + item.get("name", ""))
                 folders_dict[abs_path] = {
-                    "item_id": item.get("id"),
+                    "folder_id": item.get("id"),
                     "object_name": item.get("name"),
                     "creation_date": item.get("creation_date"),
                     "update_date": item.get("last_modified_date"),
@@ -357,7 +359,7 @@ class OneDriveClient:
             else:
                 files_list.append(
                     {
-                        "item_id": item.get("id"),
+                        "file_id": item.get("id"),
                         "object_name": item.get("name"),
                         "creation_date": item.get("creation_date"),
                         "update_date": item.get("last_modified_date"),
@@ -379,7 +381,7 @@ class OneDriveClient:
                 current_parent = normalize("/".join(parts[:-1]))
                 name = parts[-1]
                 folders_dict[abs_path] = {
-                    "item_id": None,
+                    "folder_id": None,
                     "object_name": name,
                     "folder_path": current_parent,
                     "object_type": "folder",
@@ -542,8 +544,19 @@ class OneDriveClient:
         """
         endpoint = f"/me/drive/items/{request.folder_id}/children"
 
-        # We don't cache folder traversals to ensure accuracy
-        all_items = self._fetch_all_items([endpoint], use_cache=False)
+        try:
+            # We don't cache folder traversals to ensure accuracy, and we use strict=True to catch invalid folder IDs
+            all_items = self._fetch_all_items([endpoint], use_cache=False, strict=True)
+        except Exception as e:
+            return ListFolderContentsResponse(
+                execution_status="error",
+                execution_message=f"Failed to list folder contents: {str(e)}",
+                total_items_in_folder=0,
+                total_pages=1,
+                current_page=1,
+                items_in_page=0,
+                objects_found=[],
+            )
 
         # Sort the items
         if request.sort_by in ["name", "creation_date", "last_modified_date"]:
@@ -576,7 +589,6 @@ class OneDriveClient:
         formatted_objects = []
         for item in paginated_items:
             base_metadata = {
-                "item_id": item.get("id"),
                 "object_name": item.get("name"),
                 "creation_date": item.get("creation_date"),
                 "update_date": item.get("last_modified_date"),
@@ -586,8 +598,10 @@ class OneDriveClient:
                 "object_type": item.get("type"),
             }
             if item.get("type") == "folder":
+                base_metadata["folder_id"] = item.get("id")
                 base_metadata["child_objects"] = []
             else:
+                base_metadata["file_id"] = item.get("id")
                 base_metadata["mime_type"] = item.get("mime_type")
             formatted_objects.append(base_metadata)
 

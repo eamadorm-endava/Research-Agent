@@ -91,13 +91,6 @@ class BaseResponse(BaseModel):
 class ObjectMetadata(BaseModel):
     """Abstract base class for all file and folder items."""
 
-    item_id: Annotated[
-        Optional[ItemId],
-        Field(
-            description="Unique identifier of the object. Can be None if the folder is structurally synthesized.",
-            default=None,
-        ),
-    ]
     object_name: FileName
     creation_date: Annotated[
         Optional[str],
@@ -134,6 +127,13 @@ class FileMetadata(ObjectMetadata):
     """Metadata representing a single file in OneDrive."""
 
     object_type: Literal["file"] = "file"
+    file_id: Annotated[
+        Optional[ItemId],
+        Field(
+            description="Unique identifier of the file.",
+            default=None,
+        ),
+    ]
     mime_type: Annotated[
         Optional[MimeTypeStr], Field(description="MIME type of the file.", default=None)
     ]
@@ -143,6 +143,13 @@ class FolderMetadata(ObjectMetadata):
     """Metadata representing a folder in OneDrive, containing nested children."""
 
     object_type: Literal["folder"] = "folder"
+    folder_id: Annotated[
+        Optional[ItemId],
+        Field(
+            description="Unique identifier of the folder. Can be None if the folder is structurally synthesized.",
+            default=None,
+        ),
+    ]
     total_items_in_folder: Annotated[
         Optional[int],
         Field(
