@@ -14,11 +14,15 @@ Follow these steps to configure the application, generate credentials, and grant
 3. Click on **New registration**.
 4. **Name**: Provide a descriptive name for your application (e.g., `Research-Agent-Connectors`).
 5. **Supported account types**: Select **Accounts in this organizational directory only (Single tenant)**.
-6. **Redirect URI**: Select **Web** from the dropdown and add the following URLs. (You can add the first one here, and the rest later in the Authentication menu):
+6. **Redirect URI**: Select **Web** from the dropdown and add the Gemini Enterprise URLs:
    - `https://vertexaisearch.cloud.google.com/static/oauth/oauth.html`
    - `https://vertexaisearch.cloud.google.com/oauth-redirect`
-   - `http://localhost:8000/dev-ui/`
+   > **Why "Web"?** Microsoft enforces a strict security profile for Web URIs, demanding a `client_secret` to complete the login. Gemini Enterprise runs securely in the backend and provides this secret.
 7. Click **Register**.
+8. After registration, click **Authentication** in the left menu.
+9. Click **+ Add a platform**, select **Mobile and desktop applications**, and add your local testing URIs (e.g., `http://localhost:8000`, `http://localhost:8000/dev-ui/`).
+   > **Why "Mobile and desktop"?** This bucket is for "Public Clients" (like local Jupyter notebooks). It proves identity using PKCE instead of a `client_secret`. Local tools cannot securely hold a secret, so they must use this platform type to authenticate!
+10. Scroll down to **Advanced settings** and toggle **Allow public client flows** to **Yes** (and hit Save). This ensures local public browser flows are not blocked.
 
 ## 2. Gather Credentials
 
