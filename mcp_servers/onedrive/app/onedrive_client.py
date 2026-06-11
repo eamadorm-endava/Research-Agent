@@ -20,7 +20,8 @@ class OneDriveClient:
     """Client for interacting with Microsoft Graph API for OneDrive."""
 
     _cache: dict[tuple, tuple[float, list[dict]]] = {}
-    _cache_ttl: int = 300  # 5 minutes cache for fetch calls
+    _file_cache: dict[tuple, tuple[float, ReadFileResponse]] = {}
+    _cache_ttl: int = ONEDRIVE_SERVER_CONFIG.cache_ttl_seconds
 
     def __init__(self, access_token: SecretStr):
         """
@@ -546,8 +547,9 @@ class OneDriveClient:
         endpoint = f"/me/drive/items/{request.folder_id}/children"
 
         try:
-            # We don't cache folder traversals to ensure accuracy, and we use strict=True to catch invalid folder IDs
-            all_items = self._fetch_all_items([endpoint], use_cache=False, strict=True)
+            all_items = self._fetch_all_items(
+                [endpoint], use_cache=request.use_cache, strict=True
+            )
         except Exception as e:
             return ListFolderContentsResponse(
                 execution_status="error",
@@ -630,6 +632,14 @@ class OneDriveClient:
 
         if not dependencies:
             raise ValueError("AgentDependencies must be provided to ingest files.")
+
+        # Check file cache
+        cache_key = ("file", file_id, hash(self.access_token.get_secret_value()))
+        if request.use_cache and cache_key in self._file_cache:
+            cache_time, cached_response = self._file_cache[cache_key]
+            if time.time() - cache_time < self._cache_ttl:
+                logger.info(f"Using cached file upload for {file_id}")
+                return cached_response
 
         logger.info(f"Reading file {file_id} from OneDrive to ingest into GCS.")
 
@@ -766,12 +776,16 @@ class OneDriveClient:
                         size=file_size,
                     )
 
-            return ReadFileResponse(
+            response = ReadFileResponse(
                 gcs_uri=gcs_uri,
                 mime_type=content_type,
                 filename=filename,
                 inject_file_data=True,
             )
+
+            # Store successful read in file cache
+            self._file_cache[cache_key] = (time.time(), response)
+            return response
 
         except httpx.HTTPStatusError as e:
             # Streamed responses must be explicitly read before accessing .text

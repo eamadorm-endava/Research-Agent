@@ -162,6 +162,13 @@ class OneDriveServerConfig(OneDriveMCPConfigBase):
             description="Maximum number of objects returned per directory or page.",
         ),
     ]
+    cache_ttl_seconds: Annotated[
+        int,
+        Field(
+            default=300,
+            description="Time-to-live for cached Graph API responses and read files in seconds.",
+        ),
+    ]
 
 
 ONEDRIVE_AUTH_CONFIG = OneDriveAuthConfig()

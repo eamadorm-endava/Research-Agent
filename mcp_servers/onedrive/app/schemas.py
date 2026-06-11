@@ -398,9 +398,16 @@ class ListFolderContentsRequest(BaseRequest):
     page: Annotated[
         int,
         Field(
-            description="Page number to retrieve (20 items per page).",
-            default=1,
+            description="The page number for fetching folder contents (1-indexed).",
             ge=1,
+            default=1,
+        ),
+    ]
+    use_cache: Annotated[
+        bool,
+        Field(
+            description="Whether to use the 5-minute memory cache or fetch fresh results.",
+            default=True,
         ),
     ]
 
@@ -445,6 +452,13 @@ class ReadFileRequest(BaseRequest):
     """Request model for reading and ingesting a specific file by ID."""
 
     file_id: ItemId
+    use_cache: Annotated[
+        bool,
+        Field(
+            description="If True, skips uploading to GCS if the exact file was successfully ingested in the last few minutes, returning the cached GCS URI instantly.",
+            default=True,
+        ),
+    ]
 
 
 class ReadFileResponse(BaseResponse):
