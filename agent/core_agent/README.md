@@ -172,7 +172,7 @@ The agent connects to backend services via **MCP servers** and exposes **ADK Ski
 
 ### ADK Skills
 - **meeting-summary** (Research Specialist): Generates structured meeting summary documents from transcripts or notes and saves them to Drive.
-- **knowledge-discovery** (Research Specialist): Expert protocol for high-fidelity retrieval across EKB, BigQuery, Drive, Calendar, and GCS using contextual anchoring and parallel discovery.
+- **knowledge-discovery** (Research Specialist): Expert protocol for high-fidelity retrieval across EKB, BigQuery, Drive, Calendar, GCS, and SharePoint using contextual anchoring and parallel discovery.
 - **kb-file-ingestion** (Ingestion Specialist): Orchestrates the upload, classification, metadata tagging, and pipeline triggering for documents entering the Enterprise Knowledge Base.
 
 > **Authentication Model**: Drive, BigQuery, Calendar, and GCS share a delegated Google OAuth token; Microsoft MCP servers use a delegated Microsoft Graph OAuth token so they can act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.

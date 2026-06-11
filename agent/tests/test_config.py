@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,7 @@ from agent.core_agent.config import (
     GCPConfig,
     GCSMCPConfig,
     GoogleAuthConfig,
+    ResearchAgentConfig,
     SharePointMCPConfig,
 )
 
@@ -216,3 +218,31 @@ def test_sharepoint_mcp_config_accepts_legacy_sharepoint_auth_aliases():
 
     assert config.GEMINI_MICROSOFT_AUTH_ID == "legacy-sharepoint-auth-id"
     assert config.OAUTH_SCOPES == {"User.Read.All": "microsoft graph access"}
+
+
+def test_coordinator_capabilities_advertise_sharepoint():
+    """Coordinator capabilities should include SharePoint as a user-facing source."""
+    config = CoordinatorConfig(_env_file=None)
+
+    assert "Microsoft SharePoint" in config.AGENT_INSTRUCTION
+    assert "SharePoint discovery" in config.AGENT_INSTRUCTION
+    assert "delegated Microsoft Graph credentials" in config.AGENT_INSTRUCTION
+
+
+def test_research_agent_instruction_includes_sharepoint_protocol():
+    """Research specialist should be instructed to use SharePoint MCP tools."""
+    config = ResearchAgentConfig(_env_file=None)
+
+    assert "SHAREPOINT SEARCH PROTOCOL" in config.AGENT_INSTRUCTION
+    assert "search_sharepoint_sites" in config.AGENT_INSTRUCTION
+    assert "ingest_sharepoint_drive_item" in config.AGENT_INSTRUCTION
+
+
+def test_knowledge_discovery_skill_includes_sharepoint_source():
+    """Knowledge discovery skill should route discovery through SharePoint too."""
+    skill_path = Path("agent/skills/knowledge-discovery/SKILL.md")
+    skill_text = skill_path.read_text()
+
+    assert "Microsoft SharePoint" in skill_text
+    assert "**2d. SharePoint**" in skill_text
+    assert "`SharePoint`" in skill_text
