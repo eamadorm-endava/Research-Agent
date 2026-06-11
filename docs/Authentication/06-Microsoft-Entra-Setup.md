@@ -44,7 +44,7 @@ You need to grant **Delegated permissions** (since the agent acts on behalf of t
 
 ### General (Mandatory)
 - `offline_access`: Required to grant Google / the Agent a refresh token. This ensures the connection stays active without requiring the user to constantly re-authenticate.
-- `User.Read`: Basic profile reading required for token validation.
+- `User.Read.All`: Basic profile reading required for token validation.
 
 ### OneDrive & SharePoint
 *(Note: Files shared in Microsoft Teams are physically stored in SharePoint and OneDrive. These permissions cover those files as well.)*
@@ -77,7 +77,7 @@ Use Microsoft-wide auth variable names so one Microsoft Graph OAuth connection c
 ```env
 GEMINI_MICROSOFT_AUTH_ID=your-gemini-enterprise-microsoft-auth-resource-id
 MICROSOFT_TENANT_ID=your-tenant-id-or-organizations
-MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read", "Files.Read.All", "Sites.Read.All", "offline_access"]
+MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read.All", "Files.Read.All", "Sites.Read.All", "offline_access"]
 MICROSOFT_OAUTH_CLIENT_ID=your-entra-application-client-id
 MICROSOFT_OAUTH_CLIENT_SECRET=your-entra-client-secret
 MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui

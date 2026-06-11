@@ -23,7 +23,7 @@ The SharePoint side is read-only. The only write operation performed by this ser
 
 Configure the Microsoft Entra application with delegated permissions:
 
-- `User.Read`
+- `User.Read.All`
 - `Files.Read.All`
 - `Sites.Read.All`
 - `offline_access` for refresh-token support in the OAuth connection manager

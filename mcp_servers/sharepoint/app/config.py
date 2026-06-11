@@ -1,14 +1,14 @@
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import Field
-from pydantic_settings import AliasChoices, BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MicrosoftGraphScope(StrEnum):
     """Microsoft Graph delegated scopes required by read-only Microsoft MCP servers."""
 
-    USER_READ = "User.Read"
+    USER_READ = "User.Read.All"
     FILES_READ_ALL = "Files.Read.All"
     SITES_READ_ALL = "Sites.Read.All"
 
