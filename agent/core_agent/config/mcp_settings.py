@@ -31,6 +31,15 @@ class GCSScopes(StrEnum):
     EMAIL = "email"
 
 
+class SharePointScopes(StrEnum):
+    """Enum for Microsoft Graph SharePoint delegated OAuth scopes."""
+
+    USER_READ = "User.Read"
+    FILES_READ_ALL = "Files.Read.All"
+    SITES_READ_ALL = "Sites.Read.All"
+    OFFLINE_ACCESS = "offline_access"
+
+
 def _scopes_to_dict(v: Union[list, dict[str, str]], description: str) -> dict[str, str]:
     """Normalises OAUTH_SCOPES from a list of scope enums to the dict[scope_url, description] format.
 
@@ -264,8 +273,101 @@ class GCSMCPConfig(BaseMCPConfig):
         return _scopes_to_dict(v, "google cloud storage access")
 
 
+class SharePointMCPConfig(BaseMCPConfig):
+    """Configuration for the Microsoft SharePoint MCP server."""
+
+    URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8084",
+            description="SharePoint MCP Server URL",
+            validation_alias="SHAREPOINT_URL",
+        ),
+    ]
+    ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="SharePoint MCP Server Endpoint",
+            validation_alias="SHAREPOINT_ENDPOINT",
+        ),
+    ]
+    OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[SharePointScopes]],
+        Field(
+            default=[
+                SharePointScopes.USER_READ,
+                SharePointScopes.FILES_READ_ALL,
+                SharePointScopes.SITES_READ_ALL,
+                SharePointScopes.OFFLINE_ACCESS,
+            ],
+            description="Microsoft Graph OAuth scopes requested by the agent.",
+            validation_alias="SHAREPOINT_OAUTH_SCOPES",
+        ),
+    ]
+    GEMINI_GOOGLE_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ge-sharepoint-auth-id",
+            description="Auth Resource ID for Microsoft SharePoint.",
+            validation_alias=AliasChoices(
+                "GEMINI_SHAREPOINT_AUTH_ID",
+                "SHAREPOINT_AUTH_ID",
+            ),
+        ),
+    ]
+    OAUTH_CLIENT_ID: Annotated[
+        str,
+        Field(
+            default="mock-microsoft-oauth-client-id",
+            description="Microsoft Entra OAuth Client ID for local ADK auth.",
+            validation_alias="MICROSOFT_OAUTH_CLIENT_ID",
+        ),
+    ]
+    OAUTH_CLIENT_SECRET: Annotated[
+        str,
+        Field(
+            default="mock-microsoft-oauth-client-secret",
+            description="Microsoft Entra OAuth Client Secret for local ADK auth.",
+            validation_alias="MICROSOFT_OAUTH_CLIENT_SECRET",
+        ),
+    ]
+    OAUTH_REDIRECT_URI: Annotated[
+        str,
+        Field(
+            default="http://localhost:8000/dev-ui",
+            description="Microsoft Entra OAuth redirect URI for local ADK auth.",
+            validation_alias="MICROSOFT_OAUTH_REDIRECT_URI",
+        ),
+    ]
+    OAUTH_AUTH_URI: Annotated[
+        str,
+        Field(
+            default="https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
+            description="Microsoft Entra OAuth authorization endpoint.",
+            validation_alias="MICROSOFT_OAUTH_AUTH_URI",
+        ),
+    ]
+    OAUTH_TOKEN_URI: Annotated[
+        str,
+        Field(
+            default="https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
+            description="Microsoft Entra OAuth token endpoint.",
+            validation_alias="MICROSOFT_OAUTH_TOKEN_URI",
+        ),
+    ]
+
+    @field_validator("OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_oauth_scopes(
+        cls, v: Union[list[SharePointScopes], dict[str, str]]
+    ) -> dict[str, str]:
+        return _scopes_to_dict(v, "microsoft graph sharepoint access")
+
+
 # Global MCP configuration instances
 BIGQUERY_MCP_CONFIG = BigQueryMCPConfig()
 DRIVE_MCP_CONFIG = DriveMCPConfig()
 CALENDAR_MCP_CONFIG = CalendarMCPConfig()
 GCS_MCP_CONFIG = GCSMCPConfig()
+SHAREPOINT_MCP_CONFIG = SharePointMCPConfig()

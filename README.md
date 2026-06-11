@@ -1,6 +1,6 @@
 # System OSIRIS: Organizational Search, Information Retrieval, and Intelligence System
 
-A multi-agent system designed to break information silos within your organization by searching through different sources like BigQuery, GCS, Google Drive, and Google Calendar, integrated in Gemini Enterprise.
+A multi-agent system designed to break information silos within your organization by searching through different sources like BigQuery, GCS, Google Drive, Google Calendar, and Microsoft SharePoint, integrated in Gemini Enterprise.
 
 This repository is planned to be an accelerator for implementing Gemini Enterprise in any company; allowing to integrate AI Agents capable of reading/writing data from multiple sources (based on user's permissions), such as:
 
@@ -8,6 +8,7 @@ This repository is planned to be an accelerator for implementing Gemini Enterpri
 - Google Cloud Storage
 - BigQuery
 - Google Calendar
+- Microsoft SharePoint
 
 leveraging full AI Agent's capabilities to solve different use cases within a company.
 
@@ -53,6 +54,7 @@ graph TD
         GCS_MCP["<b>GCS MCP Server</b>"]
         Drive_MCP["<b>Drive MCP Server</b>"]
         Calendar_MCP["<b>Calendar MCP Server</b>"]
+        SharePoint_MCP["<b>SharePoint MCP Server</b>"]
     end
 
     subgraph Service ["GCP Resources"]
@@ -60,6 +62,7 @@ graph TD
         GCS_Res[("<b>Cloud Storage</b><br/>Buckets / Blobs")]
         Drive_Res[("<b>Google Drive</b><br/>Docs / Folders")]
         Calendar_Res[("<b>Google Calendar / Meet</b><br/>Events / Transcripts")]
+        SharePoint_Res[("<b>Microsoft SharePoint</b><br/>Sites / Document Libraries")]
     end
 
     subgraph EKBPipeline ["Enterprise Knowledge Base Pipeline"]
@@ -74,6 +77,7 @@ graph TD
     ResSpec --> GCS_MCP
     ResSpec --> Drive_MCP
     ResSpec --> Calendar_MCP
+    ResSpec --> SharePoint_MCP
 
     %% Ingestion agent MCP + EKB access
     IngSpec --> BQ_MCP
@@ -85,6 +89,7 @@ graph TD
     GCS_MCP <--> GCS_Res
     Drive_MCP <--> Drive_Res
     Calendar_MCP <--> Calendar_Res
+    SharePoint_MCP <--> SharePoint_Res
 
     %% EKB writes to storage
     EKB --> GCS_Res
@@ -98,7 +103,7 @@ Detailed view of each agent's skills, native tools, and connectors.
 | Agent | Native Tools | Callbacks | MCP Servers | Skills | Description |
 |---|---|---|---|---|---|
 | **OSIRIS** (Coordinator) | `get_artifact_uri` · `load_artifacts` | `sync_ingestion_status` (before) | — | — | Primary user-facing interface. Analyzes every request and routes it to the appropriate specialist via LLM-transfer delegation. On each turn, proactively polls pending EKB ingestion jobs and injects status updates into session history before responding. |
-| **Research Specialist** `research_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `get_current_time` · `load_artifacts` | — | BigQuery · Google Drive · Google Calendar · GCS | `meeting-summary` · `knowledge-discovery` | Searches for documents, generates meeting summaries, queries the Enterprise Knowledge Base, and cross-references information across all connected data sources. Saves its final response to session state (`research_context`) so follow-up questions can build on prior results. |
+| **Research Specialist** `research_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `get_current_time` · `load_artifacts` | — | BigQuery · Google Drive · Google Calendar · GCS · Microsoft SharePoint | `meeting-summary` · `knowledge-discovery` | Searches for documents, generates meeting summaries, queries the Enterprise Knowledge Base, and cross-references information across all connected data sources. Saves its final response to session state (`research_context`) so follow-up questions can build on prior results. |
 | **Ingestion Specialist** `ingestion_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `trigger_ekb_pipeline` · `check_ingestion_status` · `load_artifacts` | — | BigQuery · GCS | `kb-file-ingestion` | Orchestrates the full document ingestion lifecycle into the Enterprise Knowledge Base: guides the user through metadata collection, copies the file to the landing GCS bucket, triggers the EKB classification and indexing pipeline, and stores the returned job ID in session state for status tracking. |
 
 ## Project Structure
@@ -125,7 +130,8 @@ Research-Agent/
 │   ├── big_query/             # BigQuery MCP server
 │   ├── gcs/                   # Cloud Storage MCP server
 │   ├── google_drive/          # Google Drive MCP server
-│   └── google_calendar/       # Google Calendar & Meet MCP server
+│   ├── google_calendar/       # Google Calendar & Meet MCP server
+│   └── sharepoint/            # Microsoft SharePoint MCP server
 ├── pipelines/                 # Data ingestion pipelines
 │   └── enterprise_knowledge_base/ # EKB: DLP scan → classify → chunk → embed → index
 ├── terraform/                 # Infrastructure as Code (Cloud Foundation Fabric modules)
@@ -219,6 +225,7 @@ For more detailed information about each component, refer to the following docum
 - [Cloud Storage (GCS) MCP Server](mcp_servers/gcs/README.md): GCS connector implementation.
 - [Google Drive MCP Server](mcp_servers/google_drive/README.md): Google Drive connector implementation.
 - [Google Calendar MCP Server](mcp_servers/google_calendar/README.md): Google Calendar & Meet connector implementation.
+- [SharePoint MCP Server](mcp_servers/sharepoint/README.md): Read-only Microsoft SharePoint connector implementation.
 
 ### Security & Authentication
 - [Authentication Methods](docs/Authentication/README.md): Strategies for identity propagation (DWD vs. OAuth).

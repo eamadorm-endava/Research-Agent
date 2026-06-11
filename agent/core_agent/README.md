@@ -2,7 +2,7 @@
 
 This package contains the ADK agent that is deployed to Vertex AI Agent Engine and surfaced through Gemini Enterprise.
 
-The agent is an [**LLM Agent**](../../docs/ADK/ADK-01-Intro.md#llm-agents-llmagent-agent) type that integrates multiple Google data sources using **Model Context Protocol (MCP)** servers.
+The agent is an [**LLM Agent**](../../docs/ADK/ADK-01-Intro.md#llm-agents-llmagent-agent) type that integrates multiple Google and Microsoft data sources using **Model Context Protocol (MCP)** servers.
 
 ## Package Architecture
 
@@ -93,7 +93,7 @@ sequenceDiagram
     rb->>sf: skill name ×2
     sf-->>rb: SkillToolset ×2
     ap->>rb: .with_mcp_servers([BQ, Drive, Calendar, GCS])
-    rb->>mcp: BaseMCPConfig, prod_execution ×4
+    rb->>mcp: BaseMCPConfig, prod_execution ×5
     mcp->>sec: audience URL / ReadonlyContext
     sec-->>mcp: ID token / OAuth token
     mcp-->>rb: McpToolset ×4
@@ -122,7 +122,7 @@ sequenceDiagram
 
 ### Reading the Diagram
 
-1. **Research Specialist** — Built first. Receives `ResearchAgentConfig`, loads two skills (`meeting-summary`, `knowledge-discovery`), mounts all four MCP servers (BigQuery, Drive, Calendar, GCS), and registers native tools including `GetCurrentTimeTool` for time-anchored calendar queries. Its final text response is persisted to session state under `"research_context"` via `output_key`.
+1. **Research Specialist** — Built first. Receives `ResearchAgentConfig`, loads two skills (`meeting-summary`, `knowledge-discovery`), mounts five MCP servers (BigQuery, Drive, Calendar, GCS, SharePoint), and registers native tools including `GetCurrentTimeTool` for time-anchored calendar queries. Its final text response is persisted to session state under `"research_context"` via `output_key`.
 
 2. **Ingestion Specialist** — Built second. Receives `IngestionAgentConfig`, loads the `kb-file-ingestion` skill, mounts BigQuery and GCS MCP servers, and registers the EKB pipeline tools (`TriggerEKBPipelineTool`, `CheckIngestionStatusTool`).
 
@@ -168,13 +168,14 @@ The agent connects to backend services via **MCP servers** and exposes **ADK Ski
 - **Google Drive**: Read, list, and upload files
 - **Google Calendar**: Upcoming events, schedule data, and Meet links
 - **Google Cloud Storage (GCS)**: Search and read unstructured files from buckets
+- **Microsoft SharePoint**: Read-only site, document library, file metadata, and landing-zone file copy access
 
 ### ADK Skills
 - **meeting-summary** (Research Specialist): Generates structured meeting summary documents from transcripts or notes and saves them to Drive.
 - **knowledge-discovery** (Research Specialist): Expert protocol for high-fidelity retrieval across EKB, BigQuery, Drive, Calendar, and GCS using contextual anchoring and parallel discovery.
 - **kb-file-ingestion** (Ingestion Specialist): Orchestrates the upload, classification, metadata tagging, and pipeline triggering for documents entering the Enterprise Knowledge Base.
 
-> **Authentication Model**: Drive, BigQuery, Calendar, and GCS share a delegated Google OAuth token so MCP servers act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.
+> **Authentication Model**: Drive, BigQuery, Calendar, and GCS share a delegated Google OAuth token; SharePoint uses a delegated Microsoft Graph OAuth token so MCP servers act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.
 
 ## Environment Setup
 
@@ -208,6 +209,8 @@ BIGQUERY_URL=https://bigquery-mcp-server-xxxxx-uc.a.run.app
 DRIVE_URL=https://google-drive-mcp-server-xxxxx-uc.a.run.app
 CALENDAR_URL=https://calendar-mcp-server-xxxxx-uc.a.run.app
 GCS_URL=https://gcs-mcp-server-xxxxx-uc.a.run.app
+SHAREPOINT_URL=https://sharepoint-mcp-server-xxxxx-uc.a.run.app
+GEMINI_SHAREPOINT_AUTH_ID=sharepoint-oauth-resource-id
 
 # ─── Local OAuth (for development only) ───
 GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
@@ -249,9 +252,9 @@ make test-agent
 In production, the agent calls backend MCP servers using up to two layers of auth:
 
 - **MCP service auth**: A Cloud Run ID token in `X-Serverless-Authorization` to reach the protected Cloud Run endpoint.
-- **Delegated user data auth**: An OAuth token in `Authorization` so the MCP server can call Google APIs on behalf of the end-user.
+- **Delegated user data auth**: An OAuth token in `Authorization` so the MCP server can call Google or Microsoft Graph APIs on behalf of the end-user.
 
-The delegated token originates from Gemini Enterprise authorization attached to the agent registration (`GEMINI_GOOGLE_AUTH_ID`). The code injects this per-request via `header_provider` so each call reflects the specific user session.
+The delegated token originates from Gemini Enterprise authorization attached to the agent registration (`GEMINI_GOOGLE_AUTH_ID` for Google APIs and `GEMINI_SHAREPOINT_AUTH_ID` for Microsoft Graph). The code injects this per-request via `header_provider` so each call reflects the specific user session.
 
 ---
 

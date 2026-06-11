@@ -50,8 +50,16 @@ class MCPToolsetBuilder:
         auth_scheme = OAuth2(
             flows=OAuthFlows(
                 authorizationCode=OAuthFlowAuthorizationCode(
-                    authorizationUrl=self.auth_config.GOOGLE_OAUTH_AUTH_URI,
-                    tokenUrl=self.auth_config.GOOGLE_OAUTH_TOKEN_URI,
+                    authorizationUrl=self._get_oauth_value(
+                        mcp_config,
+                        "OAUTH_AUTH_URI",
+                        self.auth_config.GOOGLE_OAUTH_AUTH_URI,
+                    ),
+                    tokenUrl=self._get_oauth_value(
+                        mcp_config,
+                        "OAUTH_TOKEN_URI",
+                        self.auth_config.GOOGLE_OAUTH_TOKEN_URI,
+                    ),
                     scopes=mcp_config.OAUTH_SCOPES,
                 )
             )
@@ -59,12 +67,40 @@ class MCPToolsetBuilder:
         auth_credential = AuthCredential(
             auth_type=AuthCredentialTypes.OAUTH2,
             oauth2=OAuth2Auth(
-                client_id=self.auth_config.GOOGLE_OAUTH_CLIENT_ID,
-                client_secret=self.auth_config.GOOGLE_OAUTH_CLIENT_SECRET,
-                redirect_uri=self.auth_config.GOOGLE_OAUTH_REDIRECT_URI,
+                client_id=self._get_oauth_value(
+                    mcp_config,
+                    "OAUTH_CLIENT_ID",
+                    self.auth_config.GOOGLE_OAUTH_CLIENT_ID,
+                ),
+                client_secret=self._get_oauth_value(
+                    mcp_config,
+                    "OAUTH_CLIENT_SECRET",
+                    self.auth_config.GOOGLE_OAUTH_CLIENT_SECRET,
+                ),
+                redirect_uri=self._get_oauth_value(
+                    mcp_config,
+                    "OAUTH_REDIRECT_URI",
+                    self.auth_config.GOOGLE_OAUTH_REDIRECT_URI,
+                ),
             ),
         )
         return {"auth_scheme": auth_scheme, "auth_credential": auth_credential}
+
+    def _get_oauth_value(
+        self, mcp_config: BaseMCPConfig, attribute_name: str, default_value: str
+    ) -> str:
+        """Returns provider-specific OAuth configuration when present.
+
+        Args:
+            mcp_config: BaseMCPConfig -> Target MCP configuration instance.
+            attribute_name: str -> Optional provider-specific attribute to read.
+            default_value: str -> Google OAuth fallback value for existing servers.
+
+        Returns:
+            str -> OAuth setting used to build the local ADK auth scheme.
+        """
+        configured_value = getattr(mcp_config, attribute_name, None)
+        return configured_value if isinstance(configured_value, str) else default_value
 
     def _get_header_provider_function(
         self, mcp_config: BaseMCPConfig, prod_execution: bool

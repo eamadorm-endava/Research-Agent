@@ -4,8 +4,10 @@ BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
 GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
 CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
+SHAREPOINT_PROD_URL?=https://sharepoint-mcp-server-753988132239.us-central1.run.app
 EKB_PIPELINE_URL?=https://ekb-pipeline-server-753988132239.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
+SHAREPOINT_AUTH_ID?=mock-GE-sharepoint-auth-resource-id
 LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 ### General Commands ###
 
@@ -30,6 +32,7 @@ verify-all-ci:
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
+	$(MAKE) verify-sharepoint-ci
 	$(MAKE) verify-ekb-ci
 
 create-cloudbuild-triggers:
@@ -68,7 +71,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},SHAREPOINT_URL=${SHAREPOINT_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},GEMINI_SHAREPOINT_AUTH_ID=${SHAREPOINT_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
@@ -159,6 +162,26 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-precommit
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
+
+
+### SharePoint MCP Commands ###
+
+run-sharepoint-precommit:
+	uvx pre-commit run --files mcp_servers/sharepoint/**/*
+
+run-sharepoint-tests:
+	uv run --group mcp_sharepoint --group dev pytest mcp_servers/sharepoint/tests/
+
+run-sharepoint-mcp-locally:
+	uv run --group mcp_sharepoint python -m mcp_servers.sharepoint.app.main --host localhost --port 8084
+
+build-sharepoint-mcp-image:
+	docker build -t test-sharepoint-mcp-server -f mcp_servers/sharepoint/Dockerfile .
+
+verify-sharepoint-ci:
+	$(MAKE) run-sharepoint-precommit
+	$(MAKE) run-sharepoint-tests
+	$(MAKE) build-sharepoint-mcp-image
 
 ### EKB Pipeline Commands ###
 

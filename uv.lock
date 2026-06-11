@@ -3036,6 +3036,16 @@ mcp-gcs = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
+mcp-sharepoint = [
+    { name = "google-auth" },
+    { name = "google-cloud-storage" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "mcp" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn" },
+]
 rag-pipeline = [
     { name = "google-cloud-bigquery" },
     { name = "google-cloud-storage" },
@@ -3123,6 +3133,16 @@ mcp-gcs = [
     { name = "mcp", specifier = ">=1.2.0" },
     { name = "pydantic", specifier = ">=2.5.3" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
+]
+mcp-sharepoint = [
+    { name = "google-auth", specifier = ">=2.0.0" },
+    { name = "google-cloud-storage", specifier = ">=2.14.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "mcp", specifier = ">=1.26.0" },
+    { name = "pydantic", specifier = ">=2.5.3" },
+    { name = "pydantic-settings", specifier = ">=2.13.1" },
+    { name = "uvicorn", specifier = ">=0.27.0" },
 ]
 rag-pipeline = [
     { name = "google-cloud-bigquery", specifier = ">=3.20.0" },

@@ -12,6 +12,7 @@ The current system implements the following MCP servers:
 * **BigQuery MCP Server**: Executes complex analytical queries and retrieves relational dataset schemas.
 * **Cloud Storage (GCS) MCP Server**: Interacts with cloud buckets to read or list raw blobs.
 * **Google Drive MCP Server**: A workspace-focused connector that allows users to interact with Documents, Sheets, PDFs, and general file listings.
+* **SharePoint MCP Server**: A read-only Microsoft Graph connector for SharePoint sites, document libraries, file metadata, and landing-zone file copies.
 
 ---
 
