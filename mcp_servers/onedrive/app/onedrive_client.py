@@ -1,4 +1,6 @@
+import os
 from typing import Optional
+from urllib.parse import unquote
 import time
 import httpx
 from loguru import logger
@@ -124,8 +126,6 @@ class OneDriveClient:
         )
         path = parent_ref.get("path", "")
 
-        from urllib.parse import unquote
-
         if path:
             if "root:" in path:
                 path = path.split("root:", 1)[1] or "/"
@@ -236,6 +236,8 @@ class OneDriveClient:
         item_tokens: list[str],
         min_creation_date: Optional[str],
         max_creation_date: Optional[str],
+        min_last_modified_date: Optional[str],
+        max_last_modified_date: Optional[str],
         sort_by: Optional[str],
         sort_order: Optional[str],
     ) -> list[dict]:
@@ -248,6 +250,8 @@ class OneDriveClient:
             item_tokens: list[str] -> The tokenized item name filter.
             min_creation_date: Optional[str] -> Minimum creation date (YYYY-MM-DD).
             max_creation_date: Optional[str] -> Maximum creation date (YYYY-MM-DD).
+            min_last_modified_date: Optional[str] -> Minimum last modified date (YYYY-MM-DD).
+            max_last_modified_date: Optional[str] -> Maximum last modified date (YYYY-MM-DD).
             sort_by: Optional[str] -> The key to sort the results by.
             sort_order: Optional[str] -> The direction of sorting ('asc' or 'desc').
 
@@ -273,6 +277,15 @@ class OneDriveClient:
                 ):
                     continue
 
+            if min_last_modified_date and max_last_modified_date:
+                target_modified_date = api_item.get("last_modified_date", "")[:10]
+                if not target_modified_date or not (
+                    min_last_modified_date
+                    <= target_modified_date
+                    <= max_last_modified_date
+                ):
+                    continue
+
             filtered_results.append(api_item)
 
         # Apply global sorting if needed
@@ -285,8 +298,6 @@ class OneDriveClient:
             sort_key = key_mapping.get(sort_by)
             reverse = (sort_order.lower() == "desc") if sort_order else False
             filtered_results.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
-        else:
-            filtered_results.sort(key=lambda x: x.get("name", "").lower())
 
         return filtered_results
 
@@ -311,8 +322,6 @@ class OneDriveClient:
         Returns:
             tuple[list[dict], int] -> A tuple containing the paginated nested tree and the total number of root elements.
         """
-        from .config import ONEDRIVE_SERVER_CONFIG
-        import os
 
         PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
         MAX_DEPTH = ONEDRIVE_SERVER_CONFIG.max_tree_depth
@@ -376,6 +385,16 @@ class OneDriveClient:
 
         # 2. Synthesize missing intermediate folders up to the common_prefix
         def get_or_create_folder(abs_path: str):
+            """
+            Recursively creates missing intermediate folders up to the common root.
+            Ensures the tree remains fully connected.
+
+            Args:
+                abs_path: str -> The absolute path of the folder to synthesize.
+
+            Returns:
+                dict -> The synthesized folder dictionary.
+            """
             if abs_path == common_prefix or len(abs_path) <= len(common_prefix):
                 return None
             if abs_path not in folders_dict:
@@ -422,7 +441,16 @@ class OneDriveClient:
                     root_elements.append(item)
 
         # 4. Paginate the root elements and process nested children constraints
-        def sort_children(children):
+        def sort_children(children: list[dict]):
+            """
+            Sorts a list of child objects based on the configured global sort parameters.
+
+            Args:
+                children: list[dict] -> The list of child dictionaries to sort in-place.
+
+            Returns:
+                None
+            """
             if sort_by in ["name", "creation_date", "last_modified_date"]:
                 key_mapping = {
                     "name": "object_name",
@@ -432,16 +460,23 @@ class OneDriveClient:
                 sort_key = key_mapping.get(sort_by)
                 reverse = (sort_order.lower() == "desc") if sort_order else False
                 children.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
-            else:
-                # Default fallback sort by name
-                children.sort(key=lambda x: x.get("object_name", "").lower())
 
         sort_children(root_elements)
         start = (page - 1) * PAGE_LIMIT
         end = start + PAGE_LIMIT
         paginated_root = root_elements[start:end]
 
-        def process_folder(folder_object, current_depth):
+        def process_folder(folder_object: dict, current_depth: int):
+            """
+            Recursively paginates, sorts, and limits the depth of a nested folder tree.
+
+            Args:
+                folder_object: dict -> The folder object containing child_objects.
+                current_depth: int -> The current traversal depth.
+
+            Returns:
+                None
+            """
             total_items = len(folder_object["child_objects"])
             folder_object["total_items_in_folder"] = total_items
             folder_object["total_pages_in_folder"] = max(
@@ -488,13 +523,6 @@ class OneDriveClient:
             FindItemsResponse -> A structured response containing the paginated tree of items.
         """
         main_folder = request.main_folder
-        if isinstance(main_folder, str):
-            # Map 'root' to 'MY_FILES' for notebook backward compatibility, otherwise use enum value
-            if main_folder.lower() == "root":
-                main_folder = MainFolder.MY_FILES
-            else:
-                main_folder = MainFolder(main_folder.upper())
-
         endpoints = self._build_search_endpoints(main_folder, request.item_name)
 
         all_items = self._fetch_all_items(endpoints, use_cache=request.use_cache)
@@ -504,6 +532,8 @@ class OneDriveClient:
             request.item_name_tokens,
             request.min_creation_date,
             request.max_creation_date,
+            request.min_last_modified_date,
+            request.max_last_modified_date,
             request.sort_by,
             request.sort_order,
         )
@@ -517,8 +547,6 @@ class OneDriveClient:
             sort_by=request.sort_by,
             sort_order=request.sort_order,
         )
-
-        from .config import ONEDRIVE_SERVER_CONFIG
 
         PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
         total_pages = max(1, (total_search_matches + PAGE_LIMIT - 1) // PAGE_LIMIT)
@@ -561,23 +589,17 @@ class OneDriveClient:
                 objects_found=[],
             )
 
-        # Sort the items
-        if request.sort_by in ["name", "creation_date", "last_modified_date"]:
-            key_mapping = {
-                "name": "name",
-                "creation_date": "creation_date",
-                "last_modified_date": "last_modified_date",
-            }
-            sort_key = key_mapping.get(request.sort_by)
-            reverse = (
-                (request.sort_order.lower() == "desc") if request.sort_order else False
-            )
-            all_items.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
-        else:
-            all_items.sort(key=lambda x: x.get("name", "").lower())
-
-        # Paginate
-        from .config import ONEDRIVE_SERVER_CONFIG
+        # Apply global sorting and date filtering
+        all_items = self._filter_and_sort_items(
+            all_items,
+            None,
+            request.min_creation_date,
+            request.max_creation_date,
+            request.min_last_modified_date,
+            request.max_last_modified_date,
+            request.sort_by,
+            request.sort_order,
+        )
 
         PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
 
@@ -631,7 +653,7 @@ class OneDriveClient:
         dependencies = request.dependencies
 
         if not dependencies:
-            raise ValueError("AgentDependencies must be provided to ingest files.")
+            raise ValueError("SessionContext must be provided to ingest files.")
 
         # Check file cache
         cache_key = ("file", file_id, hash(self.access_token.get_secret_value()))

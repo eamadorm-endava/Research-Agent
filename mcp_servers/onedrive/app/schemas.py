@@ -1,9 +1,44 @@
+# Allows lazy evaluation of type hints, removing the need for string forward references in recursive classes
+from __future__ import annotations
 from typing import Annotated, Literal, Optional, Self, Union
 import re
+from enum import StrEnum
 from pydantic import BaseModel, Field, model_validator, computed_field, field_validator
 from .config import MainFolder
 
+
 # --- Reusable Type Aliases ---
+class SortByOption(StrEnum):
+    NAME = "name"
+    CREATION_DATE = "creation_date"
+    LAST_MODIFIED_DATE = "last_modified_date"
+
+
+class SortOrderOption(StrEnum):
+    ASCENDING = "asc"
+    DESCENDING = "desc"
+
+
+class ObjectTypeOption(StrEnum):
+    FILE = "file"
+    FOLDER = "folder"
+
+
+SortBy = Annotated[
+    Optional[SortByOption],
+    Field(
+        description="Sorting criteria.",
+        default=None,
+    ),
+]
+
+SortOrder = Annotated[
+    Optional[SortOrderOption],
+    Field(
+        description="Sorting order.",
+        default=None,
+    ),
+]
 ItemId = Annotated[
     str,
     Field(
@@ -20,16 +55,34 @@ FileName = Annotated[
     ),
 ]
 
-MimeTypeStr = Annotated[
+DateStr = Annotated[
     str,
     Field(
-        description="The MIME type of the file.",
+        description="A date string in 'YYYY-MM-DD' format.",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    ),
+]
+
+PageNumber = Annotated[
+    int,
+    Field(
+        description="The page number for fetching paginated results (1-indexed).",
+        ge=1,
+        default=1,
+    ),
+]
+
+UseCache = Annotated[
+    bool,
+    Field(
+        description="Set to False only to force a cache reload if you expect newly uploaded/updated files. Otherwise, leave True.",
+        default=True,
     ),
 ]
 
 
 # --- Base Models ---
-class AgentDependencies(BaseModel):
+class SessionContext(BaseModel):
     """Dependencies injected by the framework for the current session context."""
 
     app_name: Annotated[
@@ -59,7 +112,7 @@ class BaseRequest(BaseModel):
     """Base class for all requests requiring agent dependencies to prevent LLM hallucination."""
 
     dependencies: Annotated[
-        Optional[AgentDependencies],
+        Optional[SessionContext],
         Field(
             default=None,
             exclude=True,
@@ -85,6 +138,114 @@ class BaseResponse(BaseModel):
             default="Tool executed successfully.",
         ),
     ]
+
+
+class BasePaginatedResponse(BaseModel):
+    """Base class for responses returning paginated lists of files and folders."""
+
+    total_pages: Annotated[
+        int,
+        Field(
+            description="Total number of pages available.",
+            ge=1,
+        ),
+    ]
+    current_page: Annotated[
+        int,
+        Field(description="The current page number shown.", ge=1),
+    ]
+    items_in_page: Annotated[
+        int,
+        Field(
+            description="Number of items returned in this specific page slice.",
+            ge=0,
+        ),
+    ]
+    objects_found: Annotated[
+        list[Union[FileMetadata, FolderMetadata]],
+        Field(
+            description="List of file and folder objects representing the results.",
+        ),
+    ]
+
+
+class BaseDateFilterRequest(BaseModel):
+    """Base class for requests that filter by creation or modified date ranges."""
+
+    min_creation_date: Annotated[
+        Optional[DateStr],
+        Field(
+            description="Optional minimum creation date (e.g., '2023-10-25').",
+            default=None,
+        ),
+    ]
+    max_creation_date: Annotated[
+        Optional[DateStr],
+        Field(
+            description="Optional maximum creation date (e.g., '2023-10-25').",
+            default=None,
+        ),
+    ]
+    min_last_modified_date: Annotated[
+        Optional[DateStr],
+        Field(
+            description="Optional minimum last modified date (e.g., '2023-10-25').",
+            default=None,
+        ),
+    ]
+    max_last_modified_date: Annotated[
+        Optional[DateStr],
+        Field(
+            description="Optional maximum last modified date (e.g., '2023-10-25').",
+            default=None,
+        ),
+    ]
+
+    @model_validator(mode="after")
+    def check_created_date_window(self) -> Self:
+        """
+        Validates that both min and max creation dates are provided together and are logically ordered.
+        Used to prevent invalid date range queries.
+
+        Args:
+            None
+
+        Returns:
+            Self -> The validated model instance.
+        """
+        if bool(self.min_creation_date) != bool(self.max_creation_date):
+            raise ValueError(
+                "Both min_creation_date and max_creation_date must be provided together."
+            )
+        if self.min_creation_date and self.max_creation_date:
+            if self.min_creation_date > self.max_creation_date:
+                raise ValueError(
+                    "min_creation_date cannot be later than max_creation_date."
+                )
+        return self
+
+    @model_validator(mode="after")
+    def check_modified_date_window(self) -> Self:
+        """
+        Validates that both min and max modified dates are provided together and are logically ordered.
+        Used to prevent invalid date range queries.
+
+        Args:
+            None
+
+        Returns:
+            Self -> The validated model instance.
+        """
+        if bool(self.min_last_modified_date) != bool(self.max_last_modified_date):
+            raise ValueError(
+                "Both min_last_modified_date and max_last_modified_date must be provided together."
+            )
+        if self.min_last_modified_date and self.max_last_modified_date:
+            if self.min_last_modified_date > self.max_last_modified_date:
+                raise ValueError(
+                    "min_last_modified_date cannot be later than max_last_modified_date."
+                )
+        return self
 
 
 # --- Object Metadata Models (Recursive Tree) ---
@@ -118,7 +279,7 @@ class ObjectMetadata(BaseModel):
         ),
     ]
     object_type: Annotated[
-        Literal["file", "folder"],
+        ObjectTypeOption,
         Field(description="Discriminator type indicating if this is a file or folder."),
     ]
 
@@ -126,7 +287,7 @@ class ObjectMetadata(BaseModel):
 class FileMetadata(ObjectMetadata):
     """Metadata representing a single file in OneDrive."""
 
-    object_type: Literal["file"] = "file"
+    object_type: Literal[ObjectTypeOption.FILE] = ObjectTypeOption.FILE
     file_id: Annotated[
         Optional[ItemId],
         Field(
@@ -135,14 +296,14 @@ class FileMetadata(ObjectMetadata):
         ),
     ]
     mime_type: Annotated[
-        Optional[MimeTypeStr], Field(description="MIME type of the file.", default=None)
+        Optional[str], Field(description="MIME type of the file.", default=None)
     ]
 
 
 class FolderMetadata(ObjectMetadata):
     """Metadata representing a folder in OneDrive, containing nested children."""
 
-    object_type: Literal["folder"] = "folder"
+    object_type: Literal[ObjectTypeOption.FOLDER] = ObjectTypeOption.FOLDER
     folder_id: Annotated[
         Optional[ItemId],
         Field(
@@ -179,34 +340,15 @@ class FolderMetadata(ObjectMetadata):
         ),
     ]
     child_objects: Annotated[
-        Optional[list[Union["FileMetadata", "FolderMetadata"]]],
+        Optional[list[Union[FileMetadata, FolderMetadata]]],
         Field(
             description="Nested files and subfolders within this folder.", default=None
         ),
     ]
 
-    @model_validator(mode="after")
-    def check_pagination(self) -> Self:
-        """
-        Validates that the current page does not exceed the total pages.
-        Used to ensure logical consistency in pagination logic.
-
-        Args:
-            None
-
-        Returns:
-            Self -> The validated model instance.
-        """
-        if self.current_page is not None and self.total_pages_in_folder is not None:
-            if self.current_page > self.total_pages_in_folder:
-                raise ValueError(
-                    f"current_page ({self.current_page}) cannot exceed total_pages_in_folder ({self.total_pages_in_folder})"
-                )
-        return self
-
 
 # --- Tool Request / Response Models ---
-class FindItemsRequest(BaseRequest):
+class FindItemsRequest(BaseRequest, BaseDateFilterRequest):
     """Request model for finding items globally across OneDrive with pagination."""
 
     main_folder: Annotated[
@@ -226,74 +368,10 @@ class FindItemsRequest(BaseRequest):
         ),
     ]
 
-    min_creation_date: Annotated[
-        Optional[str],
-        Field(
-            description="Optional minimum creation date (e.g., '2023-10-25').",
-            pattern=r"^\d{4}-\d{2}-\d{2}$",
-            default=None,
-        ),
-    ]
-    max_creation_date: Annotated[
-        Optional[str],
-        Field(
-            description="Optional maximum creation date (e.g., '2023-10-25').",
-            pattern=r"^\d{4}-\d{2}-\d{2}$",
-            default=None,
-        ),
-    ]
-    sort_by: Annotated[
-        Optional[Literal["name", "creation_date", "last_modified_date"]],
-        Field(
-            description="Sorting criteria.",
-            default="last_modified_date",
-        ),
-    ]
-    sort_order: Annotated[
-        Optional[Literal["asc", "desc"]],
-        Field(
-            description="Sorting order.",
-            default="desc",
-        ),
-    ]
-    page: Annotated[
-        int,
-        Field(
-            description="Page number to retrieve (20 root items per page).",
-            default=1,
-            ge=1,
-        ),
-    ]
-    use_cache: Annotated[
-        bool,
-        Field(
-            description="Set to False only to force a cache reload if you expect newly uploaded/updated files. Otherwise, leave True.",
-            default=True,
-        ),
-    ]
-
-    @model_validator(mode="after")
-    def check_date_window(self) -> Self:
-        """
-        Validates that both min and max creation dates are provided together and are logically ordered.
-        Used to prevent invalid date range queries.
-
-        Args:
-            None
-
-        Returns:
-            Self -> The validated model instance.
-        """
-        if bool(self.min_creation_date) != bool(self.max_creation_date):
-            raise ValueError(
-                "Both min_creation_date and max_creation_date must be provided together."
-            )
-        if self.min_creation_date and self.max_creation_date:
-            if self.min_creation_date > self.max_creation_date:
-                raise ValueError(
-                    "min_creation_date cannot be later than max_creation_date."
-                )
-        return self
+    sort_by: SortBy
+    sort_order: SortOrder
+    page: PageNumber
+    use_cache: UseCache
 
     @field_validator("item_name", mode="after")
     @classmethod
@@ -334,7 +412,7 @@ class FindItemsRequest(BaseRequest):
         ]
 
 
-class FindItemsResponse(BaseResponse):
+class FindItemsResponse(BaseResponse, BasePaginatedResponse):
     """Response model returning paginated global search results grouped by folders."""
 
     execution_message: Annotated[
@@ -351,68 +429,19 @@ class FindItemsResponse(BaseResponse):
             ge=0,
         ),
     ]
-    total_pages: Annotated[
-        int,
-        Field(
-            description="Total number of pages available globally.",
-            ge=1,
-        ),
-    ]
-    current_page: Annotated[
-        int,
-        Field(description="The current page number shown.", ge=1),
-    ]
-    items_in_page: Annotated[
-        int,
-        Field(
-            description="Number of root items returned in this specific page slice.",
-            ge=0,
-        ),
-    ]
-    objects_found: Annotated[
-        list[Union[FileMetadata, FolderMetadata]],
-        Field(
-            description="List of nested file and folder objects representing the global search results.",
-        ),
-    ]
 
 
-class ListFolderContentsRequest(BaseRequest):
+class ListFolderContentsRequest(BaseRequest, BaseDateFilterRequest):
     """Request model for listing exact contents of a specific folder."""
 
     folder_id: ItemId
-    sort_by: Annotated[
-        Optional[Literal["name", "creation_date", "last_modified_date"]],
-        Field(
-            description="Sorting criteria.",
-            default="last_modified_date",
-        ),
-    ]
-    sort_order: Annotated[
-        Optional[Literal["asc", "desc"]],
-        Field(
-            description="Sorting order.",
-            default="desc",
-        ),
-    ]
-    page: Annotated[
-        int,
-        Field(
-            description="The page number for fetching folder contents (1-indexed).",
-            ge=1,
-            default=1,
-        ),
-    ]
-    use_cache: Annotated[
-        bool,
-        Field(
-            description="Whether to use the 5-minute memory cache or fetch fresh results.",
-            default=True,
-        ),
-    ]
+    page: PageNumber
+    use_cache: UseCache
+    sort_by: SortBy
+    sort_order: SortOrder
 
 
-class ListFolderContentsResponse(BaseResponse):
+class ListFolderContentsResponse(BaseResponse, BasePaginatedResponse):
     """Response model returning paginated files explicitly within a specific folder."""
 
     total_items_in_folder: Annotated[
@@ -420,30 +449,6 @@ class ListFolderContentsResponse(BaseResponse):
         Field(
             description="Total number of items in this folder.",
             ge=0,
-        ),
-    ]
-    total_pages: Annotated[
-        int,
-        Field(
-            description="Total number of pages available in this folder.",
-            ge=1,
-        ),
-    ]
-    current_page: Annotated[
-        int,
-        Field(description="The current page number shown.", ge=1),
-    ]
-    items_in_page: Annotated[
-        int,
-        Field(
-            description="Number of items returned in this specific page slice.",
-            ge=0,
-        ),
-    ]
-    objects_found: Annotated[
-        list[Union[FileMetadata, FolderMetadata]],
-        Field(
-            description="List of nested file and folder objects representing the search results.",
         ),
     ]
 

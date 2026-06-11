@@ -165,7 +165,7 @@ class OneDriveServerConfig(OneDriveMCPConfigBase):
     cache_ttl_seconds: Annotated[
         int,
         Field(
-            default=300,
+            default=600,
             description="Time-to-live for cached Graph API responses and read files in seconds.",
         ),
     ]
