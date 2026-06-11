@@ -28,13 +28,13 @@ Configure the Microsoft Entra application with delegated permissions:
 - `Sites.Read.All`
 - `offline_access` for refresh-token support in the OAuth connection manager
 
-The token verifier checks the delegated token scopes and validates the token by calling Microsoft Graph `/me` before FastMCP runs any tool.
+The token verifier checks the delegated token scopes and validates the token by calling Microsoft Graph `/me` before FastMCP runs any tool. Agent-side Microsoft OAuth variables are intentionally Microsoft-wide, for example `GEMINI_MICROSOFT_AUTH_ID` and `MICROSOFT_GRAPH_OAUTH_SCOPES`, so the same delegated Microsoft authorization can be reused by future Microsoft MCP servers.
 
 ## Environment variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `SHAREPOINT_TENANT_ID` or `MICROSOFT_TENANT_ID` | `organizations` | Tenant ID or Microsoft tenant alias used in the issuer URL. |
+| `MICROSOFT_TENANT_ID` | `organizations` | Tenant ID or Microsoft tenant alias used in the issuer URL. Legacy fallback: `SHAREPOINT_TENANT_ID`. |
 | `SHAREPOINT_LANDING_ZONE_BUCKET` | Falls back to `LANDING_ZONE_BUCKET`, then `GCS_LANDING_ZONE_BUCKET`, then mock bucket | GCS bucket used for file injection copies. |
 
 The server uses Application Default Credentials for GCS landing-zone writes and IAM policy updates. Do not use JSON credential files.

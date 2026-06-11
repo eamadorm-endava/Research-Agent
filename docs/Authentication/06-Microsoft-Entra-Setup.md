@@ -69,6 +69,22 @@ To prevent users from being blocked by corporate policies that require administr
 1. On the **API permissions** page, click the **Grant admin consent for [Your Tenant Name]** button located above the permissions list.
 2. Confirm the action. The status column for all permissions should change to a green checkmark indicating "Granted".
 
+
+## 6. Configure Environment Variables
+
+Use Microsoft-wide auth variable names so one Microsoft Graph OAuth connection can be reused by multiple Microsoft MCP servers:
+
+```env
+GEMINI_MICROSOFT_AUTH_ID=your-gemini-enterprise-microsoft-auth-resource-id
+MICROSOFT_TENANT_ID=your-tenant-id-or-organizations
+MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read", "Files.Read.All", "Sites.Read.All", "offline_access"]
+MICROSOFT_OAUTH_CLIENT_ID=your-entra-application-client-id
+MICROSOFT_OAUTH_CLIENT_SECRET=your-entra-client-secret
+MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
+```
+
+Legacy SharePoint-specific aliases such as `GEMINI_SHAREPOINT_AUTH_ID`, `SHAREPOINT_AUTH_ID`, `SHAREPOINT_OAUTH_SCOPES`, and `SHAREPOINT_TENANT_ID` are still accepted for compatibility, but new Microsoft MCP servers should use the Microsoft-wide names above.
+
 ---
 
 > [!IMPORTANT]

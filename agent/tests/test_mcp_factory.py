@@ -1,7 +1,12 @@
 import os
 from unittest.mock import patch, MagicMock
 
-from agent.core_agent.config import BigQueryMCPConfig, GCSMCPConfig, GoogleAuthConfig
+from agent.core_agent.config import (
+    BigQueryMCPConfig,
+    GCSMCPConfig,
+    GoogleAuthConfig,
+    SharePointMCPConfig,
+)
 from agent.core_agent.builder.mcp_factory import MCPToolsetBuilder
 
 
@@ -103,3 +108,30 @@ def test_mcp_config_alias_precedence():
         mcp_config = BigQueryMCPConfig()
 
     assert mcp_config.GEMINI_GOOGLE_AUTH_ID == "specific-id"
+
+
+def test_get_mcp_toolset_prod_mode_sharepoint_uses_microsoft_auth_id():
+    """Microsoft MCP configs should use the Microsoft-wide delegated auth resource ID."""
+    with patch.dict(
+        os.environ,
+        {
+            "GEMINI_GOOGLE_AUTH_ID": "google-auth-id",
+            "GEMINI_MICROSOFT_AUTH_ID": "microsoft-auth-id",
+        },
+        clear=True,
+    ):
+        mcp_config = SharePointMCPConfig()
+        auth_config = GoogleAuthConfig()
+
+    builder = MCPToolsetBuilder(auth_config)
+    tool = builder.build(mcp_config, prod_execution=True)
+
+    ctx = MagicMock()
+    ctx.state = {"microsoft-auth-id": "microsoft-delegated-token"}
+    with patch(
+        "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+    ):
+        headers = tool._header_provider(ctx)
+
+    assert headers["X-Serverless-Authorization"] == "Bearer id-token"
+    assert headers["Authorization"] == "Bearer microsoft-delegated-token"

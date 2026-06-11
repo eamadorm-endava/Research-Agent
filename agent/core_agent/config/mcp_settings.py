@@ -31,8 +31,8 @@ class GCSScopes(StrEnum):
     EMAIL = "email"
 
 
-class SharePointScopes(StrEnum):
-    """Enum for Microsoft Graph SharePoint delegated OAuth scopes."""
+class MicrosoftGraphScopes(StrEnum):
+    """Enum for delegated Microsoft Graph OAuth scopes used by Microsoft MCP servers."""
 
     USER_READ = "User.Read"
     FILES_READ_ALL = "Files.Read.All"
@@ -79,6 +79,11 @@ class BaseMCPConfig(BaseSettings):
             description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise.",
         ),
     ]
+
+    @property
+    def auth_resource_id(self) -> Optional[str]:
+        """Returns the delegated OAuth authorization resource ID for this MCP server."""
+        return self.GEMINI_GOOGLE_AUTH_ID
 
 
 class BigQueryMCPConfig(BaseMCPConfig):
@@ -293,29 +298,41 @@ class SharePointMCPConfig(BaseMCPConfig):
         ),
     ]
     OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[SharePointScopes]],
+        Union[dict[str, str], list[MicrosoftGraphScopes]],
         Field(
             default=[
-                SharePointScopes.USER_READ,
-                SharePointScopes.FILES_READ_ALL,
-                SharePointScopes.SITES_READ_ALL,
-                SharePointScopes.OFFLINE_ACCESS,
+                MicrosoftGraphScopes.USER_READ,
+                MicrosoftGraphScopes.FILES_READ_ALL,
+                MicrosoftGraphScopes.SITES_READ_ALL,
+                MicrosoftGraphScopes.OFFLINE_ACCESS,
             ],
             description="Microsoft Graph OAuth scopes requested by the agent.",
-            validation_alias="SHAREPOINT_OAUTH_SCOPES",
+            validation_alias=AliasChoices(
+                "MICROSOFT_GRAPH_OAUTH_SCOPES",
+                "MICROSOFT_OAUTH_SCOPES",
+                "SHAREPOINT_OAUTH_SCOPES",
+            ),
         ),
     ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
+    GEMINI_MICROSOFT_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="mock-ge-sharepoint-auth-id",
-            description="Auth Resource ID for Microsoft SharePoint.",
+            default="mock-ge-microsoft-auth-id",
+            description="Shared Auth Resource ID for Microsoft Graph MCP servers.",
             validation_alias=AliasChoices(
+                "GEMINI_MICROSOFT_AUTH_ID",
+                "MICROSOFT_AUTH_ID",
                 "GEMINI_SHAREPOINT_AUTH_ID",
                 "SHAREPOINT_AUTH_ID",
             ),
         ),
     ]
+
+    @property
+    def auth_resource_id(self) -> Optional[str]:
+        """Returns the Microsoft-wide Gemini Enterprise auth resource ID."""
+        return self.GEMINI_MICROSOFT_AUTH_ID
+
     OAUTH_CLIENT_ID: Annotated[
         str,
         Field(
@@ -360,9 +377,9 @@ class SharePointMCPConfig(BaseMCPConfig):
     @field_validator("OAUTH_SCOPES", mode="after")
     @classmethod
     def validate_oauth_scopes(
-        cls, v: Union[list[SharePointScopes], dict[str, str]]
+        cls, v: Union[list[MicrosoftGraphScopes], dict[str, str]]
     ) -> dict[str, str]:
-        return _scopes_to_dict(v, "microsoft graph sharepoint access")
+        return _scopes_to_dict(v, "microsoft graph access")
 
 
 # Global MCP configuration instances

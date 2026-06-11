@@ -175,7 +175,7 @@ The agent connects to backend services via **MCP servers** and exposes **ADK Ski
 - **knowledge-discovery** (Research Specialist): Expert protocol for high-fidelity retrieval across EKB, BigQuery, Drive, Calendar, and GCS using contextual anchoring and parallel discovery.
 - **kb-file-ingestion** (Ingestion Specialist): Orchestrates the upload, classification, metadata tagging, and pipeline triggering for documents entering the Enterprise Knowledge Base.
 
-> **Authentication Model**: Drive, BigQuery, Calendar, and GCS share a delegated Google OAuth token; SharePoint uses a delegated Microsoft Graph OAuth token so MCP servers act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.
+> **Authentication Model**: Drive, BigQuery, Calendar, and GCS share a delegated Google OAuth token; Microsoft MCP servers use a delegated Microsoft Graph OAuth token so they can act on behalf of the end-user. A Cloud Run ID token (`X-Serverless-Authorization`) secures the MCP Cloud Run service itself.
 
 ## Environment Setup
 
@@ -210,12 +210,16 @@ DRIVE_URL=https://google-drive-mcp-server-xxxxx-uc.a.run.app
 CALENDAR_URL=https://calendar-mcp-server-xxxxx-uc.a.run.app
 GCS_URL=https://gcs-mcp-server-xxxxx-uc.a.run.app
 SHAREPOINT_URL=https://sharepoint-mcp-server-xxxxx-uc.a.run.app
-GEMINI_SHAREPOINT_AUTH_ID=sharepoint-oauth-resource-id
+GEMINI_MICROSOFT_AUTH_ID=microsoft-oauth-resource-id
 
 # ─── Local OAuth (for development only) ───
 GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
+MICROSOFT_OAUTH_CLIENT_ID=your-entra-application-client-id
+MICROSOFT_OAUTH_CLIENT_SECRET=your-entra-client-secret
+MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
+MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read", "Files.Read.All", "Sites.Read.All", "offline_access"]
 ```
 
 ## How to Test Locally
@@ -254,7 +258,7 @@ In production, the agent calls backend MCP servers using up to two layers of aut
 - **MCP service auth**: A Cloud Run ID token in `X-Serverless-Authorization` to reach the protected Cloud Run endpoint.
 - **Delegated user data auth**: An OAuth token in `Authorization` so the MCP server can call Google or Microsoft Graph APIs on behalf of the end-user.
 
-The delegated token originates from Gemini Enterprise authorization attached to the agent registration (`GEMINI_GOOGLE_AUTH_ID` for Google APIs and `GEMINI_SHAREPOINT_AUTH_ID` for Microsoft Graph). The code injects this per-request via `header_provider` so each call reflects the specific user session.
+The delegated token originates from Gemini Enterprise authorization attached to the agent registration (`GEMINI_GOOGLE_AUTH_ID` for Google APIs and `GEMINI_MICROSOFT_AUTH_ID` for Microsoft Graph). The code injects this per-request via `header_provider` so each call reflects the specific user session.
 
 ---
 

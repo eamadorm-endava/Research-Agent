@@ -135,9 +135,10 @@ class MCPToolsetBuilder:
             }
 
             # Inject GE-managed OAuth token only in production for servers with Auth IDs
-            if prod_execution and mcp_config.GEMINI_GOOGLE_AUTH_ID:
+            auth_resource_id = mcp_config.auth_resource_id
+            if prod_execution and auth_resource_id:
                 headers["Authorization"] = (
-                    f"Bearer {get_ge_oauth_token(ctx, mcp_config.GEMINI_GOOGLE_AUTH_ID)}"
+                    f"Bearer {get_ge_oauth_token(ctx, auth_resource_id)}"
                 )
                 logger.debug("Injected delegated OAuth token into Authorization header")
 

@@ -5,8 +5,8 @@ from pydantic import Field
 from pydantic_settings import AliasChoices, BaseSettings, SettingsConfigDict
 
 
-class SharePointScope(StrEnum):
-    """Microsoft Graph delegated scopes required by the SharePoint MCP server."""
+class MicrosoftGraphScope(StrEnum):
+    """Microsoft Graph delegated scopes required by read-only Microsoft MCP servers."""
 
     USER_READ = "User.Read"
     FILES_READ_ALL = "Files.Read.All"
@@ -34,12 +34,12 @@ class SharePointApiConfig(SharePointMcpConfigBase):
         ),
     ]
     required_scopes: Annotated[
-        tuple[SharePointScope, ...],
+        tuple[MicrosoftGraphScope, ...],
         Field(
             default=(
-                SharePointScope.USER_READ,
-                SharePointScope.FILES_READ_ALL,
-                SharePointScope.SITES_READ_ALL,
+                MicrosoftGraphScope.USER_READ,
+                MicrosoftGraphScope.FILES_READ_ALL,
+                MicrosoftGraphScope.SITES_READ_ALL,
             ),
             description="Delegated Microsoft Graph scopes required by this read-only server.",
         ),
@@ -73,15 +73,15 @@ class SharePointApiConfig(SharePointMcpConfigBase):
     ]
 
 
-class SharePointAuthConfig(SharePointMcpConfigBase):
-    """Configuration for Microsoft Entra token validation."""
+class MicrosoftAuthConfig(SharePointMcpConfigBase):
+    """Shared configuration for Microsoft Entra token validation."""
 
     tenant_id: Annotated[
         str,
         Field(
             default="organizations",
             validation_alias=AliasChoices(
-                "SHAREPOINT_TENANT_ID", "MICROSOFT_TENANT_ID"
+                "MICROSOFT_TENANT_ID", "SHAREPOINT_TENANT_ID"
             ),
             description="Microsoft Entra tenant ID or tenant alias used in issuer metadata.",
         ),
@@ -192,6 +192,6 @@ class SharePointServerConfig(SharePointMcpConfigBase):
 
 
 SHAREPOINT_API_CONFIG = SharePointApiConfig()
-SHAREPOINT_AUTH_CONFIG = SharePointAuthConfig()
+MICROSOFT_AUTH_CONFIG = MicrosoftAuthConfig()
 SHAREPOINT_LANDING_ZONE_CONFIG = SharePointLandingZoneConfig()
 SHAREPOINT_SERVER_CONFIG = SharePointServerConfig()

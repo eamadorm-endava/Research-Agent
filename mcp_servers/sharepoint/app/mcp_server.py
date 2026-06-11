@@ -6,7 +6,7 @@ from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
-from .config import SHAREPOINT_AUTH_CONFIG, SHAREPOINT_SERVER_CONFIG
+from .config import MICROSOFT_AUTH_CONFIG, SHAREPOINT_SERVER_CONFIG
 from .schemas import (
     GetDriveItemRequest,
     GetDriveItemResponse,
@@ -33,7 +33,7 @@ mcp = FastMCP(
     debug=SHAREPOINT_SERVER_CONFIG.debug,
     token_verifier=SharePointTokenVerifier(),
     auth=AuthSettings(
-        issuer_url=AnyHttpUrl(SHAREPOINT_AUTH_CONFIG.issuer_url),
+        issuer_url=AnyHttpUrl(MICROSOFT_AUTH_CONFIG.issuer_url),
         resource_server_url=AnyHttpUrl(
             f"http://{SHAREPOINT_SERVER_CONFIG.default_host}:"
             f"{SHAREPOINT_SERVER_CONFIG.default_port}"
