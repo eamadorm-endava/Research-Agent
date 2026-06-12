@@ -1,6 +1,7 @@
 from .agent_settings import (
     GCP_CONFIG,
     GOOGLE_AUTH_CONFIG,
+    MICROSOFT_AUTH_CONFIG,
     COORDINATOR_CONFIG,
     RESEARCH_AGENT_CONFIG,
     INGESTION_AGENT_CONFIG,
@@ -10,6 +11,7 @@ from .agent_settings import (
     IngestionAgentConfig,
     GCPConfig,
     GoogleAuthConfig,
+    MicrosoftAuthConfig,
 )
 from .mcp_settings import (
     BIGQUERY_MCP_CONFIG,
@@ -32,6 +34,7 @@ __all__ = [
     "IngestionAgentConfig",
     "GCPConfig",
     "GoogleAuthConfig",
+    "MicrosoftAuthConfig",
     "BaseMCPConfig",
     "BigQueryMCPConfig",
     "CalendarMCPConfig",
@@ -43,6 +46,7 @@ __all__ = [
     "RESEARCH_AGENT_CONFIG",
     "INGESTION_AGENT_CONFIG",
     "GOOGLE_AUTH_CONFIG",
+    "MICROSOFT_AUTH_CONFIG",
     "BIGQUERY_MCP_CONFIG",
     "DRIVE_MCP_CONFIG",
     "CALENDAR_MCP_CONFIG",

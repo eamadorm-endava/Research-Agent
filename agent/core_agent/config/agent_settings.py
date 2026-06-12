@@ -525,6 +525,69 @@ class GoogleAuthConfig(BaseSettings):
     ]
 
 
+class MicrosoftAuthConfig(BaseSettings):
+    """Holds shared Microsoft OAuth 2.0 credentials used across Microsoft MCP connections.
+
+    This mirrors GoogleAuthConfig: MCP server configs define which scopes they
+    need, while this agent-level config defines how local ADK OAuth obtains the
+    delegated Microsoft Graph token for those scopes.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        validate_assignment=True,
+    )
+
+    MICROSOFT_TENANT_ID: Annotated[
+        str,
+        Field(
+            default="organizations",
+            validation_alias=AliasChoices(
+                "MICROSOFT_TENANT_ID",
+                "SHAREPOINT_TENANT_ID",
+            ),
+            description="Microsoft Entra tenant ID or tenant alias used for local Microsoft OAuth.",
+        ),
+    ]
+    MICROSOFT_OAUTH_CLIENT_ID: Annotated[
+        str,
+        Field(
+            default="mock-microsoft-oauth-client-id",
+            description="Shared OAuth 2.0 Client ID for Microsoft Graph APIs used by the agent.",
+        ),
+    ]
+    MICROSOFT_OAUTH_CLIENT_SECRET: Annotated[
+        str,
+        Field(
+            default="mock-microsoft-oauth-client-secret",
+            description="Shared OAuth 2.0 Client Secret for Microsoft Graph APIs used by the agent.",
+        ),
+    ]
+    MICROSOFT_OAUTH_REDIRECT_URI: Annotated[
+        str,
+        Field(
+            default="http://localhost:8000/dev-ui",
+            description="Shared OAuth 2.0 Redirect URI for Microsoft Graph APIs used by the agent.",
+        ),
+    ]
+    MICROSOFT_OAUTH_AUTH_URI: Annotated[
+        str,
+        Field(
+            default="https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
+            description="Shared OAuth 2.0 authorization URL for Microsoft Graph APIs used by the agent.",
+        ),
+    ]
+    MICROSOFT_OAUTH_TOKEN_URI: Annotated[
+        str,
+        Field(
+            default="https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
+            description="Shared OAuth 2.0 token URL for Microsoft Graph APIs used by the agent.",
+        ),
+    ]
+
+
 # Global configuration instances
 # Global configuration instances
 GCP_CONFIG = GCPConfig()
@@ -532,3 +595,4 @@ COORDINATOR_CONFIG = CoordinatorConfig()
 RESEARCH_AGENT_CONFIG = ResearchAgentConfig()
 INGESTION_AGENT_CONFIG = IngestionAgentConfig()
 GOOGLE_AUTH_CONFIG = GoogleAuthConfig()
+MICROSOFT_AUTH_CONFIG = MicrosoftAuthConfig()

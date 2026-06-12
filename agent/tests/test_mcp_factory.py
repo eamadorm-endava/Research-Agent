@@ -5,6 +5,7 @@ from agent.core_agent.config import (
     BigQueryMCPConfig,
     GCSMCPConfig,
     GoogleAuthConfig,
+    MicrosoftAuthConfig,
     SharePointMCPConfig,
 )
 from agent.core_agent.builder.mcp_factory import MCPToolsetBuilder
@@ -135,3 +136,36 @@ def test_get_mcp_toolset_prod_mode_sharepoint_uses_microsoft_auth_id():
 
     assert headers["X-Serverless-Authorization"] == "Bearer id-token"
     assert headers["Authorization"] == "Bearer microsoft-delegated-token"
+
+
+def test_get_mcp_toolset_local_sharepoint_uses_microsoft_auth_config():
+    """SharePoint local OAuth must use agent-level MicrosoftAuthConfig values."""
+    with patch.dict(
+        os.environ,
+        {
+            "MICROSOFT_OAUTH_CLIENT_ID": "microsoft-client-id",
+            "MICROSOFT_OAUTH_CLIENT_SECRET": "microsoft-client-secret",
+            "MICROSOFT_OAUTH_REDIRECT_URI": "http://localhost:8000/dev-ui",
+            "MICROSOFT_OAUTH_AUTH_URI": "https://login.microsoftonline.com/test/oauth2/v2.0/authorize",
+            "MICROSOFT_OAUTH_TOKEN_URI": "https://login.microsoftonline.com/test/oauth2/v2.0/token",
+        },
+        clear=True,
+    ):
+        mcp_config = SharePointMCPConfig()
+        auth_config = GoogleAuthConfig()
+        microsoft_auth_config = MicrosoftAuthConfig()
+
+    builder = MCPToolsetBuilder(auth_config, microsoft_auth_config)
+    oauth_values = builder._get_local_oauth_values(mcp_config)
+
+    assert oauth_values["client_id"] == "microsoft-client-id"
+    assert oauth_values["client_secret"] == "microsoft-client-secret"
+    assert oauth_values["redirect_uri"] == "http://localhost:8000/dev-ui"
+    assert (
+        oauth_values["authorization_url"]
+        == "https://login.microsoftonline.com/test/oauth2/v2.0/authorize"
+    )
+    assert (
+        oauth_values["token_url"]
+        == "https://login.microsoftonline.com/test/oauth2/v2.0/token"
+    )

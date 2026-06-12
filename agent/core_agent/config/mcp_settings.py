@@ -40,6 +40,13 @@ class MicrosoftGraphScopes(StrEnum):
     OFFLINE_ACCESS = "offline_access"
 
 
+class OAuthProvider(StrEnum):
+    """Supported OAuth providers for local ADK-managed MCP authentication."""
+
+    GOOGLE = "google"
+    MICROSOFT = "microsoft"
+
+
 def _scopes_to_dict(v: Union[list, dict[str, str]], description: str) -> dict[str, str]:
     """Normalises OAUTH_SCOPES from a list of scope enums to the dict[scope_url, description] format.
 
@@ -70,6 +77,16 @@ class BaseMCPConfig(BaseSettings):
         Field(
             default=60,
             description="Timeout in seconds for MCP servers.",
+        ),
+    ]
+    OAUTH_PROVIDER: Annotated[
+        OAuthProvider,
+        Field(
+            default=OAuthProvider.GOOGLE,
+            description=(
+                "OAuth provider used by the agent to obtain delegated tokens "
+                "for this MCP server during local execution."
+            ),
         ),
     ]
     GEMINI_GOOGLE_AUTH_ID: Annotated[
@@ -297,6 +314,13 @@ class SharePointMCPConfig(BaseMCPConfig):
             validation_alias="SHAREPOINT_ENDPOINT",
         ),
     ]
+    OAUTH_PROVIDER: Annotated[
+        OAuthProvider,
+        Field(
+            default=OAuthProvider.MICROSOFT,
+            description="Use the shared agent-level Microsoft OAuth configuration.",
+        ),
+    ]
     OAUTH_SCOPES: Annotated[
         Union[dict[str, str], list[MicrosoftGraphScopes]],
         Field(
@@ -332,47 +356,6 @@ class SharePointMCPConfig(BaseMCPConfig):
     def auth_resource_id(self) -> Optional[str]:
         """Returns the Microsoft-wide Gemini Enterprise auth resource ID."""
         return self.GEMINI_MICROSOFT_AUTH_ID
-
-    OAUTH_CLIENT_ID: Annotated[
-        str,
-        Field(
-            default="mock-microsoft-oauth-client-id",
-            description="Microsoft Entra OAuth Client ID for local ADK auth.",
-            validation_alias="MICROSOFT_OAUTH_CLIENT_ID",
-        ),
-    ]
-    OAUTH_CLIENT_SECRET: Annotated[
-        str,
-        Field(
-            default="mock-microsoft-oauth-client-secret",
-            description="Microsoft Entra OAuth Client Secret for local ADK auth.",
-            validation_alias="MICROSOFT_OAUTH_CLIENT_SECRET",
-        ),
-    ]
-    OAUTH_REDIRECT_URI: Annotated[
-        str,
-        Field(
-            default="http://localhost:8000/dev-ui",
-            description="Microsoft Entra OAuth redirect URI for local ADK auth.",
-            validation_alias="MICROSOFT_OAUTH_REDIRECT_URI",
-        ),
-    ]
-    OAUTH_AUTH_URI: Annotated[
-        str,
-        Field(
-            default="https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
-            description="Microsoft Entra OAuth authorization endpoint.",
-            validation_alias="MICROSOFT_OAUTH_AUTH_URI",
-        ),
-    ]
-    OAUTH_TOKEN_URI: Annotated[
-        str,
-        Field(
-            default="https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
-            description="Microsoft Entra OAuth token endpoint.",
-            validation_alias="MICROSOFT_OAUTH_TOKEN_URI",
-        ),
-    ]
 
     @field_validator("OAUTH_SCOPES", mode="after")
     @classmethod

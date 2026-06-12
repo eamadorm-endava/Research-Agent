@@ -12,6 +12,7 @@ from .config import (
     GCS_MCP_CONFIG,
     SHAREPOINT_MCP_CONFIG,
     GOOGLE_AUTH_CONFIG,
+    MICROSOFT_AUTH_CONFIG,
 )
 
 from .tools.artifact_tools import GetArtifactURITool
@@ -31,6 +32,7 @@ research_agent = (
         agent_config=RESEARCH_AGENT_CONFIG,
         gcp_config=GCP_CONFIG,
         auth_config=GOOGLE_AUTH_CONFIG,
+        microsoft_auth_config=MICROSOFT_AUTH_CONFIG,
     )
     .with_skills(["meeting-summary", "knowledge-discovery"])
     .with_mcp_servers(
@@ -62,6 +64,7 @@ ingestion_agent = (
         agent_config=INGESTION_AGENT_CONFIG,
         gcp_config=GCP_CONFIG,
         auth_config=GOOGLE_AUTH_CONFIG,
+        microsoft_auth_config=MICROSOFT_AUTH_CONFIG,
     )
     .with_skills(["kb-file-ingestion"])
     .with_mcp_servers(
@@ -91,6 +94,7 @@ root_agent = (
         agent_config=COORDINATOR_CONFIG,
         gcp_config=GCP_CONFIG,
         auth_config=GOOGLE_AUTH_CONFIG,
+        microsoft_auth_config=MICROSOFT_AUTH_CONFIG,
     )
     .with_subagents([research_agent, ingestion_agent])
     .with_before_agent_callback([sync_ekb_job_status])

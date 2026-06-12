@@ -26,13 +26,10 @@ class SharePointTokenVerifier(TokenVerifier):
         """
         try:
             token_scopes = _extract_token_scopes(token)
-            required_scopes = {
-                scope.value for scope in SHAREPOINT_API_CONFIG.required_scopes
-            }
-            missing_scopes = sorted(required_scopes - token_scopes)
+            missing_scopes = _get_missing_required_scopes(token_scopes)
             if missing_scopes:
                 logger.warning(
-                    "Microsoft Graph token missing scopes: %s", missing_scopes
+                    "Microsoft Graph token missing scopes: {}", missing_scopes
                 )
                 return None
 
@@ -46,7 +43,7 @@ class SharePointTokenVerifier(TokenVerifier):
                 )
             if response.status_code != 200:
                 logger.warning(
-                    "Microsoft Graph token validation failed with status %s",
+                    "Microsoft Graph token validation failed with status {}",
                     response.status_code,
                 )
                 return None
@@ -59,6 +56,14 @@ class SharePointTokenVerifier(TokenVerifier):
         except Exception:
             logger.exception("Error verifying Microsoft Graph OAuth token")
             return None
+
+
+def _get_missing_required_scopes(token_scopes: set[str]) -> list[str]:
+    """Returns missing Graph scope requirements for SharePoint access."""
+    required_scopes = {scope.value for scope in SHAREPOINT_API_CONFIG.required_scopes}
+    missing = required_scopes - token_scopes
+
+    return sorted(missing)
 
 
 def create_sharepoint_client() -> SharePointClient:

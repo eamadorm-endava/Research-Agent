@@ -13,6 +13,7 @@ from agent.core_agent.config import (
     GCPConfig,
     GCSMCPConfig,
     GoogleAuthConfig,
+    MicrosoftAuthConfig,
     ResearchAgentConfig,
     SharePointMCPConfig,
 )
@@ -168,6 +169,33 @@ def test_google_auth_config_reading_env_vars():
         config.GOOGLE_OAUTH_AUTH_URI == "https://accounts.google.com/o/oauth2/v2/auth"
     )
     assert config.GOOGLE_OAUTH_TOKEN_URI == "https://oauth2.googleapis.com/token"
+
+
+def test_microsoft_auth_config_reading_env_vars():
+    """Microsoft OAuth client settings should be agent-level, not SharePoint MCP settings."""
+    mock_env = {
+        "MICROSOFT_TENANT_ID": "tenant-id",
+        "MICROSOFT_OAUTH_CLIENT_ID": "microsoft-client-id",
+        "MICROSOFT_OAUTH_CLIENT_SECRET": "microsoft-client-secret",
+        "MICROSOFT_OAUTH_REDIRECT_URI": "http://localhost:8000/dev-ui",
+        "MICROSOFT_OAUTH_AUTH_URI": "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/authorize",
+        "MICROSOFT_OAUTH_TOKEN_URI": "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/token",
+    }
+    with patch.dict(os.environ, mock_env, clear=True):
+        config = MicrosoftAuthConfig()
+
+    assert config.MICROSOFT_TENANT_ID == "tenant-id"
+    assert config.MICROSOFT_OAUTH_CLIENT_ID == "microsoft-client-id"
+    assert config.MICROSOFT_OAUTH_CLIENT_SECRET == "microsoft-client-secret"
+    assert config.MICROSOFT_OAUTH_REDIRECT_URI == "http://localhost:8000/dev-ui"
+    assert (
+        config.MICROSOFT_OAUTH_AUTH_URI
+        == "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/authorize"
+    )
+    assert (
+        config.MICROSOFT_OAUTH_TOKEN_URI
+        == "https://login.microsoftonline.com/tenant-id/oauth2/v2.0/token"
+    )
 
 
 def test_mcp_config_accepts_legacy_auth_id():

@@ -6,7 +6,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from fastapi.openapi.models import OAuth2, OAuthFlowAuthorizationCode, OAuthFlows
 from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
 
-from ..config import BaseMCPConfig, GoogleAuthConfig
+from ..config import BaseMCPConfig, GoogleAuthConfig, MicrosoftAuthConfig
 from ..security import get_ge_oauth_token, get_id_token
 
 
@@ -16,13 +16,19 @@ class MCPToolsetBuilder:
     Strictly separates local ADK-managed OAuth from production Gemini Enterprise-managed OAuth.
     """
 
-    def __init__(self, auth_config: GoogleAuthConfig) -> None:
-        """Stores the shared Google OAuth configuration used when building local auth schemes.
+    def __init__(
+        self,
+        auth_config: GoogleAuthConfig,
+        microsoft_auth_config: MicrosoftAuthConfig | None = None,
+    ) -> None:
+        """Stores shared provider OAuth configurations used for local MCP auth.
 
         Args:
-            auth_config: GoogleAuthConfig -> Shared OAuth credentials for local development mode.
+            auth_config: GoogleAuthConfig -> Shared Google OAuth credentials for local development mode.
+            microsoft_auth_config: MicrosoftAuthConfig | None -> Shared Microsoft OAuth credentials for local development mode.
         """
         self.auth_config = auth_config
+        self.microsoft_auth_config = microsoft_auth_config or MicrosoftAuthConfig()
 
     def _get_local_auth_params(
         self, mcp_config: BaseMCPConfig, prod_execution: bool
@@ -47,19 +53,12 @@ class MCPToolsetBuilder:
             return {"auth_scheme": None, "auth_credential": None}
 
         logger.debug("Building ADK OAuth scheme and credentials for local execution")
+        oauth_values = self._get_local_oauth_values(mcp_config)
         auth_scheme = OAuth2(
             flows=OAuthFlows(
                 authorizationCode=OAuthFlowAuthorizationCode(
-                    authorizationUrl=self._get_oauth_value(
-                        mcp_config,
-                        "OAUTH_AUTH_URI",
-                        self.auth_config.GOOGLE_OAUTH_AUTH_URI,
-                    ),
-                    tokenUrl=self._get_oauth_value(
-                        mcp_config,
-                        "OAUTH_TOKEN_URI",
-                        self.auth_config.GOOGLE_OAUTH_TOKEN_URI,
-                    ),
+                    authorizationUrl=oauth_values["authorization_url"],
+                    tokenUrl=oauth_values["token_url"],
                     scopes=mcp_config.OAUTH_SCOPES,
                 )
             )
@@ -67,40 +66,45 @@ class MCPToolsetBuilder:
         auth_credential = AuthCredential(
             auth_type=AuthCredentialTypes.OAUTH2,
             oauth2=OAuth2Auth(
-                client_id=self._get_oauth_value(
-                    mcp_config,
-                    "OAUTH_CLIENT_ID",
-                    self.auth_config.GOOGLE_OAUTH_CLIENT_ID,
-                ),
-                client_secret=self._get_oauth_value(
-                    mcp_config,
-                    "OAUTH_CLIENT_SECRET",
-                    self.auth_config.GOOGLE_OAUTH_CLIENT_SECRET,
-                ),
-                redirect_uri=self._get_oauth_value(
-                    mcp_config,
-                    "OAUTH_REDIRECT_URI",
-                    self.auth_config.GOOGLE_OAUTH_REDIRECT_URI,
-                ),
+                client_id=oauth_values["client_id"],
+                client_secret=oauth_values["client_secret"],
+                redirect_uri=oauth_values["redirect_uri"],
             ),
         )
         return {"auth_scheme": auth_scheme, "auth_credential": auth_credential}
 
-    def _get_oauth_value(
-        self, mcp_config: BaseMCPConfig, attribute_name: str, default_value: str
-    ) -> str:
-        """Returns provider-specific OAuth configuration when present.
+    def _get_local_oauth_values(self, mcp_config: BaseMCPConfig) -> dict[str, str]:
+        """Returns provider-specific OAuth values for a local MCP toolset.
+
+        Google MCP servers use the shared GoogleAuthConfig. Microsoft MCP servers
+        use the shared MicrosoftAuthConfig. The MCP server config still owns the
+        URL, endpoint, scopes, and production auth resource ID, but it does not
+        own provider client secrets.
 
         Args:
             mcp_config: BaseMCPConfig -> Target MCP configuration instance.
-            attribute_name: str -> Optional provider-specific attribute to read.
-            default_value: str -> Google OAuth fallback value for existing servers.
 
         Returns:
-            str -> OAuth setting used to build the local ADK auth scheme.
+            dict[str, str] -> OAuth URLs, client credentials, and redirect URI.
         """
-        configured_value = getattr(mcp_config, attribute_name, None)
-        return configured_value if isinstance(configured_value, str) else default_value
+        provider_value = getattr(mcp_config, "OAUTH_PROVIDER", "google")
+        provider = str(getattr(provider_value, "value", provider_value)).lower()
+        if provider == "microsoft":
+            return {
+                "authorization_url": self.microsoft_auth_config.MICROSOFT_OAUTH_AUTH_URI,
+                "token_url": self.microsoft_auth_config.MICROSOFT_OAUTH_TOKEN_URI,
+                "client_id": self.microsoft_auth_config.MICROSOFT_OAUTH_CLIENT_ID,
+                "client_secret": self.microsoft_auth_config.MICROSOFT_OAUTH_CLIENT_SECRET,
+                "redirect_uri": self.microsoft_auth_config.MICROSOFT_OAUTH_REDIRECT_URI,
+            }
+
+        return {
+            "authorization_url": self.auth_config.GOOGLE_OAUTH_AUTH_URI,
+            "token_url": self.auth_config.GOOGLE_OAUTH_TOKEN_URI,
+            "client_id": self.auth_config.GOOGLE_OAUTH_CLIENT_ID,
+            "client_secret": self.auth_config.GOOGLE_OAUTH_CLIENT_SECRET,
+            "redirect_uri": self.auth_config.GOOGLE_OAUTH_REDIRECT_URI,
+        }
 
     def _get_header_provider_function(
         self, mcp_config: BaseMCPConfig, prod_execution: bool

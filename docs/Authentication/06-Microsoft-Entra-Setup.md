@@ -81,9 +81,11 @@ MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read", "Files.Read.All", "Sites.Read.All", "
 MICROSOFT_OAUTH_CLIENT_ID=your-entra-application-client-id
 MICROSOFT_OAUTH_CLIENT_SECRET=your-entra-client-secret
 MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
+MICROSOFT_OAUTH_AUTH_URI=https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/authorize
+MICROSOFT_OAUTH_TOKEN_URI=https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/token
 ```
 
-Legacy SharePoint-specific aliases such as `GEMINI_SHAREPOINT_AUTH_ID`, `SHAREPOINT_AUTH_ID`, `SHAREPOINT_OAUTH_SCOPES`, and `SHAREPOINT_TENANT_ID` are still accepted for compatibility, but new Microsoft MCP servers should use the Microsoft-wide names above.
+Microsoft OAuth client credentials are read by the agent-level `MicrosoftAuthConfig`; SharePoint MCP settings only define the server URL, scopes, and Gemini Enterprise Microsoft auth resource ID. Legacy SharePoint-specific aliases such as `GEMINI_SHAREPOINT_AUTH_ID`, `SHAREPOINT_AUTH_ID`, `SHAREPOINT_OAUTH_SCOPES`, and `SHAREPOINT_TENANT_ID` are still accepted for compatibility, but new Microsoft MCP servers should use the Microsoft-wide names above.
 
 ---
 

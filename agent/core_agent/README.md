@@ -15,7 +15,7 @@ core_agent/
 ├── config/              # Centralized Pydantic Settings (classes + singletons)
 │   ├── __init__.py      # Re-exports classes and UPPER_CASE singleton instances
 │   ├── agent_settings.py    # GCPConfig, BaseAgentConfig, CoordinatorConfig,
-│   │                        # ResearchAgentConfig, IngestionAgentConfig, GoogleAuthConfig
+│   │                        # ResearchAgentConfig, IngestionAgentConfig, GoogleAuthConfig, MicrosoftAuthConfig
 │   └── mcp_settings.py     # BaseMCPConfig + per-service subclasses
 │
 ├── builder/             # Builder pattern for agent and app construction
@@ -87,29 +87,29 @@ sequenceDiagram
     participant ab as AppBuilder
 
     Note over ap,ab: ── 1. Research Specialist ──
-    ap->>rb: ResearchAgentConfig, GCPConfig, GoogleAuthConfig
-    rb->>mcp: GoogleAuthConfig
+    ap->>rb: ResearchAgentConfig, GCPConfig, GoogleAuthConfig, MicrosoftAuthConfig
+    rb->>mcp: GoogleAuthConfig + MicrosoftAuthConfig
     ap->>rb: .with_skills(["meeting-summary","knowledge-discovery"])
     rb->>sf: skill name ×2
     sf-->>rb: SkillToolset ×2
-    ap->>rb: .with_mcp_servers([BQ, Drive, Calendar, GCS])
+    ap->>rb: .with_mcp_servers([BQ, Drive, Calendar, GCS, SharePoint])
     rb->>mcp: BaseMCPConfig, prod_execution ×5
     mcp->>sec: audience URL / ReadonlyContext
     sec-->>mcp: ID token / OAuth token
-    mcp-->>rb: McpToolset ×4
+    mcp-->>rb: McpToolset ×5
     ap->>rb: .with_native_tools([GetArtifactUri, ImportGcs, GetCurrentTime, load_artifacts])
     ap->>rb: .with_output_key("research_context")
     rb-->>ap: research_agent
 
     Note over ap,ab: ── 2. Ingestion Specialist ──
-    ap->>ib: IngestionAgentConfig, GCPConfig, GoogleAuthConfig
+    ap->>ib: IngestionAgentConfig, GCPConfig, GoogleAuthConfig, MicrosoftAuthConfig
     ap->>ib: .with_skills(["kb-file-ingestion"])
     ap->>ib: .with_mcp_servers([BQ, GCS])
     ap->>ib: .with_native_tools([GetArtifactUri, ImportGcs, TriggerEKB, CheckStatus, load_artifacts])
     ib-->>ap: ingestion_agent
 
     Note over ap,ab: ── 3. Coordinator (root_agent) ──
-    ap->>cb: CoordinatorConfig, GCPConfig, GoogleAuthConfig
+    ap->>cb: CoordinatorConfig, GCPConfig, GoogleAuthConfig, MicrosoftAuthConfig
     ap->>cb: .with_subagents([research_agent, ingestion_agent])
     ap->>cb: .with_before_agent_callback(sync_ekb_job_status)
     ap->>cb: .with_native_tools([GetArtifactUri, load_artifacts])
@@ -219,6 +219,8 @@ GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
 MICROSOFT_OAUTH_CLIENT_ID=your-entra-application-client-id
 MICROSOFT_OAUTH_CLIENT_SECRET=your-entra-client-secret
 MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
+MICROSOFT_OAUTH_AUTH_URI=https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/authorize
+MICROSOFT_OAUTH_TOKEN_URI=https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/token
 MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read", "Files.Read.All", "Sites.Read.All", "offline_access"]
 ```
 
