@@ -30,6 +30,7 @@ verify-all-ci:
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
+	$(MAKE) verify-onedrive-ci
 	$(MAKE) verify-ekb-ci
 
 create-cloudbuild-triggers:
@@ -159,6 +160,25 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-precommit
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
+
+### OneDrive MCP Commands ###
+
+run-onedrive-precommit:
+	uvx pre-commit run --files mcp_servers/onedrive/**/*
+
+run-onedrive-tests:
+	uv run --group mcp_onedrive pytest mcp_servers/onedrive/tests/
+
+run-onedrive-mcp-locally:
+	uv run --group mcp_onedrive python -m mcp_servers.onedrive.app.main --host localhost --port 8084
+
+build-onedrive-mcp-image:
+	docker build -t test-onedrive-mcp-server -f mcp_servers/onedrive/Dockerfile .
+
+verify-onedrive-ci:
+	$(MAKE) run-onedrive-precommit
+	$(MAKE) run-onedrive-tests
+	$(MAKE) build-onedrive-mcp-image
 
 ### EKB Pipeline Commands ###
 
