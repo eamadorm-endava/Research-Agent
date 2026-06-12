@@ -6,7 +6,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 from fastapi.openapi.models import OAuth2, OAuthFlowAuthorizationCode, OAuthFlows
 from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
 
-from ..config import BaseMCPConfig, GoogleAuthConfig
+from ..config import BaseMCPConfig
 from ..security import get_ge_oauth_token, get_id_token
 
 
@@ -16,13 +16,9 @@ class MCPToolsetBuilder:
     Strictly separates local ADK-managed OAuth from production Gemini Enterprise-managed OAuth.
     """
 
-    def __init__(self, auth_config: GoogleAuthConfig) -> None:
-        """Stores the shared Google OAuth configuration used when building local auth schemes.
-
-        Args:
-            auth_config: GoogleAuthConfig -> Shared OAuth credentials for local development mode.
-        """
-        self.auth_config = auth_config
+    def __init__(self) -> None:
+        """Initializes the MCP Toolset Builder."""
+        pass
 
     def _get_local_auth_params(
         self, mcp_config: BaseMCPConfig, prod_execution: bool
@@ -43,15 +39,15 @@ class MCPToolsetBuilder:
             return {"auth_scheme": None, "auth_credential": None}
 
         has_scopes = hasattr(mcp_config, "OAUTH_SCOPES") and mcp_config.OAUTH_SCOPES
-        if not has_scopes:
+        if not has_scopes or not getattr(mcp_config, "OAUTH_CONFIG", None):
             return {"auth_scheme": None, "auth_credential": None}
 
         logger.debug("Building ADK OAuth scheme and credentials for local execution")
         auth_scheme = OAuth2(
             flows=OAuthFlows(
                 authorizationCode=OAuthFlowAuthorizationCode(
-                    authorizationUrl=self.auth_config.GOOGLE_OAUTH_AUTH_URI,
-                    tokenUrl=self.auth_config.GOOGLE_OAUTH_TOKEN_URI,
+                    authorizationUrl=mcp_config.OAUTH_CONFIG.AUTH_URI,
+                    tokenUrl=mcp_config.OAUTH_CONFIG.TOKEN_URI,
                     scopes=mcp_config.OAUTH_SCOPES,
                 )
             )
@@ -59,9 +55,9 @@ class MCPToolsetBuilder:
         auth_credential = AuthCredential(
             auth_type=AuthCredentialTypes.OAUTH2,
             oauth2=OAuth2Auth(
-                client_id=self.auth_config.GOOGLE_OAUTH_CLIENT_ID,
-                client_secret=self.auth_config.GOOGLE_OAUTH_CLIENT_SECRET,
-                redirect_uri=self.auth_config.GOOGLE_OAUTH_REDIRECT_URI,
+                client_id=mcp_config.OAUTH_CONFIG.CLIENT_ID,
+                client_secret=mcp_config.OAUTH_CONFIG.CLIENT_SECRET,
+                redirect_uri=mcp_config.OAUTH_CONFIG.REDIRECT_URI,
             ),
         )
         return {"auth_scheme": auth_scheme, "auth_credential": auth_credential}
@@ -99,9 +95,9 @@ class MCPToolsetBuilder:
             }
 
             # Inject GE-managed OAuth token only in production for servers with Auth IDs
-            if prod_execution and mcp_config.GEMINI_GOOGLE_AUTH_ID:
+            if prod_execution and getattr(mcp_config, "GEMINI_AUTH_ID", None):
                 headers["Authorization"] = (
-                    f"Bearer {get_ge_oauth_token(ctx, mcp_config.GEMINI_GOOGLE_AUTH_ID)}"
+                    f"Bearer {get_ge_oauth_token(ctx, mcp_config.GEMINI_AUTH_ID)}"
                 )
                 logger.debug("Injected delegated OAuth token into Authorization header")
 
