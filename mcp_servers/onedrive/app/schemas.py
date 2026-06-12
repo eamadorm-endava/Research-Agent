@@ -1,25 +1,38 @@
 # Allows lazy evaluation of type hints, removing the need for string forward references in recursive classes
 from __future__ import annotations
-from typing import Annotated, Literal, Optional, Self, Union
+from typing import Annotated, Any, Literal, Optional, Self, Union
 import re
 from enum import StrEnum
-from pydantic import BaseModel, Field, model_validator, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    model_validator,
+    computed_field,
+    field_validator,
+    model_serializer,
+)
 from .config import MainFolder
 
 
 # --- Reusable Type Aliases ---
 class SortByOption(StrEnum):
-    NAME = "name"
+    """Enumeration of allowed sort fields."""
+
+    OBJECT_NAME = "object_name"
     CREATION_DATE = "creation_date"
-    LAST_MODIFIED_DATE = "last_modified_date"
+    UPDATE_DATE = "update_date"
 
 
 class SortOrderOption(StrEnum):
+    """Enumeration of allowed sort directions."""
+
     ASCENDING = "asc"
     DESCENDING = "desc"
 
 
 class ObjectTypeOption(StrEnum):
+    """Enumeration of allowed object types."""
+
     FILE = "file"
     FOLDER = "folder"
 
@@ -252,24 +265,11 @@ class BaseDateFilterRequest(BaseModel):
 class ObjectMetadata(BaseModel):
     """Abstract base class for all file and folder items."""
 
+    object_type: Annotated[
+        ObjectTypeOption,
+        Field(description="Discriminator type indicating if this is a file or folder."),
+    ]
     object_name: FileName
-    creation_date: Annotated[
-        Optional[str],
-        Field(
-            description="Creation time of the object in ISO 8601 format.", default=None
-        ),
-    ]
-    update_date: Annotated[
-        Optional[str],
-        Field(description="Last modified time of the object.", default=None),
-    ]
-    owner: Annotated[
-        Optional[str],
-        Field(description="Owner of the object, if available.", default=None),
-    ]
-    folder_path: Annotated[
-        str, Field(description="Absolute path of the object inside OneDrive.")
-    ]
     url: Annotated[
         Optional[str],
         Field(
@@ -278,9 +278,23 @@ class ObjectMetadata(BaseModel):
             default=None,
         ),
     ]
-    object_type: Annotated[
-        ObjectTypeOption,
-        Field(description="Discriminator type indicating if this is a file or folder."),
+    folder_path: Annotated[
+        str, Field(description="Absolute path of the object inside OneDrive.")
+    ]
+    creation_date: Annotated[
+        str,
+        Field(
+            description="Creation time of the object in ISO 8601 format.",
+            default="Unknown",
+        ),
+    ]
+    update_date: Annotated[
+        str,
+        Field(description="Last modified time of the object.", default="Unknown"),
+    ]
+    owner: Annotated[
+        str,
+        Field(description="Owner of the object, if available.", default="Unknown"),
     ]
 
 
@@ -296,7 +310,7 @@ class FileMetadata(ObjectMetadata):
         ),
     ]
     mime_type: Annotated[
-        Optional[str], Field(description="MIME type of the file.", default=None)
+        str, Field(description="MIME type of the file.", default="Unknown")
     ]
 
 
@@ -346,6 +360,29 @@ class FolderMetadata(ObjectMetadata):
         ),
     ]
 
+    @model_serializer(mode="wrap")
+    def remove_leaf_nulls(self, handler):
+        """
+        Model serializer to automatically drop structural keys that are explicitly None. (Used only for the deepest leaf nodes, to break the tree structure)
+
+        Args:
+            handler: callable -> The inner serializer function.
+
+        Returns:
+            dict -> The cleaned dictionary.
+        """
+        dump = handler(self)
+        keys_to_remove = [
+            "current_page",
+            "items_in_page",
+            "child_objects",
+            "total_pages_in_folder",
+        ]
+        for key in keys_to_remove:
+            if key in dump and dump[key] is None:
+                del dump[key]
+        return dump
+
 
 # --- Tool Request / Response Models ---
 class FindItemsRequest(BaseRequest, BaseDateFilterRequest):
@@ -360,11 +397,10 @@ class FindItemsRequest(BaseRequest, BaseDateFilterRequest):
     ]
 
     item_name: Annotated[
-        Optional[str],
+        str,
         Field(
-            description="Optional item name to filter by.",
+            description="The search string to find specific items. E.g., 'Financial Report 2024'. This field is mandatory and must not be empty.",
             min_length=1,
-            default=None,
         ),
     ]
 
@@ -373,21 +409,21 @@ class FindItemsRequest(BaseRequest, BaseDateFilterRequest):
     page: PageNumber
     use_cache: UseCache
 
-    @field_validator("item_name", mode="after")
+    @field_validator("item_name", mode="before")
     @classmethod
-    def cleanse_search_terms(cls, value: Optional[str]) -> Optional[str]:
+    def cleanse_search_terms(cls, value: Any) -> Any:
         """
         Cleanses search terms by replacing unescaped slashes and quotes with spaces.
         Reason: Microsoft Graph API will crash with a 400 Bad Request if slashes are sent
         in the raw query string. This validator protects the API.
 
         Args:
-            value: Optional[str] -> The raw string value.
+            value: Any -> The raw value before string validation.
 
         Returns:
-            Optional[str] -> The cleansed string value.
+            Any -> The cleansed string value, or the original value if not a string.
         """
-        if value:
+        if isinstance(value, str):
             return re.sub(r"[\/\\\'\"]+", " ", value).strip()
         return value
 
@@ -430,11 +466,39 @@ class FindItemsResponse(BaseResponse, BasePaginatedResponse):
         ),
     ]
 
+    @model_serializer(mode="wrap")
+    def serialize_in_order(self, handler):
+        """
+        Model serializer to enforce strict key ordering for the folder object.
+
+        Args:
+            handler: callable -> The inner serializer function.
+
+        Returns:
+            dict -> The correctly ordered dictionary representation.
+        """
+        dump = handler(self)
+        order = [
+            "execution_status",
+            "execution_message",
+            "total_search_matches",
+            "total_pages",
+            "current_page",
+            "items_in_page",
+            "objects_found",
+        ]
+        return {k: dump[k] for k in order if k in dump}
+
 
 class ListFolderContentsRequest(BaseRequest, BaseDateFilterRequest):
     """Request model for listing exact contents of a specific folder."""
 
-    folder_id: ItemId
+    folder_id: Annotated[
+        Union[MainFolder, ItemId],
+        Field(
+            description="The unique ID of the OneDrive folder to browse. Use MainFolder enums (e.g., 'MY_FILES', 'SHARED_WITH_ME', 'RECENT_FILES') to list their root contents, or provide a specific folder ID.",
+        ),
+    ]
     page: PageNumber
     use_cache: UseCache
     sort_by: SortBy
@@ -451,6 +515,29 @@ class ListFolderContentsResponse(BaseResponse, BasePaginatedResponse):
             ge=0,
         ),
     ]
+
+    @model_serializer(mode="wrap")
+    def serialize_in_order(self, handler):
+        """
+        Model serializer to enforce strict key ordering for the file object.
+
+        Args:
+            handler: callable -> The inner serializer function.
+
+        Returns:
+            dict -> The correctly ordered dictionary representation.
+        """
+        dump = handler(self)
+        order = [
+            "execution_status",
+            "execution_message",
+            "total_items_in_folder",
+            "total_pages",
+            "current_page",
+            "items_in_page",
+            "objects_found",
+        ]
+        return {k: dump[k] for k in order if k in dump}
 
 
 class ReadFileRequest(BaseRequest):

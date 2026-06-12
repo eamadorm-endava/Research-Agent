@@ -15,26 +15,46 @@ class MainFolder(StrEnum):
     RECENT_FILES = "RECENT_FILES"
 
     def get_endpoint(self, query: Optional[str] = None) -> str:
-        """Returns the specific Microsoft Graph API endpoint for this folder."""
+        """
+        Returns the specific Microsoft Graph API endpoint for performing a global search within this folder space.
+        Unlike list_endpoint (which is used for deterministic browsing of root contents), get_endpoint is utilized by
+        the find_items tool to inject search queries and perform fuzzy matching across the drive.
+
+        Args:
+            query: Optional[str] -> The search string to inject into the endpoint, or None for native fallback.
+
+        Returns:
+            str -> The Microsoft Graph API endpoint for searching.
+        """
         if self == self.MY_FILES:
             return (
                 f"/me/drive/root/search(q='{query}')"
                 if query
-                else "/me/drive/root/search(q='')"
+                else "/me/drive/root/children"
             )
         elif self == self.SHARED_WITH_ME:
-            return "/me/drive/sharedWithMe"
+            return "/me/insights/shared?$expand=resource"
         elif self == self.RECENT_FILES:
             return "/me/drive/recent"
         return "/me/drive/root/search(q='')"
 
     @property
-    def folder_id(self) -> str:
-        """Returns the real OneDrive pseudo-ID mapping for this space."""
+    def list_endpoint(self) -> str:
+        """
+        Returns the specific Microsoft Graph API endpoint for listing the root contents of this folder space.
+        Unlike get_endpoint (which is used for fuzzy searching), list_endpoint is utilized by the list_folder_contents
+        tool for deterministic, non-recursive structural browsing.
+
+        Args:
+            None
+
+        Returns:
+            str -> The Microsoft Graph API endpoint for listing children.
+        """
         mapping = {
-            self.MY_FILES: "root",
-            self.SHARED_WITH_ME: "shared",
-            self.RECENT_FILES: "recent",
+            self.MY_FILES: "/me/drive/root/children",
+            self.SHARED_WITH_ME: "/me/drive/sharedWithMe",
+            self.RECENT_FILES: "/me/drive/recent",
         }
         return mapping[self]
 

@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, Any
 from urllib.parse import unquote
 import time
 import httpx
@@ -18,12 +18,120 @@ from .schemas import (
 )
 
 
+class StreamIOWrapper:
+    """
+    Wraps an httpx streaming response into a file-like object for GCS upload.
+
+    Args:
+        httpx_resp: httpx.Response -> The active streaming HTTP response.
+    """
+
+    def __init__(self, httpx_resp):
+        """
+        Initializes the wrapper around an active HTTP stream.
+
+        Args:
+            httpx_resp: httpx.Response -> The active streaming response.
+
+        Returns:
+            None -> Initializes the wrapper.
+        """
+        self.iterator = httpx_resp.iter_bytes()
+        self.buffer = b""
+        self._pos = 0
+
+    def read(self, size: int = -1) -> bytes:
+        """
+        Reads bytes from the active HTTP stream.
+
+        Args:
+            size: int -> The number of bytes to read, or -1 for all bytes.
+
+        Returns:
+            bytes -> The chunk of bytes read from the stream.
+        """
+        if size == -1:
+            data = b"".join(self.iterator)
+            result = self.buffer + data
+            self.buffer = b""
+            self._pos += len(result)
+            return result
+        while len(self.buffer) < size:
+            try:
+                self.buffer += next(self.iterator)
+            except StopIteration:
+                break
+        result, self.buffer = self.buffer[:size], self.buffer[size:]
+        self._pos += len(result)
+        return result
+
+    def tell(self) -> int:
+        """
+        Reports the current byte offset of the stream.
+
+        Args:
+            None
+
+        Returns:
+            int -> The current position in the byte stream.
+        """
+        return self._pos
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        """
+        Seeks to a specific position in the stream (only supports rewinding to 0 if already at 0).
+
+        Args:
+            offset: int -> The target offset.
+            whence: int -> The reference point for the offset.
+
+        Returns:
+            int -> The new position.
+        """
+        if offset == 0 and whence == 0 and self._pos == 0:
+            return 0
+        raise IOError("StreamIOWrapper does not support seeking")
+
+
 class OneDriveClient:
     """Client for interacting with Microsoft Graph API for OneDrive."""
 
     _cache: dict[tuple, tuple[float, list[dict]]] = {}
     _file_cache: dict[tuple, tuple[float, ReadFileResponse]] = {}
     _cache_ttl: int = ONEDRIVE_SERVER_CONFIG.cache_ttl_seconds
+
+    @classmethod
+    def _sweep_cache(cls) -> None:
+        """
+        Periodically sweeps the internal caches to prevent memory leaks.
+        Deletes expired keys, and if still above max size, deletes the oldest.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        MAX_CACHE_SIZE = 500
+        current_time = time.time()
+
+        for cache_dict in [cls._cache, cls._file_cache]:
+            if len(cache_dict) > MAX_CACHE_SIZE:
+                # 1. Purge expired keys
+                expired_keys = [
+                    k
+                    for k, (timestamp, _) in cache_dict.items()
+                    if current_time - timestamp >= cls._cache_ttl
+                ]
+                for k in expired_keys:
+                    cache_dict.pop(k, None)
+
+                # 2. If still too large, purge the oldest 20%
+                if len(cache_dict) > MAX_CACHE_SIZE:
+                    sorted_items = sorted(cache_dict.items(), key=lambda x: x[1][0])
+                    num_to_delete = int(len(sorted_items) * 0.2)
+                    for k, _ in sorted_items[:num_to_delete]:
+                        cache_dict.pop(k, None)
 
     def __init__(self, access_token: SecretStr):
         """
@@ -45,9 +153,68 @@ class OneDriveClient:
         }
         self.gcs_connector = GCSConnector()
 
-    def _get(self, endpoint: str, params: Optional[dict] = None) -> dict:
+    def _normalize_insight_item(self, raw_item: dict) -> dict:
         """
-        Performs a GET request to the Microsoft Graph API.
+        Normalizes a Microsoft Graph SharedInsight wrapper into a standard DriveItem.
+        Returns unmodified standard DriveItems for RECENT/MY_FILES endpoints.
+
+        Args:
+            raw_item: dict -> The raw JSON item returned from the Graph API.
+
+        Returns:
+            dict -> A standard DriveItem structure representing the object.
+        """
+        if (
+            "resourceVisualization" not in raw_item
+            and "resourceReference" not in raw_item
+        ):
+            return raw_item
+
+        if "resource" in raw_item:
+            item = raw_item["resource"]
+            if not item.get("name") and "resourceVisualization" in raw_item:
+                item["name"] = raw_item["resourceVisualization"].get("title")
+            return item
+
+        # Reconstruct standard DriveItem if $expand=resource payload was dropped by Microsoft
+        ref_id = raw_item.get("resourceReference", {}).get("id", "")
+        drive_id = ""
+        item_id = ""
+        if "drives/" in ref_id and "/items/" in ref_id:
+            parts = ref_id.split("/")
+            try:
+                drive_id = parts[parts.index("drives") + 1]
+                item_id = parts[parts.index("items") + 1]
+            except ValueError:
+                pass
+
+        vis = raw_item.get("resourceVisualization", {})
+        is_folder = vis.get("type") == "Folder"
+
+        constructed_item = {
+            "name": vis.get("title"),
+            "id": item_id,
+            "webUrl": raw_item.get("resourceReference", {}).get("webUrl"),
+            "parentReference": {"driveId": drive_id},
+            "folder": {} if is_folder else None,
+            "file": {"mimeType": vis.get("mediaType")} if not is_folder else None,
+            "createdBy": {
+                "user": {
+                    "displayName": raw_item.get("lastShared", {})
+                    .get("sharedBy", {})
+                    .get("displayName")
+                }
+            },
+            "createdDateTime": raw_item.get("lastShared", {}).get("sharedDateTime"),
+            "lastModifiedDateTime": raw_item.get("lastShared", {}).get(
+                "sharedDateTime"
+            ),
+        }
+        return {k: v for k, v in constructed_item.items() if v is not None}
+
+    async def _get(self, endpoint: str, params: Optional[dict] = None) -> dict:
+        """
+        Performs an asynchronous GET request to the Microsoft Graph API.
 
         Args:
             endpoint: str -> The Graph API endpoint to request.
@@ -58,8 +225,8 @@ class OneDriveClient:
         """
         url = f"{ONEDRIVE_SERVER_CONFIG.graph_api_base_url}{endpoint}"
         try:
-            with httpx.Client() as client:
-                response = client.get(
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
                     url, headers=self.headers, params=params, timeout=30.0
                 )
 
@@ -79,6 +246,51 @@ class OneDriveClient:
             logger.error(f"Error calling Graph API: {e}")
             raise RuntimeError(f"Unexpected error: {e}")
 
+    def _extract_folder_path(self, item: dict, item_data: dict) -> str:
+        """
+        Extracts and normalizes the folder path from a Graph API item.
+
+        Args:
+            item: dict -> The raw JSON item.
+            item_data: dict -> The nested remoteItem or raw item data.
+
+        Returns:
+            str -> The normalized absolute folder path.
+        """
+        parent_ref = (
+            item_data.get("parentReference") or item.get("parentReference") or {}
+        )
+        path = parent_ref.get("path", "")
+
+        if path:
+            if "root:" in path:
+                path = path.split("root:", 1)[1] or "/"
+            elif path.endswith("root"):
+                path = "/"
+            path = unquote(path)
+
+            # Normalize OneDrive Business paths by stripping the hidden /Documents root
+            if path.startswith("/Documents/"):
+                path = path.replace("/Documents", "", 1)
+            elif path == "/Documents":
+                path = "/"
+        else:
+            # Fallback to webUrl if path is entirely missing
+            web_url = item_data.get("webUrl") or item.get("webUrl") or ""
+            if "/Documents/" in web_url:
+                after_docs = web_url.split("/Documents/", 1)[1]
+                if "/" in after_docs:
+                    path = "/" + unquote(after_docs.rsplit("/", 1)[0])
+                else:
+                    path = "/"
+            else:
+                path = "/"
+
+        if not path.startswith("/"):
+            path = "/" + path
+
+        return path
+
     def _format_item(self, item: dict) -> dict:
         """
         Formats the raw Graph API item into a cleaner dictionary with requested metadata.
@@ -96,9 +308,22 @@ class OneDriveClient:
         is_folder = "folder" in item_data
         is_file = "file" in item_data
 
+        item_id = item_data.get("id") or item.get("id")
+
+        # Extract parentReference early for Smart ID and Path
+        parent_ref = (
+            item_data.get("parentReference") or item.get("parentReference") or {}
+        )
+        drive_id = parent_ref.get("driveId")
+        if drive_id and item_id:
+            item_id = f"{drive_id}|{item_id}"
+
+        # Foolproof name extraction
+        name = item_data.get("name") or item.get("name") or "Unknown Item"
+
         formatted = {
-            "id": item_data.get("id") or item.get("id"),
-            "name": item_data.get("name") or item.get("name"),
+            "id": item_id,
+            "name": name,
             "type": "folder" if is_folder else "file" if is_file else "unknown",
             "size": item_data.get("size", 0),
             "web_url": item_data.get("webUrl") or item.get("webUrl"),
@@ -106,11 +331,15 @@ class OneDriveClient:
             or item.get("createdDateTime"),
             "last_modified_date": item_data.get("lastModifiedDateTime")
             or item.get("lastModifiedDateTime"),
+            "folder_path": self._extract_folder_path(item, item_data),
         }
 
         if is_file:
             file_info = item_data.get("file", {})
             formatted["mime_type"] = file_info.get("mimeType")
+        elif is_folder:
+            folder_info = item_data.get("folder", {})
+            formatted["child_count"] = folder_info.get("childCount", 0)
 
         # Extract owner/creator
         created_by = item_data.get("createdBy", {}).get("user", {})
@@ -120,41 +349,12 @@ class OneDriveClient:
             "email", "Unknown"
         )
 
-        # Extract folder path (where it's stored)
-        parent_ref = (
-            item_data.get("parentReference") or item.get("parentReference") or {}
-        )
-        path = parent_ref.get("path", "")
-
-        if path:
-            if "root:" in path:
-                path = path.split("root:", 1)[1] or "/"
-            elif path.endswith("root"):
-                path = "/"
-            path = unquote(path)
-        else:
-            # Fallback to webUrl if path is entirely missing
-            web_url = item_data.get("webUrl") or item.get("webUrl") or ""
-            if "/Documents/" in web_url:
-                after_docs = web_url.split("/Documents/", 1)[1]
-                if "/" in after_docs:
-                    path = "/" + unquote(after_docs.rsplit("/", 1)[0])
-                else:
-                    path = "/"
-            else:
-                path = "/"
-
-        if not path.startswith("/"):
-            path = "/" + path
-
-        formatted["folder_path"] = path
-
         return formatted
 
-    def _build_search_endpoints(
+    async def _build_search_endpoints(
         self,
         main_folder: MainFolder,
-        item_name: Optional[str],
+        item_name: str,
     ) -> list[str]:
         """
         Builds Graph API endpoints based on the chosen main_folder.
@@ -167,14 +367,34 @@ class OneDriveClient:
         Returns:
             list[str] -> A list of API endpoints to fetch from.
         """
-        query = item_name.strip() if item_name else None
+        query = item_name.strip()
 
         # We search across the designated main space
         endpoints = [main_folder.get_endpoint(query)]
 
+        if main_folder == MainFolder.SHARED_WITH_ME:
+            try:
+                # To support recursive discovery, we fetch the shared items and
+                # append a remote search endpoint for every shared folder.
+                shared_res = await self._get("/me/insights/shared?$expand=resource")
+                for insight_item in shared_res.get("value", []):
+                    item = self._normalize_insight_item(insight_item)
+                    remote_item = item.get("remoteItem", item)
+                    if "folder" in remote_item:
+                        drive_id = remote_item.get("parentReference", {}).get("driveId")
+                        item_id = remote_item.get("id")
+                        if drive_id and item_id:
+                            endpoints.append(
+                                f"/drives/{drive_id}/items/{item_id}/search(q='{query}')"
+                            )
+            except Exception as e:
+                logger.error(
+                    f"Failed to fetch shared items for search construction: {e}"
+                )
+
         return endpoints
 
-    def _fetch_all_items(
+    async def _fetch_all_items(
         self, endpoints: list[str], use_cache: bool = True, strict: bool = False
     ) -> list[dict]:
         """
@@ -200,26 +420,29 @@ class OneDriveClient:
 
         all_items = []
         seen_ids = set()
+        EXCLUDED_PATHS = ("/Forms", "/SiteAssets", "/Lists")
 
         for endpoint in endpoints:
             try:
-                logger.info(f"Searching/Listing OneDrive endpoint: {endpoint}")
-                api_response_payload = self._get(endpoint)
-                for item in api_response_payload.get("value", []):
-                    if item.get("id") not in seen_ids:
-                        seen_ids.add(item.get("id"))
-                        all_items.append(self._format_item(item))
-
-                next_link = api_response_payload.get("@odata.nextLink")
+                next_link = endpoint
                 while next_link:
-                    logger.info("Fetching next page of results from Graph API...")
-                    api_response_payload = self._get(
-                        next_link.replace(ONEDRIVE_SERVER_CONFIG.graph_api_base_url, "")
+                    logger.info(f"Fetching OneDrive endpoint: {next_link}")
+                    url_to_fetch = next_link.replace(
+                        ONEDRIVE_SERVER_CONFIG.graph_api_base_url, ""
                     )
-                    for item in api_response_payload.get("value", []):
-                        if item.get("id") not in seen_ids:
-                            seen_ids.add(item.get("id"))
-                            all_items.append(self._format_item(item))
+                    api_response_payload = await self._get(url_to_fetch)
+
+                    for raw_item in api_response_payload.get("value", []):
+                        item = self._normalize_insight_item(raw_item)
+                        item_data = item.get("remoteItem", item)
+                        actual_id = item_data.get("id") or item.get("id")
+                        if actual_id and actual_id not in seen_ids:
+                            seen_ids.add(actual_id)
+                            formatted = self._format_item(item)
+                            fpath = formatted.get("folder_path", "")
+                            if not fpath.startswith(EXCLUDED_PATHS):
+                                all_items.append(formatted)
+
                     next_link = api_response_payload.get("@odata.nextLink")
 
             except Exception as e:
@@ -227,6 +450,7 @@ class OneDriveClient:
                 if strict:
                     raise RuntimeError(str(e))
 
+        self.__class__._sweep_cache()
         self.__class__._cache[cache_key] = (current_time, all_items)
         return all_items
 
@@ -289,11 +513,11 @@ class OneDriveClient:
             filtered_results.append(api_item)
 
         # Apply global sorting if needed
-        if sort_by in ["name", "creation_date", "last_modified_date"]:
+        if sort_by in ["object_name", "creation_date", "update_date"]:
             key_mapping = {
-                "name": "name",
+                "object_name": "name",
                 "creation_date": "creation_date",
-                "last_modified_date": "last_modified_date",
+                "update_date": "last_modified_date",
             }
             sort_key = key_mapping.get(sort_by)
             reverse = (sort_order.lower() == "desc") if sort_order else False
@@ -301,59 +525,43 @@ class OneDriveClient:
 
         return filtered_results
 
-    def _build_recursive_tree(
-        self,
-        items: list[dict],
-        page: int,
-        sort_by: Optional[str] = None,
-        sort_order: Optional[str] = None,
-    ) -> tuple[list[dict], int]:
+    def _normalize_path(self, path_str: str) -> str:
         """
-        Builds a recursive directory tree from a flat list of Graph API items.
-        Automatically synthesizes missing intermediate folders and dynamically roots the tree
-        at the deepest common folder path.
+        Normalizes a folder path by resolving slashes and trailing characters.
 
         Args:
-            items: list[dict] -> The completely filtered list of items.
-            page: int -> The current page number to extract for the root items.
-            sort_by: Optional[str] -> Optional sorting criteria ('name', 'creation_date', 'last_modified_date').
-            sort_order: Optional[str] -> Optional sorting order ('asc', 'desc').
+            path_str: str -> The raw path string.
 
         Returns:
-            tuple[list[dict], int] -> A tuple containing the paginated nested tree and the total number of root elements.
+            str -> The normalized absolute path.
         """
+        path_str = path_str.replace("\\", "/")
+        while "//" in path_str:
+            path_str = path_str.replace("//", "/")
+        if not path_str.startswith("/"):
+            path_str = "/" + path_str
+        if path_str.endswith("/") and len(path_str) > 1:
+            path_str = path_str[:-1]
+        return path_str
 
-        PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
-        MAX_DEPTH = ONEDRIVE_SERVER_CONFIG.max_tree_depth
+    def _extract_explicit_items(self, items: list[dict]) -> tuple[dict, list]:
+        """
+        Extracts and separates folders and files from raw Graph API items.
 
-        def normalize(path_str: str) -> str:
-            path_str = path_str.replace("\\", "/")
-            while "//" in path_str:
-                path_str = path_str.replace("//", "/")
-            if not path_str.startswith("/"):
-                path_str = "/" + path_str
-            if path_str.endswith("/") and len(path_str) > 1:
-                path_str = path_str[:-1]
-            return path_str
+        Args:
+            items: list[dict] -> The list of explicit items to extract.
 
-        # Find the dynamic root (deepest common path among all returned items)
-        all_paths = [normalize(item.get("folder_path", "")) for item in items]
-        if all_paths:
-            try:
-                common_prefix = normalize(os.path.commonpath(all_paths))
-            except ValueError:
-                common_prefix = "/"
-        else:
-            common_prefix = "/"
-
+        Returns:
+            tuple[dict, list] -> A tuple containing the folders dictionary and files list.
+        """
         folders_dict = {}
         files_list = []
-
-        # 1. First pass: register all explicit items
         for item in items:
-            parent_path = normalize(item.get("folder_path", ""))
+            parent_path = self._normalize_path(item.get("folder_path", ""))
             if item.get("type") == "folder":
-                abs_path = normalize(parent_path + "/" + item.get("name", ""))
+                abs_path = self._normalize_path(
+                    parent_path + "/" + item.get("name", "")
+                )
                 folders_dict[abs_path] = {
                     "folder_id": item.get("id"),
                     "object_name": item.get("name"),
@@ -382,9 +590,24 @@ class OneDriveClient:
                         "_parent_path": parent_path,
                     }
                 )
+        return folders_dict, files_list
 
-        # 2. Synthesize missing intermediate folders up to the common_prefix
-        def get_or_create_folder(abs_path: str):
+    def _synthesize_folders(
+        self, folders_dict: dict, files_list: list, common_prefix: str
+    ) -> None:
+        """
+        Synthesizes missing intermediate folders to guarantee tree structure connectivity.
+
+        Args:
+            folders_dict: dict -> The dictionary mapping absolute paths to folder objects.
+            files_list: list -> The list of explicit files.
+            common_prefix: str -> The deepest common parent path for rooting the tree.
+
+        Returns:
+            None
+        """
+
+        def get_or_create_folder(abs_path: str) -> Optional[dict]:
             """
             Recursively creates missing intermediate folders up to the common root.
             Ensures the tree remains fully connected.
@@ -399,7 +622,7 @@ class OneDriveClient:
                 return None
             if abs_path not in folders_dict:
                 parts = abs_path.rstrip("/").split("/")
-                current_parent = normalize("/".join(parts[:-1]))
+                current_parent = self._normalize_path("/".join(parts[:-1]))
                 name = parts[-1]
                 folders_dict[abs_path] = {
                     "folder_id": None,
@@ -416,7 +639,6 @@ class OneDriveClient:
                     get_or_create_folder(current_parent)
             return folders_dict[abs_path]
 
-        # Optimize by using a set to avoid redundant calls for the same parent path
         paths_to_synthesize = {f["_parent_path"] for f in files_list}
         paths_to_synthesize.update(f["_parent_path"] for f in folders_dict.values())
 
@@ -426,7 +648,20 @@ class OneDriveClient:
             ):
                 get_or_create_folder(synthesize_path)
 
-        # 3. Attach children to parents
+    def _attach_children_to_parents(
+        self, folders_dict: dict, files_list: list, common_prefix: str
+    ) -> list[dict]:
+        """
+        Attaches all fully connected children to their synthesized or explicit parents.
+
+        Args:
+            folders_dict: dict -> The fully built dictionary of folder nodes.
+            files_list: list -> The list of explicit file nodes.
+            common_prefix: str -> The dynamic root path where top-level elements belong.
+
+        Returns:
+            list[dict] -> The final list of root-level tree elements.
+        """
         root_elements = []
         all_items = files_list + list(folders_dict.values())
 
@@ -439,9 +674,31 @@ class OneDriveClient:
                     folders_dict[item_parent]["child_objects"].append(item)
                 else:
                     root_elements.append(item)
+        return root_elements
 
-        # 4. Paginate the root elements and process nested children constraints
-        def sort_children(children: list[dict]):
+    def _paginate_and_sort_tree(
+        self,
+        root_elements: list[dict],
+        page: int,
+        sort_by: Optional[str],
+        sort_order: Optional[str],
+    ) -> list[dict]:
+        """
+        Recursively paginates, limits depth, and sorts the synthesized nested folder tree.
+
+        Args:
+            root_elements: list[dict] -> The structured root tree elements.
+            page: int -> The current page number for the root items.
+            sort_by: Optional[str] -> The criteria to sort by (e.g., 'object_name').
+            sort_order: Optional[str] -> The direction to sort by ('asc' or 'desc').
+
+        Returns:
+            list[dict] -> The finalized, paginated, and sorted tree structure.
+        """
+        PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
+        MAX_DEPTH = ONEDRIVE_SERVER_CONFIG.max_tree_depth
+
+        def sort_children(children: list[dict]) -> None:
             """
             Sorts a list of child objects based on the configured global sort parameters.
 
@@ -451,13 +708,8 @@ class OneDriveClient:
             Returns:
                 None
             """
-            if sort_by in ["name", "creation_date", "last_modified_date"]:
-                key_mapping = {
-                    "name": "object_name",
-                    "creation_date": "creation_date",
-                    "last_modified_date": "update_date",
-                }
-                sort_key = key_mapping.get(sort_by)
+            if sort_by in ["object_name", "creation_date", "update_date"]:
+                sort_key = sort_by
                 reverse = (sort_order.lower() == "desc") if sort_order else False
                 children.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
 
@@ -466,7 +718,7 @@ class OneDriveClient:
         end = start + PAGE_LIMIT
         paginated_root = root_elements[start:end]
 
-        def process_folder(folder_object: dict, current_depth: int):
+        def process_folder(folder_object: dict, current_depth: int) -> None:
             """
             Recursively paginates, sorts, and limits the depth of a nested folder tree.
 
@@ -487,8 +739,10 @@ class OneDriveClient:
             sort_children(folder_object["child_objects"])
 
             if current_depth >= MAX_DEPTH:
-                folder_object["child_objects"] = []
-                folder_object["items_in_page"] = 0
+                folder_object["child_objects"] = None
+                folder_object["items_in_page"] = None
+                folder_object["total_pages_in_folder"] = None
+                folder_object["current_page"] = None
             else:
                 folder_object["child_objects"] = folder_object["child_objects"][
                     :PAGE_LIMIT
@@ -509,9 +763,52 @@ class OneDriveClient:
             element.pop("_abs_path", None)
             element.pop("_parent_path", None)
 
+        return paginated_root
+
+    def _build_recursive_tree(
+        self,
+        items: list[dict],
+        page: int,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+    ) -> tuple[list[dict], int]:
+        """
+        Builds a recursive directory tree from a flat list of Graph API items.
+        Automatically synthesizes missing intermediate folders and dynamically roots the tree
+        at the deepest common folder path.
+
+        Args:
+            items: list[dict] -> The completely filtered list of items.
+            page: int -> The current page number to extract for the root items.
+            sort_by: Optional[str] -> Optional sorting criteria.
+            sort_order: Optional[str] -> Optional sorting order ('asc', 'desc').
+
+        Returns:
+            tuple[list[dict], int] -> A tuple containing the paginated nested tree and the total number of root elements.
+        """
+        all_paths = [
+            self._normalize_path(item.get("folder_path", "")) for item in items
+        ]
+        if all_paths:
+            try:
+                common_prefix = self._normalize_path(os.path.commonpath(all_paths))
+            except ValueError:
+                common_prefix = "/"
+        else:
+            common_prefix = "/"
+
+        folders_dict, files_list = self._extract_explicit_items(items)
+        self._synthesize_folders(folders_dict, files_list, common_prefix)
+        root_elements = self._attach_children_to_parents(
+            folders_dict, files_list, common_prefix
+        )
+        paginated_root = self._paginate_and_sort_tree(
+            root_elements, page, sort_by, sort_order
+        )
+
         return paginated_root, len(root_elements)
 
-    def find_items(self, request: FindItemsRequest) -> FindItemsResponse:
+    async def find_items(self, request: FindItemsRequest) -> FindItemsResponse:
         """
         Searches globally for files or folders in OneDrive based on item_name.
         This is a 'first discovery' tool that returns a paginated tree of matches.
@@ -522,44 +819,60 @@ class OneDriveClient:
         Returns:
             FindItemsResponse -> A structured response containing the paginated tree of items.
         """
-        main_folder = request.main_folder
-        endpoints = self._build_search_endpoints(main_folder, request.item_name)
+        try:
+            main_folder = request.main_folder
+            endpoints = await self._build_search_endpoints(
+                main_folder, request.item_name
+            )
 
-        all_items = self._fetch_all_items(endpoints, use_cache=request.use_cache)
+            all_items = await self._fetch_all_items(
+                endpoints, use_cache=request.use_cache
+            )
 
-        filtered_items = self._filter_and_sort_items(
-            all_items,
-            request.item_name_tokens,
-            request.min_creation_date,
-            request.max_creation_date,
-            request.min_last_modified_date,
-            request.max_last_modified_date,
-            request.sort_by,
-            request.sort_order,
-        )
+            filtered_items = self._filter_and_sort_items(
+                all_items,
+                request.item_name_tokens,
+                request.min_creation_date,
+                request.max_creation_date,
+                request.min_last_modified_date,
+                request.max_last_modified_date,
+                request.sort_by,
+                request.sort_order,
+            )
 
-        # We don't slice the filtered_items here because we want the tree synthesis
-        # to construct the full tree of ALL matches so it can accurately calculate
-        # nested total_items_in_folder counts. We paginate root elements inside the builder.
-        paginated_tree, total_search_matches = self._build_recursive_tree(
-            filtered_items,
-            page=request.page,
-            sort_by=request.sort_by,
-            sort_order=request.sort_order,
-        )
+            # We don't slice the filtered_items here because we want the tree synthesis
+            # to construct the full tree of ALL matches so it can accurately calculate
+            # nested total_items_in_folder counts. We paginate root elements inside the builder.
+            paginated_tree, total_search_matches = self._build_recursive_tree(
+                filtered_items,
+                page=request.page,
+                sort_by=request.sort_by,
+                sort_order=request.sort_order,
+            )
 
-        PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
-        total_pages = max(1, (total_search_matches + PAGE_LIMIT - 1) // PAGE_LIMIT)
+            PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
+            total_pages = max(1, (total_search_matches + PAGE_LIMIT - 1) // PAGE_LIMIT)
 
-        return FindItemsResponse(
-            total_search_matches=total_search_matches,
-            total_pages=total_pages,
-            current_page=request.page,
-            items_in_page=len(paginated_tree),
-            objects_found=paginated_tree,
-        )
+            return FindItemsResponse(
+                total_search_matches=total_search_matches,
+                total_pages=total_pages,
+                current_page=request.page,
+                items_in_page=len(paginated_tree),
+                objects_found=paginated_tree,
+            )
+        except Exception as e:
+            logger.error(f"Error executing find_items: {e}")
+            return FindItemsResponse(
+                execution_status="error",
+                execution_message=f"Failed to find items: {str(e)}",
+                total_search_matches=0,
+                total_pages=1,
+                current_page=1,
+                items_in_page=0,
+                objects_found=[],
+            )
 
-    def list_folder_contents(
+    async def list_folder_contents(
         self, request: ListFolderContentsRequest
     ) -> ListFolderContentsResponse:
         """
@@ -572,13 +885,75 @@ class OneDriveClient:
         Returns:
             ListFolderContentsResponse -> A paginated list of immediate child items.
         """
-        endpoint = f"/me/drive/items/{request.folder_id}/children"
-
         try:
-            all_items = self._fetch_all_items(
+            folder_id = request.folder_id
+
+            if folder_id in [f.value for f in MainFolder]:
+                endpoint = MainFolder(folder_id).list_endpoint
+            elif "|" in folder_id:
+                drive_id, actual_id = folder_id.split("|", 1)
+                endpoint = f"/drives/{drive_id}/items/{actual_id}/children"
+            else:
+                endpoint = f"/me/drive/items/{folder_id}/children"
+
+            all_items = await self._fetch_all_items(
                 [endpoint], use_cache=request.use_cache, strict=True
             )
+
+            # Apply global sorting and date filtering
+            all_items = self._filter_and_sort_items(
+                all_items,
+                None,
+                request.min_creation_date,
+                request.max_creation_date,
+                request.min_last_modified_date,
+                request.max_last_modified_date,
+                request.sort_by,
+                request.sort_order,
+            )
+
+            PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
+
+            total_items_in_folder = len(all_items)
+            total_pages = max(1, (total_items_in_folder + PAGE_LIMIT - 1) // PAGE_LIMIT)
+
+            start = (request.page - 1) * PAGE_LIMIT
+            end = start + PAGE_LIMIT
+            paginated_items = all_items[start:end]
+
+            # Convert to ObjectMetadata format (flat list, no tree synthesis required)
+            formatted_objects = []
+            for item in paginated_items:
+                base_metadata = {
+                    "object_name": item.get("name"),
+                    "creation_date": item.get("creation_date"),
+                    "update_date": item.get("last_modified_date"),
+                    "owner": item.get("owner"),
+                    "folder_path": item.get("folder_path"),
+                    "url": item.get("web_url"),
+                    "object_type": item.get("type"),
+                }
+                if item.get("type") == "folder":
+                    base_metadata["folder_id"] = item.get("id")
+                    base_metadata["total_items_in_folder"] = item.get("child_count", 0)
+                    base_metadata["child_objects"] = None
+                    base_metadata["items_in_page"] = None
+                    base_metadata["total_pages_in_folder"] = None
+                    base_metadata["current_page"] = None
+                else:
+                    base_metadata["file_id"] = item.get("id")
+                    base_metadata["mime_type"] = item.get("mime_type")
+                formatted_objects.append(base_metadata)
+
+            return ListFolderContentsResponse(
+                total_items_in_folder=total_items_in_folder,
+                total_pages=total_pages,
+                current_page=request.page,
+                items_in_page=len(formatted_objects),
+                objects_found=formatted_objects,
+            )
         except Exception as e:
+            logger.error(f"Error executing list_folder_contents: {e}")
             return ListFolderContentsResponse(
                 execution_status="error",
                 execution_message=f"Failed to list folder contents: {str(e)}",
@@ -589,56 +964,79 @@ class OneDriveClient:
                 objects_found=[],
             )
 
-        # Apply global sorting and date filtering
-        all_items = self._filter_and_sort_items(
-            all_items,
-            None,
-            request.min_creation_date,
-            request.max_creation_date,
-            request.min_last_modified_date,
-            request.max_last_modified_date,
-            request.sort_by,
-            request.sort_order,
+    async def _fetch_file_metadata(self, file_id: str) -> dict:
+        """
+        Fetches the metadata for a specific file from Microsoft Graph API.
+
+        Args:
+            file_id: str -> The unique identifier of the file to fetch.
+
+        Returns:
+            dict -> The raw JSON metadata of the file.
+        """
+        if "|" in file_id:
+            drive_id, actual_id = file_id.split("|", 1)
+            meta_endpoint = f"/drives/{drive_id}/items/{actual_id}"
+        else:
+            meta_endpoint = f"/me/drive/items/{file_id}"
+
+        try:
+            return await self._get(meta_endpoint)
+        except Exception as e:
+            raise ValueError(f"Failed to fetch file metadata: {str(e)}")
+
+    async def _stream_to_landing_zone(
+        self,
+        file_id: str,
+        content_type: str,
+        filename: str,
+        file_size: int,
+        dependencies: Any,
+    ) -> str:
+        """
+        Streams a file from OneDrive directly into the GCS Landing Zone.
+
+        Args:
+            file_id: str -> The unique identifier of the file.
+            content_type: str -> The MIME type of the file.
+            filename: str -> The name of the file.
+            file_size: int -> The size of the file in bytes.
+            dependencies: Any -> The session dependencies for the GCS upload.
+
+        Returns:
+            str -> The resulting GCS URI of the uploaded file.
+        """
+        if "|" in file_id:
+            drive_id, actual_id = file_id.split("|", 1)
+            content_endpoint_suffix = f"/drives/{drive_id}/items/{actual_id}/content"
+        else:
+            content_endpoint_suffix = f"/me/drive/items/{file_id}/content"
+
+        content_endpoint = (
+            f"{ONEDRIVE_SERVER_CONFIG.graph_api_base_url}{content_endpoint_suffix}"
         )
 
-        PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                "GET", content_endpoint, headers=self.headers, follow_redirects=True
+            ) as response:
+                if response.status_code == 401:
+                    raise ValueError("Invalid or expired Microsoft access token.")
+                response.raise_for_status()
 
-        total_items_in_folder = len(all_items)
-        total_pages = max(1, (total_items_in_folder + PAGE_LIMIT - 1) // PAGE_LIMIT)
+                file_stream = StreamIOWrapper(response)
 
-        start = (request.page - 1) * PAGE_LIMIT
-        end = start + PAGE_LIMIT
-        paginated_items = all_items[start:end]
+                return self.gcs_connector.upload_stream(
+                    file_obj=file_stream,
+                    content_type=content_type,
+                    app_name=dependencies.app_name,
+                    user_id=dependencies.user_id,
+                    session_id=dependencies.session_id,
+                    filename=filename,
+                    size=file_size,
+                )
 
-        # Convert to ObjectMetadata format (flat list, no tree synthesis required)
-        formatted_objects = []
-        for item in paginated_items:
-            base_metadata = {
-                "object_name": item.get("name"),
-                "creation_date": item.get("creation_date"),
-                "update_date": item.get("last_modified_date"),
-                "owner": item.get("owner"),
-                "folder_path": item.get("folder_path"),
-                "url": item.get("web_url"),
-                "object_type": item.get("type"),
-            }
-            if item.get("type") == "folder":
-                base_metadata["folder_id"] = item.get("id")
-                base_metadata["child_objects"] = []
-            else:
-                base_metadata["file_id"] = item.get("id")
-                base_metadata["mime_type"] = item.get("mime_type")
-            formatted_objects.append(base_metadata)
-
-        return ListFolderContentsResponse(
-            total_items_in_folder=total_items_in_folder,
-            total_pages=total_pages,
-            current_page=request.page,
-            items_in_page=len(formatted_objects),
-            objects_found=formatted_objects,
-        )
-
-    def read_file(self, request: ReadFileRequest) -> ReadFileResponse:
+    async def read_file(self, request: ReadFileRequest) -> ReadFileResponse:
         """
         Reads a specific file from OneDrive, ingests it into the Landing Zone,
         and returns the GCS URI metadata required for multimodal ingestion.
@@ -649,154 +1047,39 @@ class OneDriveClient:
         Returns:
             ReadFileResponse -> A structured response containing the resulting GCS URI, content type, and filename.
         """
-        file_id = request.file_id
-        dependencies = request.dependencies
-
-        if not dependencies:
-            raise ValueError("SessionContext must be provided to ingest files.")
-
-        # Check file cache
-        cache_key = ("file", file_id, hash(self.access_token.get_secret_value()))
-        if request.use_cache and cache_key in self._file_cache:
-            cache_time, cached_response = self._file_cache[cache_key]
-            if time.time() - cache_time < self._cache_ttl:
-                logger.info(f"Using cached file upload for {file_id}")
-                return cached_response
-
-        logger.info(f"Reading file {file_id} from OneDrive to ingest into GCS.")
-
-        # 1. Fetch file metadata to get the MIME type, actual filename, and size
-        meta_endpoint = f"/me/drive/items/{file_id}"
-        metadata = self._get(meta_endpoint)
-
-        if "folder" in metadata:
-            return ReadFileResponse(
-                execution_status="error",
-                execution_message=f"The provided ID '{file_id}' corresponds to a folder, but read_file expects a file.",
-            )
-
-        filename = metadata.get("name", f"file_{file_id}")
-        content_type = metadata.get("file", {}).get(
-            "mimeType", "application/octet-stream"
-        )
-        file_size = metadata.get("size")
-
-        parent_ref = metadata.get("parentReference", {})
-        folder_path = parent_ref.get("path", "")
-        if folder_path.startswith("/drive/root:"):
-            folder_path = folder_path.replace("/drive/root:", "", 1)
-        elif folder_path.startswith("/drive/root"):
-            folder_path = folder_path.replace("/drive/root", "", 1)
-        if not folder_path:
-            folder_path = "/"
-
-        # 2. Stream the file content
-        content_endpoint = f"{ONEDRIVE_SERVER_CONFIG.graph_api_base_url}/me/drive/items/{file_id}/content"
-
-        # IDOR Proof (Rule: read 1 byte to mathematically prove payload access)
-        # However, Graph API doesn't always support Range headers perfectly for all files,
-        # but since we use the delegated user token to fetch the entire stream below,
-        # the token implicitly proves access because we could not fetch it otherwise.
-
         try:
-            with httpx.Client() as client:
-                # We stream the response to avoid loading the whole file into memory
-                with client.stream(
-                    "GET", content_endpoint, headers=self.headers, follow_redirects=True
-                ) as response:
-                    if response.status_code == 401:
-                        raise ValueError("Invalid or expired Microsoft access token.")
-                    response.raise_for_status()
+            file_id = request.file_id
+            dependencies = request.dependencies
 
-                    # We pass the raw byte iterator to the GCS Connector
-                    # GCS upload_from_file expects a file-like object with read().
-                    # We can use httpx response directly if we wrap it, but it's easier to just
-                    # create a simple generator or write to a temporary file if it's too big.
-                    # Since upload_from_file accepts a file-like object, we can wrap the stream.
+            if not dependencies:
+                raise ValueError("SessionContext must be provided to ingest files.")
 
-                    class StreamIOWrapper:
-                        """Wraps an httpx streaming response into a file-like object for GCS upload."""
+            # Check file cache
+            cache_key = ("file", file_id, hash(self.access_token.get_secret_value()))
+            if request.use_cache and cache_key in self._file_cache:
+                cache_time, cached_response = self._file_cache[cache_key]
+                if time.time() - cache_time < self._cache_ttl:
+                    logger.info(f"Using cached file upload for {file_id}")
+                    return cached_response
 
-                        def __init__(self, httpx_resp):
-                            """
-                            Initializes the wrapper around an active HTTP stream.
+            logger.info(f"Reading file {file_id} from OneDrive to ingest into GCS.")
 
-                            Args:
-                                httpx_resp: httpx.Response -> The active streaming response.
+            metadata = await self._fetch_file_metadata(file_id)
 
-                            Returns:
-                                None -> Initializes the wrapper.
-                            """
-                            self.iterator = httpx_resp.iter_bytes()
-                            self.buffer = b""
-                            self._pos = 0
+            if "folder" in metadata:
+                raise ValueError(
+                    f"The provided ID '{file_id}' corresponds to a folder, but read_file expects a file."
+                )
 
-                        def read(self, size=-1):
-                            """
-                            Reads bytes from the active HTTP stream.
+            filename = metadata.get("name", f"file_{file_id}")
+            content_type = metadata.get("file", {}).get(
+                "mimeType", "application/octet-stream"
+            )
+            file_size = metadata.get("size")
 
-                            Args:
-                                size: int -> The number of bytes to read, or -1 for all bytes.
-
-                            Returns:
-                                bytes -> The chunk of bytes read from the stream.
-                            """
-                            if size == -1:
-                                data = b"".join(self.iterator)
-                                result = self.buffer + data
-                                self.buffer = b""
-                                self._pos += len(result)
-                                return result
-                            while len(self.buffer) < size:
-                                try:
-                                    self.buffer += next(self.iterator)
-                                except StopIteration:
-                                    break
-                            result, self.buffer = self.buffer[:size], self.buffer[size:]
-                            self._pos += len(result)
-                            return result
-
-                        def tell(self):
-                            """
-                            Reports the current byte offset of the stream.
-
-                            Args:
-                                None
-
-                            Returns:
-                                int -> The current position in the byte stream.
-                            """
-                            return self._pos
-
-                        def seek(self, offset, whence=0):
-                            """
-                            Seeks to a specific position in the stream (only supports rewinding to 0 if already at 0).
-
-                            Args:
-                                offset: int -> The target offset.
-                                whence: int -> The reference point for the offset.
-
-                            Returns:
-                                int -> The new position.
-                            """
-                            # Allow zero-seek which some libraries do to "rewind" streams,
-                            # but if we are already at 0 it's a no-op.
-                            if offset == 0 and whence == 0 and self._pos == 0:
-                                return 0
-                            raise IOError("StreamIOWrapper does not support seeking")
-
-                    file_stream = StreamIOWrapper(response)
-
-                    # 3. Upload to GCS Landing Zone
-                    gcs_uri = self.gcs_connector.upload_stream(
-                        file_obj=file_stream,
-                        content_type=content_type,
-                        app_name=dependencies.app_name,
-                        user_id=dependencies.user_id,
-                        session_id=dependencies.session_id,
-                        filename=filename,
-                        size=file_size,
-                    )
+            gcs_uri = await self._stream_to_landing_zone(
+                file_id, content_type, filename, file_size, dependencies
+            )
 
             response = ReadFileResponse(
                 gcs_uri=gcs_uri,
@@ -806,24 +1089,13 @@ class OneDriveClient:
             )
 
             # Store successful read in file cache
+            self._sweep_cache()
             self._file_cache[cache_key] = (time.time(), response)
             return response
 
-        except httpx.HTTPStatusError as e:
-            # Streamed responses must be explicitly read before accessing .text
-            try:
-                error_body = e.response.read().decode("utf-8")
-            except Exception:
-                error_body = str(e)
-
-            logger.error(f"HTTP error downloading file content: {error_body}")
-            return ReadFileResponse(
-                execution_status="error",
-                execution_message=f"Failed to download file content: {e.response.status_code} - {error_body}",
-            )
         except Exception as e:
-            logger.error(f"Unexpected error streaming file to GCS: {e}")
+            logger.error(f"Error fetching and uploading file {request.file_id}: {e}")
             return ReadFileResponse(
                 execution_status="error",
-                execution_message=f"Streaming error: {str(e)}",
+                execution_message=f"Failed to read file: {str(e)}",
             )
