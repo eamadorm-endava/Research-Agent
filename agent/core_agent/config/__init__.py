@@ -26,6 +26,8 @@ from .mcp_settings import (
     CalendarMCPConfig,
     DriveMCPConfig,
     GCSMCPConfig,
+    OneDriveMCPConfig,
+    ONEDRIVE_MCP_CONFIG,
 )
 
 __all__ = [

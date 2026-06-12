@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from typing import Annotated
+from pydantic import Field, model_validator
+from typing import Annotated, Self
 
 
 class BaseOAuthConfig(BaseSettings):
@@ -30,7 +30,7 @@ class BaseOAuthConfig(BaseSettings):
     REDIRECT_URI: Annotated[
         str,
         Field(
-            default="http://localhost:8000/dev-ui",
+            default="http://localhost:8000/dev-ui/",
             description="Shared OAuth 2.0 Redirect URI for APIs used by the agent.",
         ),
     ]
@@ -56,6 +56,13 @@ class BaseOAuthConfig(BaseSettings):
             ),
         ),
     ]
+    TOKEN_ENDPOINT_AUTH_METHOD: Annotated[
+        str,
+        Field(
+            default="client_secret_basic",
+            description="The authentication method used when exchanging the code for a token (e.g., client_secret_basic or client_secret_post).",
+        ),
+    ]
 
 
 class GoogleAuthConfig(BaseOAuthConfig):
@@ -68,6 +75,50 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
     model_config = SettingsConfigDict(
         env_prefix="MICROSOFT_OAUTH_",
     )
+
+    TENANT_ID: Annotated[
+        str,
+        Field(
+            default="common",
+            description="Microsoft Entra Tenant ID.",
+        ),
+    ]
+    AUTH_URI: Annotated[
+        str,
+        Field(
+            default="https://login.microsoftonline.com/common/oauth2/v2.0/authorize?response_mode=query",
+            description=(
+                "The URL where the user is redirected to log in and grant permissions. "
+                "This is required for the first step of the OAuth 2.0 Authorization Code flow."
+            ),
+        ),
+    ]
+    TOKEN_URI: Annotated[
+        str,
+        Field(
+            default="https://login.microsoftonline.com/common/oauth2/v2.0/token",
+            description=(
+                "The URL used by the application to exchange an authorization code for an access token (and refresh token). "
+                "This is required for the second step of the OAuth 2.0 Authorization Code flow."
+            ),
+        ),
+    ]
+    TOKEN_ENDPOINT_AUTH_METHOD: Annotated[
+        str,
+        Field(
+            default="client_secret_post",
+            description="Microsoft requires client_secret_post for many app registrations instead of basic auth.",
+        ),
+    ]
+
+    @model_validator(mode="after")
+    def update_uris_with_tenant(self) -> Self:
+        if self.TENANT_ID != "common":
+            if "common" in self.AUTH_URI:
+                self.AUTH_URI = self.AUTH_URI.replace("common", self.TENANT_ID)
+            if "common" in self.TOKEN_URI:
+                self.TOKEN_URI = self.TOKEN_URI.replace("common", self.TENANT_ID)
+        return self
 
 
 # Global configuration instances

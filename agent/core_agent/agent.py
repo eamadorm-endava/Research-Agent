@@ -10,6 +10,7 @@ from .config import (
     CALENDAR_MCP_CONFIG,
     DRIVE_MCP_CONFIG,
     GCS_MCP_CONFIG,
+    ONEDRIVE_MCP_CONFIG,
 )
 
 from .tools.artifact_tools import GetArtifactURITool
@@ -36,6 +37,7 @@ research_agent = (
             DRIVE_MCP_CONFIG,
             CALENDAR_MCP_CONFIG,
             GCS_MCP_CONFIG,
+            ONEDRIVE_MCP_CONFIG,
         ]
     )
     .with_native_tools(
