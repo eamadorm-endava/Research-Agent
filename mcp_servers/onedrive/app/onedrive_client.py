@@ -21,12 +21,9 @@ from .schemas import (
 class StreamIOWrapper:
     """
     Wraps an httpx streaming response into a file-like object for GCS upload.
-
-    Args:
-        httpx_resp: httpx.Response -> The active streaming HTTP response.
     """
 
-    def __init__(self, httpx_resp):
+    def __init__(self, httpx_resp: httpx.Response) -> None:
         """
         Initializes the wrapper around an active HTTP stream.
 
