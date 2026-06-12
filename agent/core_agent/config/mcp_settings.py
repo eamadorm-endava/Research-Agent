@@ -3,6 +3,8 @@ from pydantic import Field, field_validator, AliasChoices
 from enum import StrEnum
 from typing import Annotated, Optional, Union
 
+from .oauth_settings import BaseOAuthConfig, GOOGLE_AUTH_CONFIG, MICROSOFT_AUTH_CONFIG
+
 
 class DriveScopes(StrEnum):
     """Enum for Google Drive OAuth scopes."""
@@ -63,11 +65,18 @@ class BaseMCPConfig(BaseSettings):
             description="Timeout in seconds for MCP servers.",
         ),
     ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
+    OAUTH_CONFIG: Annotated[
+        Optional[BaseOAuthConfig],
+        Field(
+            default=None,
+            description="The OAuth 2.0 configuration for this MCP server.",
+        ),
+    ]
+    GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
             default=None,
-            description="The ID of the shared delegated Google OAuth authorization resource registered in Gemini Enterprise.",
+            description="The ID of the shared delegated OAuth authorization resource registered in Gemini Enterprise.",
         ),
     ]
 
@@ -99,7 +108,14 @@ class BigQueryMCPConfig(BaseMCPConfig):
             validation_alias="BIGQUERY_OAUTH_SCOPES",
         ),
     ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
+    OAUTH_CONFIG: Annotated[
+        Optional[BaseOAuthConfig],
+        Field(
+            default_factory=lambda: GOOGLE_AUTH_CONFIG,
+            description="OAuth configuration instance for Google.",
+        ),
+    ]
+    GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
             default="mock-ge-auth-id",
@@ -146,7 +162,14 @@ class DriveMCPConfig(BaseMCPConfig):
             validation_alias="DRIVE_OAUTH_SCOPES",
         ),
     ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
+    OAUTH_CONFIG: Annotated[
+        Optional[BaseOAuthConfig],
+        Field(
+            default_factory=lambda: GOOGLE_AUTH_CONFIG,
+            description="OAuth configuration instance for Google.",
+        ),
+    ]
+    GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
             default="mock-ge-auth-id",
@@ -196,7 +219,14 @@ class CalendarMCPConfig(BaseMCPConfig):
             validation_alias="CALENDAR_OAUTH_SCOPES",
         ),
     ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
+    OAUTH_CONFIG: Annotated[
+        Optional[BaseOAuthConfig],
+        Field(
+            default_factory=lambda: GOOGLE_AUTH_CONFIG,
+            description="OAuth configuration instance for Google.",
+        ),
+    ]
+    GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
             default="mock-ge-auth-id",
@@ -244,7 +274,14 @@ class GCSMCPConfig(BaseMCPConfig):
             validation_alias="GCS_OAUTH_SCOPES",
         ),
     ]
-    GEMINI_GOOGLE_AUTH_ID: Annotated[
+    OAUTH_CONFIG: Annotated[
+        Optional[BaseOAuthConfig],
+        Field(
+            default_factory=lambda: GOOGLE_AUTH_CONFIG,
+            description="OAuth configuration instance for Google.",
+        ),
+    ]
+    GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
             default="mock-ge-auth-id",
@@ -264,8 +301,69 @@ class GCSMCPConfig(BaseMCPConfig):
         return _scopes_to_dict(v, "google cloud storage access")
 
 
+class OneDriveScopes(StrEnum):
+    """Enum for Microsoft OneDrive OAuth scopes."""
+
+    ONEDRIVE = "Files.Read.All"
+
+
+class OneDriveMCPConfig(BaseMCPConfig):
+    """Configuration for the Microsoft OneDrive MCP server."""
+
+    URL: Annotated[
+        str,
+        Field(
+            default="http://localhost:8084",
+            description="Microsoft OneDrive MCP Server URL",
+            validation_alias="ONEDRIVE_URL",
+        ),
+    ]
+    ENDPOINT: Annotated[
+        str,
+        Field(
+            default="/mcp",
+            description="Microsoft OneDrive MCP Server Endpoint",
+            validation_alias="ONEDRIVE_ENDPOINT",
+        ),
+    ]
+    OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[OneDriveScopes]],
+        Field(
+            default=[OneDriveScopes.ONEDRIVE],
+            description="OAuth scopes requested by the agent.",
+            validation_alias="ONEDRIVE_OAUTH_SCOPES",
+        ),
+    ]
+    OAUTH_CONFIG: Annotated[
+        Optional[BaseOAuthConfig],
+        Field(
+            default_factory=lambda: MICROSOFT_AUTH_CONFIG,
+            description="OAuth configuration instance for Microsoft.",
+        ),
+    ]
+    GEMINI_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ms-auth-id",
+            description="Auth Resource ID for Microsoft OneDrive.",
+            validation_alias=AliasChoices(
+                "ONEDRIVE_AUTH_ID",
+                "GEMINI_MICROSOFT_AUTH_ID",
+            ),
+        ),
+    ]
+
+    @field_validator("OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_oauth_scopes(
+        cls, v: Union[list[OneDriveScopes], dict[str, str]]
+    ) -> dict[str, str]:
+        return _scopes_to_dict(v, "microsoft onedrive access")
+
+
 # Global MCP configuration instances
 BIGQUERY_MCP_CONFIG = BigQueryMCPConfig()
 DRIVE_MCP_CONFIG = DriveMCPConfig()
 CALENDAR_MCP_CONFIG = CalendarMCPConfig()
 GCS_MCP_CONFIG = GCSMCPConfig()
+ONEDRIVE_MCP_CONFIG = OneDriveMCPConfig()

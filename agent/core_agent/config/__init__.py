@@ -1,6 +1,5 @@
 from .agent_settings import (
     GCP_CONFIG,
-    GOOGLE_AUTH_CONFIG,
     COORDINATOR_CONFIG,
     RESEARCH_AGENT_CONFIG,
     INGESTION_AGENT_CONFIG,
@@ -9,7 +8,13 @@ from .agent_settings import (
     ResearchAgentConfig,
     IngestionAgentConfig,
     GCPConfig,
+)
+from .oauth_settings import (
+    BaseOAuthConfig,
     GoogleAuthConfig,
+    MicrosoftAuthConfig,
+    GOOGLE_AUTH_CONFIG,
+    MICROSOFT_AUTH_CONFIG,
 )
 from .mcp_settings import (
     BIGQUERY_MCP_CONFIG,
@@ -29,19 +34,24 @@ __all__ = [
     "ResearchAgentConfig",
     "IngestionAgentConfig",
     "GCPConfig",
+    "BaseOAuthConfig",
     "GoogleAuthConfig",
+    "MicrosoftAuthConfig",
     "BaseMCPConfig",
     "BigQueryMCPConfig",
     "CalendarMCPConfig",
     "DriveMCPConfig",
     "GCSMCPConfig",
+    "OneDriveMCPConfig",
     "GCP_CONFIG",
     "COORDINATOR_CONFIG",
     "RESEARCH_AGENT_CONFIG",
     "INGESTION_AGENT_CONFIG",
     "GOOGLE_AUTH_CONFIG",
+    "MICROSOFT_AUTH_CONFIG",
     "BIGQUERY_MCP_CONFIG",
     "DRIVE_MCP_CONFIG",
     "CALENDAR_MCP_CONFIG",
     "GCS_MCP_CONFIG",
+    "ONEDRIVE_MCP_CONFIG",
 ]

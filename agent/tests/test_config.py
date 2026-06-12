@@ -158,13 +158,11 @@ def test_google_auth_config_reading_env_vars():
     with patch.dict(os.environ, mock_env, clear=True):
         config = GoogleAuthConfig()
 
-    assert config.GOOGLE_OAUTH_CLIENT_ID == "test-client-id"
-    assert config.GOOGLE_OAUTH_CLIENT_SECRET == "test-client-secret"
-    assert config.GOOGLE_OAUTH_REDIRECT_URI == "http://localhost:8000/dev-ui"
-    assert (
-        config.GOOGLE_OAUTH_AUTH_URI == "https://accounts.google.com/o/oauth2/v2/auth"
-    )
-    assert config.GOOGLE_OAUTH_TOKEN_URI == "https://oauth2.googleapis.com/token"
+    assert config.CLIENT_ID == "test-client-id"
+    assert config.CLIENT_SECRET == "test-client-secret"
+    assert config.REDIRECT_URI == "http://localhost:8000/dev-ui"
+    assert config.AUTH_URI == "https://accounts.google.com/o/oauth2/v2/auth"
+    assert config.TOKEN_URI == "https://oauth2.googleapis.com/token"
 
 
 def test_mcp_config_accepts_legacy_auth_id():
@@ -174,7 +172,7 @@ def test_mcp_config_accepts_legacy_auth_id():
     }
     with patch.dict(os.environ, mock_env, clear=True):
         config = DriveMCPConfig()
-    assert config.GEMINI_GOOGLE_AUTH_ID == "legacy-drive-id"
+    assert config.GEMINI_AUTH_ID == "legacy-drive-id"
 
 
 def test_gcs_mcp_config_accepts_service_specific_auth_id():
@@ -184,4 +182,4 @@ def test_gcs_mcp_config_accepts_service_specific_auth_id():
     with patch.dict(os.environ, mock_env, clear=True):
         config = GCSMCPConfig()
 
-    assert config.GEMINI_GOOGLE_AUTH_ID == "gcs-auth-id"
+    assert config.GEMINI_AUTH_ID == "gcs-auth-id"
