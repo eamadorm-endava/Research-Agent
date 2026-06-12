@@ -138,7 +138,7 @@ class OneDriveServerConfig(OneDriveMCPConfigBase):
     default_port: Annotated[
         int,
         Field(
-            default=8083,
+            default=8084,
             ge=1,
             le=65535,
             description="Default port for the OneDrive MCP server.",
