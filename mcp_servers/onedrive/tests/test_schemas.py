@@ -83,3 +83,73 @@ def test_item_name_tokens():
         item_name="Testing_Larger-Folder", main_folder="MY_FILES", page=1
     )
     assert req.item_name_tokens == ["testing", "larger", "folder"]
+
+
+def test_remove_leaf_nulls_serialization():
+    """Test that setting attributes to None effectively removes them during serialization."""
+    from app.schemas import FolderMetadata
+
+    folder = FolderMetadata(
+        folder_id="123",
+        object_name="Deep Leaf",
+        object_type="folder",
+        folder_path="/root/a/b",
+        url="https://test",
+        creation_date="2023-01-01T00:00:00Z",
+        update_date="2023-01-01T00:00:00Z",
+        owner="test",
+        total_items_in_folder=10,
+        total_pages_in_folder=None,
+        current_page=None,
+        items_in_page=None,
+        child_objects=None,
+    )
+
+    serialized = folder.model_dump()
+    assert "total_pages_in_folder" not in serialized
+    assert "current_page" not in serialized
+    assert "items_in_page" not in serialized
+    assert "child_objects" not in serialized
+
+    assert serialized["object_name"] == "Deep Leaf"
+
+
+def test_serialize_in_order():
+    """Test that serialize_in_order enforces a strict structural key order."""
+    from app.schemas import FindItemsResponse, FolderMetadata
+
+    folder = FolderMetadata(
+        folder_id="123",
+        object_name="Deep Leaf",
+        object_type="folder",
+        folder_path="/root",
+        url="https://test",
+        creation_date="2023-01-01T00:00:00Z",
+        update_date="2023-01-01T00:00:00Z",
+        owner="test",
+        total_items_in_folder=0,
+        total_pages_in_folder=1,
+        current_page=1,
+        items_in_page=0,
+        child_objects=[],
+    )
+
+    resp = FindItemsResponse(
+        execution_status="success",
+        execution_message="Test",
+        total_search_matches=1,
+        total_pages=1,
+        current_page=1,
+        items_in_page=1,
+        objects_found=[folder],
+    )
+
+    serialized = resp.model_dump()
+    keys = list(serialized.keys())
+    assert keys[0] == "execution_status"
+    assert keys[1] == "execution_message"
+    assert keys[2] == "total_search_matches"
+    assert keys[3] == "total_pages"
+    assert keys[4] == "current_page"
+    assert keys[5] == "items_in_page"
+    assert keys[6] == "objects_found"
