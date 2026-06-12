@@ -482,7 +482,7 @@ class GoogleAuthConfig(BaseSettings):
     """Holds shared Google OAuth 2.0 credentials used across all MCP server connections."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "core_agent/.env"),
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,

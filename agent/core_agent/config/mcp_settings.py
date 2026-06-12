@@ -66,7 +66,7 @@ class BaseMCPConfig(BaseSettings):
     """Generic MCP server configuration base class inherited by each server-specific config."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "core_agent/.env"),
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
