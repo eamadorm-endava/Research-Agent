@@ -194,7 +194,7 @@ def test_sharepoint_mcp_config_uses_microsoft_auth_aliases():
     """SharePoint should use Microsoft-wide auth variables for future Microsoft MCP reuse."""
     mock_env = {
         "GEMINI_MICROSOFT_AUTH_ID": "microsoft-auth-id",
-        "MICROSOFT_GRAPH_OAUTH_SCOPES": '["User.Read.All", "Sites.Read.All"]',
+        "MICROSOFT_GRAPH_OAUTH_SCOPES": '["User.Read", "Sites.Read.All"]',
     }
     with patch.dict(os.environ, mock_env, clear=True):
         config = SharePointMCPConfig()
@@ -202,7 +202,7 @@ def test_sharepoint_mcp_config_uses_microsoft_auth_aliases():
     assert config.GEMINI_MICROSOFT_AUTH_ID == "microsoft-auth-id"
     assert config.auth_resource_id == "microsoft-auth-id"
     assert config.OAUTH_SCOPES == {
-        "User.Read.All": "microsoft graph access",
+        "User.Read": "microsoft graph access",
         "Sites.Read.All": "microsoft graph access",
     }
 
@@ -211,13 +211,13 @@ def test_sharepoint_mcp_config_accepts_legacy_sharepoint_auth_aliases():
     """Existing deployments can continue using the old SharePoint-specific variables temporarily."""
     mock_env = {
         "GEMINI_SHAREPOINT_AUTH_ID": "legacy-sharepoint-auth-id",
-        "SHAREPOINT_OAUTH_SCOPES": '["User.Read.All"]',
+        "SHAREPOINT_OAUTH_SCOPES": '["User.Read"]',
     }
     with patch.dict(os.environ, mock_env, clear=True):
         config = SharePointMCPConfig()
 
     assert config.GEMINI_MICROSOFT_AUTH_ID == "legacy-sharepoint-auth-id"
-    assert config.OAUTH_SCOPES == {"User.Read.All": "microsoft graph access"}
+    assert config.OAUTH_SCOPES == {"User.Read": "microsoft graph access"}
 
 
 def test_coordinator_capabilities_advertise_sharepoint():

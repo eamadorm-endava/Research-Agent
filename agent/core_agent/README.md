@@ -219,7 +219,7 @@ GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
 MICROSOFT_OAUTH_CLIENT_ID=your-entra-application-client-id
 MICROSOFT_OAUTH_CLIENT_SECRET=your-entra-client-secret
 MICROSOFT_OAUTH_REDIRECT_URI=http://localhost:8000/dev-ui
-MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read.All", "Files.Read.All", "Sites.Read.All", "offline_access"]
+MICROSOFT_GRAPH_OAUTH_SCOPES=["User.Read", "Files.Read.All", "Sites.Read.All", "offline_access"]
 ```
 
 ## How to Test Locally

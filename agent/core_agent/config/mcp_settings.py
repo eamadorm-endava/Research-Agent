@@ -34,7 +34,7 @@ class GCSScopes(StrEnum):
 class MicrosoftGraphScopes(StrEnum):
     """Enum for delegated Microsoft Graph OAuth scopes used by Microsoft MCP servers."""
 
-    USER_READ = "User.Read.All"
+    USER_READ = "User.Read"
     FILES_READ_ALL = "Files.Read.All"
     SITES_READ_ALL = "Sites.Read.All"
     OFFLINE_ACCESS = "offline_access"
