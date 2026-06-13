@@ -53,7 +53,7 @@ class MainFolder(StrEnum):
         """
         mapping = {
             self.MY_FILES: "/me/drive/root/children",
-            self.SHARED_WITH_ME: "/me/drive/sharedWithMe",
+            self.SHARED_WITH_ME: "/me/insights/shared?$expand=resource",
             self.RECENT_FILES: "/me/drive/recent",
         }
         return mapping[self]
