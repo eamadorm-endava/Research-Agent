@@ -1,4 +1,5 @@
 import os
+import asyncio
 from typing import Optional, Any
 from urllib.parse import unquote
 import time
@@ -15,6 +16,7 @@ from .schemas import (
     ListFolderContentsResponse,
     ReadFileRequest,
     ReadFileResponse,
+    ObjectTypeOption,
 )
 
 
@@ -318,10 +320,18 @@ class OneDriveClient:
         # Foolproof name extraction
         name = item_data.get("name") or item.get("name") or "Unknown Item"
 
+        parent_item_id = parent_ref.get("id")
+        if drive_id and parent_item_id:
+            parent_item_id = f"{drive_id}|{parent_item_id}"
+
         formatted = {
             "id": item_id,
             "name": name,
-            "type": "folder" if is_folder else "file" if is_file else "unknown",
+            "type": ObjectTypeOption.FOLDER
+            if is_folder
+            else ObjectTypeOption.FILE
+            if is_file
+            else "unknown",
             "size": item_data.get("size", 0),
             "web_url": item_data.get("webUrl") or item.get("webUrl"),
             "creation_date": item_data.get("createdDateTime")
@@ -329,6 +339,7 @@ class OneDriveClient:
             "last_modified_date": item_data.get("lastModifiedDateTime")
             or item.get("lastModifiedDateTime"),
             "folder_path": self._extract_folder_path(item, item_data),
+            "parent_id": parent_item_id,
         }
 
         if is_file:
@@ -555,7 +566,7 @@ class OneDriveClient:
         files_list = []
         for item in items:
             parent_path = self._normalize_path(item.get("folder_path", ""))
-            if item.get("type") == "folder":
+            if item.get("type") == ObjectTypeOption.FOLDER:
                 abs_path = self._normalize_path(
                     parent_path + "/" + item.get("name", "")
                 )
@@ -567,10 +578,11 @@ class OneDriveClient:
                     "owner": item.get("owner"),
                     "folder_path": parent_path,
                     "url": item.get("web_url"),
-                    "object_type": "folder",
+                    "object_type": ObjectTypeOption.FOLDER,
                     "child_objects": [],
                     "_abs_path": abs_path,
                     "_parent_path": parent_path,
+                    "_parent_id": item.get("parent_id"),
                 }
             else:
                 files_list.append(
@@ -582,15 +594,20 @@ class OneDriveClient:
                         "owner": item.get("owner"),
                         "folder_path": parent_path,
                         "url": item.get("web_url"),
-                        "object_type": "file",
+                        "object_type": ObjectTypeOption.FILE,
                         "mime_type": item.get("mime_type"),
                         "_parent_path": parent_path,
+                        "_parent_id": item.get("parent_id"),
                     }
                 )
         return folders_dict, files_list
 
     def _synthesize_folders(
-        self, folders_dict: dict, files_list: list, common_prefix: str
+        self,
+        folders_dict: dict,
+        files_list: list,
+        common_prefix: str,
+        global_path_to_id: dict,
     ) -> None:
         """
         Synthesizes missing intermediate folders to guarantee tree structure connectivity.
@@ -599,10 +616,16 @@ class OneDriveClient:
             folders_dict: dict -> The dictionary mapping absolute paths to folder objects.
             files_list: list -> The list of explicit files.
             common_prefix: str -> The deepest common parent path for rooting the tree.
+            global_path_to_id: dict -> A mapping from absolute folder paths to folder IDs.
 
         Returns:
             None
         """
+
+        path_to_id = dict(global_path_to_id)
+        for item in files_list + list(folders_dict.values()):
+            if item.get("_parent_path") and item.get("_parent_id"):
+                path_to_id[item["_parent_path"]] = item["_parent_id"]
 
         def get_or_create_folder(abs_path: str) -> Optional[dict]:
             """
@@ -622,10 +645,10 @@ class OneDriveClient:
                 current_parent = self._normalize_path("/".join(parts[:-1]))
                 name = parts[-1]
                 folders_dict[abs_path] = {
-                    "folder_id": None,
+                    "folder_id": path_to_id.get(abs_path),
                     "object_name": name,
                     "folder_path": current_parent,
-                    "object_type": "folder",
+                    "object_type": ObjectTypeOption.FOLDER,
                     "child_objects": [],
                     "_abs_path": abs_path,
                     "_parent_path": current_parent,
@@ -746,7 +769,7 @@ class OneDriveClient:
                 ]
                 folder_object["items_in_page"] = len(folder_object["child_objects"])
                 for child in folder_object["child_objects"]:
-                    if child["object_type"] == "folder":
+                    if child["object_type"] == ObjectTypeOption.FOLDER:
                         process_folder(child, current_depth + 1)
                     else:
                         child.pop("_parent_path", None)
@@ -755,7 +778,7 @@ class OneDriveClient:
             folder_object.pop("_parent_path", None)
 
         for element in paginated_root:
-            if element["object_type"] == "folder":
+            if element["object_type"] == ObjectTypeOption.FOLDER:
                 process_folder(element, 1)
             element.pop("_abs_path", None)
             element.pop("_parent_path", None)
@@ -768,6 +791,7 @@ class OneDriveClient:
         page: int,
         sort_by: Optional[str] = None,
         sort_order: Optional[str] = None,
+        global_path_to_id: Optional[dict] = None,
     ) -> tuple[list[dict], int]:
         """
         Builds a recursive directory tree from a flat list of Graph API items.
@@ -779,10 +803,14 @@ class OneDriveClient:
             page: int -> The current page number to extract for the root items.
             sort_by: Optional[str] -> Optional sorting criteria.
             sort_order: Optional[str] -> Optional sorting order ('asc', 'desc').
+            global_path_to_id: Optional[dict] -> Path to ID mapping built from all items.
 
         Returns:
             tuple[list[dict], int] -> A tuple containing the paginated nested tree and the total number of root elements.
         """
+        if global_path_to_id is None:
+            global_path_to_id = {}
+
         all_paths = [
             self._normalize_path(item.get("folder_path", "")) for item in items
         ]
@@ -795,7 +823,9 @@ class OneDriveClient:
             common_prefix = "/"
 
         folders_dict, files_list = self._extract_explicit_items(items)
-        self._synthesize_folders(folders_dict, files_list, common_prefix)
+        self._synthesize_folders(
+            folders_dict, files_list, common_prefix, global_path_to_id
+        )
         root_elements = self._attach_children_to_parents(
             folders_dict, files_list, common_prefix
         )
@@ -826,6 +856,23 @@ class OneDriveClient:
                 endpoints, use_cache=request.use_cache
             )
 
+            # Build a global path->id mapping from ALL fetched items before filtering
+            global_path_to_id = {}
+            for api_item in all_items:
+                fpath = api_item.get("folder_path", "")
+                if fpath:
+                    abs_path = self._normalize_path(
+                        fpath + "/" + api_item.get("name", "")
+                    )
+                    if api_item.get("type") == ObjectTypeOption.FOLDER and api_item.get(
+                        "id"
+                    ):
+                        global_path_to_id[abs_path] = api_item["id"]
+                if api_item.get("parent_id") and fpath:
+                    global_path_to_id[self._normalize_path(fpath)] = api_item[
+                        "parent_id"
+                    ]
+
             filtered_items = self._filter_and_sort_items(
                 all_items,
                 request.item_name_tokens,
@@ -845,6 +892,7 @@ class OneDriveClient:
                 page=request.page,
                 sort_by=request.sort_by,
                 sort_order=request.sort_order,
+                global_path_to_id=global_path_to_id,
             )
 
             PAGE_LIMIT = ONEDRIVE_SERVER_CONFIG.max_files_per_page
@@ -918,6 +966,40 @@ class OneDriveClient:
             end = start + PAGE_LIMIT
             paginated_items = all_items[start:end]
 
+            # Ingest child_count for SHARED_WITH_ME because the /insights/shared API
+            # drops the childCount attribute. We fetch it concurrently for each folder.
+            if folder_id == MainFolder.SHARED_WITH_ME:
+
+                async def enrich_child_count(folder_item: dict) -> None:
+                    """
+                    Fetches and assigns the missing childCount metadata for a shared folder.
+
+                    Args:
+                        folder_item: dict -> The folder item dictionary to enrich.
+
+                    Returns:
+                        None -> Modifies the dictionary in-place.
+                    """
+                    if (
+                        folder_item.get("type") == ObjectTypeOption.FOLDER
+                        and folder_item.get("child_count", 0) == 0
+                    ):
+                        try:
+                            meta = await self._fetch_file_metadata(
+                                folder_item.get("id")
+                            )
+                            folder_item["child_count"] = meta.get("folder", {}).get(
+                                "childCount", 0
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to fetch metadata for shared folder {folder_item.get('id')}: {e}"
+                            )
+
+                await asyncio.gather(
+                    *(enrich_child_count(item) for item in paginated_items)
+                )
+
             # Convert to ObjectMetadata format (flat list, no tree synthesis required)
             formatted_objects = []
             for item in paginated_items:
@@ -930,9 +1012,11 @@ class OneDriveClient:
                     "url": item.get("web_url"),
                     "object_type": item.get("type"),
                 }
-                if item.get("type") == "folder":
+                if item.get("type") == ObjectTypeOption.FOLDER:
                     base_metadata["folder_id"] = item.get("id")
-                    base_metadata["total_items_in_folder"] = item.get("child_count", 0)
+
+                    child_count = item.get("child_count", 0)
+                    base_metadata["total_items_in_folder"] = child_count
                     base_metadata["child_objects"] = None
                     base_metadata["items_in_page"] = None
                     base_metadata["total_pages_in_folder"] = None

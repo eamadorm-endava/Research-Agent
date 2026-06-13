@@ -1,10 +1,13 @@
 from unittest.mock import MagicMock, patch
 import pytest
-from app.onedrive_client import OneDriveClient
-from app.schemas import (
+from mcp_servers.onedrive.app.onedrive_client import OneDriveClient
+from mcp_servers.onedrive.app.schemas import (
     ListFolderContentsRequest,
     ReadFileRequest,
     SessionContext,
+    FindItemsRequest,
+    ObjectTypeOption,
+    MainFolder,
 )
 
 
@@ -17,7 +20,7 @@ def mock_access_token():
 
 @pytest.fixture
 def mock_gcs_connector():
-    with patch("app.onedrive_client.GCSConnector") as mock:
+    with patch("mcp_servers.onedrive.app.onedrive_client.GCSConnector") as mock:
         yield mock
 
 
@@ -197,3 +200,105 @@ async def test_fetch_all_items_deduplication(base_client):
         assert len(items) == 2
         assert items[0]["name"] == "Shared File 1"
         assert items[1]["name"] == "Regular File 2"
+
+
+@pytest.mark.asyncio
+async def test_list_folder_contents_shared_with_me_enrichment(base_client):
+    """
+    Tests that list_folder_contents on SHARED_WITH_ME fetches childCount metadata
+    for folders that are missing it.
+    """
+    request = ListFolderContentsRequest(
+        folder_id=MainFolder.SHARED_WITH_ME,
+        page=1,
+        use_cache=False,
+    )
+
+    mock_all_items = [
+        {
+            "id": "mock_folder_id",
+            "name": "Shared Folder",
+            "type": ObjectTypeOption.FOLDER,
+            "child_count": 0,
+            "folder_path": "/",
+            "creation_date": "Unknown",
+            "last_modified_date": "Unknown",
+            "owner": "Unknown",
+            "web_url": None,
+        }
+    ]
+
+    with patch.object(base_client, "_fetch_all_items", return_value=mock_all_items):
+        with patch.object(
+            base_client,
+            "_fetch_file_metadata",
+            return_value={"folder": {"childCount": 99}},
+        ) as mock_meta:
+            response = await base_client.list_folder_contents(request)
+
+            mock_meta.assert_called_once_with("mock_folder_id")
+            assert len(response.objects_found) == 1
+            # objects_found will be parsed as FolderMetadata, which has total_items_in_folder
+            assert response.objects_found[0].total_items_in_folder == 99
+
+
+@pytest.mark.asyncio
+async def test_find_items_synthesize_folder_id(base_client):
+    """
+    Tests that synthesized folders in find_items receive their actual folder_id
+    from the global_path_to_id mapping harvested from all_items.
+    """
+    request = FindItemsRequest(
+        main_folder=MainFolder.SHARED_WITH_ME, item_name="target_file", page=1
+    )
+
+    mock_all_items = [
+        {
+            "id": "real_folder_id",
+            "name": "unmatched_folder",
+            "type": ObjectTypeOption.FOLDER,
+            "folder_path": "/",
+            "creation_date": "Unknown",
+            "last_modified_date": "Unknown",
+            "owner": "Unknown",
+            "web_url": None,
+        },
+        {
+            "id": "file_123",
+            "name": "target_file.txt",
+            "type": ObjectTypeOption.FILE,
+            "folder_path": "/unmatched_folder",
+            "parent_id": "real_folder_id",
+            "creation_date": "Unknown",
+            "last_modified_date": "Unknown",
+            "owner": "Unknown",
+            "web_url": None,
+            "mime_type": "text/plain",
+        },
+        {
+            "id": "file_456",
+            "name": "target_file_2.txt",
+            "type": ObjectTypeOption.FILE,
+            "folder_path": "/another_folder",
+            "creation_date": "Unknown",
+            "last_modified_date": "Unknown",
+            "owner": "Unknown",
+            "web_url": None,
+            "mime_type": "text/plain",
+        },
+    ]
+
+    with patch.object(base_client, "_fetch_all_items", return_value=mock_all_items):
+        response = await base_client.find_items(request)
+
+        assert len(response.objects_found) == 2
+        folder_node = next(
+            f for f in response.objects_found if f.object_name == "unmatched_folder"
+        )
+        # It should synthesize the unmatched_folder and populate the real ID
+        assert folder_node.object_name == "unmatched_folder"
+        assert folder_node.folder_id == "real_folder_id"
+
+        assert len(folder_node.child_objects) == 1
+        file_node = folder_node.child_objects[0]
+        assert file_node.object_name == "target_file.txt"
