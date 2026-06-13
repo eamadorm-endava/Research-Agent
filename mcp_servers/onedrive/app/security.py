@@ -67,4 +67,4 @@ def create_onedrive_client() -> OneDriveClient:
         raise RuntimeError("No access token provided in request context")
 
     token_secret = SecretStr(token_obj.token)
-    return OneDriveClient(token=token_secret)
+    return OneDriveClient(access_token=token_secret)
