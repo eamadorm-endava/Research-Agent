@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import BaseDateFilterRequest, FindItemsRequest
+from mcp_servers.onedrive.app.schemas import BaseDateFilterRequest, FindItemsRequest
 
 
 def test_base_date_filter_request_created_date_window():
@@ -87,7 +87,7 @@ def test_item_name_tokens():
 
 def test_remove_leaf_nulls_serialization():
     """Test that setting attributes to None effectively removes them during serialization."""
-    from app.schemas import FolderMetadata
+    from mcp_servers.onedrive.app.schemas import FolderMetadata
 
     folder = FolderMetadata(
         folder_id="123",
@@ -116,7 +116,7 @@ def test_remove_leaf_nulls_serialization():
 
 def test_serialize_in_order():
     """Test that serialize_in_order enforces a strict structural key order."""
-    from app.schemas import FindItemsResponse, FolderMetadata
+    from mcp_servers.onedrive.app.schemas import FindItemsResponse, FolderMetadata
 
     folder = FolderMetadata(
         folder_id="123",
