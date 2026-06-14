@@ -179,6 +179,10 @@ verify-onedrive-ci:
 	$(MAKE) run-onedrive-precommit
 	$(MAKE) run-onedrive-tests
 	$(MAKE) build-onedrive-mcp-image
+	$(MAKE) test-onedrive-terraform
+
+test-onedrive-terraform:
+	cd terraform/onedrive_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### EKB Pipeline Commands ###
 
