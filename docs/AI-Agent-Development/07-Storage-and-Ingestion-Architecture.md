@@ -60,6 +60,29 @@ The MCP server itself is responsible for security, not the core agent engine:
    ```
 3. **Lifecycle Management**: The Landing Zone enforces an Object Lifecycle Management (OLM) rule to physically delete ephemeral files after 7 days.
 
+### Permissions & Rationale Flow
+
+```mermaid
+sequenceDiagram
+    participant OAuth as User/OAuth Token
+    participant MCP as MCP Server SA
+    participant GCS as GCS Landing Zone
+    participant Agent as Agent Engine SA (Vertex AI)
+
+    OAuth->>MCP: 1. File Obtained (User Permission Validated)
+    MCP->>GCS: 2. Zero-Copy Stream Upload (MCP SA)
+    MCP->>GCS: 2b. Grant IAM Access to User Namespace
+    Agent->>GCS: 3. Read File via gs:// URI (Agent SA)
+```
+
+#### Why use a Landing Zone instead of injecting External URIs directly?
+
+While standard developer APIs (like Google AI Studio) may allow passing public or pre-signed `https://` URLs directly into the LLM context, **Enterprise Vertex AI strictly prohibits this** for several critical security and compliance reasons:
+
+1. **Enterprise Compliance & VPC Service Controls (VPC-SC)**: Vertex AI enforces strict data residency and perimeter controls. By requiring `gs://` URIs, Google Cloud ensures the data never leaves your defined Virtual Private Cloud perimeter.
+2. **IAM Auditing**: Centralizing all file access through a single GCS Landing Zone guarantees that every file read by the Agent Engine is logged in Cloud Audit Logs. Direct HTTP fetches by the LLM bypass these logs.
+3. **IDOR Prevention & Dynamic Authorization**: External APIs often use temporary signed URLs that bypass identity checks once generated. By forcing the data through the Landing Zone, the system enforces our Dynamic Authorization rules (`resource.name.startsWith`), mathematically ensuring the Agent Engine Service Account can only read the file on behalf of the verified user's session.
+
 ---
 
 ## 2. Dependency Injection
