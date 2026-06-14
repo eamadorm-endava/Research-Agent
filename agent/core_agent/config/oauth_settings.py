@@ -37,7 +37,6 @@ class BaseOAuthConfig(BaseSettings):
     AUTH_URI: Annotated[
         str,
         Field(
-            default="https://accounts.google.com/o/oauth2/v2/auth",
             description=(
                 "The URL where the user is redirected to log in and grant permissions. "
                 "This is required for the first step of the OAuth 2.0 Authorization Code flow, "
@@ -48,7 +47,6 @@ class BaseOAuthConfig(BaseSettings):
     TOKEN_URI: Annotated[
         str,
         Field(
-            default="https://oauth2.googleapis.com/token",
             description=(
                 "The URL used by the application to exchange an authorization code for an access token (and refresh token). "
                 "This is required for the second step of the OAuth 2.0 Authorization Code flow, "
@@ -66,12 +64,37 @@ class BaseOAuthConfig(BaseSettings):
 
 
 class GoogleAuthConfig(BaseOAuthConfig):
+    """Configuration for Google OAuth 2.0 connection parameters."""
+
     model_config = SettingsConfigDict(
         env_prefix="GOOGLE_OAUTH_",
     )
 
+    AUTH_URI: Annotated[
+        str,
+        Field(
+            default="https://accounts.google.com/o/oauth2/v2/auth",
+            description=(
+                "The URL where the user is redirected to log in and grant permissions. "
+                "This is required for the first step of the OAuth 2.0 Authorization Code flow."
+            ),
+        ),
+    ]
+    TOKEN_URI: Annotated[
+        str,
+        Field(
+            default="https://oauth2.googleapis.com/token",
+            description=(
+                "The URL used by the application to exchange an authorization code for an access token (and refresh token). "
+                "This is required for the second step of the OAuth 2.0 Authorization Code flow."
+            ),
+        ),
+    ]
+
 
 class MicrosoftAuthConfig(BaseOAuthConfig):
+    """Configuration for Microsoft Entra OAuth 2.0 connection parameters."""
+
     model_config = SettingsConfigDict(
         env_prefix="MICROSOFT_OAUTH_",
     )
@@ -79,7 +102,7 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
     TENANT_ID: Annotated[
         str,
         Field(
-            default="common",
+            default="mock-tenant-id",
             description="Microsoft Entra Tenant ID.",
         ),
     ]
@@ -103,21 +126,15 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
             ),
         ),
     ]
-    TOKEN_ENDPOINT_AUTH_METHOD: Annotated[
-        str,
-        Field(
-            default="client_secret_basic",
-            description="Microsoft might require client_secret_post for many app registrations instead of basic auth.",
-        ),
-    ]
+    TOKEN_ENDPOINT_AUTH_METHOD: str = "client_secret_post"
 
     @model_validator(mode="after")
-    def update_uris_with_tenant(self) -> Self:
-        if self.TENANT_ID != "common":
-            if "common" in self.AUTH_URI:
-                self.AUTH_URI = self.AUTH_URI.replace("common", self.TENANT_ID)
-            if "common" in self.TOKEN_URI:
-                self.TOKEN_URI = self.TOKEN_URI.replace("common", self.TENANT_ID)
+    def construct_uris(self) -> Self:
+        """Dynamically injects the TENANT_ID into the OAuth URIs if they still contain 'common'."""
+        if "common" in self.AUTH_URI:
+            self.AUTH_URI = self.AUTH_URI.replace("common", self.TENANT_ID)
+        if "common" in self.TOKEN_URI:
+            self.TOKEN_URI = self.TOKEN_URI.replace("common", self.TENANT_ID)
         return self
 
 

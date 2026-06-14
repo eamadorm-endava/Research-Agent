@@ -1,18 +1,6 @@
 from google.adk.tools import load_artifacts
 
 from .builder import AgentBuilder, AppBuilder
-from .config import (
-    GCP_CONFIG,
-    COORDINATOR_CONFIG,
-    RESEARCH_AGENT_CONFIG,
-    INGESTION_AGENT_CONFIG,
-    BIGQUERY_MCP_CONFIG,
-    CALENDAR_MCP_CONFIG,
-    DRIVE_MCP_CONFIG,
-    GCS_MCP_CONFIG,
-    ONEDRIVE_MCP_CONFIG,
-)
-
 from .tools.artifact_tools import GetArtifactURITool
 from .tools.ekb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
 from .tools.time_tools import GetCurrentTimeTool
@@ -21,6 +9,29 @@ from loguru import logger
 from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
+from .config import (
+    GCP_CONFIG,
+    COORDINATOR_CONFIG,
+    RESEARCH_AGENT_CONFIG,
+    INGESTION_AGENT_CONFIG,
+    BigQueryMCPConfig,
+    CalendarMCPConfig,
+    DriveMCPConfig,
+    GCSMCPConfig,
+    OneDriveMCPConfig,
+    GOOGLE_AUTH_CONFIG,
+    MICROSOFT_AUTH_CONFIG,
+)
+
+# ---------------------------------------------------------------------------
+# MCP Configuration Instantiation
+# ---------------------------------------------------------------------------
+BIGQUERY_MCP_CONFIG = BigQueryMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
+DRIVE_MCP_CONFIG = DriveMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
+CALENDAR_MCP_CONFIG = CalendarMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
+GCS_MCP_CONFIG = GCSMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
+ONEDRIVE_MCP_CONFIG = OneDriveMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
+
 
 # ---------------------------------------------------------------------------
 # 1. Research & Meetings Specialist

@@ -1,51 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator, AliasChoices
-from enum import StrEnum
 from typing import Annotated, Optional, Union
 
-from .oauth_settings import BaseOAuthConfig, GOOGLE_AUTH_CONFIG, MICROSOFT_AUTH_CONFIG
-
-
-class DriveScopes(StrEnum):
-    """Enum for Google Drive OAuth scopes."""
-
-    DRIVE = "https://www.googleapis.com/auth/drive"
-
-
-class BigQueryScopes(StrEnum):
-    """Enum for Google BigQuery OAuth scopes."""
-
-    BIGQUERY = "https://www.googleapis.com/auth/bigquery"
-
-
-class CalendarScopes(StrEnum):
-    """Enum for Google Calendar OAuth scopes."""
-
-    CALENDAR_READONLY = "https://www.googleapis.com/auth/calendar.events.readonly"
-    MEET_READONLY = "https://www.googleapis.com/auth/meetings.space.readonly"
-
-
-class GCSScopes(StrEnum):
-    """Enum for Google Cloud Storage OAuth scopes."""
-
-    CLOUD_PLATFORM = "https://www.googleapis.com/auth/cloud-platform"
-    OPENID = "openid"
-    EMAIL = "email"
-
-
-def _scopes_to_dict(v: Union[list, dict[str, str]], description: str) -> dict[str, str]:
-    """Normalises OAUTH_SCOPES from a list of scope enums to the dict[scope_url, description] format.
-
-    Args:
-        v: Union[list, dict[str, str]] -> Raw field value: either already a dict or a list of enums.
-        description: str -> Human-readable description assigned to each scope URL.
-
-    Returns:
-        dict[str, str] -> Scope URL to description mapping required by McpToolset.
-    """
-    if isinstance(v, dict):
-        return v
-    return {scope.value: description for scope in v}
+from .oauth_settings import BaseOAuthConfig
 
 
 class BaseMCPConfig(BaseSettings):
@@ -72,6 +29,13 @@ class BaseMCPConfig(BaseSettings):
             description="The OAuth 2.0 configuration for this MCP server.",
         ),
     ]
+    OAUTH_SCOPES: Annotated[
+        Union[dict[str, str], list[str]],
+        Field(
+            default_factory=list,
+            description="OAuth scopes requested by the agent.",
+        ),
+    ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
@@ -79,42 +43,48 @@ class BaseMCPConfig(BaseSettings):
             description="The ID of the shared delegated OAuth authorization resource registered in Gemini Enterprise.",
         ),
     ]
-
-
-class BigQueryMCPConfig(BaseMCPConfig):
-    """Configuration for the BigQuery MCP server."""
-
     URL: Annotated[
         str,
         Field(
-            default="http://localhost:8080",
-            description="BigQuery MCP Server URL",
-            validation_alias="BIGQUERY_URL",
+            default="http://localhost",
+            description="The URL for the MCP server.",
         ),
     ]
     ENDPOINT: Annotated[
         str,
         Field(
             default="/mcp",
-            description="BigQuery MCP Server Endpoint",
-            validation_alias="BIGQUERY_ENDPOINT",
+            description="The endpoint for the MCP server.",
         ),
     ]
-    OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[BigQueryScopes]],
-        Field(
-            default=[BigQueryScopes.BIGQUERY],
-            description="OAuth scopes requested by the agent.",
-            validation_alias="BIGQUERY_OAUTH_SCOPES",
-        ),
-    ]
-    OAUTH_CONFIG: Annotated[
-        Optional[BaseOAuthConfig],
-        Field(
-            default_factory=lambda: GOOGLE_AUTH_CONFIG,
-            description="OAuth configuration instance for Google.",
-        ),
-    ]
+
+    @field_validator("OAUTH_SCOPES", mode="after")
+    @classmethod
+    def validate_oauth_scopes(
+        cls, v: Union[list[str], dict[str, str]]
+    ) -> dict[str, str]:
+        """
+        Normalises OAUTH_SCOPES from a list of scopes to the dict format.
+
+        Args:
+            v: Union[list[str], dict[str, str]] -> Raw field value: either already a dict or a list of scopes.
+
+        Returns:
+            dict[str, str] -> Scope URL to description mapping required by McpToolset.
+        """
+        if isinstance(v, dict):
+            return v
+        description = f"{cls.__name__.replace('MCPConfig', '').lower()} access"
+        return {scope: description for scope in v}
+
+
+class BigQueryMCPConfig(BaseMCPConfig):
+    """Configuration for the BigQuery MCP server."""
+
+    model_config = SettingsConfigDict(env_prefix="BIGQUERY_")
+
+    URL: str = "http://localhost:8080"
+    OAUTH_SCOPES: list[str] = ["https://www.googleapis.com/auth/bigquery"]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
@@ -127,48 +97,14 @@ class BigQueryMCPConfig(BaseMCPConfig):
         ),
     ]
 
-    @field_validator("OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_oauth_scopes(
-        cls, v: Union[list[BigQueryScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        return _scopes_to_dict(v, "google bigquery access")
-
 
 class DriveMCPConfig(BaseMCPConfig):
     """Configuration for the Google Drive MCP server."""
 
-    URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8081",
-            description="Google Drive MCP Server URL",
-            validation_alias="DRIVE_URL",
-        ),
-    ]
-    ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="Google Drive MCP Server Endpoint",
-            validation_alias="DRIVE_ENDPOINT",
-        ),
-    ]
-    OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[DriveScopes]],
-        Field(
-            default=[DriveScopes.DRIVE],
-            description="OAuth scopes requested by the agent.",
-            validation_alias="DRIVE_OAUTH_SCOPES",
-        ),
-    ]
-    OAUTH_CONFIG: Annotated[
-        Optional[BaseOAuthConfig],
-        Field(
-            default_factory=lambda: GOOGLE_AUTH_CONFIG,
-            description="OAuth configuration instance for Google.",
-        ),
-    ]
+    model_config = SettingsConfigDict(env_prefix="DRIVE_")
+
+    URL: str = "http://localhost:8081"
+    OAUTH_SCOPES: list[str] = ["https://www.googleapis.com/auth/drive"]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
@@ -181,50 +117,16 @@ class DriveMCPConfig(BaseMCPConfig):
         ),
     ]
 
-    @field_validator("OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_oauth_scopes(
-        cls, v: Union[list[DriveScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        return _scopes_to_dict(v, "google drive access")
-
 
 class CalendarMCPConfig(BaseMCPConfig):
     """Configuration for the Google Calendar MCP server."""
 
-    URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8083",
-            description="Google Calendar MCP Server URL",
-            validation_alias="CALENDAR_URL",
-        ),
-    ]
-    ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="Google Calendar MCP Server Endpoint",
-            validation_alias="CALENDAR_ENDPOINT",
-        ),
-    ]
-    OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[CalendarScopes]],
-        Field(
-            default=[
-                CalendarScopes.CALENDAR_READONLY,
-                CalendarScopes.MEET_READONLY,
-            ],
-            description="OAuth scopes requested by the agent.",
-            validation_alias="CALENDAR_OAUTH_SCOPES",
-        ),
-    ]
-    OAUTH_CONFIG: Annotated[
-        Optional[BaseOAuthConfig],
-        Field(
-            default_factory=lambda: GOOGLE_AUTH_CONFIG,
-            description="OAuth configuration instance for Google.",
-        ),
+    model_config = SettingsConfigDict(env_prefix="CALENDAR_")
+
+    URL: str = "http://localhost:8083"
+    OAUTH_SCOPES: list[str] = [
+        "https://www.googleapis.com/auth/calendar.events.readonly",
+        "https://www.googleapis.com/auth/meetings.space.readonly",
     ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
@@ -235,51 +137,17 @@ class CalendarMCPConfig(BaseMCPConfig):
         ),
     ]
 
-    @field_validator("OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_oauth_scopes(
-        cls, v: Union[list[CalendarScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        return _scopes_to_dict(v, "google calendar access")
-
 
 class GCSMCPConfig(BaseMCPConfig):
     """Configuration for the Google Cloud Storage MCP server."""
 
-    URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8082",
-            description="GCS MCP Server URL",
-            validation_alias="GCS_URL",
-        ),
-    ]
-    ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="GCS MCP Server Endpoint",
-            validation_alias="GCS_ENDPOINT",
-        ),
-    ]
-    OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[GCSScopes]],
-        Field(
-            default=[
-                GCSScopes.CLOUD_PLATFORM,
-                GCSScopes.OPENID,
-                GCSScopes.EMAIL,
-            ],
-            description="OAuth scopes requested by the agent.",
-            validation_alias="GCS_OAUTH_SCOPES",
-        ),
-    ]
-    OAUTH_CONFIG: Annotated[
-        Optional[BaseOAuthConfig],
-        Field(
-            default_factory=lambda: GOOGLE_AUTH_CONFIG,
-            description="OAuth configuration instance for Google.",
-        ),
+    model_config = SettingsConfigDict(env_prefix="GCS_")
+
+    URL: str = "http://localhost:8082"
+    OAUTH_SCOPES: list[str] = [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "openid",
+        "email",
     ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
@@ -293,59 +161,17 @@ class GCSMCPConfig(BaseMCPConfig):
         ),
     ]
 
-    @field_validator("OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_oauth_scopes(
-        cls, v: Union[list[GCSScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        return _scopes_to_dict(v, "google cloud storage access")
-
-
-class OneDriveScopes(StrEnum):
-    """Enum for Microsoft OneDrive OAuth scopes."""
-
-    FILES_READ = "Files.Read.All"
-    OFFLINE_ACCESS = "offline_access"
-    SITES_READ = "Sites.Read.All"
-
 
 class OneDriveMCPConfig(BaseMCPConfig):
     """Configuration for the Microsoft OneDrive MCP server."""
 
-    URL: Annotated[
-        str,
-        Field(
-            default="http://localhost:8084",
-            description="Microsoft OneDrive MCP Server URL",
-            validation_alias="ONEDRIVE_URL",
-        ),
-    ]
-    ENDPOINT: Annotated[
-        str,
-        Field(
-            default="/mcp",
-            description="Microsoft OneDrive MCP Server Endpoint",
-            validation_alias="ONEDRIVE_ENDPOINT",
-        ),
-    ]
-    OAUTH_SCOPES: Annotated[
-        Union[dict[str, str], list[OneDriveScopes]],
-        Field(
-            default=[
-                OneDriveScopes.FILES_READ,
-                OneDriveScopes.SITES_READ,
-                OneDriveScopes.OFFLINE_ACCESS,
-            ],
-            description="OAuth scopes requested by the agent.",
-            validation_alias="ONEDRIVE_OAUTH_SCOPES",
-        ),
-    ]
-    OAUTH_CONFIG: Annotated[
-        Optional[BaseOAuthConfig],
-        Field(
-            default_factory=lambda: MICROSOFT_AUTH_CONFIG,
-            description="OAuth configuration instance for Microsoft.",
-        ),
+    model_config = SettingsConfigDict(env_prefix="ONEDRIVE_")
+
+    URL: str = "http://localhost:8084"
+    OAUTH_SCOPES: list[str] = [
+        "Files.Read.All",
+        "Sites.Read.All",
+        "offline_access",
     ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
@@ -358,18 +184,3 @@ class OneDriveMCPConfig(BaseMCPConfig):
             ),
         ),
     ]
-
-    @field_validator("OAUTH_SCOPES", mode="after")
-    @classmethod
-    def validate_oauth_scopes(
-        cls, v: Union[list[OneDriveScopes], dict[str, str]]
-    ) -> dict[str, str]:
-        return _scopes_to_dict(v, "microsoft onedrive access")
-
-
-# Global MCP configuration instances
-BIGQUERY_MCP_CONFIG = BigQueryMCPConfig()
-DRIVE_MCP_CONFIG = DriveMCPConfig()
-CALENDAR_MCP_CONFIG = CalendarMCPConfig()
-GCS_MCP_CONFIG = GCSMCPConfig()
-ONEDRIVE_MCP_CONFIG = OneDriveMCPConfig()
