@@ -304,7 +304,9 @@ class GCSMCPConfig(BaseMCPConfig):
 class OneDriveScopes(StrEnum):
     """Enum for Microsoft OneDrive OAuth scopes."""
 
-    ONEDRIVE = "Files.Read.All"
+    FILES_READ = "Files.Read.All"
+    OFFLINE_ACCESS = "offline_access"
+    SITES_READ = "Sites.Read.All"
 
 
 class OneDriveMCPConfig(BaseMCPConfig):
@@ -329,7 +331,11 @@ class OneDriveMCPConfig(BaseMCPConfig):
     OAUTH_SCOPES: Annotated[
         Union[dict[str, str], list[OneDriveScopes]],
         Field(
-            default=[OneDriveScopes.ONEDRIVE],
+            default=[
+                OneDriveScopes.FILES_READ,
+                OneDriveScopes.SITES_READ,
+                OneDriveScopes.OFFLINE_ACCESS,
+            ],
             description="OAuth scopes requested by the agent.",
             validation_alias="ONEDRIVE_OAUTH_SCOPES",
         ),

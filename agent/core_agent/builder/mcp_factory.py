@@ -58,6 +58,7 @@ class MCPToolsetBuilder:
                 client_id=mcp_config.OAUTH_CONFIG.CLIENT_ID,
                 client_secret=mcp_config.OAUTH_CONFIG.CLIENT_SECRET,
                 redirect_uri=mcp_config.OAUTH_CONFIG.REDIRECT_URI,
+                token_endpoint_auth_method=mcp_config.OAUTH_CONFIG.TOKEN_ENDPOINT_AUTH_METHOD,
             ),
         )
         return {"auth_scheme": auth_scheme, "auth_credential": auth_credential}
