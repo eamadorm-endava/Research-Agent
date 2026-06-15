@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch, MagicMock
 
-from agent.core_agent.config import BigQueryMCPConfig, GCSMCPConfig
+from agent.core_agent.config import BigQueryMCPConfig, GCSMCPConfig, GoogleAuthConfig
 from agent.core_agent.builder.mcp_factory import MCPToolsetBuilder
 
 
@@ -18,6 +18,13 @@ def test_get_mcp_toolset_local_with_scopes():
     """Test factory creates a tool with correct local Auth Scheme structures."""
     with patch.dict(os.environ, clear=True):
         mcp_config = BigQueryMCPConfig()
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            AUTH_URI="https://mock.auth.com",
+            TOKEN_URI="https://mock.token.com",
+        )
 
     builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=False)
@@ -33,6 +40,13 @@ def test_get_mcp_toolset_local_with_gcs_scopes():
     """Test factory creates a GCS tool with delegated OAuth locally."""
     with patch.dict(os.environ, clear=True):
         mcp_config = GCSMCPConfig()
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            AUTH_URI="https://mock.auth.com",
+            TOKEN_URI="https://mock.token.com",
+        )
 
     builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=False)
