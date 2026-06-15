@@ -454,57 +454,8 @@ class IngestionAgentConfig(BaseAgentConfig):
     ]
 
 
-class GoogleAuthConfig(BaseSettings):
-    """Holds shared Google OAuth 2.0 credentials used across all MCP server connections."""
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-        validate_assignment=True,
-    )
-
-    GOOGLE_OAUTH_CLIENT_ID: Annotated[
-        str,
-        Field(
-            default="mock-oauth-client-id",
-            description="Shared OAuth 2.0 Client ID for Google APIs used by the agent.",
-        ),
-    ]
-    GOOGLE_OAUTH_CLIENT_SECRET: Annotated[
-        str,
-        Field(
-            default="mock-oauth-client-secret",
-            description="Shared OAuth 2.0 Client Secret for Google APIs used by the agent.",
-        ),
-    ]
-    GOOGLE_OAUTH_REDIRECT_URI: Annotated[
-        str,
-        Field(
-            default="http://localhost:8000/dev-ui",
-            description="Shared OAuth 2.0 Redirect URI for Google APIs used by the agent.",
-        ),
-    ]
-    GOOGLE_OAUTH_AUTH_URI: Annotated[
-        str,
-        Field(
-            default="https://accounts.google.com/o/oauth2/v2/auth",
-            description="Shared OAuth 2.0 authorization URL for Google APIs used by the agent.",
-        ),
-    ]
-    GOOGLE_OAUTH_TOKEN_URI: Annotated[
-        str,
-        Field(
-            default="https://oauth2.googleapis.com/token",
-            description="Shared OAuth 2.0 token URL for Google APIs used by the agent.",
-        ),
-    ]
-
-
-# Global configuration instances
 # Global configuration instances
 GCP_CONFIG = GCPConfig()
 COORDINATOR_CONFIG = CoordinatorConfig()
 RESEARCH_AGENT_CONFIG = ResearchAgentConfig()
 INGESTION_AGENT_CONFIG = IngestionAgentConfig()
-GOOGLE_AUTH_CONFIG = GoogleAuthConfig()

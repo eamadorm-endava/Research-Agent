@@ -26,7 +26,7 @@ from google.genai.types import (
 )
 from loguru import logger
 
-from ..config import BaseAgentConfig, BaseMCPConfig, GCPConfig, GoogleAuthConfig
+from ..config import BaseAgentConfig, BaseMCPConfig, GCPConfig
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill
 
@@ -38,18 +38,16 @@ class AgentBuilder:
         self,
         agent_config: BaseAgentConfig,
         gcp_config: GCPConfig,
-        auth_config: GoogleAuthConfig,
     ) -> None:
         """Initializes the AgentBuilder, configures the VertexAI client, and sets up the MCP toolset builder.
 
         Args:
             agent_config: BaseAgentConfig -> Core agent behavioural settings.
             gcp_config: GCPConfig -> Google Cloud Platform project settings.
-            auth_config: GoogleAuthConfig -> Shared authentication parameters.
         """
         self.agent_config: BaseAgentConfig = agent_config
         self.gcp_config: GCPConfig = gcp_config
-        self._mcp_builder: MCPToolsetBuilder = MCPToolsetBuilder(auth_config)
+        self._mcp_builder: MCPToolsetBuilder = MCPToolsetBuilder()
         self._registered_tools: list[Union[BaseTool, FunctionTool, BaseToolset]] = []
         self._sub_agents: list[Agent] = []
         self._skills: list[str] = []
