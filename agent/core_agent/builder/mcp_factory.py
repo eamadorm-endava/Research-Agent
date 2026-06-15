@@ -96,7 +96,7 @@ class MCPToolsetBuilder:
             }
 
             # Inject GE-managed OAuth token only in production for servers with Auth IDs
-            if prod_execution and getattr(mcp_config, "GEMINI_AUTH_ID", None):
+            if prod_execution and mcp_config.GEMINI_AUTH_ID:
                 headers["Authorization"] = (
                     f"Bearer {get_ge_oauth_token(ctx, mcp_config.GEMINI_AUTH_ID)}"
                 )
