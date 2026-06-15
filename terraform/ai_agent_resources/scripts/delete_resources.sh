@@ -17,6 +17,8 @@ while [[ "$#" -gt 0 ]]; do
         --agent-display-name) AGENT_DISPLAY_NAME="$2"; shift ;;
         --auth-ids) AUTH_IDS="$2"; shift ;;
         --engine-id) ENGINE_ID="$2"; shift ;;
+        --delete-secrets) SECRETS="$2"; shift ;;
+        --oauth-clients) OAUTH_CLIENTS="$2"; shift ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
@@ -25,7 +27,7 @@ done
 # Mandatory parameter validation
 if [ -z "$PROJECT_ID" ] || [ -z "$APP_ID" ] || [ -z "$AGENT_DISPLAY_NAME" ] || [ -z "$AUTH_IDS" ] || [ -z "$ENGINE_ID" ]; then
     echo "Error: Missing mandatory parameters."
-    echo "Usage: $0 --project <ID> --app-id <ID> --agent-display-name <NAME> --auth-ids <ID1,ID2,...> --engine-id <ID> [--location <REGION>]"
+    echo "Usage: $0 --project <ID> --app-id <ID> --agent-display-name <NAME> --auth-ids <ID1,ID2,...> --engine-id <ID> [--location <REGION>] [--delete-secrets <S1,S2,...>] [--oauth-clients <C1,C2,...>]"
     exit 1
 fi
 
@@ -67,5 +69,29 @@ echo "[Step 5/5] Executing terraform destroy..."
 pushd "$SCRIPT_DIR/.." > /dev/null
 terraform destroy -auto-approve -var="project_id=$PROJECT_ID"
 popd > /dev/null
+
+if [ -n "$SECRETS" ]; then
+    echo ""
+    echo "[Step 6] Deleting secrets from Secret Manager..."
+    IFS=',' read -ra SECRET_ARRAY <<< "$SECRETS"
+    for SECRET in "${SECRET_ARRAY[@]}"; do
+        if [ -n "$SECRET" ]; then
+            echo "Deleting secret: $SECRET"
+            gcloud secrets delete "$SECRET" --project "$PROJECT_ID" --quiet || echo "Warning: Failed to delete $SECRET or it doesn't exist."
+        fi
+    done
+fi
+
+if [ -n "$OAUTH_CLIENTS" ]; then
+    echo ""
+    echo "[Step 7] Deleting OAuth Clients..."
+    IFS=',' read -ra CLIENT_ARRAY <<< "$OAUTH_CLIENTS"
+    for CLIENT in "${CLIENT_ARRAY[@]}"; do
+        if [ -n "$CLIENT" ]; then
+            echo "Deleting OAuth client: $CLIENT"
+            gcloud iam oauth-clients delete "$CLIENT" --project "$PROJECT_ID" --quiet || echo "Warning: Failed to delete OAuth client $CLIENT or it doesn't exist."
+        fi
+    done
+fi
 
 echo "--- Cleanup completed successfully! ---"
