@@ -84,7 +84,9 @@ class BigQueryMCPConfig(BaseMCPConfig):
     model_config = SettingsConfigDict(env_prefix="BIGQUERY_")
 
     URL: str = "http://localhost:8080"
-    OAUTH_SCOPES: list[str] = ["https://www.googleapis.com/auth/bigquery"]
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
+        "https://www.googleapis.com/auth/bigquery"
+    ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
@@ -104,7 +106,9 @@ class DriveMCPConfig(BaseMCPConfig):
     model_config = SettingsConfigDict(env_prefix="DRIVE_")
 
     URL: str = "http://localhost:8081"
-    OAUTH_SCOPES: list[str] = ["https://www.googleapis.com/auth/drive"]
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
+        "https://www.googleapis.com/auth/drive"
+    ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
@@ -124,7 +128,7 @@ class CalendarMCPConfig(BaseMCPConfig):
     model_config = SettingsConfigDict(env_prefix="CALENDAR_")
 
     URL: str = "http://localhost:8083"
-    OAUTH_SCOPES: list[str] = [
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
         "https://www.googleapis.com/auth/calendar.events.readonly",
         "https://www.googleapis.com/auth/meetings.space.readonly",
     ]
@@ -144,7 +148,7 @@ class GCSMCPConfig(BaseMCPConfig):
     model_config = SettingsConfigDict(env_prefix="GCS_")
 
     URL: str = "http://localhost:8082"
-    OAUTH_SCOPES: list[str] = [
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
         "https://www.googleapis.com/auth/cloud-platform",
         "openid",
         "email",
@@ -168,7 +172,7 @@ class OneDriveMCPConfig(BaseMCPConfig):
     model_config = SettingsConfigDict(env_prefix="ONEDRIVE_")
 
     URL: str = "http://localhost:8084"
-    OAUTH_SCOPES: list[str] = [
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
         "Files.Read.All",
         "Sites.Read.All",
         "offline_access",
