@@ -23,7 +23,6 @@ from .mcp_settings import (
     DriveMCPConfig,
     GCSMCPConfig,
     OneDriveMCPConfig,
-    AtlassianMCPConfig,
 )
 
 __all__ = [
@@ -41,7 +40,6 @@ __all__ = [
     "DriveMCPConfig",
     "GCSMCPConfig",
     "OneDriveMCPConfig",
-    "AtlassianMCPConfig",
     "GCP_CONFIG",
     "COORDINATOR_CONFIG",
     "RESEARCH_AGENT_CONFIG",
