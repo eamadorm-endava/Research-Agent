@@ -32,6 +32,7 @@ verify-all-ci:
 	$(MAKE) verify-calendar-ci
 	$(MAKE) verify-onedrive-ci
 	$(MAKE) verify-ekb-ci
+	$(MAKE) verify-atlassian-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -204,3 +205,36 @@ verify-ekb-ci:
 
 test-ekb-terraform:
 	cd terraform/ekb_pipeline_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### Atlassian MCP Commands ###
+
+run-atlassian-precommit:
+	uvx pre-commit run --files mcp_servers/atlassian/**/*
+
+run-atlassian-tests:
+	uv run --group mcp_atlassian pytest mcp_servers/atlassian/tests/
+
+run-atlassian-mcp-locally:
+	uv run --group mcp_atlassian python -m mcp_servers.atlassian.app.main --host localhost --port 8085
+
+run-atlassian-mcp-smoke:
+	uv run --group mcp_atlassian python mcp_servers/atlassian/scripts/mcp_smoke_test.py --endpoint http://localhost:8085/mcp
+
+run-atlassian-mcp-test-client:
+	uv run --group mcp_atlassian python mcp_servers/atlassian/scripts/test_mcp_client.py
+
+build-atlassian-mcp-image:
+	docker build -t test-atlassian-mcp-server -f mcp_servers/atlassian/Dockerfile .
+
+verify-atlassian-ci:
+	$(MAKE) run-atlassian-precommit
+	$(MAKE) run-atlassian-tests
+	$(MAKE) run-atlassian-mcp-test-client
+	$(MAKE) test-agent-atlassian
+	$(MAKE) build-atlassian-mcp-image
+
+test-agent-atlassian:
+	uv run pytest agent/tests/test_agent_atlassian_mcp.py -v
+
+verify-agent-atlassian-tools:
+	uv run --group mcp_atlassian --group dev python agent/tests/verify_agent_atlassian_tools.py

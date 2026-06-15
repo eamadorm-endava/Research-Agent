@@ -3555,6 +3555,15 @@ ekb-integration = [
     { name = "pymupdf" },
     { name = "uvicorn" },
 ]
+mcp-atlassian = [
+    { name = "google-auth" },
+    { name = "google-cloud-storage" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "mcp" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+]
 mcp-bq = [
     { name = "google-cloud-bigquery" },
     { name = "mcp" },
@@ -3652,6 +3661,15 @@ ekb-integration = [
     { name = "pydantic-settings", specifier = ">=2.13.1" },
     { name = "pymupdf", specifier = ">=1.24.1" },
     { name = "uvicorn", specifier = ">=0.41.0" },
+]
+mcp-atlassian = [
+    { name = "google-auth", specifier = ">=2.0.0" },
+    { name = "google-cloud-storage", specifier = ">=2.14.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "mcp", specifier = ">=1.26.0" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pydantic-settings", specifier = ">=2.13.1" },
 ]
 mcp-bq = [
     { name = "google-cloud-bigquery", specifier = ">=3.20.0" },
