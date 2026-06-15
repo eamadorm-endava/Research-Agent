@@ -109,7 +109,7 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
     AUTH_URI: Annotated[
         str,
         Field(
-            default="https://login.microsoftonline.com/common/oauth2/v2.0/authorize?response_mode=query",
+            default="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
             description=(
                 "The URL where the user is redirected to log in and grant permissions. "
                 "This is required for the first step of the OAuth 2.0 Authorization Code flow."
