@@ -126,7 +126,7 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
             ),
         ),
     ]
-    TOKEN_ENDPOINT_AUTH_METHOD: str = "client_secret_post"
+    # TOKEN_ENDPOINT_AUTH_METHOD: str = "client_secret_post"
 
     @model_validator(mode="after")
     def construct_uris(self) -> Self:
