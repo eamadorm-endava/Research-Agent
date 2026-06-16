@@ -1,7 +1,6 @@
 import base64
 import io
 import re
-from typing import Any, Optional
 import httpx
 from loguru import logger
 
@@ -60,7 +59,10 @@ def html_to_markdown(html_content: str) -> str:
 
     # Replace links
     html = re.sub(
-        r'<a[^>]*href=["\'](.*?)["\'][^>]*>(.*?)</a>', r"[\2](\1)", html, flags=re.DOTALL
+        r'<a[^>]*href=["\'](.*?)["\'][^>]*>(.*?)</a>',
+        r"[\2](\1)",
+        html,
+        flags=re.DOTALL,
     )
 
     # Replace lists
@@ -524,9 +526,7 @@ class ConfluenceClient:
         self, request: CreateConfluencePageCommentRequest
     ) -> CreateConfluencePageCommentResponse:
         """Create a comment on a Confluence page."""
-        url = (
-            f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
-        )
+        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
         payload = {
             "status": "current",
             "body": {"representation": "storage", "value": request.body_html},
