@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # --- Configuration ---
 
 #service accounts and IAM roles (exported for use in sub-scripts)
-export PROJECT_ID="prd-ge-prod-endava-01-yd8e-1"
+export PROJECT_ID="host-ge-prod-endava-01-yd8e"
 export SA_NAME="terraform-sa-gemini-project"
 export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 USER_EMAIL="emmanuel.amador@endava.com"
@@ -25,6 +25,7 @@ REPO_OWNER="eamadorm-endava"
 BRANCH_NAME="" # Your specific development branch
 export GITHUB_REGION="us-central1"
 export GITHUB_CONNECTION_NAME="eamadorm-github-connection"
+export REPOSITORY_SLUG="${REPO_OWNER}-${REPO_NAME}"
 APPLY_SHARED_RESOURCES="${APPLY_SHARED_RESOURCES:-true}"
 
 echo "Starting bootstrap for project: $PROJECT_ID"

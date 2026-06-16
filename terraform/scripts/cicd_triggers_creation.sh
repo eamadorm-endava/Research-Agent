@@ -5,15 +5,15 @@ set -euo pipefail
 # One-time Cloud Build trigger setup for AI Agent and MCP servers (BQ + GCS + Drive).
 # It is safe to re-run: existing triggers are detected and skipped.
 
-PROJECT_ID="prd-ge-prod-endava-01-yd8e-1"
+# Require essential variables from the environment (e.g. from bootstrap.sh)
+if [[ -z "${PROJECT_ID:-}" ]]; then echo "Error: PROJECT_ID environment variable is missing."; exit 1; fi
+if [[ -z "${SA_NAME:-}" ]]; then echo "Error: SA_NAME environment variable is missing."; exit 1; fi
+if [[ -z "${SA_EMAIL:-}" ]]; then echo "Error: SA_EMAIL environment variable is missing."; exit 1; fi
+if [[ -z "${GITHUB_REGION:-}" ]]; then echo "Error: GITHUB_REGION environment variable is missing."; exit 1; fi
+if [[ -z "${GITHUB_CONNECTION_NAME:-}" ]]; then echo "Error: GITHUB_CONNECTION_NAME environment variable is missing."; exit 1; fi
+if [[ -z "${REPOSITORY_SLUG:-}" ]]; then echo "Error: REPOSITORY_SLUG environment variable is missing."; exit 1; fi
+
 PROJECT_NUMBER="${PROJECT_NUMBER:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')}"
-
-SA_NAME="${SA_NAME:-terraform-sa-gemini-project}"
-SA_EMAIL="${SA_EMAIL:-${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com}"
-
-GITHUB_REGION="${GITHUB_REGION:-us-central1}"
-GITHUB_CONNECTION_NAME="eamadorm-github-connection"
-REPOSITORY_SLUG="${REPOSITORY_SLUG:-eamadorm-endava-Research-Agent}"
 
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
 PUSH_BRANCH_REGEX="${PUSH_BRANCH_REGEX:-^main$}"
@@ -29,7 +29,8 @@ trigger_exists() {
   local name="$1"
   gcloud builds triggers describe "$name" \
     --project="$PROJECT_ID" \
-    --region="$GITHUB_REGION" >/dev/null 2>&1
+    --region="$GITHUB_REGION" \
+    --quiet >/dev/null 2>&1
 }
 
 delete_trigger() {
