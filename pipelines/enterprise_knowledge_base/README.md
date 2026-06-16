@@ -133,4 +133,4 @@ bash pipelines/enterprise_knowledge_base/delete_resources.sh <your-project-id>
 ```bash
 uv run --group rag_pipeline --group classification_pipeline python -m pipelines.enterprise_knowledge_base.orchestrator <project_id> <gcs_uri>
 ```
- 
+  
