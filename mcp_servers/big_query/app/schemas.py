@@ -42,6 +42,42 @@ ROWS = Annotated[
 ]
 
 
+class AgentDependencies(BaseModel):
+    app_name: Annotated[
+        str,
+        Field(
+            description="The name of the calling application or agent.",
+        ),
+    ]
+    user_id: Annotated[
+        str,
+        Field(
+            description="The unique identifier of the user using the agent",
+        ),
+    ]
+    session_id: Annotated[
+        str,
+        Field(
+            description="The current session or conversation ID with the agent",
+        ),
+    ]
+
+
+class BaseRequest(BaseModel):
+    dependencies: Annotated[
+        Optional[AgentDependencies],
+        Field(
+            default=None,
+            exclude=True,
+            description=(
+                """
+                Parameters that needs to be injected by the framework. The LLM will not see this parameters due to exclude = True to avoid LLM hallucinations.
+                """
+            ),
+        ),
+    ]
+
+
 class BaseResponse(BaseModel):
     """
     Base response model for all BigQuery tools.
@@ -63,7 +99,7 @@ class AuthenticationError(Exception):
     """Raised when delegated OAuth authentication fails."""
 
 
-class GetTableSchemaRequest(BaseModel):
+class GetTableSchemaRequest(BaseRequest):
     """
     Request model for retrieving table schema.
     """
@@ -80,7 +116,7 @@ class GetTableSchemaResponse(GetTableSchemaRequest, BaseResponse):
     fields: SCHEMA_DEFINITION
 
 
-class CreateDatasetRequest(BaseModel):
+class CreateDatasetRequest(BaseRequest):
     """
     Request model for creating a dataset.
     """
@@ -98,7 +134,7 @@ class CreateDatasetResponse(CreateDatasetRequest, BaseResponse):
     pass
 
 
-class ListDatasetsRequest(BaseModel):
+class ListDatasetsRequest(BaseRequest):
     """
     Request model for listing datasets.
     """
@@ -112,7 +148,7 @@ class ListDatasetsResponse(ListDatasetsRequest, BaseResponse):
     datasets: Annotated[List[str], Field(description="A list of dataset ID strings.")]
 
 
-class CreateTableRequest(BaseModel):
+class CreateTableRequest(BaseRequest):
     """
     Request model for creating a table.
     """
@@ -133,7 +169,7 @@ class CreateTableResponse(CreateTableRequest, BaseResponse):
     pass
 
 
-class ListTablesRequest(BaseModel):
+class ListTablesRequest(BaseRequest):
     """
     Request model for listing tables.
     """
@@ -149,7 +185,7 @@ class ListTablesResponse(ListTablesRequest, BaseResponse):
     tables: Annotated[List[str], Field(description="A list of table ID strings.")]
 
 
-class AddRowsRequest(BaseModel):
+class AddRowsRequest(BaseRequest):
     """
     Request model for inserting rows into a table.
     """
@@ -168,7 +204,7 @@ class AddRowsResponse(AddRowsRequest, BaseResponse):
     pass
 
 
-class ExecuteQueryRequest(BaseModel):
+class ExecuteQueryRequest(BaseRequest):
     """
     Request model for executing a SQL query.
     """
@@ -195,7 +231,7 @@ class ExecuteQueryResponse(ExecuteQueryRequest, BaseResponse):
     results: ROWS
 
 
-class SemanticSearchRequest(BaseModel):
+class SemanticSearchRequest(BaseRequest):
     """
     Request model for performing a semantic search against the knowledge base.
     """
@@ -231,7 +267,7 @@ class SemanticSearchResponse(BaseResponse):
     results: ROWS
 
 
-class KeywordSearchRequest(BaseModel):
+class KeywordSearchRequest(BaseRequest):
     """
     Request model for a deterministic keyword search against knowledge base chunks.
     """
