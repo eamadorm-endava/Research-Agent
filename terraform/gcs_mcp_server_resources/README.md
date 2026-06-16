@@ -171,4 +171,3 @@ mcp_server_cloud_run_name       = "gcs-mcp-server"
 | `mcp_server_iam_project_roles` | List of roles to be assigned to the ADK service account on the project. | `list(string)` | `[]` | no |
 | `landing_zone_bucket` | The name of the GCS bucket used as the landing zone for user uploads. | `string` | n/a | yes |
 | `kb_ingestion_bucket` | The name of the GCS bucket used for KB ingestion. | `string` | n/a | yes |
-

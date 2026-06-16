@@ -66,3 +66,4 @@ chmod +x terraform/scripts/cicd_triggers_creation.sh
 | `mcp_server_cloud_run_name` | The physical name of the GCP Cloud Run service in the console. | `string` | n/a | yes |
 | `mcp_server_cloud_run_image_tag` | The tag/sha of the Docker image to deploy dynamically on Cloud Run. | `string` | n/a | yes |
 | `mcp_server_cloud_run_env` | Environment parameters mapped directly into Cloud Run. | `map(string)` | `{}` | no | 
+ 
