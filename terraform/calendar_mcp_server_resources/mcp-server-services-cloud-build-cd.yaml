@@ -8,7 +8,7 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
     args:
       - '-c'
       - |
@@ -25,7 +25,7 @@ steps:
       - '-var=main_region=${_REGION}'
       - '-target=module.enable_apis'
       - '-auto-approve'
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
 
   # Step 3: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
@@ -52,13 +52,13 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
     args: ['plan', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=${COMMIT_SHA}', '-out=tfplan']
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
 
   # Step 6: Full Terraform Apply
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
     args: ['apply', '-auto-approve', 'tfplan']
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 
