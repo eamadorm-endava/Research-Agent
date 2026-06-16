@@ -165,3 +165,4 @@ vertex_ai_agent_iam_project_roles = [
 | `ai_agent_iam_project_roles` | A list of roles to be assigned to the ADK service account in the project. | `list(string)` | `[]` | no |
 | `vertex_ai_agent_iam_project_roles` | A list of roles to be assigned to the Vertex AI Search Agent service account. | `list(string)` | `[]` | no |
 | `discovery_engine_service_agent_iam_project_roles` | A list of roles to be assigned to the Discovery Engine service agent. | `list(string)` | `[]` | no |
+ 

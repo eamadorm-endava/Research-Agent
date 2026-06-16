@@ -167,3 +167,4 @@ mcp_server_cloud_run_image_tag = "latest"
 | `apis_to_enable` | List of Service APIs to enable in the project. | `list(string)` | `[]` | yes |
 | `mcp_server_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
 | `mcp_server_iam_project_roles` | A list of roles to be assigned to the ADK service account in the project. | `list(string)` | `[]` | no |
+ 

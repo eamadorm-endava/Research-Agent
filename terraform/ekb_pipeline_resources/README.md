@@ -87,3 +87,4 @@ ekb_pipeline_cloud_run_image_tag     = "latest"
 | `project_services` | A list of Service APIs to enable. | `list(string)` | `[]` | no |
 | `ekb_pipeline_service_account_name` | The name of the service account. | `string` | `ekb-pipeline-sa` | no |
 | `ekb_pipeline_iam_project_roles` | A list of roles to be assigned to the service account. | `list(string)` | `[]` | no |
+  

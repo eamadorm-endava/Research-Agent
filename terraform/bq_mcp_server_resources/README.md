@@ -160,3 +160,4 @@ mcp_server_cloud_run_image_tag = "latest"
 | `apis_to_enable` | A list of Service APIs to enable. | `list(string)` | `[]` | no |
 | `mcp_server_service_account_name` | The name of the service account. | `string` | n/a | yes |
 | `mcp_server_iam_project_roles` | A list of roles to be assigned to the service account. | `list(string)` | `[]` | no |
+ 
