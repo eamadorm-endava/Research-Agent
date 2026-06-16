@@ -4,7 +4,11 @@
 # Exit on error
 set -e
 
-PROJECT_ID="ag-core-ops-auj0"
+PROJECT_ID="${PROJECT_ID}"
+if [[ -z "$PROJECT_ID" ]]; then
+    echo "Error: PROJECT_ID environment variable is required."
+    exit 1
+fi
 SA_EMAIL="terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "This will delete all Cloud Build triggers and the Terraform Service Account in project: $PROJECT_ID"
@@ -30,6 +34,8 @@ TRIGGERS=(
     "calendar-mcp-server-services-apply"
     "ekb-pipeline-services-plan"
     "ekb-pipeline-services-apply"
+    "onedrive-mcp-server-services-plan"
+    "onedrive-mcp-server-services-apply"
 )
 
 echo "---------------------------------------"
