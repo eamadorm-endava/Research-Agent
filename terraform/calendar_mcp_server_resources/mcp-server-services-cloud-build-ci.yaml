@@ -7,7 +7,7 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
     args:
       - '-c'
       - |
@@ -19,7 +19,7 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-fmt'
     args: ['fmt', '-check']
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
 
   # Step 3: Format Check (Python)
   - name: 'python:3.12'
@@ -52,13 +52,13 @@ steps:
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-validate'
     args: ['validate']
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
 
   # Step 7: Plan (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
     args: ['plan', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=ci', '-out=tfplan']
-    dir: 'terraform/google_calendar_mcp_server_resources'
+    dir: 'terraform/calendar_mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 
