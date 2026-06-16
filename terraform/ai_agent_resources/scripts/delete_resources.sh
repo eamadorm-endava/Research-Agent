@@ -98,7 +98,10 @@ uv run --group ai-agent python "$SCRIPT_DIR/delete_agent_engine.py" \
 # 5. Finally, make a terraform destroy
 echo "[Step 5/5] Executing terraform destroy..."
 pushd "$SCRIPT_DIR/.." > /dev/null
-terraform destroy -auto-approve -var="project_id=$PROJECT_ID"
+terraform init -reconfigure \
+    -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+    -backend-config="prefix=terraform/state/ai-agent-resources"
+terraform destroy -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$AGENT_ENGINE_LOCATION"
 popd > /dev/null
 
 if [ -n "$GE_AUTH_ID_SECRET_NAMES" ]; then
