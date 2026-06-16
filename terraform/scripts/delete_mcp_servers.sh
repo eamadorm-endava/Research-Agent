@@ -107,6 +107,8 @@ destroy_stack() {
 
 
     echo "Creating destroy plan for $stack_name..."
+    export TF_VAR_landing_zone_bucket="${PROJECT_ID}-ai-agent-landing-zone"
+    export TF_VAR_kb_ingestion_bucket="${PROJECT_ID}-kb-landing-zone"
     terraform -chdir="$stack_dir" plan -destroy -var="project_id=$PROJECT_ID" -var="main_region=$stack_region" -out=tf-destroy.plan || { echo "Warning: Failed to create plan for $stack_name. Skipping."; return 0; }
 
     echo "Applying destroy plan for $stack_name..."
