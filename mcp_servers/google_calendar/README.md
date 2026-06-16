@@ -104,4 +104,3 @@ make verify-calendar-ci
 
 - **RFC3339 Strictness**: Both APIs are extremely sensitive to date/time formatting. Always include the timezone offset (e.g., `Z` or `-05:00`).
 - **Artifact Processing**: Meet recordings and transcripts are not available instantly. There is a processing lag of several minutes after a session ends.
- 
