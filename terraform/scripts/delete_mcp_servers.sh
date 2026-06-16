@@ -25,7 +25,7 @@ set -euo pipefail
 #   --region             Default GCP Region for the MCP servers
 #
 # Optional parameters:
-#   --servers            Comma-separated list of servers to delete (e.g., "onedrive,google_calendar=europe-west1"). Defaults to "all".
+#   --servers            Comma-separated list of servers to delete (e.g., "onedrive,google_calendar=europe-west1") or "all".
 #                        If a location is appended with '=', it overrides the default region for that specific server.
 # -----------------------------------------------------------------------------
 
@@ -35,7 +35,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # --- Configuration ---
 PROJECT_ID=""
 REGION=""
-SERVERS_TO_DELETE="all"
+SERVERS_TO_DELETE=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -47,8 +47,8 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]]; then
-    echo "Error: --project and --region parameters are required."
+if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]] || [[ -z "$SERVERS_TO_DELETE" ]]; then
+    echo "Error: --project, --region, and --servers parameters are required."
     exit 1
 fi
 
