@@ -48,6 +48,10 @@ fi
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "This will delete all Cloud Build triggers and the Terraform Service Account in project: $PROJECT_ID"
+echo "Parameters:"
+echo "  - Region: $REGION"
+echo "  - SA Name: $SA_NAME"
+echo "  - Trigger Bases: $TRIGGER_BASES_STR"
 read -p "Are you sure you want to proceed? (y/N): " confirm
 
 if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then

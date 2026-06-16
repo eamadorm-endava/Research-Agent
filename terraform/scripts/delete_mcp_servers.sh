@@ -58,7 +58,9 @@ STATE_BUCKET="${STATE_BUCKET:-${PROJECT_ID}-terraform-state}"
 
 confirm_destroy() {
     echo "This will destroy MCP server Terraform resources in project: $PROJECT_ID"
-    echo "Servers targeting: $SERVERS_TO_DELETE"
+    echo "Parameters:"
+    echo "  - Region: $REGION"
+    echo "  - Servers: $SERVERS_TO_DELETE"
     echo "Terraform state bucket: gs://$STATE_BUCKET"
     read -p "Are you sure you want to proceed? (y/N): " confirm
 

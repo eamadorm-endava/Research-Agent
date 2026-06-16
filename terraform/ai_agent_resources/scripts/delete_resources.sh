@@ -25,6 +25,20 @@ if [ -z "$PROJECT_ID" ] || [ -z "$GE_LOCATION" ] || [ -z "$AGENT_ENGINE_LOCATION
     exit 1
 fi
 
+echo "This will destroy all AI Agent resources in project: $PROJECT_ID"
+echo "Parameters:"
+echo "  - GE Location: $GE_LOCATION"
+echo "  - Agent Engine Location: $AGENT_ENGINE_LOCATION"
+echo "  - GE App ID: $GE_APP_ID"
+echo "  - Agent Display Name: $AGENT_DISPLAY_NAME"
+echo "  - Auth Secret Names: $GE_AUTH_ID_SECRET_NAMES"
+read -p "Are you sure you want to proceed? (y/N): " confirm
+
+if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then
+    echo "Cleanup cancelled."
+    exit 0
+fi
+
 echo "--- Starting AI Agent resource cleanup ---"
 
 # 1. Unregister the agent in Gemini Enterprise

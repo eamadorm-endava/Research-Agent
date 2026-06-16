@@ -167,6 +167,10 @@ if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "  - Secrets to Delete: $SHARED_SECRETS_TO_DELETE"
 fi
 echo "Bootstrap Cleanup: $DELETE_BOOTSTRAP"
+if [[ "$DELETE_BOOTSTRAP" == "true" ]]; then
+    echo "  - SA Name: $SA_NAME"
+    echo "  - Trigger Bases: $TRIGGER_BASES_STR"
+fi
 echo "================================================================="
 read -p "Are you absolutely sure you want to proceed with these deletions? (y/N): " confirm
 
@@ -184,7 +188,7 @@ if [[ "$DELETE_AI_AGENT" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     echo "STEP 1: Delete AI Agent Resources"
     echo "-----------------------------------------------------------------"
-    bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/delete_resources.sh" \
+    echo 'y' | bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/delete_resources.sh" \
         --project "$PROJECT_ID" \
         --ge-location "$GE_LOCATION" \
         --agent-engine-location "$AGENT_ENGINE_LOCATION" \
@@ -200,7 +204,7 @@ if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     echo "STEP 2: Delete MCP Servers"
     echo "-----------------------------------------------------------------"
-    bash "$SCRIPT_DIR/delete_mcp_servers.sh" --project "$PROJECT_ID" --servers "$MCP_SERVERS_TO_DELETE" --region "$REGION"
+    echo 'y' | bash "$SCRIPT_DIR/delete_mcp_servers.sh" --project "$PROJECT_ID" --servers "$MCP_SERVERS_TO_DELETE" --region "$REGION"
 else
     echo "Skipping MCP Servers deletion."
 fi
@@ -218,6 +222,8 @@ if [[ "$DELETE_EKB_PIPELINE" == "true" ]]; then
             -backend-config="prefix=terraform/state/ekb-pipeline-resources"
 
         echo "Destroying EKB Pipeline stack..."
+        echo "  - Project ID: $PROJECT_ID"
+        echo "  - Main Region: $REGION"
         terraform -chdir="$EKB_DIR" destroy -var="project_id=$PROJECT_ID" -var="main_region=$REGION" -auto-approve || echo "Warning: Failed to destroy EKB pipeline."
     else
         echo "Warning: Directory $EKB_DIR not found. Skipping."
@@ -239,6 +245,8 @@ if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
             -backend-config="prefix=terraform/state/shared-resources"
 
         echo "Destroying Shared Resources stack..."
+        echo "  - Project ID: $PROJECT_ID"
+        echo "  - Main Region: $REGION"
         terraform -chdir="$SHARED_DIR" destroy -var="project_id=$PROJECT_ID" -var="main_region=$REGION" -auto-approve || echo "Warning: Failed to destroy shared resources."
     else
         echo "Warning: Directory $SHARED_DIR not found. Skipping Terraform destroy."
