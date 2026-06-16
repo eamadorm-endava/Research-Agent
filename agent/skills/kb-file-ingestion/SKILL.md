@@ -19,7 +19,7 @@ or similar requests.
 ## Required Metadata
 
 Every ingested file must have:
-- **Project**: a `project_id` confirmed by the user after project validation.
+- **Project**: an `ekb_project_name` confirmed by the user after project validation.
 - **Domain**: one of `IT`, `Finance`, `HR`, `Sales`, `Executives`, `Legal`, `Operations`.
 - **Trust-level**: one of `Published`, `WIP`, `Archived`.
 - **PII**: `Yes` or `No`.
@@ -102,7 +102,7 @@ Handle the project validation result:
 
 - **Matches found** → append to the same message:
   > *"I also found existing project(s) with a similar name in the EKB: `<list>`. Would you like to use one of these, or proceed with `<user's value>` as a new project?"*
-  - User picks an existing project → use that `project_id`, proceed to **Step 4**.
+  - User picks an existing project → use that `ekb_project_name`, proceed to **Step 4**.
   - User creates a new project → skip Step 4, proceed to **Step 5**.
 - **No matches found** → show the table normally; project proceeds as new, skip Step 4.
 - **Project was blank** (`—`) → ask the user to fill it. Once provided, immediately run the Project Validation Query and present the result before proceeding.
@@ -118,7 +118,7 @@ Run the **Dedup Query** (see appendix) once for all files simultaneously. Strip 
 The query returns one row per uploaded file with an array of matching EKB records. Process the results:
 
 - **`ekb_matches` is non-empty** → inform the user for each affected file:
-  > *"A file named `<filename>` already exists in project `<project_id>` (Domain: `<domain>`, Trust-level: `<trust_level>`, Classification: `<classification_tier>`). Would you like to:*
+  > *"A file named `<filename>` already exists in project `<ekb_project_name>` (Domain: `<domain>`, Trust-level: `<trust_level>`, Classification: `<classification_tier>`). Would you like to:*
   > - **Replace** it — the existing domain, trust-level, and classification tier will be used as the metadata for this file.
   > - **Upload as new** — please provide a different filename."*
   - User chooses **Replace** → override this file's `domain`, `trust_level`, and `classification_tier` with the values from the existing BigQuery record. Do not use inferred or user-typed values for those fields.
@@ -136,13 +136,13 @@ Call `upload_object` for every file at the same time:
 - `source_gcs_uri`: URI from Step 1.
 - `destination_bucket`: `<project_id>-kb-landing-zone`
 - `filename`: confirmed filename.
-- `path_inside_bucket`: confirmed `project_id`.
+- `path_inside_bucket`: confirmed `ekb_project_name`.
 
 **5b — Stamp Metadata** *(after all uploads complete)*
 Call `update_object_metadata` for every file at the same time:
 ```json
 {
-  "project": "<project_id>",
+  "project": "<ekb_project_name>",
   "domain": "<domain>",
   "trust-level": "<trust_level>",
   "pii_status": "<Yes or No>"
@@ -157,14 +157,14 @@ Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` once with all UR
 ### Ingestion Started
 | File | Project | Job ID | Status |
 |:---:|:---:|:---:|:---:|
-| <file1.pdf> | <project_id> | <job_id> | <status> |
+| <file1.pdf> | <ekb_project_name> | <job_id> | <status> |
 ```
 
 ---
 
 ### Retry Protocol
 
-Skip Steps 1–4. Execute Steps 5a → 5b → 5c using the previously confirmed URIs, filenames, project IDs, and metadata. If the retry also fails, report the error and ask how to proceed.
+Skip Steps 1–4. Execute Steps 5a → 5b → 5c using the previously confirmed URIs, filenames, EKB project names, and metadata. If the retry also fails, report the error and ask how to proceed.
 
 ---
 
@@ -172,7 +172,7 @@ Skip Steps 1–4. Execute Steps 5a → 5b → 5c using the previously confirmed 
 
 When the user asks which projects are available without uploading files:
 1. Run the **Project Discovery Query** (see appendix).
-2. Return a table of `project_id`, document count, and domains.
+2. Return a table of `ekb_project_name`, document count, and domains.
 3. If no rows are returned, say no projects were found. If the query fails, report the error.
 
 ---
@@ -218,7 +218,7 @@ SELECT
 FROM uploaded_files u
 LEFT JOIN `knowledge_base.documents_metadata` m
   ON LOWER(m.filename) LIKE LOWER(CONCAT('%', u.filename_base, '%'))
-  AND m.project_id = '<confirmed_project_id>'
+  AND m.project_id = '<confirmed_ekb_project_name>'
   AND m.latest = TRUE
 GROUP BY u.filename_base
 ```
