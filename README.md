@@ -133,7 +133,7 @@ Research-Agent/
 │   ├── bq_mcp_server_resources/       # BigQuery MCP server infrastructure
 │   ├── gcs_mcp_server_resources/      # GCS MCP server infrastructure
 │   ├── drive_mcp_server_resources/    # Google Drive MCP server infrastructure
-│   ├── google_calendar_mcp_server_resources/ # Calendar MCP server infrastructure
+│   ├── calendar_mcp_server_resources/ # Calendar MCP server infrastructure
 │   ├── ekb_pipeline_resources/        # EKB pipeline Cloud Run and supporting resources
 │   ├── base_modules/                  # Shared reusable Terraform modules
 │   ├── shared_resources/              # Shared state bucket and Artifact Registry
