@@ -1,4 +1,4 @@
-PROJECT_ID?=ag-core-ops-auj0# ?= is used to set a default value if the variable is not set in the .env file
+PROJECT_ID?=host-ge-prod-endava-01-yd8e# ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
 BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
