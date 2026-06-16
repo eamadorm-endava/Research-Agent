@@ -1,15 +1,51 @@
 #!/bin/bash
-# scripts/clean.sh
+# scripts/delete_bootstrap.sh
 
 # Exit on error
-set -e
+set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID}"
-if [[ -z "$PROJECT_ID" ]]; then
-    echo "Error: PROJECT_ID environment variable is required."
+# -----------------------------------------------------------------------------
+# Bootstrap Deletion Script
+# -----------------------------------------------------------------------------
+# This script deletes all Cloud Build triggers created during bootstrap and
+# the Terraform service account.
+#
+# Run this script from the repository root:
+#   ./terraform/scripts/delete_bootstrap.sh --project <PROJECT_ID> --region <REGION> --sa-name <SA_NAME> --trigger-bases <BASES>
+#
+# Required parameters:
+#   --project            GCP Project ID.
+#   --region             GCP Region where the triggers exist.
+#   --sa-name            The base name of the Terraform service account.
+#   --trigger-bases      Comma-separated list of the base names for the triggers (e.g. "ai-agent,bq-mcp-server").
+# -----------------------------------------------------------------------------
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# --- Configuration ---
+PROJECT_ID=""
+REGION=""
+SA_NAME=""
+TRIGGER_BASES_STR=""
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --project) PROJECT_ID="$2"; shift ;;
+        --region) REGION="$2"; shift ;;
+        --sa-name) SA_NAME="$2"; shift ;;
+        --trigger-bases) TRIGGER_BASES_STR="$2"; shift ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]] || [[ -z "$SA_NAME" ]] || [[ -z "$TRIGGER_BASES_STR" ]]; then
+    echo "Error: --project, --region, --sa-name, and --trigger-bases parameters are all required."
     exit 1
 fi
-SA_EMAIL="terraform-sa-gemini-project@${PROJECT_ID}.iam.gserviceaccount.com"
+
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "This will delete all Cloud Build triggers and the Terraform Service Account in project: $PROJECT_ID"
 read -p "Are you sure you want to proceed? (y/N): " confirm
@@ -19,42 +55,29 @@ if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then
     exit 0
 fi
 
-# Note: Cloud build trigger names must match with names thar was created from the bootstrap.sh script
-# List of triggers created in cicd_triggers_creation.sh
-TRIGGERS=(
-    "ai-agent-services-plan"
-    "ai-agent-services-apply"
-    "bq-mcp-server-services-plan"
-    "bq-mcp-server-services-apply"
-    "gcs-mcp-server-services-plan"
-    "gcs-mcp-server-services-apply"
-    "drive-mcp-server-services-plan"
-    "drive-mcp-server-services-apply"
-    "calendar-mcp-server-services-plan"
-    "calendar-mcp-server-services-apply"
-    "ekb-pipeline-services-plan"
-    "ekb-pipeline-services-apply"
-    "onedrive-mcp-server-services-plan"
-    "onedrive-mcp-server-services-apply"
-)
+# Convert the comma-separated string into an array
+IFS=',' read -ra TRIGGER_BASES <<< "$TRIGGER_BASES_STR"
 
 echo "---------------------------------------"
 echo "Deleting specific Cloud Build Triggers..."
 
-for TRIGGER in "${TRIGGERS[@]}"; do
-    if gcloud builds triggers describe "$TRIGGER" --region=us-central1 --project=$PROJECT_ID > /dev/null 2>&1; then
-        echo "Deleting trigger: $TRIGGER..."
-        gcloud alpha builds triggers delete "$TRIGGER" --region=us-central1 --project=$PROJECT_ID --quiet
-    else
-        echo "Trigger $TRIGGER not found, skipping."
-    fi
+for BASE in "${TRIGGER_BASES[@]}"; do
+    for SUFFIX in "services-plan" "services-apply"; do
+        TRIGGER="${BASE}-${SUFFIX}"
+        if gcloud builds triggers describe "$TRIGGER" --region="$REGION" --project="$PROJECT_ID" > /dev/null 2>&1; then
+            echo "Deleting trigger: $TRIGGER..."
+            gcloud builds triggers delete "$TRIGGER" --region="$REGION" --project="$PROJECT_ID" --quiet
+        else
+            echo "Trigger $TRIGGER not found, skipping."
+        fi
+    done
 done
 echo "Trigger cleanup complete."
 
 echo "---------------------------------------"
 echo "Deleting Service Account..."
-if gcloud iam service-accounts describe $SA_EMAIL --project=$PROJECT_ID > /dev/null 2>&1; then
-    gcloud iam service-accounts delete $SA_EMAIL --project=$PROJECT_ID --quiet
+if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" > /dev/null 2>&1; then
+    gcloud iam service-accounts delete "$SA_EMAIL" --project="$PROJECT_ID" --quiet
     echo "Service Account $SA_EMAIL deleted."
 else
     echo "Service Account $SA_EMAIL does not exist."
@@ -62,3 +85,10 @@ fi
 
 echo "---------------------------------------"
 echo "Cleanup complete! Your project is now ready for a fresh bootstrap."
+echo ""
+echo "================================================================="
+echo "IMPORTANT MANUAL STEP REQUIRED:"
+echo "Please navigate to the Google Cloud Console -> Cloud Build -> Repositories"
+echo "and manually delete the connection between Cloud Build and your GitHub repository,"
+echo "as this cannot be cleanly automated via the CLI."
+echo "================================================================="
