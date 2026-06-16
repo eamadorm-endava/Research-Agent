@@ -48,7 +48,7 @@ research_agent = (
             DRIVE_MCP_CONFIG,
             CALENDAR_MCP_CONFIG,
             GCS_MCP_CONFIG,
-            ONEDRIVE_MCP_CONFIG,
+            # ONEDRIVE_MCP_CONFIG, # ON hold to sent to prod
         ]
     )
     .with_native_tools(
