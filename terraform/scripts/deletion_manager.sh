@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/delete_all_resources.sh
+# scripts/deletion_manager.sh
 
 # Exit on error
 set -e
@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # -----------------------------------------------------------------------------
 # This script orchestrates the destruction of all resources in the project.
 #
-# Usage: ./terraform/scripts/delete_all_resources.sh [OPTIONS]
+# Usage: ./terraform/scripts/deletion_manager.sh [OPTIONS]
 #
 # ## Global Parameters
 #   --project                    GCP Project ID (Required).
