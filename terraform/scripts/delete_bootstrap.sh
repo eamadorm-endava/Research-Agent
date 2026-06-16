@@ -79,6 +79,17 @@ done
 echo "Trigger cleanup complete."
 
 echo "---------------------------------------"
+echo "Deleting Terraform State Bucket..."
+BUCKET_NAME="${PROJECT_ID}-terraform-state"
+if gcloud storage buckets describe "gs://$BUCKET_NAME" --project="$PROJECT_ID" > /dev/null 2>&1; then
+    # Recursively delete the bucket and any residual state files
+    gcloud storage rm --recursive "gs://$BUCKET_NAME" --project="$PROJECT_ID" --quiet
+    echo "Bucket gs://$BUCKET_NAME deleted."
+else
+    echo "Bucket gs://$BUCKET_NAME does not exist."
+fi
+
+echo "---------------------------------------"
 echo "Deleting Service Account..."
 if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" > /dev/null 2>&1; then
     gcloud iam service-accounts delete "$SA_EMAIL" --project="$PROJECT_ID" --quiet
