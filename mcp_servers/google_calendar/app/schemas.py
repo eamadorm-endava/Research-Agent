@@ -25,6 +25,42 @@ TimeFilterType = Annotated[
 ]
 
 
+class AgentDependencies(BaseModel):
+    app_name: Annotated[
+        str,
+        Field(
+            description="The name of the calling application or agent.",
+        ),
+    ]
+    user_id: Annotated[
+        str,
+        Field(
+            description="The unique identifier of the user using the agent",
+        ),
+    ]
+    session_id: Annotated[
+        str,
+        Field(
+            description="The current session or conversation ID with the agent",
+        ),
+    ]
+
+
+class BaseRequest(BaseModel):
+    dependencies: Annotated[
+        Optional[AgentDependencies],
+        Field(
+            default=None,
+            exclude=True,
+            description=(
+                """
+                Parameters that needs to be injected by the framework. The LLM will not see this parameters due to exclude = True to avoid LLM hallucinations.
+                """
+            ),
+        ),
+    ]
+
+
 class BaseResponse(BaseModel):
     """
     Base response model for all Google Calendar and Meet tools.
@@ -45,7 +81,7 @@ class BaseResponse(BaseModel):
     ]
 
 
-class ListCalendarEventsRequest(BaseModel):
+class ListCalendarEventsRequest(BaseRequest):
     """
     Request schema for listing calendar events with optional time filters.
     """
@@ -117,7 +153,7 @@ class ListCalendarEventsResponse(BaseResponse):
     ]
 
 
-class ListMeetSessionsRequest(BaseModel):
+class ListMeetSessionsRequest(BaseRequest):
     meeting_code: Annotated[
         str,
         Field(
@@ -135,7 +171,7 @@ class ListMeetSessionsResponse(BaseResponse, ListMeetSessionsRequest):
     ]
 
 
-class ListMeetParticipantsRequest(BaseModel):
+class ListMeetParticipantsRequest(BaseRequest):
     meet_session_id: Annotated[
         str,
         Field(
@@ -153,7 +189,7 @@ class ListMeetParticipantsResponse(BaseResponse, ListMeetParticipantsRequest):
     ]
 
 
-class GetMeetRecordingRequest(BaseModel):
+class GetMeetRecordingRequest(BaseRequest):
     recording_id: Annotated[
         str,
         Field(
@@ -171,7 +207,7 @@ class GetMeetRecordingResponse(BaseResponse, GetMeetRecordingRequest):
     ]
 
 
-class GetMeetTranscriptRequest(BaseModel):
+class GetMeetTranscriptRequest(BaseRequest):
     transcript_id: Annotated[
         str,
         Field(
