@@ -16,6 +16,42 @@ class DriveSchemaModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AgentDependencies(BaseModel):
+    app_name: Annotated[
+        str,
+        Field(
+            description="The name of the calling application or agent.",
+        ),
+    ]
+    user_id: Annotated[
+        str,
+        Field(
+            description="The unique identifier of the user using the agent",
+        ),
+    ]
+    session_id: Annotated[
+        str,
+        Field(
+            description="The current session or conversation ID with the agent",
+        ),
+    ]
+
+
+class BaseRequest(DriveSchemaModel):
+    dependencies: Annotated[
+        Optional[AgentDependencies],
+        Field(
+            default=None,
+            exclude=True,
+            description=(
+                """
+                Parameters that needs to be injected by the framework. The LLM will not see this parameters due to exclude = True to avoid LLM hallucinations.
+                """
+            ),
+        ),
+    ]
+
+
 class DriveMimeType(StrEnum):
     """Common Drive-compatible MIME types exposed to the agent."""
 
@@ -343,7 +379,7 @@ DRIVE_DOCUMENT = Annotated[
 ]
 
 
-class ListFilesRequest(DriveSchemaModel):
+class ListFilesRequest(BaseRequest):
     """Request schema for listing files with rich Drive filters."""
 
     folder_name: FOLDER_PATH_FILTER
@@ -363,7 +399,7 @@ class ListFilesResponse(BaseResponse):
     files: LIST_FILE_METADATA
 
 
-class GetFileTextRequest(DriveSchemaModel):
+class GetFileTextRequest(BaseRequest):
     """Request schema for extracting text from a file."""
 
     file_id: DRIVE_FILE_ID
@@ -376,7 +412,7 @@ class GetFileTextResponse(GetFileTextRequest, BaseResponse):
     document: DRIVE_DOCUMENT
 
 
-class CreateGoogleDocRequest(DriveSchemaModel):
+class CreateGoogleDocRequest(BaseRequest):
     """Request schema for creating a new Google Doc."""
 
     title: DOCUMENT_TITLE
@@ -390,7 +426,7 @@ class CreateGoogleDocResponse(CreateGoogleDocRequest, BaseResponse):
     file: DRIVE_FILE
 
 
-class UploadPdfRequest(DriveSchemaModel):
+class UploadPdfRequest(BaseRequest):
     """Request schema for creating a PDF from text."""
 
     title: DOCUMENT_TITLE
@@ -404,7 +440,7 @@ class UploadPdfResponse(UploadPdfRequest, BaseResponse):
     file: DRIVE_FILE
 
 
-class CreateFileRequest(DriveSchemaModel):
+class CreateFileRequest(BaseRequest):
     """Request schema for creating a generic text-based file."""
 
     name: DOCUMENT_TITLE
@@ -419,7 +455,7 @@ class CreateFileResponse(CreateFileRequest, BaseResponse):
     file: DRIVE_FILE
 
 
-class CreateFolderRequest(DriveSchemaModel):
+class CreateFolderRequest(BaseRequest):
     """Request schema for creating a Google Drive folder."""
 
     name: DOCUMENT_TITLE
@@ -432,7 +468,7 @@ class CreateFolderResponse(CreateFolderRequest, BaseResponse):
     file: DRIVE_FILE
 
 
-class MoveFileRequest(DriveSchemaModel):
+class MoveFileRequest(BaseRequest):
     """Request schema for moving an existing file or folder."""
 
     file_id: DRIVE_FILE_ID
@@ -445,7 +481,7 @@ class MoveFileResponse(MoveFileRequest, BaseResponse):
     file: DRIVE_FILE
 
 
-class RenameFileRequest(DriveSchemaModel):
+class RenameFileRequest(BaseRequest):
     """Request schema for renaming a file or folder."""
 
     file_id: DRIVE_FILE_ID
