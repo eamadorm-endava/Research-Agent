@@ -1,19 +1,13 @@
 substitutions:
+  # Note: Variables such as _GE_REGION, _GE_APP_NAME_SUFFIX, and various MCP Server URLs 
+  # are deliberately omitted here. They are dynamically injected at runtime by the 
+  # Cloud Build Trigger created via creation_manager.sh to prevent configuration mismatches.
   _REGION: "us-central1"
   _AGENT_DISPLAY_NAME: "OSIRIS"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
-  _BIGQUERY_URL: "https://bigquery-mcp-server-1057005221381.us-central1.run.app"
-  _DRIVE_URL: "https://drive-mcp-server-1057005221381.us-central1.run.app"
-  _GCS_URL: "https://gcs-mcp-server-1057005221381.us-central1.run.app"
-  _CALENDAR_URL: "https://calendar-mcp-server-1057005221381.us-central1.run.app"
-  # _ONEDRIVE_URL: "https://onedrive-mcp-server-1057005221381.us-central1.run.app"
-  _EKB_PIPELINE_URL: "https://ekb-pipeline-1057005221381.us-central1.run.app"
-  _GE_APP_ID: "gemini-enterprise-17816266_1781626607357"
-  _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "OSIRIS - Organizational Search, Information Retrieval, and Intelligence System: A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar, and managing EKB document ingestion."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
-
   
 
 steps:
@@ -54,7 +48,7 @@ steps:
         ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
           --agent-display-name "${_AGENT_DISPLAY_NAME}"
 
   # Step 4: Delete all auth resources
@@ -150,7 +144,7 @@ steps:
         ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh register-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
           --agent-display-name "${_AGENT_DISPLAY_NAME}" \
           --agent-description "${_GE_AGENT_DESCRIPTION}" \
           --agent-engine-location ${_REGION} \
