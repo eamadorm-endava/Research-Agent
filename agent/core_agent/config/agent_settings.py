@@ -312,24 +312,13 @@ class ResearchAgentConfig(BaseAgentConfig):
             Never include intent words (`duration`, `status`, `summary`, `report`, `length`) in any group.
 
             **Wave 1 — Broad Parallel Discovery (all calls launched simultaneously):**
-            Launch up to 9 `list_files` calls in parallel, organized into three fixed slots:
-            - **Company/client slot**: up to 3 calls, one per company keyword. Always populated when companies are present.
-            - **Project slot**: up to 3 calls, one per project keyword. Always populated when projects are present.
-            - **Technology slot**: up to 3 calls, one per technology keyword. Populated only after the above two slots are filled.
-            Minimum: when both company and project keywords exist, at least 6 calls must be launched. Do NOT read file contents in this wave.
+            Launch all necessary `list_files` calls concurrently using keywords from Stage 1 and the relationship map from Stage 0. Ensure cross-coverage (e.g. project keywords crossed with company keywords).
+            Launch up to 12 `list_files` calls in parallel covering companies, projects, and technologies.
+            Do NOT read file contents in this wave.
             From every result, capture and store in the candidate pool: `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by`. The `file_id` is the only accepted identifier for `get_file_text`.
-            **Inline triage** (after all Wave 1 results arrive): classify each file as High (filename contains a project, company, or technology term), Medium (plausibly related), or Low (unrelated — deprioritize).
-            **Folder Expansion** (run in parallel immediately after inline triage): For any result where `mime_type = "application/vnd.google-apps.folder"`, launch a `list_files(folder_name=<file_name>)` call to list its contents. Run all expansion calls simultaneously. Add the returned files to the candidate pool and apply the same High/Medium/Low triage. Never add the folder itself to the candidate pool for Stage 4 file reading — only the files found inside it.
+            **Inline triage** (after all results arrive): classify each file as High (filename contains a project, company, or technology term), Medium (plausibly related), or Low (unrelated — deprioritize). Do NOT execute separate sequential folder expansion calls; treat the initial broad keyword search as sufficient for identifying target files.
 
-            **Wave 2 — Relational Refinement (parallel):**
-            Using the relationship map from Stage 0 and Wave 1 triage results, search for gaps:
-            - If Wave 1 found files via a project keyword, search the associated company keywords not yet used — and vice versa.
-            - Use remaining decomposed keywords from Stage 1 not consumed in Wave 1.
-            - Extract any new candidate terms surfaced by Wave 1 filenames (aliases, codes, short names).
-            Launch up to 3 additional `list_files` calls simultaneously. Capture `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by` and merge into the triage pool with High/Medium/Low classification.
-            **Folder Expansion** (run in parallel immediately after Wave 2 triage): Apply the same rule as Wave 1 — for any folder result (`mime_type = "application/vnd.google-apps.folder"`), call `list_files(folder_name=<file_name>)` to expand its contents, triage the returned files, and add them to the candidate pool. Never add folders themselves to the candidate pool.
-
-            **Stage 4 — Prioritized File Reading (max 5 per turn):**
+            **Stage 2 — Prioritized File Reading (max 5 per turn):**
             Sort the candidate pool: High first, then Medium. Never read Low-classified files unless the pool is exhausted.
             Call `get_file_text(file_id=<file_id>)` for at most 5 files per turn, running all calls in parallel.
             After reading: if the answer is found, stop and synthesize. If not, extract new keywords (aliases, project codes, stakeholder names) from the text and run one additional Wave 1 cycle. Maximum 1 extra cycle.
@@ -351,17 +340,12 @@ class ResearchAgentConfig(BaseAgentConfig):
             **Pre-condition:** Always call `get_current_time` before the first calendar call of any new user request. Use the result as the reference for all date calculations in this session. Do NOT call it more than once per turn.
 
             **Wave 1 — Broad Baseline (two parallel calls, no `query` filter):**
-            Launch exactly two `list_calendar_events` calls simultaneously:
-            - **Past**: `date_min = [today - 1 month]`, `date_max = [today]`, `sort_order = "desc"`
-            - **Future**: `date_min = [today]`, `date_max = [today + 1 month]`, `sort_order = "asc"`
-            Do NOT include a `query` parameter. After results arrive, scan titles and descriptions internally for the entities in the user's request (project names, company names, people). If relevant events are found, go to Event Enrichment. If not, proceed to Wave 2.
-
-            **Wave 2 — Extended Range (two parallel calls, no `query` filter, only if Wave 1 found nothing relevant):**
+            Launch exactly two `list_calendar_events` calls simultaneously spanning a 6-month window to capture maximum context immediately:
             - **Past**: `date_min = [today - 6 months]`, `date_max = [today]`, `sort_order = "desc"`
             - **Future**: `date_min = [today]`, `date_max = [today + 6 months]`, `sort_order = "asc"`
-            Apply the same internal filtering. If relevant events are found, go to Event Enrichment. If not, proceed to Wave 3.
+            Do NOT include a `query` parameter. After results arrive, scan titles and descriptions internally for the entities in the user's request (project names, company names, people). If relevant events are found, go to Event Enrichment.
 
-            If no relevant events are found after Wave 2, report the absence — do not make additional calendar calls.
+            If no relevant events are found, report the absence — do not make additional calendar calls.
 
             **Event Enrichment (runs whenever relevant events are found, in any wave):**
             All primary metadata is already present in the `CalendarEvent` response — extract directly without extra calls:
@@ -394,8 +378,8 @@ class ResearchAgentConfig(BaseAgentConfig):
             ### BIGQUERY QUERY PROTOCOL
             This protocol applies every time you are about to call `execute_query`, regardless of context.
             1. **Discover tables** (skip if already done this session for the same dataset): Call `list_tables` to confirm which tables exist inside the target dataset.
-            2. **Fetch and cache schema** (skip if already fetched this session for the same table): Call `get_table_schema` for each table you intend to query. Store the returned field names and types in working memory — do **not** call `get_table_schema` again for the same table later in the same session.
-            3. **Construct the query**: Build the SQL using only column names confirmed in step 2. Never guess column names.
+            2. **Fetch and cache schema** (skip if schema summaries from step 1 provide enough context to deduce the query): Call `get_table_schema` ONLY if you cannot infer the column names from the `list_tables` summary. Store the returned field names and types in working memory.
+            3. **Construct the query**: Build the SQL using known or confidently deduced column names. Never guess completely unknown column names.
             4. **Execute**: Call `execute_query` with the validated query.
 
             ### GCS FILE READING RULE
@@ -442,8 +426,8 @@ class IngestionAgentConfig(BaseAgentConfig):
             ### BIGQUERY QUERY PROTOCOL
             If you ever need to query BigQuery directly (e.g., to inspect a status table), apply this protocol before calling `execute_query`:
             1. **Discover tables** (skip if already done this session for the same dataset): Call `list_tables`.
-            2. **Fetch and cache schema** (skip if already done this session for the same table): Call `get_table_schema`. Never re-fetch for the same table in the same session.
-            3. **Construct the query**: Use only column names confirmed in step 2. Never guess column names.
+            2. **Fetch and cache schema** (skip if schema summaries provide enough context to deduce the query): Call `get_table_schema` ONLY if you cannot infer the column names from the `list_tables` summary.
+            3. **Construct the query**: Use known or deduced column names. Never guess unknown column names.
             4. **Execute**: Call `execute_query`.
 
             ### GCS FILE READING RULE
