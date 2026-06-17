@@ -18,12 +18,16 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 #   --project                    GCP Project ID (Required).
 #   --region                     GCP Region (Default: us-central1).
 #
+# ## Gemini Enterprise Parameters
+#   --delete-ge-app              Set to "true" to delete a Gemini Enterprise App.
+#   (Note: GE_LOCATION and GE_APP_NAME_SUFFIX are shared between GE App and AI Agent)
+#
 # ## AI Agent Parameters
 #   --delete-ai-agent            Set to "true" to delete AI Agent resources.
 #   --ge-location                Location for the Vertex AI Agent Engine.
 #   --agent-engine-location      Location for the Agent Engine Data Store.
-#   --ge-app-id                  The ID of the Agent Engine application.
 #   --agent-display-name         The display name of the Agent.
+#   --ge-app-name-suffix         The name suffix of the Gemini Enterprise App.
 #   --ge-auth-id-secret-names    Comma-separated list of Auth Secret Names to delete.
 #
 # ## MCP Servers Parameters
@@ -47,12 +51,16 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT_ID=""
 REGION=""
 SA_NAME="terraform-sa-gemini-project"
+# --- Shared GE App & AI Agent Parameters ---
+GE_LOCATION=""
+GE_APP_NAME_SUFFIX="osiris-app"
+
+# --- Gemini Enterprise Parameters ---
+DELETE_GE_APP="false"
 
 # --- AI Agent Parameters ---
 DELETE_AI_AGENT="false"
-GE_LOCATION=""
 AGENT_ENGINE_LOCATION=""
-GE_APP_ID=""
 AGENT_DISPLAY_NAME=""
 GE_AUTH_ID_SECRET_NAMES="GEMINI_GOOGLE_AUTH_ID,GEMINI_MICROSOFT_AUTH_ID"
 
@@ -77,12 +85,16 @@ while [[ "$#" -gt 0 ]]; do
         # Global
         --project) PROJECT_ID="$2"; shift ;;
         --region) REGION="$2"; shift ;;
+        # Shared GE App & AI Agent
+        --ge-location) GE_LOCATION="$2"; shift ;;
+        --ge-app-name-suffix) GE_APP_NAME_SUFFIX="$2"; shift ;;
+        
+        # Gemini Enterprise
+        --delete-ge-app) DELETE_GE_APP="$2"; shift ;;
         
         # AI Agent
         --delete-ai-agent) DELETE_AI_AGENT="$2"; shift ;;
-        --ge-location) GE_LOCATION="$2"; shift ;;
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
-        --ge-app-id) GE_APP_ID="$2"; shift ;;
         --agent-display-name) AGENT_DISPLAY_NAME="$2"; shift ;;
         --ge-auth-id-secret-names) GE_AUTH_ID_SECRET_NAMES="$2"; shift ;;
         
@@ -112,11 +124,18 @@ if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]]; then
     echo "Error: --project and --region are required globally."
     exit 1
 fi
+if [[ "$DELETE_GE_APP" == "true" ]] || [[ "$DELETE_AI_AGENT" == "true" ]]; then
+    if [ -z "$GE_LOCATION" ] || [ -z "$GE_APP_NAME_SUFFIX" ]; then
+        echo "Error: Missing shared parameters for Gemini Enterprise / AI Agent deletion."
+        echo "Both operations require: --ge-location, --ge-app-name-suffix"
+        exit 1
+    fi
+fi
 
 if [[ "$DELETE_AI_AGENT" == "true" ]]; then
-    if [ -z "$GE_LOCATION" ] || [ -z "$AGENT_ENGINE_LOCATION" ] || [ -z "$GE_APP_ID" ] || [ -z "$AGENT_DISPLAY_NAME" ] || [ -z "$GE_AUTH_ID_SECRET_NAMES" ]; then
+    if [ -z "$AGENT_ENGINE_LOCATION" ] || [ -z "$AGENT_DISPLAY_NAME" ] || [ -z "$GE_AUTH_ID_SECRET_NAMES" ]; then
         echo "Error: --delete-ai-agent is true, but missing required parameters."
-        echo "Required: --ge-location, --agent-engine-location, --ge-app-id, --agent-display-name, --ge-auth-id-secret-names"
+        echo "Required: --agent-engine-location, --agent-display-name, --ge-auth-id-secret-names"
         exit 1
     fi
 fi
@@ -141,6 +160,10 @@ if [[ "$DELETE_BOOTSTRAP" == "true" ]]; then
         exit 1
     fi
 fi
+# Pre-compute variables for summary and execution
+if [[ "$DELETE_GE_APP" == "true" ]] || [[ "$DELETE_AI_AGENT" == "true" ]]; then
+    GE_APP_ID="${PROJECT_ID}-${GE_LOCATION}-${GE_APP_NAME_SUFFIX}"
+fi
 
 # Summary
 echo "================================================================="
@@ -149,11 +172,18 @@ echo "================================================================="
 echo "Target Project: $PROJECT_ID"
 echo ""
 echo "You have requested the following deletions:"
+echo "GE App: $DELETE_GE_APP"
 echo "AI Agent Resources: $DELETE_AI_AGENT"
-if [[ "$DELETE_AI_AGENT" == "true" ]]; then
+
+if [[ "$DELETE_GE_APP" == "true" ]] || [[ "$DELETE_AI_AGENT" == "true" ]]; then
+    echo "  [Shared Parameters]"
     echo "  - GE Location: $GE_LOCATION"
-    echo "  - Agent Engine Location: $AGENT_ENGINE_LOCATION"
     echo "  - GE App ID: $GE_APP_ID"
+fi
+
+if [[ "$DELETE_AI_AGENT" == "true" ]]; then
+    echo "  [AI Agent Parameters]"
+    echo "  - Agent Engine Location: $AGENT_ENGINE_LOCATION"
     echo "  - Agent Display Name: $AGENT_DISPLAY_NAME"
     echo "  - Auth Secrets to Auto-Delete: $GE_AUTH_ID_SECRET_NAMES"
 fi
@@ -182,13 +212,15 @@ fi
 # Global setup
 STATE_BUCKET="${PROJECT_ID}-terraform-state"
 
+# 1. AI Agent and GE App
+if [[ "$DELETE_AI_AGENT" == "true" ]] || [[ "$DELETE_GE_APP" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 1: Delete AI Agent & GE App Resources"
+    echo "-----------------------------------------------------------------"
 
-# 1. AI Agent
-if [[ "$DELETE_AI_AGENT" == "true" ]]; then
-    echo "-----------------------------------------------------------------"
-    echo "STEP 1: Delete AI Agent Resources"
-    echo "-----------------------------------------------------------------"
     echo 'y' | bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/delete_resources.sh" \
+        --delete-ai-agent "$DELETE_AI_AGENT" \
+        --delete-ge-app "$DELETE_GE_APP" \
         --project "$PROJECT_ID" \
         --ge-location "$GE_LOCATION" \
         --agent-engine-location "$AGENT_ENGINE_LOCATION" \
@@ -196,7 +228,7 @@ if [[ "$DELETE_AI_AGENT" == "true" ]]; then
         --agent-display-name "$AGENT_DISPLAY_NAME" \
         --ge-auth-id-secret-names "$GE_AUTH_ID_SECRET_NAMES"
 else
-    echo "Skipping AI Agent Resources deletion."
+    echo "Skipping AI Agent and GE App Resources deletion."
 fi
 
 # 2. MCP Servers
