@@ -5,6 +5,8 @@ from mcp_servers.sharepoint.app.schemas import (
     SearchSitesRequest,
     SharePointSite,
     IngestDriveItemRequest,
+    GetSitePageRequest,
+    SharePointPageContent,
 )
 
 
@@ -55,3 +57,31 @@ async def test_ingest_sharepoint_drive_item_should_sanitize_errors(monkeypatch) 
     assert response.execution_status == "error"
     assert response.inject_file_data is False
     assert "access_token=[REDACTED]" in response.execution_message
+
+
+def _fake_get_site_page(site_id: str, page_id: str, max_text_chars: int):
+    return SharePointPageContent(
+        page_id=page_id,
+        title="Finance Overview",
+        content_text="Quarterly finance content",
+        component_count=1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_sharepoint_site_page_should_return_content(monkeypatch) -> None:
+    fake_client = FakeSharePointClient()
+    fake_client.get_site_page = _fake_get_site_page
+    monkeypatch.setattr(
+        mcp_server,
+        "create_sharepoint_client",
+        lambda: fake_client,
+    )
+
+    response = await mcp_server.get_sharepoint_site_page(
+        GetSitePageRequest(site_id="site-1", page_id="page-1", max_text_chars=2000)
+    )
+
+    assert response.execution_status == "success"
+    assert response.page is not None
+    assert "Quarterly finance" in response.page.content_text

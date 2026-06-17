@@ -151,3 +151,93 @@ def test_copy_file_to_landing_zone_should_reject_folders(monkeypatch) -> None:
                 ),
             )
         )
+
+
+def test_list_site_pages_should_normalize_page_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/sites/site-1/pages/microsoft.graph.sitePage" in str(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        "id": "page-1",
+                        "name": "Home.aspx",
+                        "title": "Home",
+                        "webUrl": "https://contoso.sharepoint.com/sites/finance/SitePages/Home.aspx",
+                        "pageLayout": "article",
+                    }
+                ]
+            },
+        )
+
+    client = _client_with_transport(httpx.MockTransport(handler))
+    pages = client.list_site_pages(site_id="site-1", max_results=5)
+
+    assert len(pages) == 1
+    assert pages[0].page_id == "page-1"
+    assert pages[0].title == "Home"
+
+
+def test_get_site_page_should_extract_text_from_canvas_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/sites/site-1/pages/page-1/microsoft.graph.sitePage" in str(request.url)
+        assert request.url.params.get("$expand") == "canvasLayout"
+        return httpx.Response(
+            200,
+            json={
+                "id": "page-1",
+                "name": "Home.aspx",
+                "title": "Finance Overview",
+                "canvasLayout": {
+                    "horizontalSections": [
+                        {
+                            "columns": [
+                                {
+                                    "webparts": [
+                                        {
+                                            "innerHtml": "<p>Q4 finance planning summary</p>",
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+            },
+        )
+
+    client = _client_with_transport(httpx.MockTransport(handler))
+    page = client.get_site_page(site_id="site-1", page_id="page-1", max_text_chars=2000)
+
+    assert page.title == "Finance Overview"
+    assert "Q4 finance planning summary" in page.content_text
+    assert page.component_count >= 1
+
+
+def test_list_list_items_should_return_fields_and_preview() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/sites/site-1/lists/list-1/items" in str(request.url)
+        assert request.url.params.get("$expand") == "fields"
+        return httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        "id": "1",
+                        "webUrl": "https://contoso.sharepoint.com/items/1",
+                        "fields": {
+                            "Title": "Roadmap",
+                            "Status": "Approved",
+                            "Priority": 1,
+                        },
+                    }
+                ]
+            },
+        )
+
+    client = _client_with_transport(httpx.MockTransport(handler))
+    items = client.list_list_items(site_id="site-1", list_id="list-1", max_results=5)
+
+    assert items[0].fields["Title"] == "Roadmap"
+    assert "Status: Approved" in items[0].text_preview

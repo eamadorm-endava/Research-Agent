@@ -4,7 +4,7 @@ Read-only Model Context Protocol server for Microsoft SharePoint and OneDrive fo
 
 ## Purpose
 
-This connector lets the Research Agent discover SharePoint sites, list document libraries, inspect files and folders, and copy a selected SharePoint file into the managed ADK/Gemini landing-zone bucket for native multimodal injection.
+This connector lets the Research Agent discover SharePoint sites, inspect site metadata, list document libraries, lists, pages, files, and folders, read structured site/list/page content, and copy selected SharePoint files into the managed ADK/Gemini landing-zone bucket for native multimodal injection.
 
 The SharePoint side is read-only. The only write operation performed by this server is the required internal copy into the configured GCS Landing Zone when `ingest_sharepoint_drive_item` is called.
 
@@ -13,7 +13,13 @@ The SharePoint side is read-only. The only write operation performed by this ser
 | Tool | Description | SharePoint mutation |
 | --- | --- | --- |
 | `search_sharepoint_sites` | Search sites visible to the signed-in user. | No |
+| `get_sharepoint_site` | Read expanded site metadata and description. | No |
+| `discover_sharepoint_site_content` | Return a site overview containing metadata, libraries, lists, and pages. | No |
 | `list_sharepoint_site_drives` | List document-library drives in a site. | No |
+| `list_sharepoint_site_lists` | List SharePoint lists in a site. | No |
+| `list_sharepoint_list_items` | Read visible field values from a SharePoint list. | No |
+| `list_sharepoint_site_pages` | List modern SharePoint pages in a site. | No |
+| `get_sharepoint_site_page` | Read metadata and best-effort text from a modern SharePoint page. | No |
 | `list_sharepoint_drive_items` | List children from the root, a folder item ID, or a folder path. | No |
 | `get_sharepoint_drive_item` | Read metadata for a single file or folder. | No |
 | `search_sharepoint_drive_items` | Search files and folders within a document library drive. | No |
@@ -68,6 +74,8 @@ make build-sharepoint-mcp-image
 ```text
 gs://{LANDING_ZONE_BUCKET}/<app_name>/<user_id>/<session_id>/sharepoint-<UTC timestamp>-<filename>
 ```
+
+Site pages and list items are returned as structured text/metadata because they are not binary files. Office documents, PDFs, images, and other SharePoint drive items are not parsed inside the MCP server; they are copied into the landing zone so the agent/model can interpret them natively.
 
 The response returns:
 

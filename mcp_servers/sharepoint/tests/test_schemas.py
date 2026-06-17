@@ -6,6 +6,8 @@ from mcp_servers.sharepoint.app.schemas import (
     BaseRequest,
     IngestDriveItemRequest,
     ListDriveItemsRequest,
+    GetSitePageRequest,
+    ListListItemsRequest,
 )
 
 
@@ -49,3 +51,16 @@ def test_ingest_request_should_hide_and_return_dependencies_when_injected() -> N
 
     assert request.required_dependencies.user_id == "user@example.com"
     assert "dependencies" not in request.model_dump()
+
+
+def test_get_site_page_request_should_default_text_limit() -> None:
+    request = GetSitePageRequest(site_id="site-1", page_id="page-1")
+
+    assert request.max_text_chars == 12000
+
+
+def test_list_items_request_should_require_list_identifier() -> None:
+    request = ListListItemsRequest(site_id="site-1", list_id="list-1", max_results=5)
+
+    assert request.site_id == "site-1"
+    assert request.list_id == "list-1"

@@ -408,20 +408,29 @@ class ResearchAgentConfig(BaseAgentConfig):
 
             **Tool contract (do not deviate):**
             - `search_sharepoint_sites(request={{"query": <keyword>, "max_results": <int>}})` — searches SharePoint sites visible to the signed-in user. Use this first when the user asks for SharePoint sites or does not provide a `site_id`.
+            - `get_sharepoint_site(request={{"site_id": <site_id>}})` — retrieves expanded metadata and description for one SharePoint site.
+            - `discover_sharepoint_site_content(request={{"site_id": <site_id>, "max_results": <int>}})` — returns a site overview with metadata, document libraries, lists, and pages. Use this when the user asks what is inside a site or when you need a fast site map for research.
             - `list_sharepoint_site_drives(request={{"site_id": <site_id>, "max_results": <int>}})` — lists document libraries for a SharePoint site. The `site_id` MUST come from a prior `search_sharepoint_sites` result or from an explicit user-provided ID.
+            - `list_sharepoint_site_lists(request={{"site_id": <site_id>, "max_results": <int>}})` — lists SharePoint lists in a site.
+            - `list_sharepoint_list_items(request={{"site_id": <site_id>, "list_id": <list_id>, "max_results": <int>}})` — reads visible field values from a SharePoint list. Use it for announcements, trackers, issue lists, FAQs, and other structured site information.
+            - `list_sharepoint_site_pages(request={{"site_id": <site_id>, "max_results": <int>}})` — lists modern SharePoint pages in a site.
+            - `get_sharepoint_site_page(request={{"site_id": <site_id>, "page_id": <page_id>, "max_text_chars": <int>}})` — reads metadata and best-effort text from a modern SharePoint page. Use it for pages/news/wiki-like site content.
             - `list_sharepoint_drive_items(request={{"drive_id": <drive_id>, "item_id": <item_id or null>, "folder_path": <path or null>, "max_results": <int>}})` — lists files and folders in a document library or folder. Use `item_id` OR `folder_path`, never both.
             - `get_sharepoint_drive_item(request={{"drive_id": <drive_id>, "item_id": <item_id>}})` — retrieves metadata for one SharePoint item. IDs MUST come from prior SharePoint tool results or explicit user input.
             - `search_sharepoint_drive_items(request={{"drive_id": <drive_id>, "query": <keyword>, "max_results": <int>}})` — searches files and folders inside a specific SharePoint document library.
-            - `ingest_sharepoint_drive_item(request={{"drive_id": <drive_id>, "item_id": <item_id>, "filename": <optional filename>}})` — copies one SharePoint file into the managed GCS landing zone so the multimodal file injection plugin can load it into context. Use it only when the user asks to analyze, summarize, ingest, or read a SharePoint file's content.
+            - `ingest_sharepoint_drive_item(request={{"drive_id": <drive_id>, "item_id": <item_id>, "filename": <optional filename>}})` — copies one SharePoint file into the managed GCS landing zone so the multimodal file injection plugin can load it into context. Use it for Office documents, PDFs, images, and other files when the user asks to analyze, summarize, ingest, or read content.
 
             **Direct SharePoint request flow:**
             1. If the user asks to search or list SharePoint sites, call `search_sharepoint_sites` immediately. Do not claim that SharePoint is unavailable when the SharePoint MCP toolset is mounted.
-            2. If the user asks for document libraries in a site, first obtain or confirm the `site_id`, then call `list_sharepoint_site_drives`.
-            3. If the user asks for files in a library, first obtain or confirm the `drive_id`, then call `list_sharepoint_drive_items` or `search_sharepoint_drive_items`.
-            4. If the user asks for file contents or a summary, use `ingest_sharepoint_drive_item` for the selected file. Do not attempt to read raw SharePoint bytes directly.
+            2. If the user asks what is inside a site, call `discover_sharepoint_site_content` after obtaining the `site_id`.
+            3. If the user asks about site pages/news/wiki-like information, call `list_sharepoint_site_pages`, then `get_sharepoint_site_page` for the relevant pages.
+            4. If the user asks about structured site data, trackers, announcements, FAQs, or list-backed content, call `list_sharepoint_site_lists`, then `list_sharepoint_list_items` for the relevant list.
+            5. If the user asks for document libraries in a site, first obtain or confirm the `site_id`, then call `list_sharepoint_site_drives`.
+            6. If the user asks for files in a library, first obtain or confirm the `drive_id`, then call `list_sharepoint_drive_items` or `search_sharepoint_drive_items`.
+            7. If the user asks for file contents, image understanding, document summarization, or multimodal analysis, use `ingest_sharepoint_drive_item` for the selected file. Do not attempt to read raw SharePoint file bytes directly.
 
             **Hard Rules:**
-            - Never invent `site_id`, `drive_id`, or `item_id` values.
+            - Never invent `site_id`, `drive_id`, `list_id`, `page_id`, or `item_id` values.
             - Never call SharePoint tools without a concrete search term or an ID from the user or prior tool result.
             - Preserve SharePoint permissions: if Microsoft Graph returns no data or an authorization error, explain that the signed-in Microsoft account may not have access or the app may lack consent.
             """,

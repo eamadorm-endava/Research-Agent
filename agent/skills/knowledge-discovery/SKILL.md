@@ -160,7 +160,7 @@ Launch all the following simultaneously. *Efficiency Rule: never repeat the same
 
 **2c. Google Drive** — Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt (Stage 0 through Wave 2 only). Do NOT execute Stage 4 file reading in Phase 2 — file reading is deferred to Phase 3 Level 3. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**: (1) primary — entities and keywords extracted directly from the user's original prompt; (2) supplementary — entities found in Phase 1 EKB results, added to the keyword pool after user-prompt extraction to expand coverage. If Phase 1 returned zero results, proceed with user-prompt keywords only.
 
-**2d. SharePoint** — Follow the **SHAREPOINT SEARCH PROTOCOL** defined in the system prompt. Search SharePoint sites using the strongest company, project, technology, or document-title keywords; for relevant sites, list document libraries; then search drive items or list root items as needed. Do NOT ingest SharePoint files in Phase 2 — file ingestion is deferred to Phase 3 Level 4.
+**2d. SharePoint** — Follow the **SHAREPOINT SEARCH PROTOCOL** defined in the system prompt. Search SharePoint sites using the strongest company, project, technology, or document-title keywords; for relevant sites, call `discover_sharepoint_site_content` to map site metadata, document libraries, lists, and pages. Use page/list tools in Phase 2 when they can answer without file ingestion. Search drive items or list root items as needed. Do NOT ingest SharePoint files in Phase 2 — file ingestion is deferred to Phase 3 Level 4.
 
 ### Phase 3: Synthesis & Targeted Deep Dive (Escalation Path)
 
@@ -176,10 +176,10 @@ From relevant events found in Phase 2a, apply the Selective Attachment Reading r
 Execute Stage 4 of the **DRIVE SEARCH PROTOCOL** (Prioritized File Reading) against the candidate pool built in Phase 2c: High-triage files first, then Medium. At most 5 `get_file_text` calls per turn, all in parallel. If answer not found, extract new keywords from text and run one additional Wave 1 cycle. Maximum 1 extra cycle.
 
 **Level 4: SharePoint Deep-Dive**
-From relevant SharePoint files found in Phase 2d, use `get_sharepoint_drive_item` for metadata-only questions. If the user asks to summarize, analyze, or read the file content, call `ingest_sharepoint_drive_item` for at most the top 2 relevant files, running calls in parallel when possible. The multimodal file injection plugin will load the copied files into context through the returned `gcs_uri` and `inject_file_data` flag.
+From relevant SharePoint site pages found in Phase 2d, call `get_sharepoint_site_page` to read page/news/wiki-like content directly. From relevant SharePoint lists, call `list_sharepoint_list_items` to read structured fields. From relevant SharePoint files found in Phase 2d, use `get_sharepoint_drive_item` for metadata-only questions. If the user asks to summarize, analyze, interpret images, or read Office/PDF/binary file content, call `ingest_sharepoint_drive_item` for at most the top 2 relevant files, running calls in parallel when possible. The multimodal file injection plugin will load the copied files into context through the returned `gcs_uri` and `inject_file_data` flag.
 
 **Level 5: Relationship Fallback (Implicit Mapping)**
-Analyze EKB metadata (descriptions, summaries, tech stacks), SharePoint filenames, document-library names, and discovered file metadata for shared technologies, industry themes, or generalities. Use these broader themes to re-evaluate Phase 2 results for high-fidelity implicit relationships.
+Analyze EKB metadata (descriptions, summaries, tech stacks), SharePoint site descriptions, page text, list fields, filenames, document-library names, and discovered file metadata for shared technologies, industry themes, or generalities. Use these broader themes to re-evaluate Phase 2 results for high-fidelity implicit relationships.
 
 **Level 6: Final Conclusion**
 Produce the standard output. Write `No information found` under any section where data is missing. The `## Extend Search?` section from **Final Escalation** below MUST appear — omitting it when Level 6 is reached means the task is incomplete.
@@ -275,7 +275,7 @@ Include ONLY files, documents, and events from which data was explicitly extract
 - **Source**: exactly one of `EKB`, `Drive`, `Cloud Storage`, `BigQuery`, or `SharePoint`.
   - **`EKB`**: use for ANY data that originates from the Enterprise Knowledge Base — this includes results from `ekb_semantic_search`, data retrieved from the `documents_chunks` or `documents_metadata` tables, and GCS URIs returned by those results (domain-specific buckets). Never expose the dataset name, table name, or GCS URI in the Source column.
   - **`Drive`**: Google Drive files retrieved via the Drive MCP tools.
-  - **`SharePoint`**: SharePoint files or document-library items retrieved via the SharePoint MCP tools. Use the human-readable file or item name, never the raw site ID, drive ID, or item ID, unless the user explicitly requested IDs.
+  - **`SharePoint`**: SharePoint sites, pages, lists, files, or document-library items retrieved via the SharePoint MCP tools. Use the human-readable file or item name, never the raw site ID, drive ID, or item ID, unless the user explicitly requested IDs.
   - **`Cloud Storage`**: GCS files read directly from personal or non-EKB buckets (e.g., user-provided buckets in Final Escalation).
   - **`BigQuery`**: results from non-EKB BigQuery tables queried via `execute_query` against user-provided datasets.
 - **Project Name**: project name only. NEVER show raw IDs, hashes, or URIs. Example: `Alpha`, `Beta`

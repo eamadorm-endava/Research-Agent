@@ -8,14 +8,26 @@ from pydantic import AnyHttpUrl
 
 from .config import MICROSOFT_AUTH_CONFIG, SHAREPOINT_SERVER_CONFIG
 from .schemas import (
+    DiscoverSiteContentRequest,
+    DiscoverSiteContentResponse,
     GetDriveItemRequest,
     GetDriveItemResponse,
+    GetSitePageRequest,
+    GetSitePageResponse,
+    GetSiteRequest,
+    GetSiteResponse,
     IngestDriveItemRequest,
     IngestDriveItemResponse,
     ListDriveItemsRequest,
     ListDriveItemsResponse,
+    ListListItemsRequest,
+    ListListItemsResponse,
     ListSiteDrivesRequest,
     ListSiteDrivesResponse,
+    ListSiteListsRequest,
+    ListSiteListsResponse,
+    ListSitePagesRequest,
+    ListSitePagesResponse,
     SearchDriveItemsRequest,
     SearchDriveItemsResponse,
     SearchSitesRequest,
@@ -52,7 +64,7 @@ async def search_sharepoint_sites(request: SearchSitesRequest) -> SearchSitesRes
     Returns:
         SearchSitesResponse -> Matching SharePoint site metadata.
     """
-    logger.info("Tool call: search_sharepoint_sites(query=%s)", request.query)
+    logger.info("Tool call: search_sharepoint_sites(query={})", request.query)
     try:
         client = create_sharepoint_client()
         sites = await asyncio.to_thread(
@@ -76,6 +88,72 @@ async def search_sharepoint_sites(request: SearchSitesRequest) -> SearchSitesRes
 
 
 @mcp.tool()
+async def get_sharepoint_site(request: GetSiteRequest) -> GetSiteResponse:
+    """Reads expanded metadata for one SharePoint site.
+
+    Args:
+        request: GetSiteRequest -> Site ID from search results or user input.
+
+    Returns:
+        GetSiteResponse -> Expanded SharePoint site metadata.
+    """
+    logger.info("Tool call: get_sharepoint_site(site_id={})", request.site_id)
+    try:
+        client = create_sharepoint_client()
+        site = await asyncio.to_thread(client.get_site, site_id=request.site_id)
+        return GetSiteResponse(
+            site_id=request.site_id,
+            site=site,
+            execution_status="success",
+            execution_message=f"Retrieved SharePoint site {request.site_id}.",
+        )
+    except Exception as exc:
+        return GetSiteResponse(
+            site_id=request.site_id,
+            site=None,
+            execution_status="error",
+            execution_message=_format_execution_error(exc),
+        )
+
+
+@mcp.tool()
+async def discover_sharepoint_site_content(
+    request: DiscoverSiteContentRequest,
+) -> DiscoverSiteContentResponse:
+    """Lists useful content containers inside a SharePoint site.
+
+    Args:
+        request: DiscoverSiteContentRequest -> Site ID and per-container result limit.
+
+    Returns:
+        DiscoverSiteContentResponse -> Site metadata, libraries, lists, and pages.
+    """
+    logger.info(
+        "Tool call: discover_sharepoint_site_content(site_id={})", request.site_id
+    )
+    try:
+        client = create_sharepoint_client()
+        overview = await asyncio.to_thread(
+            client.discover_site_content,
+            site_id=request.site_id,
+            max_results=request.max_results,
+        )
+        return DiscoverSiteContentResponse(
+            site_id=request.site_id,
+            overview=overview,
+            execution_status="success",
+            execution_message="Retrieved SharePoint site content overview.",
+        )
+    except Exception as exc:
+        return DiscoverSiteContentResponse(
+            site_id=request.site_id,
+            overview=None,
+            execution_status="error",
+            execution_message=_format_execution_error(exc),
+        )
+
+
+@mcp.tool()
 async def list_sharepoint_site_drives(
     request: ListSiteDrivesRequest,
 ) -> ListSiteDrivesResponse:
@@ -87,7 +165,7 @@ async def list_sharepoint_site_drives(
     Returns:
         ListSiteDrivesResponse -> Available SharePoint document libraries.
     """
-    logger.info("Tool call: list_sharepoint_site_drives(site_id=%s)", request.site_id)
+    logger.info("Tool call: list_sharepoint_site_drives(site_id={})", request.site_id)
     try:
         client = create_sharepoint_client()
         drives = await asyncio.to_thread(
@@ -111,6 +189,152 @@ async def list_sharepoint_site_drives(
 
 
 @mcp.tool()
+async def list_sharepoint_site_lists(
+    request: ListSiteListsRequest,
+) -> ListSiteListsResponse:
+    """Lists SharePoint lists inside a site.
+
+    Args:
+        request: ListSiteListsRequest -> Site ID and result limit.
+
+    Returns:
+        ListSiteListsResponse -> Available SharePoint lists.
+    """
+    logger.info("Tool call: list_sharepoint_site_lists(site_id={})", request.site_id)
+    try:
+        client = create_sharepoint_client()
+        lists = await asyncio.to_thread(
+            client.list_site_lists,
+            site_id=request.site_id,
+            max_results=request.max_results,
+        )
+        return ListSiteListsResponse(
+            site_id=request.site_id,
+            lists=lists,
+            execution_status="success",
+            execution_message=f"Found {len(lists)} SharePoint lists.",
+        )
+    except Exception as exc:
+        return ListSiteListsResponse(
+            site_id=request.site_id,
+            lists=[],
+            execution_status="error",
+            execution_message=_format_execution_error(exc),
+        )
+
+
+@mcp.tool()
+async def list_sharepoint_list_items(
+    request: ListListItemsRequest,
+) -> ListListItemsResponse:
+    """Lists readable field values from a SharePoint list.
+
+    Args:
+        request: ListListItemsRequest -> Site ID, list ID, and result limit.
+
+    Returns:
+        ListListItemsResponse -> SharePoint list item fields.
+    """
+    logger.info("Tool call: list_sharepoint_list_items(list_id={})", request.list_id)
+    try:
+        client = create_sharepoint_client()
+        items = await asyncio.to_thread(
+            client.list_list_items,
+            site_id=request.site_id,
+            list_id=request.list_id,
+            max_results=request.max_results,
+        )
+        return ListListItemsResponse(
+            site_id=request.site_id,
+            list_id=request.list_id,
+            items=items,
+            execution_status="success",
+            execution_message=f"Found {len(items)} SharePoint list items.",
+        )
+    except Exception as exc:
+        return ListListItemsResponse(
+            site_id=request.site_id,
+            list_id=request.list_id,
+            items=[],
+            execution_status="error",
+            execution_message=_format_execution_error(exc),
+        )
+
+
+@mcp.tool()
+async def list_sharepoint_site_pages(
+    request: ListSitePagesRequest,
+) -> ListSitePagesResponse:
+    """Lists modern SharePoint pages inside a site.
+
+    Args:
+        request: ListSitePagesRequest -> Site ID and result limit.
+
+    Returns:
+        ListSitePagesResponse -> SharePoint page summaries.
+    """
+    logger.info("Tool call: list_sharepoint_site_pages(site_id={})", request.site_id)
+    try:
+        client = create_sharepoint_client()
+        pages = await asyncio.to_thread(
+            client.list_site_pages,
+            site_id=request.site_id,
+            max_results=request.max_results,
+        )
+        return ListSitePagesResponse(
+            site_id=request.site_id,
+            pages=pages,
+            execution_status="success",
+            execution_message=f"Found {len(pages)} SharePoint pages.",
+        )
+    except Exception as exc:
+        return ListSitePagesResponse(
+            site_id=request.site_id,
+            pages=[],
+            execution_status="error",
+            execution_message=_format_execution_error(exc),
+        )
+
+
+@mcp.tool()
+async def get_sharepoint_site_page(
+    request: GetSitePageRequest,
+) -> GetSitePageResponse:
+    """Reads a SharePoint site page and extracts useful text.
+
+    Args:
+        request: GetSitePageRequest -> Site ID, page ID, and text limit.
+
+    Returns:
+        GetSitePageResponse -> Page metadata and extracted text.
+    """
+    logger.info("Tool call: get_sharepoint_site_page(page_id={})", request.page_id)
+    try:
+        client = create_sharepoint_client()
+        page = await asyncio.to_thread(
+            client.get_site_page,
+            site_id=request.site_id,
+            page_id=request.page_id,
+            max_text_chars=request.max_text_chars,
+        )
+        return GetSitePageResponse(
+            site_id=request.site_id,
+            page_id=request.page_id,
+            page=page,
+            execution_status="success",
+            execution_message=f"Retrieved SharePoint page {request.page_id}.",
+        )
+    except Exception as exc:
+        return GetSitePageResponse(
+            site_id=request.site_id,
+            page_id=request.page_id,
+            page=None,
+            execution_status="error",
+            execution_message=_format_execution_error(exc),
+        )
+
+
+@mcp.tool()
 async def list_sharepoint_drive_items(
     request: ListDriveItemsRequest,
 ) -> ListDriveItemsResponse:
@@ -122,7 +346,7 @@ async def list_sharepoint_drive_items(
     Returns:
         ListDriveItemsResponse -> Child file and folder metadata.
     """
-    logger.info("Tool call: list_sharepoint_drive_items(drive_id=%s)", request.drive_id)
+    logger.info("Tool call: list_sharepoint_drive_items(drive_id={})", request.drive_id)
     try:
         client = create_sharepoint_client()
         items = await asyncio.to_thread(
@@ -163,7 +387,7 @@ async def get_sharepoint_drive_item(
     Returns:
         GetDriveItemResponse -> Single drive item metadata record.
     """
-    logger.info("Tool call: get_sharepoint_drive_item(item_id=%s)", request.item_id)
+    logger.info("Tool call: get_sharepoint_drive_item(item_id={})", request.item_id)
     try:
         client = create_sharepoint_client()
         item = await asyncio.to_thread(
@@ -200,7 +424,7 @@ async def search_sharepoint_drive_items(
     Returns:
         SearchDriveItemsResponse -> Matching drive items.
     """
-    logger.info("Tool call: search_sharepoint_drive_items(query=%s)", request.query)
+    logger.info("Tool call: search_sharepoint_drive_items(query={})", request.query)
     try:
         client = create_sharepoint_client()
         items = await asyncio.to_thread(
@@ -241,7 +465,7 @@ async def ingest_sharepoint_drive_item(
     Returns:
         IngestDriveItemResponse -> GCS URI and inject_file_data flag.
     """
-    logger.info("Tool call: ingest_sharepoint_drive_item(item_id=%s)", request.item_id)
+    logger.info("Tool call: ingest_sharepoint_drive_item(item_id={})", request.item_id)
     try:
         client = create_sharepoint_client()
         return await asyncio.to_thread(client.copy_file_to_landing_zone, request)

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import datetime
+import html
 import re
-from collections.abc import Mapping
-from typing import Optional, cast
+from collections.abc import Mapping, Sequence
+from typing import Any, Optional, cast
 from urllib.parse import quote
 
 import google.auth
@@ -19,12 +20,18 @@ from .schemas import (
     SharePointDriveItem,
     SharePointFileMetadata,
     SharePointItemKind,
+    SharePointListItem,
+    SharePointListResource,
+    SharePointPageContent,
+    SharePointPageSummary,
     SharePointSite,
+    SharePointSiteContentOverview,
+    SharePointSiteDetail,
 )
 
 
 class SharePointClient:
-    """Read-only Microsoft Graph client for SharePoint sites and document libraries."""
+    """Read-only Microsoft Graph client for SharePoint sites and content."""
 
     def __init__(self, access_token: str) -> None:
         """Creates a Microsoft Graph client with delegated bearer authentication.
@@ -55,17 +62,53 @@ class SharePointClient:
         Returns:
             list[SharePointSite] -> Matching SharePoint site metadata.
         """
-        logger.info("Searching SharePoint sites with query='%s'", query)
+        logger.info("Searching SharePoint sites with query='{}'", query)
         payloads = self._paginated_get(
             "/sites",
             params={
                 "search": query,
                 "$top": str(min(max_results, SHAREPOINT_API_CONFIG.page_size)),
-                "$select": "id,name,displayName,webUrl,createdDateTime,lastModifiedDateTime",
+                "$select": _site_select_fields(),
             },
             max_results=max_results,
         )
         return [self._build_site(payload) for payload in payloads]
+
+    def get_site(self, site_id: str) -> SharePointSiteDetail:
+        """Reads expanded metadata for a SharePoint site.
+
+        Args:
+            site_id: str -> Microsoft Graph site ID.
+
+        Returns:
+            SharePointSiteDetail -> Expanded site metadata.
+        """
+        logger.info("Getting SharePoint site '{}'", site_id)
+        site_segment = _quote_graph_segment(site_id)
+        payload = self._get_single(
+            f"/sites/{site_segment}",
+            params={"$select": _site_detail_select_fields()},
+        )
+        return self._build_site_detail(payload)
+
+    def discover_site_content(
+        self, site_id: str, max_results: int
+    ) -> SharePointSiteContentOverview:
+        """Returns high-level site metadata, libraries, lists, and pages.
+
+        Args:
+            site_id: str -> Microsoft Graph site ID.
+            max_results: int -> Maximum number of each content container to return.
+
+        Returns:
+            SharePointSiteContentOverview -> Site-level content inventory.
+        """
+        return SharePointSiteContentOverview(
+            site=self.get_site(site_id),
+            drives=self.list_site_drives(site_id=site_id, max_results=max_results),
+            lists=self.list_site_lists(site_id=site_id, max_results=max_results),
+            pages=self.list_site_pages(site_id=site_id, max_results=max_results),
+        )
 
     def list_site_drives(self, site_id: str, max_results: int) -> list[SharePointDrive]:
         """Lists document-library drives for a SharePoint site.
@@ -77,7 +120,7 @@ class SharePointClient:
         Returns:
             list[SharePointDrive] -> Document libraries in the site.
         """
-        logger.info("Listing SharePoint drives for site_id='%s'", site_id)
+        logger.info("Listing SharePoint drives for site_id='{}'", site_id)
         site_segment = _quote_graph_segment(site_id)
         payloads = self._paginated_get(
             f"/sites/{site_segment}/drives",
@@ -88,6 +131,106 @@ class SharePointClient:
             max_results=max_results,
         )
         return [self._build_drive(payload) for payload in payloads]
+
+    def list_site_lists(
+        self, site_id: str, max_results: int
+    ) -> list[SharePointListResource]:
+        """Lists SharePoint lists inside a site.
+
+        Args:
+            site_id: str -> Microsoft Graph site ID.
+            max_results: int -> Maximum number of lists to return.
+
+        Returns:
+            list[SharePointListResource] -> SharePoint lists in the site.
+        """
+        logger.info("Listing SharePoint lists for site_id='{}'", site_id)
+        site_segment = _quote_graph_segment(site_id)
+        payloads = self._paginated_get(
+            f"/sites/{site_segment}/lists",
+            params={
+                "$top": str(min(max_results, SHAREPOINT_API_CONFIG.page_size)),
+                "$select": "id,name,displayName,webUrl,list,createdDateTime,lastModifiedDateTime",
+            },
+            max_results=max_results,
+        )
+        return [self._build_list_resource(payload) for payload in payloads]
+
+    def list_list_items(
+        self, site_id: str, list_id: str, max_results: int
+    ) -> list[SharePointListItem]:
+        """Lists field values for items in one SharePoint list.
+
+        Args:
+            site_id: str -> Microsoft Graph site ID.
+            list_id: str -> Microsoft Graph list ID.
+            max_results: int -> Maximum number of list items to return.
+
+        Returns:
+            list[SharePointListItem] -> List item records with visible fields.
+        """
+        logger.info("Listing SharePoint list items for list_id='{}'", list_id)
+        site_segment = _quote_graph_segment(site_id)
+        list_segment = _quote_graph_segment(list_id)
+        payloads = self._paginated_get(
+            f"/sites/{site_segment}/lists/{list_segment}/items",
+            params={
+                "$top": str(min(max_results, SHAREPOINT_API_CONFIG.page_size)),
+                "$select": "id,webUrl,createdDateTime,lastModifiedDateTime",
+                "$expand": "fields",
+            },
+            max_results=max_results,
+        )
+        return [self._build_list_item(payload) for payload in payloads]
+
+    def list_site_pages(
+        self, site_id: str, max_results: int
+    ) -> list[SharePointPageSummary]:
+        """Lists modern SharePoint pages in a site.
+
+        Args:
+            site_id: str -> Microsoft Graph site ID.
+            max_results: int -> Maximum number of pages to return.
+
+        Returns:
+            list[SharePointPageSummary] -> Site page metadata records.
+        """
+        logger.info("Listing SharePoint pages for site_id='{}'", site_id)
+        site_segment = _quote_graph_segment(site_id)
+        payloads = self._paginated_get(
+            f"/sites/{site_segment}/pages/microsoft.graph.sitePage",
+            params={
+                "$top": str(min(max_results, SHAREPOINT_API_CONFIG.page_size)),
+                "$select": _page_select_fields(),
+            },
+            max_results=max_results,
+        )
+        return [self._build_page_summary(payload) for payload in payloads]
+
+    def get_site_page(
+        self, site_id: str, page_id: str, max_text_chars: int
+    ) -> SharePointPageContent:
+        """Reads a SharePoint site page and extracts answerable text.
+
+        Args:
+            site_id: str -> Microsoft Graph site ID.
+            page_id: str -> Microsoft Graph sitePage ID.
+            max_text_chars: int -> Maximum extracted text characters to return.
+
+        Returns:
+            SharePointPageContent -> Page metadata and extracted readable text.
+        """
+        logger.info("Getting SharePoint page '{}'", page_id)
+        site_segment = _quote_graph_segment(site_id)
+        page_segment = _quote_graph_segment(page_id)
+        payload = self._get_single(
+            f"/sites/{site_segment}/pages/{page_segment}/microsoft.graph.sitePage",
+            params={
+                "$select": _page_select_fields(),
+                "$expand": "canvasLayout",
+            },
+        )
+        return self._build_page_content(payload, max_text_chars=max_text_chars)
 
     def list_drive_items(
         self,
@@ -108,7 +251,7 @@ class SharePointClient:
         Returns:
             list[SharePointDriveItem] -> Child file and folder metadata.
         """
-        logger.info("Listing SharePoint drive items for drive_id='%s'", drive_id)
+        logger.info("Listing SharePoint drive items for drive_id='{}'", drive_id)
         path = self._build_children_path(drive_id, item_id, folder_path)
         payloads = self._paginated_get(
             path,
@@ -130,7 +273,7 @@ class SharePointClient:
         Returns:
             SharePointDriveItem -> File or folder metadata.
         """
-        logger.info("Getting SharePoint drive item '%s'", item_id)
+        logger.info("Getting SharePoint drive item '{}'", item_id)
         drive_segment = _quote_graph_segment(drive_id)
         item_segment = _quote_graph_segment(item_id)
         payload = self._get_single(
@@ -152,7 +295,7 @@ class SharePointClient:
         Returns:
             list[SharePointDriveItem] -> Matching drive item metadata.
         """
-        logger.info("Searching SharePoint drive '%s' for query='%s'", drive_id, query)
+        logger.info("Searching SharePoint drive '{}' for query='{}'", drive_id, query)
         drive_segment = _quote_graph_segment(drive_id)
         encoded_query = quote(query.replace("'", "''"), safe="")
         payloads = self._paginated_get(
@@ -344,7 +487,7 @@ class SharePointClient:
             for binding in iam_policy.bindings
         )
         if already_granted:
-            logger.debug("Landing-zone IAM binding already exists for '%s'", user_email)
+            logger.debug("Landing-zone IAM binding already exists for '{}'", user_email)
             return
 
         iam_policy.bindings.append(
@@ -409,7 +552,7 @@ class SharePointClient:
         )
 
     def _build_site(self, payload: Mapping[str, object]) -> SharePointSite:
-        """Normalizes a Microsoft Graph site payload into a Pydantic model."""
+        """Normalizes a Microsoft Graph site payload into a compact model."""
         return SharePointSite(
             site_id=_required_str(payload.get("id"), "site.id"),
             name=_optional_str(payload.get("name")),
@@ -417,6 +560,16 @@ class SharePointClient:
             web_url=_optional_str(payload.get("webUrl")),
             created_at=_optional_str(payload.get("createdDateTime")),
             last_modified_at=_optional_str(payload.get("lastModifiedDateTime")),
+        )
+
+    def _build_site_detail(self, payload: Mapping[str, object]) -> SharePointSiteDetail:
+        """Normalizes a Microsoft Graph site payload into an expanded model."""
+        site_collection = _as_mapping(payload.get("siteCollection"))
+        return SharePointSiteDetail(
+            **self._build_site(payload).model_dump(),
+            description=_optional_str(payload.get("description")),
+            hostname=_optional_str(site_collection.get("hostname")),
+            sharepoint_ids=dict(_as_mapping(payload.get("sharepointIds"))),
         )
 
     def _build_drive(self, payload: Mapping[str, object]) -> SharePointDrive:
@@ -428,6 +581,64 @@ class SharePointClient:
             web_url=_optional_str(payload.get("webUrl")),
             created_at=_optional_str(payload.get("createdDateTime")),
             last_modified_at=_optional_str(payload.get("lastModifiedDateTime")),
+        )
+
+    def _build_list_resource(
+        self, payload: Mapping[str, object]
+    ) -> SharePointListResource:
+        """Normalizes a Microsoft Graph list payload into a Pydantic model."""
+        list_payload = _as_mapping(payload.get("list"))
+        return SharePointListResource(
+            list_id=_required_str(payload.get("id"), "list.id"),
+            name=_optional_str(payload.get("name")),
+            display_name=_optional_str(payload.get("displayName")),
+            web_url=_optional_str(payload.get("webUrl")),
+            list_template=_optional_str(list_payload.get("template")),
+            created_at=_optional_str(payload.get("createdDateTime")),
+            last_modified_at=_optional_str(payload.get("lastModifiedDateTime")),
+        )
+
+    def _build_list_item(self, payload: Mapping[str, object]) -> SharePointListItem:
+        """Normalizes a Microsoft Graph listItem payload into a Pydantic model."""
+        fields = _json_safe_mapping(_as_mapping(payload.get("fields")))
+        return SharePointListItem(
+            item_id=_required_str(payload.get("id"), "listItem.id"),
+            web_url=_optional_str(payload.get("webUrl")),
+            created_at=_optional_str(payload.get("createdDateTime")),
+            last_modified_at=_optional_str(payload.get("lastModifiedDateTime")),
+            fields=fields,
+            text_preview=_build_text_preview(fields),
+        )
+
+    def _build_page_summary(
+        self, payload: Mapping[str, object]
+    ) -> SharePointPageSummary:
+        """Normalizes a Microsoft Graph sitePage payload into a summary model."""
+        return SharePointPageSummary(
+            page_id=_required_str(payload.get("id"), "sitePage.id"),
+            name=_optional_str(payload.get("name")),
+            title=_optional_str(payload.get("title")),
+            web_url=_optional_str(payload.get("webUrl")),
+            page_layout=_optional_str(payload.get("pageLayout")),
+            promotion_kind=_optional_str(payload.get("promotionKind")),
+            created_at=_optional_str(payload.get("createdDateTime")),
+            last_modified_at=_optional_str(payload.get("lastModifiedDateTime")),
+        )
+
+    def _build_page_content(
+        self, payload: Mapping[str, object], *, max_text_chars: int
+    ) -> SharePointPageContent:
+        """Builds a readable page-content model from a Graph sitePage payload."""
+        text_fragments = _extract_text_fragments(payload)
+        content_text = "\n".join(text_fragments).strip()
+        content_truncated = len(content_text) > max_text_chars
+        if content_truncated:
+            content_text = content_text[:max_text_chars].rstrip()
+        return SharePointPageContent(
+            **self._build_page_summary(payload).model_dump(),
+            content_text=content_text,
+            content_truncated=content_truncated,
+            component_count=len(text_fragments),
         )
 
     def _build_drive_item(self, payload: Mapping[str, object]) -> SharePointDriveItem:
@@ -456,6 +667,27 @@ def _build_storage_client() -> storage.Client:
     """Builds a GCS client from Application Default Credentials."""
     credentials, project_id = google.auth.default()
     return storage.Client(credentials=credentials, project=project_id)
+
+
+def _site_select_fields() -> str:
+    """Returns Graph field selection for compact site metadata."""
+    return "id,name,displayName,webUrl,createdDateTime,lastModifiedDateTime"
+
+
+def _site_detail_select_fields() -> str:
+    """Returns Graph field selection for expanded site metadata."""
+    return (
+        "id,name,displayName,webUrl,description,siteCollection,sharepointIds,"
+        "createdDateTime,lastModifiedDateTime"
+    )
+
+
+def _page_select_fields() -> str:
+    """Returns Graph field selection for SharePoint site pages."""
+    return (
+        "id,name,title,webUrl,pageLayout,promotionKind,"
+        "createdDateTime,lastModifiedDateTime"
+    )
 
 
 def _drive_item_select_fields() -> str:
@@ -495,6 +727,96 @@ def _resolve_item_kind(
     if package_payload:
         return SharePointItemKind.PACKAGE
     return SharePointItemKind.UNKNOWN
+
+
+def _extract_text_fragments(payload: Mapping[str, object]) -> list[str]:
+    """Extracts readable text fragments from nested Graph page payloads."""
+    fragments: list[str] = []
+    ignored_keys = {
+        "id",
+        "eTag",
+        "webUrl",
+        "createdDateTime",
+        "lastModifiedDateTime",
+        "@odata.context",
+        "@odata.etag",
+    }
+    preferred_keys = {
+        "title",
+        "text",
+        "innerHtml",
+        "serverProcessedContent",
+        "description",
+        "caption",
+        "altText",
+    }
+
+    def visit(value: object, key: str = "") -> None:
+        if isinstance(value, Mapping):
+            for child_key, child_value in value.items():
+                if child_key in ignored_keys:
+                    continue
+                visit(child_value, str(child_key))
+            return
+        if isinstance(value, Sequence) and not isinstance(
+            value, (str, bytes, bytearray)
+        ):
+            for child in value:
+                visit(child, key)
+            return
+        if not isinstance(value, str):
+            return
+        if key not in preferred_keys and len(value.strip()) < 24:
+            return
+        cleaned = _clean_text(value)
+        if cleaned and cleaned not in fragments:
+            fragments.append(cleaned)
+
+    visit(payload)
+    return fragments
+
+
+def _clean_text(value: str) -> str:
+    """Converts HTML-ish Graph strings into readable plain text."""
+    text = html.unescape(value)
+    text = re.sub(r"<script.*?</script>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<style.*?</style>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _build_text_preview(fields: Mapping[str, object]) -> str:
+    """Builds a compact preview from SharePoint list item fields."""
+    parts: list[str] = []
+    for key, value in fields.items():
+        if key.startswith("@") or value in (None, ""):
+            continue
+        if isinstance(value, (str, int, float, bool)):
+            parts.append(f"{key}: {value}")
+        elif isinstance(value, list):
+            scalar_values = [str(item) for item in value if isinstance(item, str)]
+            if scalar_values:
+                parts.append(f"{key}: {', '.join(scalar_values)}")
+        if len("; ".join(parts)) >= 1000:
+            break
+    return "; ".join(parts)[:1000]
+
+
+def _json_safe_mapping(value: Mapping[str, object]) -> dict[str, Any]:
+    """Returns a shallow JSON-safe mapping for tool responses."""
+    return {str(key): _json_safe_value(val) for key, val in value.items()}
+
+
+def _json_safe_value(value: object) -> Any:
+    """Converts Graph values into basic JSON-compatible values."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Mapping):
+        return _json_safe_mapping(value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_json_safe_value(item) for item in value]
+    return str(value)
 
 
 def _as_mapping(value: object) -> Mapping[str, object]:

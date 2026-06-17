@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Annotated, Literal, Optional, Self
+from typing import Annotated, Any, Literal, Optional, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -95,6 +95,15 @@ MAX_RESULTS = Annotated[
         description="Maximum number of SharePoint items to return.",
     ),
 ]
+MAX_TEXT_CHARS = Annotated[
+    int,
+    Field(
+        default=12000,
+        ge=500,
+        le=50000,
+        description="Maximum number of extracted text characters to return.",
+    ),
+]
 SITE_ID = Annotated[
     str,
     Field(min_length=1, description="Microsoft Graph SharePoint site identifier."),
@@ -110,6 +119,14 @@ DRIVE_ITEM_ID = Annotated[
 OPTIONAL_DRIVE_ITEM_ID = Annotated[
     Optional[str],
     Field(default=None, min_length=1, description="Optional driveItem identifier."),
+]
+LIST_ID = Annotated[
+    str,
+    Field(min_length=1, description="Microsoft Graph SharePoint list identifier."),
+]
+PAGE_ID = Annotated[
+    str,
+    Field(min_length=1, description="Microsoft Graph SharePoint site page identifier."),
 ]
 FOLDER_PATH = Annotated[
     Optional[str],
@@ -160,6 +177,25 @@ class SharePointSite(SharePointSchemaModel):
     ]
 
 
+class SharePointSiteDetail(SharePointSite):
+    """Expanded SharePoint site metadata for site-level reasoning."""
+
+    description: Annotated[
+        Optional[str],
+        Field(default=None, description="Site description, when available."),
+    ]
+    hostname: Annotated[
+        Optional[str], Field(default=None, description="SharePoint tenant hostname.")
+    ]
+    sharepoint_ids: Annotated[
+        dict[str, Any],
+        Field(
+            default_factory=dict,
+            description="Raw Graph sharepointIds metadata useful for traceability.",
+        ),
+    ]
+
+
 class SharePointDrive(SharePointSchemaModel):
     """Compact SharePoint document library drive metadata."""
 
@@ -177,7 +213,106 @@ class SharePointDrive(SharePointSchemaModel):
         Optional[str], Field(default=None, description="Drive creation timestamp.")
     ]
     last_modified_at: Annotated[
-        Optional[str], Field(default=None, description="Drive last modified timestamp.")
+        Optional[str],
+        Field(default=None, description="Drive last modified timestamp."),
+    ]
+
+
+class SharePointListResource(SharePointSchemaModel):
+    """Compact metadata for a SharePoint list inside a site."""
+
+    list_id: Annotated[str, Field(description="Microsoft Graph list ID.")]
+    name: Annotated[
+        Optional[str], Field(default=None, description="Internal list name.")
+    ]
+    display_name: Annotated[
+        Optional[str], Field(default=None, description="Human-readable list title.")
+    ]
+    web_url: Annotated[
+        Optional[str], Field(default=None, description="Browser URL for the list.")
+    ]
+    list_template: Annotated[
+        Optional[str], Field(default=None, description="SharePoint list template name.")
+    ]
+    created_at: Annotated[
+        Optional[str], Field(default=None, description="List creation timestamp.")
+    ]
+    last_modified_at: Annotated[
+        Optional[str], Field(default=None, description="List last modified timestamp.")
+    ]
+
+
+class SharePointListItem(SharePointSchemaModel):
+    """SharePoint list item fields that can be used directly for answers."""
+
+    item_id: Annotated[str, Field(description="Microsoft Graph listItem ID.")]
+    web_url: Annotated[
+        Optional[str], Field(default=None, description="Browser URL for the list item.")
+    ]
+    created_at: Annotated[
+        Optional[str], Field(default=None, description="List item creation timestamp.")
+    ]
+    last_modified_at: Annotated[
+        Optional[str],
+        Field(default=None, description="List item last modified timestamp."),
+    ]
+    fields: Annotated[
+        dict[str, Any],
+        Field(default_factory=dict, description="Visible SharePoint list item fields."),
+    ]
+    text_preview: Annotated[
+        str,
+        Field(
+            default="", description="Concise text preview assembled from field values."
+        ),
+    ]
+
+
+class SharePointPageSummary(SharePointSchemaModel):
+    """SharePoint site page metadata returned during site discovery."""
+
+    page_id: Annotated[str, Field(description="Microsoft Graph sitePage ID.")]
+    name: Annotated[Optional[str], Field(default=None, description="Page file name.")]
+    title: Annotated[Optional[str], Field(default=None, description="Page title.")]
+    web_url: Annotated[
+        Optional[str], Field(default=None, description="Browser URL for the page.")
+    ]
+    page_layout: Annotated[
+        Optional[str], Field(default=None, description="Graph page layout value.")
+    ]
+    promotion_kind: Annotated[
+        Optional[str],
+        Field(default=None, description="Graph page promotion kind value."),
+    ]
+    created_at: Annotated[
+        Optional[str], Field(default=None, description="Page creation timestamp.")
+    ]
+    last_modified_at: Annotated[
+        Optional[str], Field(default=None, description="Page last modified timestamp.")
+    ]
+
+
+class SharePointPageContent(SharePointPageSummary):
+    """Readable text extracted from a SharePoint site page payload."""
+
+    content_text: Annotated[
+        str,
+        Field(
+            default="",
+            description="Best-effort readable page text extracted from the Graph page payload.",
+        ),
+    ]
+    content_truncated: Annotated[
+        bool,
+        Field(
+            default=False, description="Whether content_text was truncated by limit."
+        ),
+    ]
+    component_count: Annotated[
+        int,
+        Field(
+            default=0, ge=0, description="Approximate number of text fragments found."
+        ),
     ]
 
 
@@ -229,6 +364,27 @@ class SharePointFileMetadata(SharePointDriveItem):
     """Metadata for a SharePoint file copied into the landing zone."""
 
 
+class SharePointSiteContentOverview(SharePointSchemaModel):
+    """One-call overview of useful content containers inside a SharePoint site."""
+
+    site: Annotated[
+        Optional[SharePointSiteDetail],
+        Field(default=None, description="Expanded site metadata."),
+    ]
+    drives: Annotated[
+        list[SharePointDrive],
+        Field(default_factory=list, description="Document libraries in the site."),
+    ]
+    lists: Annotated[
+        list[SharePointListResource],
+        Field(default_factory=list, description="SharePoint lists in the site."),
+    ]
+    pages: Annotated[
+        list[SharePointPageSummary],
+        Field(default_factory=list, description="SharePoint pages in the site."),
+    ]
+
+
 class SearchSitesRequest(BaseRequest):
     """Request for searching SharePoint sites available to the signed-in user."""
 
@@ -242,6 +398,39 @@ class SearchSitesResponse(BaseResponse):
     query: SEARCH_QUERY
     sites: Annotated[
         list[SharePointSite], Field(default_factory=list, description="Matched sites.")
+    ]
+
+
+class GetSiteRequest(BaseRequest):
+    """Request for reading expanded metadata for one SharePoint site."""
+
+    site_id: SITE_ID
+
+
+class GetSiteResponse(BaseResponse):
+    """Response containing one expanded SharePoint site metadata record."""
+
+    site_id: SITE_ID
+    site: Annotated[
+        Optional[SharePointSiteDetail],
+        Field(default=None, description="Expanded SharePoint site metadata."),
+    ]
+
+
+class DiscoverSiteContentRequest(BaseRequest):
+    """Request for listing high-level content containers inside one site."""
+
+    site_id: SITE_ID
+    max_results: MAX_RESULTS
+
+
+class DiscoverSiteContentResponse(BaseResponse):
+    """Response containing site metadata, libraries, lists, and pages."""
+
+    site_id: SITE_ID
+    overview: Annotated[
+        Optional[SharePointSiteContentOverview],
+        Field(default=None, description="High-level site content overview."),
     ]
 
 
@@ -259,6 +448,78 @@ class ListSiteDrivesResponse(BaseResponse):
     drives: Annotated[
         list[SharePointDrive],
         Field(default_factory=list, description="Document libraries in the site."),
+    ]
+
+
+class ListSiteListsRequest(BaseRequest):
+    """Request for listing SharePoint lists in a site."""
+
+    site_id: SITE_ID
+    max_results: MAX_RESULTS
+
+
+class ListSiteListsResponse(BaseResponse):
+    """Response containing SharePoint lists for a site."""
+
+    site_id: SITE_ID
+    lists: Annotated[
+        list[SharePointListResource],
+        Field(default_factory=list, description="SharePoint lists in the site."),
+    ]
+
+
+class ListListItemsRequest(BaseRequest):
+    """Request for listing readable items from one SharePoint list."""
+
+    site_id: SITE_ID
+    list_id: LIST_ID
+    max_results: MAX_RESULTS
+
+
+class ListListItemsResponse(BaseResponse):
+    """Response containing SharePoint list item fields."""
+
+    site_id: SITE_ID
+    list_id: LIST_ID
+    items: Annotated[
+        list[SharePointListItem],
+        Field(default_factory=list, description="Readable list item fields."),
+    ]
+
+
+class ListSitePagesRequest(BaseRequest):
+    """Request for listing SharePoint pages in a site."""
+
+    site_id: SITE_ID
+    max_results: MAX_RESULTS
+
+
+class ListSitePagesResponse(BaseResponse):
+    """Response containing SharePoint site page summaries."""
+
+    site_id: SITE_ID
+    pages: Annotated[
+        list[SharePointPageSummary],
+        Field(default_factory=list, description="SharePoint pages in the site."),
+    ]
+
+
+class GetSitePageRequest(BaseRequest):
+    """Request for reading text from one SharePoint site page."""
+
+    site_id: SITE_ID
+    page_id: PAGE_ID
+    max_text_chars: MAX_TEXT_CHARS
+
+
+class GetSitePageResponse(BaseResponse):
+    """Response containing readable SharePoint site page content."""
+
+    site_id: SITE_ID
+    page_id: PAGE_ID
+    page: Annotated[
+        Optional[SharePointPageContent],
+        Field(default=None, description="Readable site page content."),
     ]
 
 
