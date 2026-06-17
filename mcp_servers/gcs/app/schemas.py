@@ -129,6 +129,13 @@ class UploadObjectRequest(BaseRequest):
             description="Optional folder path inside the destination bucket. Do not include leading/trailing slashes.",
         ),
     ]
+    metadata: Annotated[
+        Optional[Dict[str, Any]],
+        Field(
+            default=None,
+            description="Optional metadata to set on the object during upload.",
+        ),
+    ]
 
     @property
     def destination_path(self) -> str:
