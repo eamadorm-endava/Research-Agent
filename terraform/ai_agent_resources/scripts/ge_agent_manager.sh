@@ -27,6 +27,8 @@ while [[ "$#" -gt 0 ]]; do
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
         --agent-description) GE_AGENT_DESCRIPTION="$2"; shift ;;
         --icon-uri) ICON_URI="$2"; shift ;;
+        --agent-description) AGENT_DESCRIPTION="$2"; shift ;;
+        --ge-app-id) APP_ID="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -189,8 +191,56 @@ case "$COMMAND" in
         echo "Agent Registration requested successfully."
         ;;
     
+    create-ge-app)
+        if [ -z "$APP_ID" ] || [ -z "$AGENT_DISPLAY_NAME" ]; then
+            echo "Error: --ge-app-id and --agent-display-name are required for create-ge-app."
+            exit 1
+        fi
+        
+        # Determine the description
+        DESCRIPTION="${AGENT_DESCRIPTION:-$GE_AGENT_DESCRIPTION}"
+        
+        # Code adapted from https://docs.cloud.google.com/gemini/enterprise/docs/create-app?hl=en
+        echo "Checking if Gemini Enterprise App (Engine: ${APP_ID}) already exists..."
+        
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "$AUTH_HEADER" \
+          -H "X-Goog-User-Project: $PROJECT_ID" \
+          "https://discoveryengine.googleapis.com/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines/$APP_ID")
+          
+        if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "App (Engine) '$APP_ID' already exists. Skipping creation."
+        elif [ "$HTTP_STATUS" -eq 404 ]; then
+            echo "App (Engine) '$APP_ID' not found. Creating..."
+            # Make the REST API call to create the engine
+            ENG_RES=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "$AUTH_HEADER" \
+              -H "Content-Type: application/json" \
+              -H "X-Goog-User-Project: $PROJECT_ID" \
+              "https://discoveryengine.googleapis.com/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines?engineId=$APP_ID" \
+              -d "{
+                \"displayName\": \"$AGENT_DISPLAY_NAME\",
+                \"dataStoreIds\": [],
+                \"solutionType\": \"SOLUTION_TYPE_SEARCH\",
+                \"industryVertical\": \"GENERIC\",
+                \"appType\": \"APP_TYPE_INTRANET\"
+              }")
+            ENG_RES_CODE=$(echo "$ENG_RES" | tail -n 1)
+            
+            if [ "$ENG_RES_CODE" -ne 200 ] && [ "$ENG_RES_CODE" -ne 201 ] && [ "$ENG_RES_CODE" -ne 202 ]; then
+                echo "Failed to create Engine. HTTP Status: $ENG_RES_CODE. Response: $(echo "$ENG_RES" | sed '$d')"
+                exit 1
+            fi
+            echo -e "\nGemini Enterprise App with ID: $APP_ID created successfully."
+        else
+            echo "Failed to check app status. HTTP Status Code: $HTTP_STATUS"
+            exit 1
+        fi
+        ;;
+    
     *)
-        echo "Usage: $0 {delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
+        echo "Usage: $0 {create-ge-app|delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
+        echo "  create-ge-app flags: --project --ge-app-id --agent-display-name [--agent-description] [--ge-location]"
         echo "  register-agent flags: --project --app-id --agent-display-name --agent-engine-agent-id --auth-ids --agent-engine-location [--agent-description] [--icon-uri] [--ge-location]"
         exit 1
         ;;
