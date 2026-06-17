@@ -81,10 +81,16 @@ fi
 
 # 3. Delete the App in Gemini Enterprise (Discovery Engine)
 echo "[Step 3/5] Deleting App (Engine) in Gemini Enterprise..."
+if [ "$GE_LOCATION" == "global" ]; then
+    API_ENDPOINT="discoveryengine.googleapis.com"
+else
+    API_ENDPOINT="${GE_LOCATION}-discoveryengine.googleapis.com"
+fi
+
 curl -s -X DELETE \
   -H "Authorization: Bearer $(gcloud auth print-access-token)" \
   -H "x-goog-user-project: ${PROJECT_ID}" \
-  "https://discoveryengine.googleapis.com/v1alpha/projects/${PROJECT_ID}/locations/${GE_LOCATION}/collections/default_collection/engines/${GE_APP_ID}"
+  "https://${API_ENDPOINT}/v1/projects/${PROJECT_ID}/locations/${GE_LOCATION}/collections/default_collection/engines/${GE_APP_ID}"
 echo ""
 
 # 4. Delete the agent in Agent Engine
