@@ -42,7 +42,11 @@ fi
 
 AUTH_HEADER="Authorization: Bearer $(gcloud auth print-access-token)"
 
-API_ENDPOINT="${GE_LOCATION}-discoveryengine.googleapis.com"
+if [ "$GE_LOCATION" == "global" ]; then
+    API_ENDPOINT="discoveryengine.googleapis.com"
+else
+    API_ENDPOINT="${GE_LOCATION}-discoveryengine.googleapis.com"
+fi
 
 BASE_URL="https://${API_ENDPOINT}/v1alpha/projects/${PROJECT_ID}/locations/${GE_LOCATION}"
 
@@ -192,8 +196,8 @@ case "$COMMAND" in
         ;;
     
     create-ge-app)
-        if [ -z "$APP_ID" ] || [ -z "$AGENT_DISPLAY_NAME" ]; then
-            echo "Error: --ge-app-id and --agent-display-name are required for create-ge-app."
+        if [ -z "$APP_ID" ]; then
+            echo "Error: --ge-app-id is required for create-ge-app."
             exit 1
         fi
         
@@ -206,7 +210,7 @@ case "$COMMAND" in
         HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
           -H "$AUTH_HEADER" \
           -H "X-Goog-User-Project: $PROJECT_ID" \
-          "https://discoveryengine.googleapis.com/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines/$APP_ID")
+          "https://${API_ENDPOINT}/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines/$APP_ID")
           
         if [ "$HTTP_STATUS" -eq 200 ]; then
             echo "App (Engine) '$APP_ID' already exists. Skipping creation."
@@ -217,9 +221,9 @@ case "$COMMAND" in
               -H "$AUTH_HEADER" \
               -H "Content-Type: application/json" \
               -H "X-Goog-User-Project: $PROJECT_ID" \
-              "https://discoveryengine.googleapis.com/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines?engineId=$APP_ID" \
+              "https://${API_ENDPOINT}/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines?engineId=$APP_ID" \
               -d "{
-                \"displayName\": \"$AGENT_DISPLAY_NAME\",
+                \"displayName\": \"$APP_ID\",
                 \"dataStoreIds\": [],
                 \"solutionType\": \"SOLUTION_TYPE_SEARCH\",
                 \"industryVertical\": \"GENERIC\",
@@ -240,7 +244,7 @@ case "$COMMAND" in
     
     *)
         echo "Usage: $0 {create-ge-app|delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
-        echo "  create-ge-app flags: --project --ge-app-id --agent-display-name [--agent-description] [--ge-location]"
+        echo "  create-ge-app flags: --project --ge-app-id [--ge-location]"
         echo "  register-agent flags: --project --app-id --agent-display-name --agent-engine-agent-id --auth-ids --agent-engine-location [--agent-description] [--icon-uri] [--ge-location]"
         exit 1
         ;;
