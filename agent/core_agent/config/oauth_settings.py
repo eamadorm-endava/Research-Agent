@@ -92,52 +92,52 @@ class GoogleAuthConfig(BaseOAuthConfig):
     ]
 
 
-class MicrosoftAuthConfig(BaseOAuthConfig):
-    """Configuration for Microsoft Entra OAuth 2.0 connection parameters."""
-
-    model_config = SettingsConfigDict(
-        env_prefix="MICROSOFT_OAUTH_",
-    )
-
-    TENANT_ID: Annotated[
-        str,
-        Field(
-            default="mock-tenant-id",
-            description="Microsoft Entra Tenant ID.",
-        ),
-    ]
-    AUTH_URI: Annotated[
-        str,
-        Field(
-            default="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-            description=(
-                "The URL where the user is redirected to log in and grant permissions. "
-                "This is required for the first step of the OAuth 2.0 Authorization Code flow."
-            ),
-        ),
-    ]
-    TOKEN_URI: Annotated[
-        str,
-        Field(
-            default="https://login.microsoftonline.com/common/oauth2/v2.0/token",
-            description=(
-                "The URL used by the application to exchange an authorization code for an access token (and refresh token). "
-                "This is required for the second step of the OAuth 2.0 Authorization Code flow."
-            ),
-        ),
-    ]
-    # TOKEN_ENDPOINT_AUTH_METHOD: str = "client_secret_post"
-
-    @model_validator(mode="after")
-    def construct_uris(self) -> Self:
-        """Dynamically injects the TENANT_ID into the OAuth URIs if they still contain 'common'."""
-        if "common" in self.AUTH_URI:
-            self.AUTH_URI = self.AUTH_URI.replace("common", self.TENANT_ID)
-        if "common" in self.TOKEN_URI:
-            self.TOKEN_URI = self.TOKEN_URI.replace("common", self.TENANT_ID)
-        return self
+# class MicrosoftAuthConfig(BaseOAuthConfig):
+#     """Configuration for Microsoft Entra OAuth 2.0 connection parameters."""
+# 
+#     model_config = SettingsConfigDict(
+#         env_prefix="MICROSOFT_OAUTH_",
+#     )
+# 
+#     TENANT_ID: Annotated[
+#         str,
+#         Field(
+#             default="mock-tenant-id",
+#             description="Microsoft Entra Tenant ID.",
+#         ),
+#     ]
+#     AUTH_URI: Annotated[
+#         str,
+#         Field(
+#             default="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+#             description=(
+#                 "The URL where the user is redirected to log in and grant permissions. "
+#                 "This is required for the first step of the OAuth 2.0 Authorization Code flow."
+#             ),
+#         ),
+#     ]
+#     TOKEN_URI: Annotated[
+#         str,
+#         Field(
+#             default="https://login.microsoftonline.com/common/oauth2/v2.0/token",
+#             description=(
+#                 "The URL used by the application to exchange an authorization code for an access token (and refresh token). "
+#                 "This is required for the second step of the OAuth 2.0 Authorization Code flow."
+#             ),
+#         ),
+#     ]
+#     # TOKEN_ENDPOINT_AUTH_METHOD: str = "client_secret_post"
+# 
+#     @model_validator(mode="after")
+#     def construct_uris(self) -> Self:
+#         """Dynamically injects the TENANT_ID into the OAuth URIs if they still contain 'common'."""
+#         if "common" in self.AUTH_URI:
+#             self.AUTH_URI = self.AUTH_URI.replace("common", self.TENANT_ID)
+#         if "common" in self.TOKEN_URI:
+#             self.TOKEN_URI = self.TOKEN_URI.replace("common", self.TENANT_ID)
+#         return self
 
 
 # Global configuration instances
 GOOGLE_AUTH_CONFIG = GoogleAuthConfig()
-MICROSOFT_AUTH_CONFIG = MicrosoftAuthConfig()
+# MICROSOFT_AUTH_CONFIG = MicrosoftAuthConfig()

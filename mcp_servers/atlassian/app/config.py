@@ -14,7 +14,8 @@ class AtlassianCredentials(BaseModel):
     jira_user_email: str = Field(alias="JIRA_USER_EMAIL")
     jira_api_token: SecretStr = Field(alias="JIRA_API_TOKEN")
     jira_instance_url: str = Field(alias="JIRA_INSTANCE_URL")
-    jira_cloud_id: str = Field(alias="JIRA_CLOUD_ID")
+    jira_cloud_id: Optional[str] = Field(default="", alias="JIRA_CLOUD_ID")
+
 
 
 class AtlassianMcpConfigBase(BaseSettings):
