@@ -25,19 +25,40 @@ set -euo pipefail
 #                            a 2nd Gen repository connection, strictly formatted as "owner-repo".
 #
 # Parameters:
-#   --region                 - The default GCP Region for triggers.
-#   --deploy-mcp-servers     - "true" to create triggers for MCP servers.
+#   --region                 - The default GCP region for the project.
+#   --deploy-mcp-servers     - "true" to create triggers for the MCP Servers.
 #   --mcp-servers-to-deploy  - Comma-separated list of MCP servers to create triggers for.
 #   --deploy-ekb-pipeline    - "true" to create the trigger for the EKB pipeline.
 #   --deploy-ai-agent        - "true" to create the trigger for the AI Agent.
+#   --force-recreate         - "true" to delete and recreate triggers if they exist.
+#
+#   [AI Agent Parameters - Required if --deploy-ai-agent is true]
+#   --ge-app-location        - The location of the Gemini Enterprise App.
+#   --ge-app-name-suffix     - The name suffix of the Gemini Enterprise App.
+#   --bq-url                 - The BigQuery MCP server Cloud Run URL.
+#   --gcs-url                - The GCS MCP server Cloud Run URL.
+#   --drive-url              - The Google Drive MCP server Cloud Run URL.
+#   --calendar-url           - The Google Calendar MCP server Cloud Run URL.
+#   --onedrive-url           - The OneDrive MCP server Cloud Run URL.
+#   --ekb-pipeline-url       - The EKB Pipeline Cloud Run URL.
 # ==============================================================================
 
 # --- Parameters ---
 REGION=""
-DEPLOY_AI_AGENT="false"
 DEPLOY_MCP_SERVERS="false"
 MCP_SERVERS_TO_DEPLOY="all"
 DEPLOY_EKB_PIPELINE="false"
+
+# --- AI Agent Parameters ---
+DEPLOY_AI_AGENT="false"
+GE_APP_LOCATION=""
+GE_APP_NAME_SUFFIX=""
+BQ_URL=""
+GCS_URL=""
+DRIVE_URL=""
+CALENDAR_URL=""
+ONEDRIVE_URL=""
+EKB_URL=""
 
 # --- Optional / Overridable Variables ---
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
@@ -51,7 +72,18 @@ while [[ "$#" -gt 0 ]]; do
         --deploy-mcp-servers) DEPLOY_MCP_SERVERS="$2"; shift ;;
         --mcp-servers-to-deploy) MCP_SERVERS_TO_DEPLOY="$2"; shift ;;
         --deploy-ekb-pipeline) DEPLOY_EKB_PIPELINE="$2"; shift ;;
+        --force-recreate) FORCE_RECREATE="$2"; shift ;;
+        
+        # AI Agent Specific
         --deploy-ai-agent) DEPLOY_AI_AGENT="$2"; shift ;;
+        --ge-app-location) GE_APP_LOCATION="$2"; shift ;;
+        --ge-app-name-suffix) GE_APP_NAME_SUFFIX="$2"; shift ;;
+        --bq-url) BQ_URL="$2"; shift ;;
+        --gcs-url) GCS_URL="$2"; shift ;;
+        --drive-url) DRIVE_URL="$2"; shift ;;
+        --calendar-url) CALENDAR_URL="$2"; shift ;;
+        --onedrive-url) ONEDRIVE_URL="$2"; shift ;;
+        --ekb-pipeline-url) EKB_URL="$2"; shift ;;
         *) ;; # Ignore unknown params
     esac
     shift
@@ -68,6 +100,14 @@ if [[ -z "${SA_NAME:-}" ]]; then echo "Error: SA_NAME environment variable is mi
 if [[ -z "${SA_EMAIL:-}" ]]; then echo "Error: SA_EMAIL environment variable is missing."; exit 1; fi
 if [[ -z "${GITHUB_CONNECTION_NAME:-}" ]]; then echo "Error: GITHUB_CONNECTION_NAME environment variable is missing."; exit 1; fi
 if [[ -z "${REPOSITORY_SLUG:-}" ]]; then echo "Error: REPOSITORY_SLUG environment variable is missing."; exit 1; fi
+
+if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
+    if [[ -z "$GE_APP_LOCATION" ]] || [[ -z "$GE_APP_NAME_SUFFIX" ]] || [[ -z "$BQ_URL" ]] || [[ -z "$GCS_URL" ]] || [[ -z "$DRIVE_URL" ]] || [[ -z "$CALENDAR_URL" ]] || [[ -z "$ONEDRIVE_URL" ]] || [[ -z "$EKB_URL" ]]; then
+        echo "Error: --deploy-ai-agent is true, but missing required AI Agent parameters."
+        echo "Required: --ge-app-location, --ge-app-name-suffix, --bq-url, --gcs-url, --drive-url, --calendar-url, --onedrive-url, --ekb-pipeline-url"
+        exit 1
+    fi
+fi
 
 PROJECT_NUMBER="${PROJECT_NUMBER:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')}"
 REPO_PATH="projects/${PROJECT_NUMBER}/locations/${REGION}/connections/${GITHUB_CONNECTION_NAME}/repositories/${REPOSITORY_SLUG}"
@@ -98,10 +138,16 @@ create_trigger() {
   local dir="$3"
   local config="$4"
   local extra_dir="$5"
+  local extra_substitutions="${6:-}"
 
   local included_files="${dir}/**"
   if [[ -n "$extra_dir" ]]; then
     included_files="${included_files},${extra_dir}"
+  fi
+  
+  local subs="_SA_NAME=$SA_NAME"
+  if [[ -n "$extra_substitutions" ]]; then
+    subs="${subs},${extra_substitutions}"
   fi
 
   if trigger_exists "$name"; then
@@ -125,7 +171,7 @@ create_trigger() {
       --build-config="$config" \
       --included-files="$included_files" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
-      --substitutions="_SA_NAME=$SA_NAME"
+      --substitutions="$subs"
   else
     echo "Creating push trigger: ${name}"
     gcloud alpha builds triggers create github \
@@ -137,16 +183,18 @@ create_trigger() {
       --build-config="$config" \
       --included-files="$included_files" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
-      --substitutions="_SA_NAME=$SA_NAME"
+      --substitutions="$subs"
   fi
 }
 
 # --- AI Agent Triggers ---
 if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
+    AI_AGENT_SUBS="_GE_REGION=$GE_APP_LOCATION,_GE_APP_NAME_SUFFIX=$GE_APP_NAME_SUFFIX,_BIGQUERY_URL=$BQ_URL,_GCS_URL=$GCS_URL,_DRIVE_URL=$DRIVE_URL,_CALENDAR_URL=$CALENDAR_URL,_ONEDRIVE_URL=$ONEDRIVE_URL,_EKB_PIPELINE_URL=$EKB_URL"
+
     # CI (Plan) on Pull Request
-    create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**"
+    create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**" "$AI_AGENT_SUBS"
     # CD (Apply) on Push/Merge
-    create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
+    create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**" "$AI_AGENT_SUBS"
 fi
 
 # --- MCP Server Triggers ---
