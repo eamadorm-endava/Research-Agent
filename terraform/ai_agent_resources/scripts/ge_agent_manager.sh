@@ -20,6 +20,9 @@ while [[ "$#" -gt 0 ]]; do
         --client-id) CLIENT_ID="$2"; shift ;;
         --client-secret) CLIENT_SECRET="$2"; shift ;;
         --scopes) OAUTH_SCOPES="$2"; shift ;;
+        --auth-uri-base) AUTH_URI_BASE="$2"; shift ;;
+        --auth-uri-extras) AUTH_URI_EXTRAS="$2"; shift ;;
+        --token-uri) TOKEN_URI="$2"; shift ;;
         --agent-engine-agent-id) AGENT_ENGINE_AGENT_ID="$2"; shift ;;
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
         --agent-description) GE_AGENT_DESCRIPTION="$2"; shift ;;
@@ -98,14 +101,18 @@ case "$COMMAND" in
         ;;
 
     create-auth-ids)
-        if [ -z "$AUTH_IDS" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$OAUTH_SCOPES" ]; then
-            echo "Error: Missing required parameters for create-auth-ids."
+        if [ -z "$AUTH_IDS" ] || [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$OAUTH_SCOPES" ] || [ -z "$AUTH_URI_BASE" ] || [ -z "$TOKEN_URI" ]; then
+            echo "Error: Missing required parameters for create-auth-ids. Ensure --auth-uri-base and --token-uri are provided."
             exit 1
         fi
         
         ENCODED_SCOPES="${OAUTH_SCOPES// /%20}"
-        AUTH_URI="https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fstatic%2Foauth%2Foauth.html&scope=${ENCODED_SCOPES}&include_granted_scopes=true&response_type=code&access_type=offline&prompt=consent"
-        TOKEN_URI="https://oauth2.googleapis.com/token" # This value doesn't change for Google OAuth
+        
+        AUTH_URI="${AUTH_URI_BASE}?client_id=${CLIENT_ID}&redirect_uri=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fstatic%2Foauth%2Foauth.html&scope=${ENCODED_SCOPES}&response_type=code&prompt=consent"
+        
+        if [ -n "$AUTH_URI_EXTRAS" ]; then
+            AUTH_URI="${AUTH_URI}&${AUTH_URI_EXTRAS}"
+        fi
 
         JSON_PAYLOAD=$(jq -n \
             --arg clientId "$CLIENT_ID" \

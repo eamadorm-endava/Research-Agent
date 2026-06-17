@@ -12,62 +12,56 @@ set -euo pipefail
 #   - BigQuery MCP server
 #   - Google Drive MCP server
 #   - Google Calendar MCP server
+#   - OneDrive MCP server
 #
 # It intentionally does not destroy shared resources, the AI Agent, the EKB
 # pipeline, the Terraform state bucket, or the Terraform service account.
 #
 # Run this script from the repository root:
-#   ./terraform/scripts/delete_mcp_servers.sh
+#   ./terraform/scripts/delete_mcp_servers.sh --project <PROJECT_ID> --region <REGION>
 #
-# Optional environment variable overrides:
-#   PROJECT_ID=your-project-id
-#   REGION=us-central1
-#   SA_NAME=terraform-sa-gemini-project
-#   STATE_BUCKET=your-terraform-state-bucket
-#   DELETE_MCP_TRIGGERS=true
+# Required parameters:
+#   --project            GCP Project ID
+#   --region             Default GCP Region for the MCP servers
+#
+# Optional parameters:
+#   --servers            Comma-separated list of servers to delete (e.g., "onedrive,google_calendar=europe-west1") or "all".
+#                        If a location is appended with '=', it overrides the default region for that specific server.
 # -----------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # --- Configuration ---
-PROJECT_ID="${PROJECT_ID:-ag-core-ops-auj0}"
-REGION="${REGION:-us-central1}"
-SA_NAME="${SA_NAME:-terraform-sa-gemini-project}"
-SA_EMAIL="${SA_EMAIL:-${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com}"
+PROJECT_ID=""
+REGION=""
+SERVERS_TO_DELETE=""
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --project) PROJECT_ID="$2"; shift ;;
+        --servers) SERVERS_TO_DELETE="$2"; shift ;;
+        --region) REGION="$2"; shift ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]] || [[ -z "$SERVERS_TO_DELETE" ]]; then
+    echo "Error: --project, --region, and --servers parameters are required."
+    exit 1
+fi
+
 STATE_BUCKET="${STATE_BUCKET:-${PROJECT_ID}-terraform-state}"
-DELETE_MCP_TRIGGERS="${DELETE_MCP_TRIGGERS:-false}"
 
-# Terraform should impersonate the same service account that created the stacks.
-export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT="$SA_EMAIL"
-
-# MCP Terraform stacks and their remote state prefixes.
-# The backend prefixes must match the prefixes used by the Cloud Build pipelines.
-MCP_STACKS=(
-    "gcs_mcp_server_resources:terraform/state/gcs-mcp-server-resources"
-    "bq_mcp_server_resources:terraform/state/bq-mcp-server-resources"
-    "drive_mcp_server_resources:terraform/state/drive-mcp-server-resources"
-    "google_calendar_mcp_server_resources:terraform/state/calendar-mcp-server-resources"
-)
-
-# Optional MCP Cloud Build triggers. They are deleted only when
-# DELETE_MCP_TRIGGERS=true is set by the caller.
-MCP_TRIGGERS=(
-    "bq-mcp-server-services-plan"
-    "bq-mcp-server-services-apply"
-    "gcs-mcp-server-services-plan"
-    "gcs-mcp-server-services-apply"
-    "drive-mcp-server-services-plan"
-    "drive-mcp-server-services-apply"
-    "calendar-mcp-server-services-plan"
-    "calendar-mcp-server-services-apply"
-)
+# We dynamically construct the Terraform stack and state paths based on the provided prefixes.
 
 confirm_destroy() {
-    echo "This will destroy all MCP server Terraform resources in project: $PROJECT_ID"
-    echo "Terraform service account: $SA_EMAIL"
+    echo "This will destroy MCP server Terraform resources in project: $PROJECT_ID"
+    echo "Parameters:"
+    echo "  - Region: $REGION"
+    echo "  - Servers: $SERVERS_TO_DELETE"
     echo "Terraform state bucket: gs://$STATE_BUCKET"
-    echo "MCP Cloud Build triggers will be deleted: $DELETE_MCP_TRIGGERS"
     read -p "Are you sure you want to proceed? (y/N): " confirm
 
     if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then
@@ -82,65 +76,43 @@ terraform_init() {
 
     terraform -chdir="$stack_dir" init -reconfigure \
         -backend-config="bucket=${STATE_BUCKET}" \
-        -backend-config="prefix=${state_prefix}" \
-        -backend-config="impersonate_service_account=${SA_EMAIL}"
+        -backend-config="prefix=${state_prefix}"
 }
 
-disable_cloud_run_deletion_protection() {
-    local stack_dir="$1"
 
-    # Cloud Run services cannot be destroyed until deletion_protection=false has
-    # already been applied. This targeted apply updates that setting before the
-    # full destroy plan is created.
-    local target="module.mcp_server_cloud_run.google_cloud_run_v2_service.service[0]"
-
-    if terraform -chdir="$stack_dir" state list | grep -F -q "${target}"; then
-        echo "Disabling Cloud Run deletion protection for: $stack_dir"
-        terraform -chdir="$stack_dir" apply \
-            -target="$target" \
-            -auto-approve
-    else
-        echo "Cloud Run service is not present in state for $stack_dir, skipping deletion protection update."
-    fi
-}
 
 destroy_stack() {
     local stack_name="$1"
     local state_prefix="$2"
+    local stack_region="$3"
     local stack_dir="$REPO_ROOT/terraform/$stack_name"
 
+    if [ ! -d "$stack_dir" ]; then
+        echo "Warning: Directory $stack_dir not found. Skipping $stack_name."
+        return 0
+    fi
+
     echo "---------------------------------------"
-    echo "Destroying MCP Terraform stack: $stack_name"
+    echo "Destroying MCP Terraform stack: $stack_name (Region: $stack_region)"
     echo "State prefix: $state_prefix"
 
     terraform_init "$stack_dir" "$state_prefix"
 
     echo "Resources currently tracked in state:"
-    terraform -chdir="$stack_dir" state list || true
+    if ! terraform -chdir="$stack_dir" state list >/dev/null 2>&1; then
+        echo "Warning: Failed to read state or state is empty. Attempting destroy anyway, but this may fail gracefully."
+    else
+        terraform -chdir="$stack_dir" state list || true
+    fi
 
-    disable_cloud_run_deletion_protection "$stack_dir"
 
     echo "Creating destroy plan for $stack_name..."
-    terraform -chdir="$stack_dir" plan -destroy -out=tf-destroy.plan
+    export TF_VAR_landing_zone_bucket="${PROJECT_ID}-ai-agent-landing-zone"
+    export TF_VAR_kb_ingestion_bucket="${PROJECT_ID}-kb-landing-zone"
+    terraform -chdir="$stack_dir" plan -destroy -var="project_id=$PROJECT_ID" -var="main_region=$stack_region" -out=tf-destroy.plan || { echo "Warning: Failed to create plan for $stack_name. Skipping."; return 0; }
 
     echo "Applying destroy plan for $stack_name..."
-    terraform -chdir="$stack_dir" apply tf-destroy.plan
-}
-
-delete_mcp_triggers() {
-    echo "---------------------------------------"
-    echo "Deleting MCP Cloud Build triggers..."
-
-    for TRIGGER in "${MCP_TRIGGERS[@]}"; do
-        if gcloud builds triggers describe "$TRIGGER" --region="$REGION" --project="$PROJECT_ID" > /dev/null 2>&1; then
-            echo "Deleting trigger: $TRIGGER..."
-            gcloud alpha builds triggers delete "$TRIGGER" --region="$REGION" --project="$PROJECT_ID" --quiet
-        else
-            echo "Trigger $TRIGGER not found, skipping."
-        fi
-    done
-
-    echo "MCP trigger cleanup complete."
+    terraform -chdir="$stack_dir" apply tf-destroy.plan || { echo "Warning: Failed to apply destroy for $stack_name."; return 0; }
 }
 
 confirm_destroy
@@ -149,17 +121,44 @@ echo "---------------------------------------"
 echo "Configuring gcloud project and Terraform impersonation..."
 gcloud config set project "$PROJECT_ID"
 
-for STACK in "${MCP_STACKS[@]}"; do
-    STACK_NAME="${STACK%%:*}"
-    STATE_PREFIX="${STACK#*:}"
-    destroy_stack "$STACK_NAME" "$STATE_PREFIX"
-done
-
-if [[ "$DELETE_MCP_TRIGGERS" == "true" ]]; then
-    delete_mcp_triggers
+SERVER_LIST=()
+if [[ "$SERVERS_TO_DELETE" == "all" ]]; then
+    # Find all directories matching *_mcp_server_resources
+    for dir in "$REPO_ROOT/terraform/"*_mcp_server_resources; do
+        if [ -d "$dir" ]; then
+            base=$(basename "$dir")
+            prefix="${base%_mcp_server_resources}"
+            SERVER_LIST+=("$prefix")
+        fi
+    done
 else
-    echo "Skipping MCP Cloud Build trigger deletion. Set DELETE_MCP_TRIGGERS=true to delete them."
+    IFS=',' read -ra SERVER_LIST <<< "$SERVERS_TO_DELETE"
 fi
+
+for SERVER_ENTRY in "${SERVER_LIST[@]}"; do
+    # Extract specific region if provided (e.g. gcs=us-east1)
+    if [[ "$SERVER_ENTRY" =~ ^([^=]+)=([^=]+)$ ]]; then
+        SERVER_BASE="${BASH_REMATCH[1]}"
+        SERVER_REGION="${BASH_REMATCH[2]}"
+    else
+        SERVER_BASE="$SERVER_ENTRY"
+        SERVER_REGION="$REGION"
+    fi
+    
+    STACK_NAME="${SERVER_BASE}_mcp_server_resources"
+    STACK_DIR="$REPO_ROOT/terraform/$STACK_NAME"
+    
+    if [ ! -d "$STACK_DIR" ]; then
+        echo "Warning: Directory $STACK_DIR not found. Skipping MCP server '$SERVER_BASE'."
+        continue
+    fi
+    
+    # Generate state prefix dynamically.
+    SERVER_BASE_HYPHEN="${SERVER_BASE//_/-}"
+    STATE_PREFIX="terraform/state/${SERVER_BASE_HYPHEN}-mcp-server-resources"
+    
+    destroy_stack "$STACK_NAME" "$STATE_PREFIX" "$SERVER_REGION"
+done
 
 echo "---------------------------------------"
 echo "MCP server deletion complete."

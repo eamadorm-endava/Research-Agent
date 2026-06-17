@@ -1,4 +1,4 @@
-PROJECT_ID?=ag-core-ops-auj0# ?= is used to set a default value if the variable is not set in the .env file
+PROJECT_ID?=host-ge-prod-endava-01-yd8e# ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
 BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
@@ -30,7 +30,9 @@ verify-all-ci:
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
+	$(MAKE) verify-onedrive-ci
 	$(MAKE) verify-ekb-ci
+	$(MAKE) verify-atlassian-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -160,6 +162,29 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
 
+### OneDrive MCP Commands ###
+
+run-onedrive-precommit:
+	uvx pre-commit run --files mcp_servers/onedrive/**/*
+
+run-onedrive-tests:
+	uv run --group mcp_onedrive pytest mcp_servers/onedrive/tests/
+
+run-onedrive-mcp-locally:
+	uv run --group mcp_onedrive python -m mcp_servers.onedrive.app.main --host localhost --port 8084
+
+build-onedrive-mcp-image:
+	docker build -t test-onedrive-mcp-server -f mcp_servers/onedrive/Dockerfile .
+
+verify-onedrive-ci:
+	$(MAKE) run-onedrive-precommit
+	$(MAKE) run-onedrive-tests
+	$(MAKE) build-onedrive-mcp-image
+	$(MAKE) test-onedrive-terraform
+
+test-onedrive-terraform:
+	cd terraform/onedrive_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
 ### EKB Pipeline Commands ###
 
 run-ekb-precommit:
@@ -180,3 +205,36 @@ verify-ekb-ci:
 
 test-ekb-terraform:
 	cd terraform/ekb_pipeline_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### Atlassian MCP Commands ###
+
+run-atlassian-precommit:
+	uvx pre-commit run --files mcp_servers/atlassian/**/*
+
+run-atlassian-tests:
+	uv run --group mcp_atlassian pytest mcp_servers/atlassian/tests/
+
+run-atlassian-mcp-locally:
+	uv run --group mcp_atlassian python -m mcp_servers.atlassian.app.main --host localhost --port 8085
+
+run-atlassian-mcp-smoke:
+	uv run --group mcp_atlassian python mcp_servers/atlassian/scripts/mcp_smoke_test.py --endpoint http://localhost:8085/mcp
+
+run-atlassian-mcp-test-client:
+	uv run --group mcp_atlassian python mcp_servers/atlassian/scripts/test_mcp_client.py
+
+build-atlassian-mcp-image:
+	docker build -t test-atlassian-mcp-server -f mcp_servers/atlassian/Dockerfile .
+
+verify-atlassian-ci:
+	$(MAKE) run-atlassian-precommit
+	$(MAKE) run-atlassian-tests
+	$(MAKE) run-atlassian-mcp-test-client
+	$(MAKE) test-agent-atlassian
+	$(MAKE) build-atlassian-mcp-image
+
+test-agent-atlassian:
+	uv run pytest agent/tests/test_agent_atlassian_mcp.py -v
+
+verify-agent-atlassian-tools:
+	uv run --group mcp_atlassian --group dev python agent/tests/verify_agent_atlassian_tools.py
