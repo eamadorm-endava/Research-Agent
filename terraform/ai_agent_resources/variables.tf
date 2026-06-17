@@ -25,6 +25,11 @@ variable "landing_zone_bucket_name" {
   type        = string
 }
 
+variable "model_armor_template_id" {
+  description = "The name of the Model Armor template"
+  type        = string
+}
+
 #AI Agent service account and IAM roles
 
 variable "ai_agent_service_account_name" {

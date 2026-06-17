@@ -93,7 +93,8 @@ The orchestrator relies on boolean flags (`true`/`false`) to selectively deploy 
    - **Note on Commit SHAs**: Even though the pipeline is triggered manually via a script (and not a GitHub webhook), Cloud Build automatically resolves the HEAD commit of the target branch (`main`) and dynamically populates standard built-in variables like `$COMMIT_SHA` and `$SHORT_SHA`, ensuring your tagging operations work flawlessly.
 4. **Gemini Enterprise App**: 
    - The script creates the Gemini Enterprise App via the Discovery Engine API using the computed ID (e.g. `<project>-<location>-<suffix>`).
-5. **AI Agent Deployment**: 
+5. **AI Agent Deployment & Model Armor**: 
+   - The orchestrator seamlessly provisions the `security-template` Model Armor template codified directly via Terraform with advanced safety validations configured.
    - It triggers the AI Agent Cloud Build CD pipeline, seamlessly passing down the dynamically created `GE_APP_ID` and region, along with all computed dependency infrastructure endpoints (such as the deployed MCP Server URLs and the EKB pipeline URL) through the pre-configured Cloud Build trigger substitutions. This ensures the Agent is accurately linked to all of its dependent services.
 
 ## Phase 3: Final Manual Steps
