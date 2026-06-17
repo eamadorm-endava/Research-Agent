@@ -3,30 +3,38 @@
 
 set -e
 
+# ==============================================================================
+# Script: bootstrap.sh
+# Purpose:
+#   This script is the foundational bootstrapping utility for the GCP project.
+#   It initializes the fundamental APIs, creates the Terraform Service Account,
+#   assigns all necessary IAM roles, configures Cloud Build 2nd Gen permissions,
+#   and sets up the Terraform state bucket in Google Cloud Storage (GCS).
+#
+# Usage:
+#   This script should NOT be executed directly. It is designed to be called by
+#   creation_manager.sh, which injects all required configuration variables.
+#
+# Required Environment Variables:
+#   PROJECT_ID            - The GCP Project ID where resources will be deployed.
+#   LOCATION              - The default GCP region for the state bucket.
+#   SA_NAME               - The name of the Service Account to create for Terraform.
+#   USER_EMAIL            - The email of the individual user who will be granted impersonation rights.
+#   DEVELOPER_GROUP_EMAIL - The email of the Google Group whose members get impersonation rights.
+# ==============================================================================
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# --- Configuration ---
+# --- Required Configuration Variables ---
+if [[ -z "${PROJECT_ID:-}" ]]; then echo "Error: PROJECT_ID is not set."; exit 1; fi
+if [[ -z "${LOCATION:-}" ]]; then echo "Error: LOCATION is not set."; exit 1; fi
+if [[ -z "${SA_NAME:-}" ]]; then echo "Error: SA_NAME is not set."; exit 1; fi
+if [[ -z "${USER_EMAIL:-}" ]]; then echo "Error: USER_EMAIL is not set."; exit 1; fi
+if [[ -z "${DEVELOPER_GROUP_EMAIL:-}" ]]; then echo "Error: DEVELOPER_GROUP_EMAIL is not set."; exit 1; fi
 
-#service accounts and IAM roles (exported for use in sub-scripts)
-export PROJECT_ID="host-ge-prod-endava-01-yd8e"
-export SA_NAME="terraform-sa-gemini-project"
 export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-USER_EMAIL="emmanuel.amador@endava.com"
-DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com" # Update with your email or group
-
-#bucket
-BUCKET_NAME="${PROJECT_ID}-terraform-state" #GCS Bucket to storage terraform state
-LOCATION="us-central1"
-
-# GitHub (exported for use in sub-scripts)
-REPO_NAME="Research-Agent"
-REPO_OWNER="eamadorm-endava"
-BRANCH_NAME="" # Your specific development branch
-export GITHUB_REGION="us-central1"
-export GITHUB_CONNECTION_NAME="eamadorm-github-connection"
-export REPOSITORY_SLUG="${REPO_OWNER}-${REPO_NAME}"
-APPLY_SHARED_RESOURCES="${APPLY_SHARED_RESOURCES:-true}"
+BUCKET_NAME="${PROJECT_ID}-terraform-state"
 
 echo "Starting bootstrap for project: $PROJECT_ID"
 
@@ -83,63 +91,66 @@ gcloud iam service-accounts add-iam-policy-binding $SA_EMAIL \
     --role="roles/iam.serviceAccountTokenCreator" \
     --project=$PROJECT_ID
 
-# 4. THE 2ND GEN FIX: Grant Cloud Build SYSTEM AGENT permissions
+# 4. Configure Cloud Build 2nd Gen execution permissions
+# ------------------------------------------------------------------------------
+# Why this is needed: In Cloud Build 2nd Gen (or when using custom service accounts),
+# the default Cloud Build System Agent needs permission to impersonate the custom
+# Terraform Service Account. Additionally, the custom SA needs specific roles
+# to act as a builder.
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
 CB_SERVICE_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
 
-echo "Applying 2nd Gen 'System-to-SA' bridge permissions..."
+echo "Applying Cloud Build 2nd Gen 'System-to-SA' bridge permissions..."
 
-# 4.1. Grant System Agent 'Service Account User' on your custom SA
+# 4.1. Grant the Cloud Build System Agent the ability to impersonate the custom SA
+# Reason: The internal GCP Cloud Build system runs the triggers, and it must
+# have permission to "act as" ($SA_EMAIL) to execute the pipeline steps.
 gcloud iam service-accounts add-iam-policy-binding $SA_EMAIL \
     --member="serviceAccount:$CB_SERVICE_AGENT" \
     --role="roles/iam.serviceAccountUser" \
     --project=$PROJECT_ID \
     --condition=None
 
-# 4.2. Grant System Agent its core role (re-asserting)
+# 4.2. Grant the Cloud Build System Agent its core role
+# Reason: Re-asserts that the system agent has the foundational Cloud Build permissions.
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$CB_SERVICE_AGENT" \
     --role="roles/cloudbuild.serviceAgent" \
     --condition=None
 
-# 4.3. Ensure logging for the custom SA
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:$SA_EMAIL" \
-    --role="roles/logging.logWriter" \
-    --condition=None
-
-# 1. Grant the SA the Service Agent role at the project level
-echo "Granting Service Agent role to custom SA (Required for 2nd Gen)..."
+# 4.3. Grant the custom SA the Cloud Build Service Agent role
+# Reason: The custom SA ($SA_EMAIL) needs this role to interact with Cloud Build
+# infrastructure correctly during trigger executions.
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:$SA_EMAIL" \
     --role="roles/cloudbuild.serviceAgent" \
     --condition=None
 
-# 2. Grant the Cloud Build 'Internal System' permission to use your SA
-echo "Granting System Agent permission to act as your custom SA..."
-gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
-    --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
-    --role="roles/iam.serviceAccountUser" \
-    --project="$PROJECT_ID" \
-    --condition=None
-
-# 3. CRITICAL: Add the 'Cloud Build Service Account' role
-# This is a specific role (roles/cloudbuild.builds.builder) that permits 
-# the SA to actually execute a 'build' resource in the project.
-echo "Granting builder role..."
+# 4.4. Grant the custom SA the explicit 'Builder' role
+# Reason: This role (roles/cloudbuild.builds.builder) permits the custom SA 
+# to actually execute 'build' resources within the project.
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:$SA_EMAIL" \
     --role="roles/cloudbuild.builds.builder" \
     --condition=None
 
+# 4.5. Ensure the custom SA can write logs
+# Reason: The custom SA must be able to stream execution logs back to Cloud Logging.
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/logging.logWriter" \
+    --condition=None
+
 echo "Waiting for identity propagation (15s)..."
 sleep 15
 
-# 5. Enable Cloud Build API (Required for º creation)
+# 5. Enable Cloud Build API
+# Reason: Required to manage and execute CI/CD triggers.
 echo "Ensuring Cloud Build API is enabled..."
 gcloud services enable cloudbuild.googleapis.com --project=$PROJECT_ID
 
-# 6. --- Create GCS Bucket for Terraform State ---
+# 6. Create GCS Bucket for Terraform State
+# Reason: Terraform requires a remote backend to store infrastructure state securely.
 if ! gcloud storage buckets describe gs://$BUCKET_NAME > /dev/null 2>&1; then
     echo "Creating GCS bucket for Terraform state: $BUCKET_NAME..."
     gcloud storage buckets create gs://$BUCKET_NAME \
@@ -153,36 +164,19 @@ else
     echo "Bucket $BUCKET_NAME already exists."
 fi
 
-# 6.2 Grant the Service Account permissions on the bucket
+# 6.1 Grant the Service Account permissions on the bucket
+# Reason: The Terraform SA must be able to read/write the state files.
 echo "Granting $SA_NAME Storage Object Admin on the state bucket..."
 gcloud storage buckets add-iam-policy-binding gs://$BUCKET_NAME \
     --member="serviceAccount:$SA_EMAIL" \
     --role="roles/storage.objectAdmin"
 
-# 7. Give impersonation in Terraform sa to your user
+# 7. Grant individual user impersonation
+# Reason: Allows the developer running this script to act as the Terraform SA locally.
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --member="user:$USER_EMAIL" \
   --role="roles/iam.serviceAccountUser" \
   --project="$PROJECT_ID"
 
-# 8. One-time shared resources apply (Artifact Registry owner state)
-if [[ "$APPLY_SHARED_RESOURCES" == "true" ]]; then
-    echo "Applying one-time shared resources (Artifact Registry, BQ, GCS)..."
-    pushd "$REPO_ROOT/terraform/shared_resources" >/dev/null
-    terraform init -reconfigure \
-        -backend-config="bucket=${BUCKET_NAME}" \
-        -backend-config="prefix=terraform/state/shared-resources"
-    terraform plan -var="project_id=$PROJECT_ID" -var="main_region=$LOCATION"
-    terraform apply -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$LOCATION"
-    popd >/dev/null
-else
-    echo "Skipping shared_resources apply (APPLY_SHARED_RESOURCES=${APPLY_SHARED_RESOURCES})."
-fi
-
-# 9. Create Cloud Build Triggers
-echo "Executing trigger setup (cicd_triggers_creation.sh)..."
-bash "$SCRIPT_DIR/cicd_triggers_creation.sh"
-
-echo "Triggers created successfully!"
-echo "Bootstrap complete!"
+echo "Bootstrap complete! IAM, Service Accounts, and State Bucket are ready."
 echo "To use this locally, run: gcloud auth application-default login --impersonate-service-account=$SA_EMAIL"
