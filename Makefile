@@ -31,6 +31,7 @@ verify-all-ci:
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
 	$(MAKE) verify-onedrive-ci
+	$(MAKE) verify-sharepoint-ci
 	$(MAKE) verify-ekb-ci
 	$(MAKE) verify-atlassian-ci
 
@@ -184,6 +185,29 @@ verify-onedrive-ci:
 
 test-onedrive-terraform:
 	cd terraform/onedrive_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### SharePoint MCP Commands ###
+
+run-sharepoint-precommit:
+	uvx pre-commit run --files mcp_servers/sharepoint/**/*
+
+run-sharepoint-tests:
+	uv run --group mcp_sharepoint pytest mcp_servers/sharepoint/tests/
+
+run-sharepoint-mcp-locally:
+	uv run --group mcp_sharepoint python -m mcp_servers.sharepoint.app.main --host localhost --port 8086
+
+build-sharepoint-mcp-image:
+	docker build -t test-sharepoint-mcp-server -f mcp_servers/sharepoint/Dockerfile .
+
+verify-sharepoint-ci:
+	$(MAKE) run-sharepoint-precommit
+	$(MAKE) run-sharepoint-tests
+	$(MAKE) build-sharepoint-mcp-image
+	$(MAKE) test-sharepoint-terraform
+
+test-sharepoint-terraform:
+	cd terraform/sharepoint_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### EKB Pipeline Commands ###
 

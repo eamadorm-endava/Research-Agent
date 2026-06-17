@@ -117,6 +117,10 @@ create_trigger "calendar-mcp-server-services-apply" "push" "terraform/calendar_m
 create_trigger "onedrive-mcp-server-services-plan" "pr" "terraform/onedrive_mcp_server_resources" "terraform/onedrive_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/onedrive/**"
 create_trigger "onedrive-mcp-server-services-apply" "push" "terraform/onedrive_mcp_server_resources" "terraform/onedrive_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/onedrive/**"
 
+# Sharepoint MCP triggers
+create_trigger "sharepoint-mcp-server-services-plan" "pr" "terraform/sharepoint_mcp_server_resources" "terraform/sharepoint_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/sharepoint/**"
+create_trigger "sharepoint-mcp-server-services-apply" "push" "terraform/sharepoint_mcp_server_resources" "terraform/sharepoint_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/sharepoint/**"
+
 # EKB Pipeline triggers
 create_trigger "ekb-pipeline-services-plan" "pr" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-ci.yaml" "pipelines/enterprise_knowledge_base/**"
 create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"

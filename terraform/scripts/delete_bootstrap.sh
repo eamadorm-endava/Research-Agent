@@ -27,7 +27,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT_ID="prd-ge-prod-endava-01-yd8e-1"
 REGION="us-central1"
 SA_NAME="terraform-sa-gemini-project"
-TRIGGER_BASES_STR="ai-agent,bq-mcp-server,gcs-mcp-server,drive-mcp-server,calendar-mcp-server,ekb-pipeline,onedrive-mcp-server"
+TRIGGER_BASES_STR="ai-agent,bq-mcp-server,gcs-mcp-server,drive-mcp-server,calendar-mcp-server,ekb-pipeline,onedrive-mcp-server,sharepoint-mcp-server"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
