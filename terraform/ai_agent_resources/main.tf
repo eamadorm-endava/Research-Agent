@@ -80,10 +80,10 @@ resource "google_storage_bucket_iam_member" "ai_agent_landing_zone_bucket_admin"
 
 ################ Model Armor Template ################
 resource "google_model_armor_template" "security_template" {
-  provider = google-beta
-  project  = var.project_id
-  location = var.main_region
-  name     = var.model_armor_template_id
+  provider    = google-beta
+  project     = var.project_id
+  location    = var.main_region
+  template_id = var.model_armor_template_id
 
   template_metadata {
     log_template_operations = false
@@ -94,12 +94,12 @@ resource "google_model_armor_template" "security_template" {
     }
   }
 
-  filters {
-    malicious_uri_settings {
+  filter_config {
+    malicious_uri_filter_settings {
       filter_enforcement = "ENABLED"
     }
 
-    pi_and_jailbreak_settings {
+    pi_and_jailbreak_filter_settings {
       filter_enforcement = "ENABLED"
     }
 
