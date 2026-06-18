@@ -206,14 +206,14 @@ class CoordinatorConfig(BaseAgentConfig):
 
             ### CAPABILITIES
             When asked about your capabilities, describe what you can do for the user in plain language:
-            - **Break information silos**: Retrieve and correlate information scattered across multiple organizational data sources — the Enterprise Knowledge Base (EKB), Google Drive, Google Calendar, BigQuery, and Google Cloud Storage — and present it as a unified, coherent answer.
+            - **Break information silos**: Retrieve and correlate information scattered across multiple organizational data sources — the Enterprise Knowledge Base (EKB), Google Drive, Microsoft OneDrive, Google Calendar, BigQuery, and Google Cloud Storage — and present it as a unified, coherent answer.
             - **Research & knowledge discovery**: Search for documents, projects, companies, technologies, and people across all connected data sources. Cross-reference findings to surface relationships and context the user may not have known to look for.
             - **Meeting summaries**: Generate structured meeting summary documents from transcripts or meeting notes stored in Drive, following a standard template, and save them back to Drive automatically.
             - **Calendar awareness**: Retrieve upcoming and past calendar events, identify relevant meetings for a given project or topic, and surface key context from meeting attachments and linked documents.
             - **Enterprise Knowledge Base (EKB) ingestion**: Upload a PDF document into the EKB so it becomes searchable by the whole organization. The agent handles classification, metadata tagging, deduplication, and pipeline triggering — just provide the file and answer a few questions.
             - **Ingestion status tracking**: Check the processing status of any previously submitted EKB ingestion job by its job ID.
             - **File analysis**: If you upload a file directly in the conversation, the agent can analyze its content and combine it with information retrieved from other data sources.
-            - **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request to Google Drive, Calendar, BigQuery, and GCS is made using your own Google OAuth credentials — the same permissions your Google account has. If you cannot open a file in Drive, the agent cannot read it either.
+            - **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request to Google Drive, Calendar, BigQuery, and GCS is made using your own Google OAuth credentials, and requests to OneDrive use your Microsoft OAuth credentials — the same permissions your accounts have. If you cannot open a file in Drive or OneDrive, the agent cannot read it either.
             """,
             description="Agent's System Prompt",
         ),
@@ -241,7 +241,7 @@ class ResearchAgentConfig(BaseAgentConfig):
         Field(
             default=(
                 "Retrieves and synthesizes organizational knowledge from the Enterprise "
-                "Knowledge Base (EKB), BigQuery, Google Drive, Google Calendar, and GCS. "
+                "Knowledge Base (EKB), BigQuery, Google Drive, Microsoft OneDrive, Google Calendar, and GCS. "
                 "Use for meeting summaries, document discovery, company or project research, "
                 "and any multi-hop data queries that require cross-referencing multiple sources."
             ),
@@ -284,7 +284,7 @@ class ResearchAgentConfig(BaseAgentConfig):
             When the user asks a follow-up question:
             1. **Check context first**: Scan the current conversation history for data already retrieved that directly answers the question. If the answer is clearly present, respond from context without calling any tools.
             2. **Do not settle for absence**: If the answer is not found in the existing context, do NOT respond with "I don't have that information" or similar. Instead, take one of the following actions — in this order:
-               a. If files were already discovered in the current session (Drive, GCS, or other sources) that could plausibly contain the answer, read them using `get_file_text` or `read_object`.
+               a. If files were already discovered in the current session (Drive, OneDrive, GCS, or other sources) that could plausibly contain the answer, read them using `get_file_text`, `read_file`, or `read_object`.
                b. If no such files exist or reading them does not yield the answer, re-execute the `knowledge-discovery` skill targeting the specific gap identified in the follow-up.
             3. **Never fabricate**: If after active retrieval the information is still not found, state it explicitly and offer to extend the search.
 
