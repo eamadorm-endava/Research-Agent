@@ -39,7 +39,7 @@ Before any retrieval, classify the user's request into one of two modes:
 - "Summarize everything we have on this topic"
 - "Give me all the projects that are related with the technology X"
 - "Tell me all the projects related to the specific sector Y"
-→ Cast a wide net across all sources. Synthesize across EKB, Calendar, BQ, and Drive.
+→ Cast a wide net across all sources. Synthesize across EKB, Calendar, BQ, Drive, and SharePoint.
 
 ---
 
@@ -64,7 +64,7 @@ Do NOT include `filename`, `domain`, `project_filter`, or `trust_level`.
 - Files that appear in both results are the highest-confidence anchors and must be ranked first for Wave 2.
 
 **Zero-result fallback rules:**
-- Both return zero → skip Wave 2 and GCS Long Context. Proceed immediately to Calendar Search Protocol + Drive Search Protocol in parallel. **Keyword source for Drive**: extract entities (companies, projects, technologies, people) directly from the user's original prompt — do not wait for EKB results. These user-prompt keywords are the primary input for Drive (Stage 0 entity extraction). Do not use EKB-derived terms as input because there are none.
+- Both return zero → skip Wave 2 and GCS Long Context. Proceed immediately to Calendar Search Protocol + Drive Search Protocol + SharePoint Search Protocol in parallel. **Keyword source for Drive**: extract entities (companies, projects, technologies, people) directly from the user's original prompt — do not wait for EKB results. These user-prompt keywords are the primary input for Drive (Stage 0 entity extraction). Do not use EKB-derived terms as input because there are none.
 - Only `ekb_semantic_search` returns zero → use keyword search results as the sole anchor pool and proceed to Wave 2 normally.
 - Only `ekb_keyword_search` returns zero → proceed to Wave 2 using semantic results only.
 
@@ -89,7 +89,7 @@ Select the top 3 most relevant files from Wave 1, ranked by ascending cosine dis
 - `filename`: exact verbatim value from the `filename` field of a Wave 1 result — never paraphrase or rewrite
 - `top_k`: `30`
 
-Run the **CALENDAR SEARCH PROTOCOL** and the **DRIVE SEARCH PROTOCOL** (from the system prompt) in parallel with Wave 2, starting all three immediately after Wave 1 completes. Both Calendar and Drive run regardless of Wave 1 outcome — they are never skipped, even when EKB returned results. **Keyword priority for Drive**: first use terms extracted from the user's original prompt (company names, project names, technologies, people); then supplement with any entities derived from Wave 1 EKB results.
+Run the **CALENDAR SEARCH PROTOCOL**, the **DRIVE SEARCH PROTOCOL**, and the **SHAREPOINT SEARCH PROTOCOL** (from the system prompt) in parallel with Wave 2, starting all source searches immediately after Wave 1 completes. Calendar, Drive, and SharePoint run regardless of Wave 1 outcome — they are never skipped when the user asks for broad discovery, even when EKB returned results. **Keyword priority for Drive**: first use terms extracted from the user's original prompt (company names, project names, technologies, people); then supplement with any entities derived from Wave 1 EKB results.
 
 **Hard Rules:**
 - Run all Wave 2 calls simultaneously.
@@ -103,8 +103,8 @@ For the top 3 files used in Wave 2, run all steps in parallel (following the **G
 1. Parse each `gcs_uri` → `bucket_name` (everything between `gs://` and the first `/`) and `object_name` (everything after that first `/`).
 2. Call `read_object(bucket_name=<bucket_name>, object_name=<object_name>)`. The system wrapper will automatically intercept this call and load the file natively into your context.
 
-### Drive Search (Targeted Mode)
-Drive search always runs — it is not conditional on EKB results. It runs in parallel with Wave 2 and Calendar (see above). Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**:
+### Connected Source Search (Targeted Mode)
+Drive and SharePoint search run when relevant to the user request and are not conditional on EKB results. They run in parallel with Wave 2 and Calendar (see above). Follow the **DRIVE SEARCH PROTOCOL** and **SHAREPOINT SEARCH PROTOCOL** defined in the system prompt. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**:
 1. **Primary**: entities and keywords extracted directly from the user's original prompt (companies, projects, technologies, people).
 2. **Supplementary**: entities found in Wave 1 / Wave 1.5 EKB results — add these to the keyword pool after user-prompt extraction to expand coverage.
 3. **EKB empty**: if Wave 1 returned zero results, proceed with user-prompt keywords only.
@@ -156,6 +156,8 @@ Launch all the following simultaneously. *Efficiency Rule: never repeat the same
 
 **2c. Google Drive** — Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt (Stage 0 through Wave 2 only). Do NOT execute Stage 4 file reading in Phase 2 — file reading is deferred to Phase 3 Level 3. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**: (1) primary — entities and keywords extracted directly from the user's original prompt; (2) supplementary — entities found in Phase 1 EKB results, added to the keyword pool after user-prompt extraction to expand coverage. If Phase 1 returned zero results, proceed with user-prompt keywords only.
 
+**2d. Microsoft SharePoint** — Follow the **SHAREPOINT SEARCH PROTOCOL** defined in the system prompt. Use SharePoint when the user names SharePoint explicitly, asks for sites/libraries/lists/pages, or when broad organizational discovery should include SharePoint-hosted content.
+
 ### Phase 3: Synthesis & Targeted Deep Dive (Escalation Path)
 
 **Level 1: EKB Deep-Dive (GCS)**
@@ -166,8 +168,8 @@ For the top 3 high-relevance `gcs_uri` values from Phase 1 that were NOT already
 **Level 2: Calendar Deep-Dive (Personal Context)**
 From relevant events found in Phase 2a, apply the Selective Attachment Reading rule (from the **CALENDAR SEARCH PROTOCOL** in the system prompt): call `get_file_text(file_id=<EventAttachment.file_id>)` only when `EventAttachment.title` or `CalendarEvent.description` contains a term directly relevant to the query.
 
-**Level 3: Drive Iterative Discovery**
-Execute Stage 4 of the **DRIVE SEARCH PROTOCOL** (Prioritized File Reading) against the candidate pool built in Phase 2c: High-triage files first, then Medium. At most 5 `get_file_text` calls per turn, all in parallel. If answer not found, extract new keywords from text and run one additional Wave 1 cycle. Maximum 1 extra cycle.
+**Level 3: Drive and SharePoint Iterative Discovery**
+Execute Stage 4 of the **DRIVE SEARCH PROTOCOL** and use the **SHAREPOINT SEARCH PROTOCOL** for SharePoint candidates (Prioritized File Reading) against the candidate pool built in Phase 2c: High-triage files first, then Medium. At most 5 `get_file_text` calls per turn, all in parallel. If answer not found, extract new keywords from text and run one additional Wave 1 cycle. Maximum 1 extra cycle.
 
 **Level 4: Relationship Fallback (Implicit Mapping)**
 Analyze EKB metadata (descriptions, summaries, tech stacks) for shared technologies, industry themes, or generalities. Use these broader themes to re-evaluate Phase 2 results for high-fidelity implicit relationships.
@@ -198,7 +200,7 @@ Trigger ONLY after both modes (including their cross-mode fallbacks) are fully e
 
 Produce the standard output with `No information found` under all sections, then append the mandatory `## Extend Search?` section verbatim:
 
-> "I have searched the Enterprise Knowledge Base, Google Calendar, Google Drive, and BigQuery using the available context and found no matching data. Would you like me to extend the search to your personal GCS buckets or BigQuery tables? If yes, please share the bucket name, path prefix, or table/dataset identifier and I will search there directly."
+> "I have searched the Enterprise Knowledge Base, Google Calendar, Google Drive, Microsoft SharePoint, and BigQuery using the available context and found no matching data. Would you like me to extend the search to your personal GCS buckets or BigQuery tables? If yes, please share the bucket name, path prefix, or table/dataset identifier and I will search there directly."
 
 When the user provides a personal GCS target: use `list_objects(bucket_name=<name>, prefix=<prefix>)` to list objects, then follow the GCS FILE READING RULE to load relevant files.
 When the user provides a personal BQ target: follow the BIGQUERY QUERY PROTOCOL using `list_datasets` + `list_tables` + `execute_query`.
