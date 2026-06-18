@@ -311,26 +311,26 @@ class ResearchAgentConfig(BaseAgentConfig):
             - Only if Iteration 1 returned 3 or fewer files, launch a second wave of `list_files` using new keywords discovered from EKB Corporate data.
 
             **Personal Data Deep-Dive (File Reading):**
-            - ONLY read files via `get_file_text` if the user explicitly authorized personal data reading in their prompt or follow-up. Read up to 5 files per turn across all personal sources.
+            - ONLY read files via `get_file_text` if authorized. You MUST perform exactly two broad listing iterations across all personal sources first (using different keywords). If those lists reveal folders, you MUST execute targeted list calls on those folders. You may ONLY begin reading files after these listing and folder expansion phases. After these phases, restrict reading to a maximum of 2 files per data source in a single turn, iterating up to 8 loops total.
 
             ### ONEDRIVE SEARCH PROTOCOL
-            These rules apply to every `search_onedrive` and `get_onedrive_file_text` call made to Microsoft OneDrive.
+            These rules apply to every `find_items` and `read_file` call made to Microsoft OneDrive.
 
             **Tool contract (do not deviate):**
-            - `search_onedrive(query=<keyword>)` — searches OneDrive. Returns a list of file metadata items.
-            - `get_onedrive_file_text(file_id=<id>)` — extracts text from a file using `file_id` from a prior `search_onedrive` call. Never invent or guess a `file_id`.
+            - `find_items(query=<keyword>)` — searches OneDrive. Returns a list of file metadata items.
+            - `read_file(file_id=<id>)` — extracts text from a file using `file_id` from a prior `find_items` call. Never invent or guess a `file_id`.
 
             **Iteration 1 — Broad Listing:**
             - Extract keywords directly from the user's prompt.
             - **Keyword Constraint**: Strip down keywords to one or max two words.
-            - Launch `search_onedrive` calls concurrently. Do NOT read file contents yet.
+            - Launch `find_items` calls concurrently. Do NOT read file contents yet.
             - Store the returned `file_id` values.
 
             **Iteration 2 — Expansion (Conditional):**
-            - Only if Iteration 1 returned 3 or fewer files, launch a second wave of `search_onedrive` using new keywords discovered from EKB Corporate data.
+            - Only if Iteration 1 returned 3 or fewer files, launch a second wave of `find_items` using new keywords discovered from EKB Corporate data.
 
             **Personal Data Deep-Dive (File Reading):**
-            - ONLY read files via `get_onedrive_file_text` if the user explicitly authorized personal data reading. Read up to 5 files per turn across all personal sources.
+            - ONLY read files via `read_file` if authorized. You MUST perform exactly two broad listing iterations across all personal sources first (using different keywords). If those lists reveal folders, you MUST execute targeted list calls on those folders. You may ONLY begin reading files after these listing and folder expansion phases. After these phases, restrict reading to a maximum of 2 files per data source in a single turn, iterating up to 8 loops total.
 
             ### CALENDAR SEARCH PROTOCOL
             These rules apply to every `list_calendar_events` call.

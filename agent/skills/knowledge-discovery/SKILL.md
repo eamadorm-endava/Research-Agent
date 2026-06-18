@@ -5,25 +5,44 @@ description: Expert protocol for high-fidelity data retrieval using concurrent D
 
 ## Pre-Search Validation
 
-Before doing anything else, check whether the user has clearly stated what they want to search for.
+Before proceeding, verify whether the user has clearly stated the target of the search.
 
-**A query is unclear when it:**
-- Expresses intent without a topic (e.g., "search the EKB", "do a research", "look it up", "find something")
+**A query is considered unclear when it:**
+- Expresses intent without a topic (e.g., "search the EKB", "conduct research", "look it up", "find something")
 - Names only a source, not a subject (e.g., "check the knowledge base", "query the EKB")
 - Is too vague to form a meaningful search (e.g., "find documents", "search for info")
 
-**When the query is unclear**, stop and ask:
+**When the query is unclear**, execution must halt and the following prompt shall be presented:
 > "What topic, document, project, or information would you like me to search for?"
 
 Do not guess, infer, or proceed with a search. Wait for the user's answer before continuing.
 
-**When the query is clear** (contains at least one concrete subject — a project name, company, person, technology, document title, or specific question), proceed immediately to Discovery Protocol Loops.
+**When the query is clear** (contains at least one concrete subject — a project name, company, person, technology, document title, or specific question), proceed immediately to the Discovery Protocol Loops.
+
+## Follow-Up Execution Protocol
+
+When a follow-up question is asked, the current chat history must be scanned. If the specific, detailed answer is NOT already present in the context of previous searches, a completely new Discovery Loop targeting the new information gap MUST be initiated. Do NOT answer "Information is unavailable" without executing a new search.
+
+Furthermore, if the follow-up question is broad, the exact opt-in prompt regarding personal data sources MUST be appended at the end of the response (see Mandatory Output Structure).
+
+**Handling the Opt-In ("Yes"):**
+If the user replies "Yes" to the personal data opt-in prompt, this constitutes a follow-up that requires an active search. Because the prompt might just be "Yes", keywords MUST be synthesized from the *original* query and a "Context Graph" built from the prior corporate findings.
+
+**Anchor Extraction (Context Graph)**:
+Build a relational map from the merged corporate results before searching personal data:
+- **Identities**: filename, gcs_uri, document_summary / description.
+- **Context**: description — key for generating personal data listing keywords.
+- **Entities**: company names (clients/partners), technologies, technical stacks.
+- **Relational Mapping**: map project names to their associated companies and tech stacks — use these as the primary enriched keywords for the personal data listing tools.
+- **People**: uploader_email and stakeholders mentioned in summaries.
+
+Immediately execute all tools in **1b. Personal Data Listings** (`list_files`, `find_items`, `list_objects`, `list_tables`) CONCURRENTLY (in parallel, within the exact same agent step) using these enriched keywords derived from the Context Graph. Do NOT skip them or run them sequentially. Once the files are listed, proceed to the **Personal Data Deep-Dive Protocol** to read the most relevant files.
 
 ---
 
 ## Discovery Protocol Loops
 
-**Core Efficiency Rule:** The agent must short-circuit the discovery loops early. If the information requested by the user is fully obtained at the end of *any* iteration, immediately break the iteration process and generate the final report. We only reach all 3 iterations if the data is highly hidden.
+**Core Efficiency Rule:** The discovery loops must be short-circuited early. If the required information is fully obtained at the end of *any* iteration, the iteration process must be immediately broken, and the final report generated. All 3 iterations are reached only if the data is highly hidden.
 
 ### Iteration 1: Massive Parallel Discovery
 Launch all baseline data-gathering tools concurrently without waiting.
@@ -31,44 +50,76 @@ Launch all baseline data-gathering tools concurrently without waiting.
 **1a. Corporate Searches:**
 - `ekb_semantic_search`: `query` using the full user prompt.
 - `ekb_keyword_search`: `keyword` using primary entities extracted from the prompt.
-- `get_current_time`: fetch time bounds for the upcoming Calendar search.
+- `get_current_time`: fetch time bounds for the Calendar search.
 
-**1b. Personal Data Listings:**
-*Keyword Constraint*: When applying filtering parameters to listing tools, use stripped-down keywords of **one or max two words** (e.g., extracting "Alpha" from "Project Alpha").
-- `list_files` (Google Drive)
-- `search_onedrive` (OneDrive)
-- `list_objects` (GCS personal buckets)
-- `list_tables` (BigQuery personal datasets)
+**1b. Mandatory Calendar Sync:**
+- Immediately after `get_current_time` returns the exact dates, `list_calendar_events` MUST be executed using those bounds. This step is mandatory in Iteration 1 and must be completed before any Early Exit check is evaluated.
 
-**Early Exit Check:** If the EKB semantic/keyword chunks found in Iteration 1 completely satisfy the user's request, break the loop and jump straight to **Mandatory Output Structure**.
+**1c. Personal Data Listings (ONLY IF explicitly requested):**
+*Constraint*: For broad questions, skip these tools entirely to preserve rapid response times, UNLESS the user explicitly asked to search personal files in the prompt.
+*Keyword Constraint*: The keywords used for `list_files` and `find_items` must strictly and exclusively map to the core subject/entity explicitly asked about (e.g., the specific project name, company name, or technical topic). 
+- Use stripped-down keywords of **one or max two words** (e.g., extracting 'Alpha' from 'Project Alpha').
+- NEVER use intent words (summary, report, find, status).
+- NEVER list files using keywords unrelated to the exact current request.
+- ALL listing tools below MUST be executed CONCURRENTLY in the same parallel tool-call step. Do not execute them sequentially.
+  - `list_files` (Google Drive)
+  - `find_items` (OneDrive)
+  - `list_objects` (GCS personal buckets)
+  - `list_tables` (BigQuery personal datasets)
+
+**Early Exit Check:** If the EKB semantic/keyword chunks found in Iteration 1 completely satisfy the request, break the loop and proceed straight to **Mandatory Output Structure**.
 
 ### Iteration 2: Expanded Anchor & Calendar Sync
-If Iteration 1 didn't fully answer the query, synthesize the findings to expand the search.
+If Iteration 1 did not fully answer the query, synthesize the findings to expand the search.
 
 **2a. Corporate Expansion:**
 - Extract larger anchor keywords from Iteration 1's EKB results (e.g., related project codes, linked companies).
 - Execute 2-3 additional `ekb_semantic_search` / `ekb_keyword_search` calls using these expanded anchors.
-- `list_calendar_events`: Executed now that `get_current_time` has returned the exact dates.
 
 **2b. Personal Data Expansion (Strictly Conditional):**
-- *Condition*: This second expansion must ONLY be executed if the first wave of listing tools returned very few files (e.g., 0, 1, 2, or 3 files). If the initial listing found a healthy amount of files, skip this step.
-- Execute a second massive concurrent listing (`list_files` / `search_onedrive` / etc.) using the new keywords discovered from the EKB.
+- *Condition*: This second expansion must ONLY be executed if the first wave of listing tools was launched AND returned very few files (e.g., 0, 1, 2, or 3 files). If the initial listing was deferred (broad question) or found a healthy amount of files, skip this step.
+- Execute a second massive concurrent listing (`list_files` / `find_items` / etc.) using the new keywords discovered from the EKB.
 
-**Early Exit Check:** If the newly expanded EKB results + Calendar events now satisfy the request, break the loop and jump straight to **Mandatory Output Structure**.
+**Early Exit Check:** If the newly expanded EKB results and Calendar events now satisfy the request, break the loop and proceed straight to **Mandatory Output Structure**.
 
 ### Iteration 3: EKB Deep-Read (Strictly Conditional)
-**Constraint:** The agent MUST rely on the EKB chunks and metadata as much as possible.
-- **Trigger:** IF AND ONLY IF the semantic chunks are still insufficient after Iteration 2, OR the user explicitly asked for the full context of a document.
+**Constraint:** The EKB chunks and metadata MUST be relied upon as much as possible.
+- **Trigger:** IF AND ONLY IF the semantic chunks are still insufficient after Iteration 2, OR the full context of a document was explicitly requested.
 - **Action:** Select at most **3** EKB GCS files (based on prior context) and call `read_object` on them concurrently.
 
 ---
 
 ## Personal Data Deep-Dive Protocol
 
-If the user **already requested** in their original prompt to read personal data (e.g., a specific file name or "search my personal files"), jump directly into this Deep-Dive phase alongside Corporate discovery. If they did **not**, do NOT read personal files; wait until they consent via the prompt in the Final Conclusion.
+If the reading of personal data was **already requested** in the original prompt (e.g., a specific file name or "search my personal files"), jump directly into this Deep-Dive phase alongside Corporate discovery. If it was **not** requested, do NOT read personal files; wait until consent is provided via the prompt in the Final Conclusion.
 
-**1. Prioritized Reading Iteration:**
-- Using the `file_id` or GCS URIs gathered from the listing tools, read up to **5 files per turn** concurrently across the different sources (`get_file_text` for Drive/OneDrive, `read_object` for GCS, `execute_query` for BigQuery).
+**1. Sequenced Discovery and Reading (Up to 8 Loops):**
+To ensure a comprehensive but safe discovery, you MUST follow this strict multi-phase sequence when executing the Deep-Dive:
+
+- **Phase 1 (Iteration 1) — First Broad Listing:** 
+  - Execute the listing tools (`list_files`, `find_items`, `list_objects`, `list_tables`) across ALL authorized personal data sources concurrently, using the primary keywords.
+  - **Constraint:** Maximum of **2 list requests** per personal data source in this step. Do NOT read any files yet.
+
+- **Phase 1.5 (Iteration 1.5) — First Folder Expansion (Conditional):**
+  - If Phase 1 uncovered any relevant **Folders**, execute a listing tool specifically targeting those folders' contents.
+  - **Constraint:** Maximum of **2 list requests** per personal data source. Do NOT read any files yet. Skip this phase if no folders were found.
+
+- **Phase 2 (Iteration 2) — Second Broad Listing:**
+  - Execute a second wave of listing tools across ALL authorized personal data sources concurrently, exactly like Phase 1, but using **different or expanded keywords**.
+  - **Constraint:** Maximum of **2 list requests** per personal data source. Do NOT read any files yet.
+
+- **Phase 2.5 (Iteration 2.5) — Second Folder Expansion (Conditional):**
+  - If Phase 2 uncovered NEW relevant **Folders**, execute a listing tool specifically targeting those new folders' contents.
+  - **Constraint:** Maximum of **2 list requests** per personal data source. Do NOT read any files yet. Skip this phase if no new folders were found.
+
+- **Phase 3 (Iteration 3) — First Targeted Reading:**
+  - Analyze the combined metadata from all previous listing phases. Select the most promising files and read them concurrently.
+  - **Constraint:** Maximum of **2 files read** per turn PER personal data source (e.g., 2 from Drive, 2 from OneDrive, 2 from GCS).
+
+- **Phase 4+ (Iterations 4 to 8) — Iterative Deep-Dive:**
+  - Evaluate the data found. If the necessary information is not yet complete, select the next batch of most promising files based on filenames or folder context, and read them.
+  - **Folder Rule:** If any iteration uncovers a relevant new Folder, you MUST include a listing tool specifically targeting that folder's contents in the very next step, while still respecting the 2 list requests per source limit.
+  - Repeat this analysis and targeted reading loop until the required information is found, up to the maximum limit of 8 total iterations.
 
 **2. Enriched Synthesis:**
 - Generate a new response that **combines the previous Corporate summary** (obtained in the first response) and **enriches it** with the new insights discovered in the personal data.
@@ -89,7 +140,7 @@ Respond directly in plain prose (1–3 sentences). Always append the `## Referen
 ---
 
 #### Full Report Mode
-Cross-correlate all findings into a unified narrative before writing. You MUST use the exact markdown template below. Do not deviate from these headers. Ensure there are blank lines before and after every header.
+Cross-correlate all findings into a unified narrative before writing. The exact markdown template below MUST be used. Do not deviate from these headers. Ensure there are blank lines before and after every header.
 
 ```markdown
 ## Summary
@@ -121,15 +172,10 @@ If no relevant meetings are found: `No previous meetings found for this topic.`
 | [EKB/Drive/etc] | [Project] | [Filename] | [Email] | [YYYY-MM-DD] |
 
 ## Personal Data Resources
-*(Omit this entire section if no personal files were listed. Do NOT include the question if the user already authorized reading personal data and we are currently in the Deep-Dive Synthesis.)*
+**CRITICAL REQUIREMENT:** You MUST append this section and exact prompt at the very bottom of your response IF personal files were NOT searched in Iteration 1 (e.g. because it was a broad question). 
+*(Omit this entire section ONLY IF reading personal data was already authorized and the Deep-Dive Synthesis is currently active, or if personal files were already searched).*
 
-I also found several related files in your personal data sources based on the keywords in your prompt. 
-
-Would you like me to read the content of these files to provide a more robust response? *(Note: This process might take a few minutes to complete.)*
-
-| Source | File / Table Name | Path / Dataset | Owner | Last Updated |
-|---|---|---|---|---|
-| [Drive/OneDrive/GCS/BQ] | [Filename] | [Path] | [Email] | [Date] |
+> "This information was obtained from the corporate data sources, do you want me to also search in your personal data sources: OneDrive, Google Drive, Cloud Storage buckets or in BigQuery tables you have access to? It might take some minutes."
 ```
 
 If genuinely no data exists for a section, write `No information found` under that heading — do not skip it. **Exception: the `## Upcoming Meetings` and `## Previous Meetings` sections** — omit both entirely if no calendar search was executed or if calendar searches returned no events relevant to the topic. Do not render these sections with placeholder text in that case.
@@ -137,8 +183,8 @@ If genuinely no data exists for a section, write `No information found` under th
 ---
 
 ### References Details
-*(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
-Include ONLY files, documents, and events from which data was explicitly extracted to produce this response. Never include broad discovery results or unused tool outputs.
+*(mandatory in both modes whenever any data source was used — omit only if the response is based solely on user input with no tool results)*
+**CRITICAL: Include ONLY files, documents, and events from which data was explicitly extracted and cited to produce the summary. NEVER include broad discovery results, unread files, or files that were found but their contents were not actually used in the response.**
 
 | Source | Project Name | Filename | Owner | Created at / Last Update |
 |:---:|:---:|:---:|:---:|
