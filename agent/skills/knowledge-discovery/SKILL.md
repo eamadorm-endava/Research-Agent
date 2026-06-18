@@ -1,6 +1,6 @@
 ---
 name: knowledge-discovery
-description: Expert protocol for high-fidelity data retrieval using concurrent Corporate Searches (EKB, Jira, Confluence) and sequenced Personal Data discovery.
+description: Expert protocol for high-fidelity data retrieval using concurrent Corporate Searches (EKB, Jira, Confluence, SharePoint, Calendar) and sequenced Personal Data discovery.
 ---
 
 ## Pre-Search Validation
@@ -26,17 +26,17 @@ When a follow-up question is asked, the current chat history must be scanned. If
 Furthermore, if the follow-up question is broad, the exact opt-in prompt regarding personal or authorized data sources MUST be appended at the end of the response (see Mandatory Output Structure).
 
 **Handling the Opt-In ("Yes"):**
-If the user replies "Yes" to the personal data opt-in prompt, this constitutes a follow-up that requires an active search. Because the prompt might just be "Yes", keywords MUST be synthesized from the *original* query and a "Context Graph" built from the prior corporate findings (EKB, Calendar, Jira, Confluence).
+If the user replies "Yes" to the personal data opt-in prompt, this constitutes a follow-up that requires an active search. Because the prompt might just be "Yes", keywords MUST be synthesized from the *original* query and a "Context Graph" built from the prior corporate findings (EKB, Calendar, Jira, Confluence, SharePoint).
 
 **Anchor Extraction (Context Graph)**:
 Build a relational map from the merged corporate results before searching personal data:
-- **Identities**: filename, gcs_uri, issue keys, confluence page names, summaries.
+- **Identities**: filename, gcs_uri, issue keys, confluence page names, sharepoint site/page ids, summaries.
 - **Context**: description/body texts — key for generating personal data listing keywords.
 - **Entities**: company names (clients/partners), technologies, technical stacks.
 - **Relational Mapping**: map project names to their associated companies and tech stacks — use these as the primary enriched keywords for the personal data listing tools.
 - **People**: uploader_email, reporter, assignee, and stakeholders mentioned in summaries.
 
-Immediately execute all tools in **1c. Personal Data Listings** (`list_files`, `find_items`, SharePoint search/discovery tools, `list_objects`, `list_tables`) CONCURRENTLY (in parallel, within the exact same agent step) using these enriched keywords derived from the Context Graph. Do NOT skip them or run them sequentially. Once the files are listed, proceed to the **Personal Data Deep-Dive Protocol** to read the most relevant files.
+Immediately execute all tools in **1c. Personal Data Listings** (`list_files`, `find_items`, `list_objects`, `list_tables`) CONCURRENTLY (in parallel, within the exact same agent step) using these enriched keywords derived from the Context Graph. Do NOT skip them or run them sequentially. Once the files are listed, proceed to the **Personal Data Deep-Dive Protocol** to read the most relevant files.
 
 ---
 
@@ -47,27 +47,27 @@ Immediately execute all tools in **1c. Personal Data Listings** (`list_files`, `
 ### Iteration 1: Massive Parallel Discovery
 Launch all baseline corporate data-gathering tools concurrently without waiting.
 
-**1a. Corporate Searches (EKB & Atlassian Integrations):**
-All corporate discovery queries must trigger simultaneously to gather contextual assets across knowledge nodes:
+**1a. Corporate Searches (EKB, SharePoint, Calendar, Confluence, Jira):**
+All corporate discovery queries must trigger simultaneously across the explicitly defined corporate data sources (EKB, SharePoint, Calendar, Confluence, and Jira) to gather contextual assets:
 - `ekb_semantic_search`: `query` using the full user prompt.
 - `ekb_keyword_search`: `keyword` using primary entities extracted from the prompt.
 - `search_jira_issues`: pass a clean text summary keyword or project constraint JQL mapping to the extracted entity (e.g., `summary ~ "keyword"` or `text ~ "keyword"`).
 - `search_confluence_pages`: pass a CQL expression mapping to the core subject token (e.g., `text ~ "keyword"`).
+- `search_sharepoint_sites`: pass a broad business keyword or primary entity extracted from the prompt.
 - `get_current_time`: fetch time bounds for the Calendar search.
 
 **1b. Mandatory Calendar Sync:**
-- Immediately after `get_current_time` returns the exact dates, `list_calendar_events` MUST be executed using those bounds. This step is mandatory in Iteration 1 and must be completed before any Early Exit check is evaluated.
+- Immediately after `get_current_time` returns the exact dates, `list_calendar_events` MUST be executed using those bounds. This step is mandatory in Iteration 1 and must be completed before any Early Exit check is evaluated. Calendar is a critical Corporate Data source.
 
 **1c. Personal / Authorized Source Listings (ONLY IF explicitly requested):**
 *Constraint*: For broad questions, skip these tools entirely to preserve rapid response times, UNLESS the user explicitly asked to search personal files or authorized shared repositories in the prompt.
-*Keyword Constraint*: The keywords used for `list_files`, `find_items`, SharePoint search/discovery tools, `list_objects`, and `list_tables` must strictly and exclusively map to the core subject/entity explicitly asked about (e.g., the specific project name, company name, or technical topic). 
+*Keyword Constraint*: The keywords used for `list_files`, `find_items`, `list_objects`, and `list_tables` must strictly and exclusively map to the core subject/entity explicitly asked about (e.g., the specific project name, company name, or technical topic). 
 - Use stripped-down keywords of **one or max two words** (e.g., extracting 'Alpha' from 'Project Alpha').
 - NEVER use intent words (summary, report, find, status).
 - NEVER list files using keywords unrelated to the exact current request.
 - ALL listing tools below MUST be executed CONCURRENTLY in the same parallel tool-call step. Do not execute them sequentially.
   - `list_files` (Google Drive)
   - `find_items` (OneDrive)
-  - SharePoint search/discovery tools (SharePoint sites, document libraries, lists, pages, files, and folders)
   - `list_objects` (GCS personal buckets)
   - `list_tables` (BigQuery personal datasets)
 
@@ -77,29 +77,29 @@ All corporate discovery queries must trigger simultaneously to gather contextual
 If Iteration 1 did not fully answer the query, synthesize the findings to expand the search scope.
 
 **2a. Corporate Expansion:**
-- Extract larger anchor keywords from Iteration 1's EKB, Jira, and Confluence results (e.g., related project codes, linked companies, Jira components, Confluence spaces).
-- Execute 2-3 additional concurrent `ekb_semantic_search` / `ekb_keyword_search` / `search_jira_issues` / `search_confluence_pages` calls using these expanded anchors.
+- Extract larger anchor keywords from Iteration 1's EKB, Jira, Confluence, SharePoint, and Calendar results (e.g., related project codes, linked companies, Jira components, Confluence spaces, SharePoint site IDs).
+- Execute additional concurrent `ekb_semantic_search` / `ekb_keyword_search` / `search_jira_issues` / `search_confluence_pages` / `discover_sharepoint_site_content` / `search_sharepoint_drive_items` calls using these expanded anchors.
 
 **2b. Personal Data Expansion (Strictly Conditional):**
 - *Condition*: This second expansion must ONLY be executed if the first wave of listing tools was launched AND returned very few files (e.g., 0, 1, 2, or 3 files). If the initial listing was deferred (broad question) or found a healthy amount of files, skip this step.
-- Execute a second massive concurrent listing (`list_files` / `find_items` / SharePoint search/discovery tools / etc.) using the new keywords discovered from the corporate context.
+- Execute a second massive concurrent listing (`list_files` / `find_items` / `list_objects` / `list_tables`) using the new keywords discovered from the corporate context.
 
 **Early Exit Check:** If the newly expanded corporate results and Calendar events now satisfy the request, break the loop and proceed straight to **Mandatory Output Structure**.
 
 ### Iteration 3: Corporate Deep-Read (Strictly Conditional)
 **Constraint:** The metadata and summaries from Iteration 1 & 2 MUST be relied upon as much as possible.
 - **Trigger:** IF AND ONLY IF the chunks/metadata are still insufficient after Iteration 2, OR the full context of a document/ticket/page was explicitly requested.
-- **Action:** Select at most **3** corporate items (based on prior context) and call `read_object` (for EKB GCS), `read_confluence_page` (for Confluence), or `get_jira_issue_details` (for Jira) concurrently.
+- **Action:** Select at most **3** corporate items (based on prior context) and call `read_object` (for EKB GCS), `read_confluence_page` (for Confluence), `get_jira_issue_details` (for Jira), `get_sharepoint_site_page`, or `ingest_sharepoint_drive_item` (for SharePoint) concurrently.
 ---
 
 ## Personal Data Deep-Dive Protocol
 
-If the reading of personal or authorized shared data was **already requested** in the original prompt (e.g., a specific file name, "search my personal files", or "search SharePoint"), jump directly into this Deep-Dive phase alongside Corporate discovery. If it was **not** requested, do NOT read personal files or authorized shared repositories; wait until consent is provided via the prompt in the Final Conclusion.
+If the reading of personal or authorized shared data was **already requested** in the original prompt (e.g., a specific file name, or "search my personal files"), jump directly into this Deep-Dive phase alongside Corporate discovery. If it was **not** requested, do NOT read personal files; wait until consent is provided via the prompt in the Final Conclusion.
 
 **1. Sequenced Discovery and Reading (Up to 8 Loops):**
 To ensure a comprehensive but safe discovery, you MUST follow this strict multi-phase sequence when executing the Deep-Dive:
 
-- **Phase 1 (Iteration 1) — First Broad Listing:** - Execute the listing tools (`list_files`, `find_items`, SharePoint search/discovery tools, `list_objects`, `list_tables`) across ALL authorized data sources concurrently, using the primary keywords.
+- **Phase 1 (Iteration 1) — First Broad Listing:** - Execute the listing tools (`list_files`, `find_items`, `list_objects`, `list_tables`) across ALL authorized data sources concurrently, using the primary keywords.
   - **Constraint:** Maximum of **2 list/search requests** per authorized data source in this step. Do NOT read any files/items yet.
 
 - **Phase 1.5 (Iteration 1.5) — First Folder Expansion (Conditional):**
@@ -116,7 +116,7 @@ To ensure a comprehensive but safe discovery, you MUST follow this strict multi-
 
 - **Phase 3 (Iteration 3) — First Targeted Reading:**
   - Analyze the combined metadata from all previous listing phases. Select the most promising files and read them concurrently.
-  - **Constraint:** Maximum of **2 files/items read** per turn PER authorized data source (e.g., 2 from Drive, 2 from OneDrive, 2 from SharePoint, 2 from GCS).
+  - **Constraint:** Maximum of **2 files/items read** per turn PER authorized data source (e.g., 2 from Drive, 2 from OneDrive, 2 from GCS).
 
 - **Phase 4+ (Iterations 4 to 8) — Iterative Deep-Dive:**
   - Evaluate the data found. If the necessary information is not yet complete, select the next batch of most promising files based on filenames or folder context, and read them.
@@ -177,7 +177,7 @@ If no relevant meetings are found: `No previous meetings found for this topic.`
 **CRITICAL REQUIREMENT:** You MUST append this section and exact prompt at the very bottom of your response IF personal files or authorized shared repositories were NOT searched in Iteration 1 (e.g. because it was a broad question). 
 *(Omit this entire section ONLY IF reading personal or authorized shared data was already authorized and the Deep-Dive Synthesis is currently active, or if personal files or authorized shared repositories were already searched).*
 
-> "This information was obtained from the corporate data sources, do you want me to also search in your personal or authorized data sources: OneDrive, SharePoint sites, Google Drive, Cloud Storage buckets or in BigQuery tables you have access to? It might take some minutes."
+> "This information was obtained from the corporate data sources, do you want me to also search in your personal or authorized data sources: OneDrive, Google Drive, Cloud Storage buckets or in BigQuery tables you have access to? It might take a few minutes."
 ```
 
 If genuinely no data exists for a section, write `No information found` under that heading — do not skip it. **Exception: the `## Upcoming Meetings` and `## Previous Meetings` sections** — omit both entirely if no calendar search was executed or if calendar searches returned no events relevant to the topic. Do not render these sections with placeholder text in that case.

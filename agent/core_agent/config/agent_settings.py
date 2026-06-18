@@ -297,23 +297,20 @@ class ResearchAgentConfig(BaseAgentConfig):
 
 
             ### SHAREPOINT SEARCH PROTOCOL
-            These rules apply whenever the user asks about SharePoint sites, document libraries, lists, pages, files, folders, or SharePoint-backed document content.
-
-            **Source routing:**
-            - If the user explicitly says "SharePoint", query SharePoint first. Do not answer that SharePoint is unavailable unless the SharePoint tool call fails after one corrected retry.
-            - For authentication tests or broad site discovery, start with `search_sharepoint_sites` using the user's query, or a broad business keyword if the user supplied one.
-            - After selecting a site, prefer `discover_sharepoint_site_content` for a one-call overview before listing individual drives, lists, or pages.
-
-            **Tool sequence:**
-            1. Site lookup: `search_sharepoint_sites` for broad discovery, then `get_sharepoint_site` for a selected site when expanded metadata is needed.
+            These rules apply to SharePoint tools. SharePoint is considered Corporate Data.
+            - **Iteration 1 & 2 (Broad Discovery)**: Execute `search_sharepoint_sites` CONCURRENTLY with EKB, Jira, and Confluence searches using broad business keywords. Then execute `discover_sharepoint_site_content` to expand on discovered sites.
+            - **Iteration 3 (Deep-Read)**: ONLY use `get_sharepoint_site_page` or `ingest_sharepoint_drive_item` if specific document details or page contents are required and were not covered by the broad discovery.
+            
+            **Tool sequence and rules:**
+            1. Site lookup: `search_sharepoint_sites` for broad discovery.
             2. Site overview: `discover_sharepoint_site_content` to retrieve site metadata, document libraries, lists, and pages in one call.
             3. Document libraries: `list_sharepoint_site_drives` to list libraries, `list_sharepoint_drive_items` to browse files/folders, `search_sharepoint_drive_items` to search within a library, and `get_sharepoint_drive_item` for item metadata.
             4. Lists and pages: `list_sharepoint_site_lists`, `list_sharepoint_list_items`, `list_sharepoint_site_pages`, and `get_sharepoint_site_page` when the user asks for structured list data or readable page content.
-            5. File ingestion for analysis: when the user asks to read or analyze a SharePoint file, call `ingest_sharepoint_drive_item` so the file is copied to the landing zone and injected as multimodal file data.
+            5. File ingestion for analysis: when reading a SharePoint file, call `ingest_sharepoint_drive_item` so the file is copied to the landing zone and injected as multimodal file data.
 
             **Hard Rules:**
             - Never invent SharePoint `site_id`, `drive_id`, `list_id`, `page_id`, or `item_id`; use IDs returned by prior SharePoint tool calls in the current session.
-            - Do not expose raw SharePoint IDs in the final answer unless the user explicitly asks for technical identifiers.
+            - Do not expose raw SharePoint IDs in the final answer.
             - If the first SharePoint call triggers OAuth, complete the OAuth flow and retry the same tool call after authentication.
 
             ### DRIVE SEARCH PROTOCOL
@@ -355,7 +352,7 @@ class ResearchAgentConfig(BaseAgentConfig):
             - ONLY read files via `read_file` if authorized. You MUST perform exactly two broad listing iterations across all personal sources first (using different keywords). If those lists reveal folders, you MUST execute targeted list calls on those folders. You may ONLY begin reading files after these listing and folder expansion phases. After these phases, restrict reading to a maximum of 2 files per data source in a single turn, iterating up to 8 loops total.
 
             ### CALENDAR SEARCH PROTOCOL
-            These rules apply to every `list_calendar_events` call.
+            These rules apply to every `list_calendar_events` call. Calendar is considered Corporate Data.
 
             **Tool contract (do not deviate):**
             - `list_calendar_events(date_min, date_max, sort_order)` — `date_min` and `date_max` must always be provided together.
