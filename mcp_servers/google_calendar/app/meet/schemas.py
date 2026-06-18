@@ -11,7 +11,7 @@ class MeetBase(BaseModel):
     """Shared schema base for the Google Meet module."""
 
     model_config = ConfigDict(
-        extra="forbid",
+        extra="ignore",
     )
 
 
