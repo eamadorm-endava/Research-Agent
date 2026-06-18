@@ -1,7 +1,12 @@
 import os
 from unittest.mock import patch, MagicMock
 
-from agent.core_agent.config import BigQueryMCPConfig, GCSMCPConfig, GoogleAuthConfig, AtlassianMCPConfig
+from agent.core_agent.config import (
+    BigQueryMCPConfig,
+    GCSMCPConfig,
+    GoogleAuthConfig,
+    AtlassianMCPConfig,
+)
 from agent.core_agent.builder.mcp_factory import MCPToolsetBuilder
 
 
@@ -123,7 +128,7 @@ def test_get_mcp_toolset_atlassian_local_and_prod():
         mcp_config = AtlassianMCPConfig(_env_file=None)
 
     builder = MCPToolsetBuilder()
-    
+
     # 1. Local execution mode
     tool_local = builder.build(mcp_config, prod_execution=False)
     assert tool_local._connection_params.url == "http://localhost:8085/mcp"
