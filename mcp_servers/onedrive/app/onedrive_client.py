@@ -20,78 +20,6 @@ from .schemas import (
 )
 
 
-class StreamIOWrapper:
-    """
-    Wraps an httpx streaming response into a file-like object for GCS upload.
-    """
-
-    def __init__(self, httpx_resp: httpx.Response) -> None:
-        """
-        Initializes the wrapper around an active HTTP stream.
-
-        Args:
-            httpx_resp: httpx.Response -> The active streaming response.
-
-        Returns:
-            None -> Initializes the wrapper.
-        """
-        self.iterator = httpx_resp.iter_bytes()
-        self.buffer = b""
-        self._pos = 0
-
-    def read(self, size: int = -1) -> bytes:
-        """
-        Reads bytes from the active HTTP stream.
-
-        Args:
-            size: int -> The number of bytes to read, or -1 for all bytes.
-
-        Returns:
-            bytes -> The chunk of bytes read from the stream.
-        """
-        if size == -1:
-            data = b"".join(self.iterator)
-            result = self.buffer + data
-            self.buffer = b""
-            self._pos += len(result)
-            return result
-        while len(self.buffer) < size:
-            try:
-                self.buffer += next(self.iterator)
-            except StopIteration:
-                break
-        result, self.buffer = self.buffer[:size], self.buffer[size:]
-        self._pos += len(result)
-        return result
-
-    def tell(self) -> int:
-        """
-        Reports the current byte offset of the stream.
-
-        Args:
-            None
-
-        Returns:
-            int -> The current position in the byte stream.
-        """
-        return self._pos
-
-    def seek(self, offset: int, whence: int = 0) -> int:
-        """
-        Seeks to a specific position in the stream (only supports rewinding to 0 if already at 0).
-
-        Args:
-            offset: int -> The target offset.
-            whence: int -> The reference point for the offset.
-
-        Returns:
-            int -> The new position.
-        """
-        if offset == 0 and whence == 0 and self._pos == 0:
-            return 0
-        raise IOError("StreamIOWrapper does not support seeking")
-
-
 class OneDriveClient:
     """Client for interacting with Microsoft Graph API for OneDrive."""
 
@@ -1066,6 +994,77 @@ class OneDriveClient:
         except Exception as e:
             raise ValueError(f"Failed to fetch file metadata: {str(e)}")
 
+    def _sync_stream_to_landing_zone(
+        self,
+        content_endpoint: str,
+        content_type: str,
+        filename: str,
+        file_size: int,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+    ) -> str:
+        """
+        Synchronously streams a file from OneDrive directly into GCS.
+        Prevents OOM by piping data without loading everything into memory.
+
+        Args:
+            content_endpoint: str -> The Microsoft Graph API download URL.
+            content_type: str -> The MIME type of the file.
+            filename: str -> The name of the file.
+            file_size: int -> The size of the file in bytes.
+            app_name: str -> The agent calling the upload.
+            user_id: str -> The user performing the action.
+            session_id: str -> The current session identifier.
+
+        Returns:
+            str -> The canonical GCS URI where the file was uploaded.
+        """
+        with httpx.Client() as client:
+            with client.stream(
+                "GET", content_endpoint, headers=self.headers, follow_redirects=True
+            ) as response:
+                if response.status_code == 401:
+                    raise ValueError("Invalid or expired Microsoft access token.")
+                response.raise_for_status()
+
+                class SyncStreamIOWrapper:
+                    def __init__(self, resp):
+                        self.iterator = resp.iter_bytes()
+                        self.buffer = b""
+
+                    def read(self, size: int = -1) -> bytes:
+                        if size == -1:
+                            data = b"".join(self.iterator)
+                            result = self.buffer + data
+                            self.buffer = b""
+                            return result
+                        while len(self.buffer) < size:
+                            try:
+                                self.buffer += next(self.iterator)
+                            except StopIteration:
+                                break
+                        result, self.buffer = self.buffer[:size], self.buffer[size:]
+                        return result
+
+                    def tell(self) -> int:
+                        return 0
+
+                    def seek(self, offset: int, whence: int = 0) -> int:
+                        raise IOError("SyncStreamIOWrapper does not support seeking")
+
+                file_stream = SyncStreamIOWrapper(response)
+
+                return self.gcs_connector.upload_stream(
+                    file_obj=file_stream,
+                    content_type=content_type,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    size=file_size,
+                )
+
     async def _stream_to_landing_zone(
         self,
         file_id: str,
@@ -1075,7 +1074,8 @@ class OneDriveClient:
         dependencies: Any,
     ) -> str:
         """
-        Streams a file from OneDrive directly into the GCS Landing Zone.
+        Streams a file from OneDrive directly into the GCS Landing Zone asynchronously.
+        Delegates to a background thread to prevent blocking the event loop.
 
         Args:
             file_id: str -> The unique identifier of the file.
@@ -1097,25 +1097,16 @@ class OneDriveClient:
             f"{ONEDRIVE_SERVER_CONFIG.graph_api_base_url}{content_endpoint_suffix}"
         )
 
-        async with httpx.AsyncClient() as client:
-            async with client.stream(
-                "GET", content_endpoint, headers=self.headers, follow_redirects=True
-            ) as response:
-                if response.status_code == 401:
-                    raise ValueError("Invalid or expired Microsoft access token.")
-                response.raise_for_status()
-
-                file_stream = StreamIOWrapper(response)
-
-                return self.gcs_connector.upload_stream(
-                    file_obj=file_stream,
-                    content_type=content_type,
-                    app_name=dependencies.app_name,
-                    user_id=dependencies.user_id,
-                    session_id=dependencies.session_id,
-                    filename=filename,
-                    size=file_size,
-                )
+        return await asyncio.to_thread(
+            self._sync_stream_to_landing_zone,
+            content_endpoint,
+            content_type,
+            filename,
+            file_size,
+            dependencies.app_name,
+            dependencies.user_id,
+            dependencies.session_id,
+        )
 
     async def read_file(self, request: ReadFileRequest) -> ReadFileResponse:
         """

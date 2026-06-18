@@ -7,7 +7,7 @@ class MeetRootConfig(BaseSettings):
     """Shared immutable configuration base for the Meet module."""
 
     model_config = SettingsConfigDict(
-        extra="forbid",
+        extra="ignore",
         frozen=True,
         env_file_encoding="utf-8",
     )

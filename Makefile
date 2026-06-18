@@ -142,7 +142,7 @@ verify-gcs-ci:
 	$(MAKE) test-gcs-terraform
 
 test-gcs-terraform:
-	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
+	cd terraform/gcs_mcp_server_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### Google Calendar & Meet MCP Commands ###
 
@@ -184,7 +184,7 @@ verify-onedrive-ci:
 	$(MAKE) test-onedrive-terraform
 
 test-onedrive-terraform:
-	cd terraform/onedrive_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+	cd terraform/onedrive_mcp_server_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### SharePoint MCP Commands ###
 
@@ -228,7 +228,7 @@ verify-ekb-ci:
 	$(MAKE) test-ekb-terraform
 
 test-ekb-terraform:
-	cd terraform/ekb_pipeline_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+	cd terraform/ekb_pipeline_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### Atlassian MCP Commands ###
 

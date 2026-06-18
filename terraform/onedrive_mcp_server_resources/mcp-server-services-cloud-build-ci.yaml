@@ -57,7 +57,7 @@ steps:
   # Step 7: Plan (Terraform)
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=ci', '-var=landing_zone_bucket=${PROJECT_ID}-ai-agent-landing-zone', '-out=tfplan']
+    args: ['plan', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=ci', '-out=tfplan']
     dir: 'terraform/onedrive_mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
