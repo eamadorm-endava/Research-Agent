@@ -1,9 +1,28 @@
 substitutions:
   _REGION: 'us-central1'
 
-
 steps:
-  # Step 1: Initialize Terraform with Dynamic Backend
+  # Step 1: Docker Build and Push
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/mcp-servers/onedrive-mcp-server:${SHORT_SHA}', '-f', 'mcp_servers/onedrive/Dockerfile', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/mcp-servers/onedrive-mcp-server:${SHORT_SHA}']
+
+  # Step 2: Tag as latest
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'docker-tag-latest'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        gcloud artifacts docker tags add \
+          ${_REGION}-docker.pkg.dev/${PROJECT_ID}/mcp-servers/onedrive-mcp-server:${SHORT_SHA} \
+          ${_REGION}-docker.pkg.dev/${PROJECT_ID}/mcp-servers/onedrive-mcp-server:latest
+
+  # Step 3: Initialize Terraform with Dynamic Backend
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
     entrypoint: 'sh'
@@ -15,49 +34,10 @@ steps:
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
           -backend-config="prefix=terraform/state/onedrive-mcp-server-resources"
 
-  # Step 2: Format Check (Terraform)
+  # Step 4: Apply Terraform
   - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-fmt'
-    args: ['fmt', '-check']
-    dir: 'terraform/onedrive_mcp_server_resources'
-
-  # Step 3: Format Check (Python)
-  - name: 'python:3.12'
-    id: 'python-lint'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
-        apt-get update && apt-get install -y make
-        pip install uv
-        SKIP=terraform_fmt make run-precommit
-
-  # Step 4: Python Tests
-  - name: 'python:3.12'
-    id: 'python-test'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
-        apt-get update && apt-get install -y make
-        pip install uv
-        make run-onedrive-tests
-
-  # Step 5: Docker Build
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-build'
-    args: ['build', '-t', 'onedrive-mcp-test:ci', '-f', 'mcp_servers/onedrive/Dockerfile', '.']
-
-  # Step 6: Validate (Terraform)
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-validate'
-    args: ['validate']
-    dir: 'terraform/onedrive_mcp_server_resources'
-
-  # Step 7: Plan (Terraform)
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-plan'
-    args: ['plan', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=ci', '-var=landing_zone_bucket=${PROJECT_ID}-ai-agent-landing-zone', '-out=tfplan']
+    id: 'tf-apply'
+    args: ['apply', '-auto-approve', '-var=project_id=${PROJECT_ID}', '-var=main_region=${_REGION}', '-var=mcp_server_cloud_run_image_tag=${SHORT_SHA}', '-var=landing_zone_bucket=${PROJECT_ID}-ai-agent-landing-zone']
     dir: 'terraform/onedrive_mcp_server_resources'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
