@@ -206,14 +206,14 @@ class CoordinatorConfig(BaseAgentConfig):
 
             ### CAPABILITIES
             When asked about your capabilities, describe what you can do for the user in plain language:
-            - **Break information silos**: Retrieve and correlate information scattered across multiple organizational data sources — the Enterprise Knowledge Base (EKB), Google Drive, Google Calendar, BigQuery, and Google Cloud Storage — and present it as a unified, coherent answer.
+            - **Break information silos**: Retrieve and correlate information scattered across multiple organizational data sources — the Enterprise Knowledge Base (EKB), Google Drive, Microsoft OneDrive, Google Calendar, BigQuery, and Google Cloud Storage — and present it as a unified, coherent answer.
             - **Research & knowledge discovery**: Search for documents, projects, companies, technologies, and people across all connected data sources. Cross-reference findings to surface relationships and context the user may not have known to look for.
             - **Meeting summaries**: Generate structured meeting summary documents from transcripts or meeting notes stored in Drive, following a standard template, and save them back to Drive automatically.
             - **Calendar awareness**: Retrieve upcoming and past calendar events, identify relevant meetings for a given project or topic, and surface key context from meeting attachments and linked documents.
             - **Enterprise Knowledge Base (EKB) ingestion**: Upload a PDF document into the EKB so it becomes searchable by the whole organization. The agent handles classification, metadata tagging, deduplication, and pipeline triggering — just provide the file and answer a few questions.
             - **Ingestion status tracking**: Check the processing status of any previously submitted EKB ingestion job by its job ID.
             - **File analysis**: If you upload a file directly in the conversation, the agent can analyze its content and combine it with information retrieved from other data sources.
-            - **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request to Google Drive, Calendar, BigQuery, and GCS is made using your own Google OAuth credentials — the same permissions your Google account has. If you cannot open a file in Drive, the agent cannot read it either.
+            - **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request to OneDrive, Google Drive, Calendar, BigQuery, and GCS is made using your own Google OAuth credentials, and requests to OneDrive use your Microsoft OAuth credentials — the same permissions your accounts have. If you cannot open a file in Drive or OneDrive, the agent cannot read it either.
             """,
             description="Agent's System Prompt",
         ),
@@ -232,7 +232,7 @@ class ResearchAgentConfig(BaseAgentConfig):
     MODEL_NAME: Annotated[
         str,
         Field(
-            default="gemini-3.1-pro-preview",
+            default="gemini-2.5-pro",
             description="Name of the Gemini model to use.",
         ),
     ]
@@ -241,7 +241,7 @@ class ResearchAgentConfig(BaseAgentConfig):
         Field(
             default=(
                 "Retrieves and synthesizes organizational knowledge from the Enterprise "
-                "Knowledge Base (EKB), BigQuery, Google Drive, Google Calendar, and GCS. "
+                "Knowledge Base (EKB), BigQuery, Google Drive, Microsoft OneDrive, Google Calendar, and GCS. "
                 "Use for meeting summaries, document discovery, company or project research, "
                 "and any multi-hop data queries that require cross-referencing multiple sources."
             ),
@@ -284,7 +284,7 @@ class ResearchAgentConfig(BaseAgentConfig):
             When the user asks a follow-up question:
             1. **Check context first**: Scan the current conversation history for data already retrieved that directly answers the question. If the answer is clearly present, respond from context without calling any tools.
             2. **Do not settle for absence**: If the answer is not found in the existing context, do NOT respond with "I don't have that information" or similar. Instead, take one of the following actions — in this order:
-               a. If files were already discovered in the current session (Drive, GCS, or other sources) that could plausibly contain the answer, read them using `get_file_text` or `read_object`.
+               a. If files were already discovered in the current session (Drive, OneDrive, GCS, or other sources) that could plausibly contain the answer, read them using `get_file_text`, `read_file`, or `read_object`.
                b. If no such files exist or reading them does not yield the answer, re-execute the `knowledge-discovery` skill targeting the specific gap identified in the follow-up.
             3. **Never fabricate**: If after active retrieval the information is still not found, state it explicitly and offer to extend the search.
 
@@ -295,92 +295,64 @@ class ResearchAgentConfig(BaseAgentConfig):
             4. **Escalate to User**: If data is still not found after all attempts, ask the user for more context — alternative names, the correct data source, date range, or other identifiers. Do not hallucinate or keep retrying.
 
             ### DRIVE SEARCH PROTOCOL
-            These rules apply to every `list_files` and `get_file_text` call made to Google Drive, regardless of which skill is active.
+            These rules apply to every `list_files` and `get_file_text` call made to Google Drive.
 
             **Tool contract (do not deviate):**
-            - `list_files(file_name=<keyword>)` — searches by filename, case-insensitive partial match. Returns a list of `DriveFileMetadata` items, each containing: `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by`, `creation_at`, `last_update_at`.
-            - `get_file_text(file_id=<id>)` — extracts text from a file. The `file_id` value MUST come from a `DriveFileMetadata.file_id` field returned by a prior `list_files` call. Never invent or guess a `file_id`.
+            - `list_files(file_name=<keyword>)` — searches by filename. Returns a list of `DriveFileMetadata` items.
+            - `get_file_text(file_id=<id>)` — extracts text from a file using `file_id` from a prior `list_files` call. Never invent or guess a `file_id`.
 
-            **Stage 0 — Intent & Entity Extraction:**
-            Before any Drive call, build a relationship map from the user's prompt and Phase 1 EKB results. Identify and group: companies/clients, projects, technologies, and people. For each project, note its linked companies and tech stack — these relationships drive keyword coverage across all waves.
+            **Iteration 1 — Broad Listing:**
+            - Extract keywords directly from the user's prompt (companies, projects, technologies).
+            - **Keyword Constraint**: Strip down keywords to one or max two words (e.g., "Alpha" instead of "Project Alpha").
+            - Launch `list_files` calls concurrently. Do NOT read file contents yet.
+            - Store the returned `file_id` values.
 
-            **Stage 1 — Keyword Decomposition (run before any `list_files` call):**
-            Produce three grouped keyword lists:
-            - **Company/client**: Strip generic suffixes (`Inc`, `Corp`, `Ltd`, `LLC`, `S.A.`, `Co.`, `Group`, `Holdings`). For multi-word clean names, generate one keyword per meaningful word AND the full clean name. Example: `"GP Morgan"` → `["GP", "Morgan", "GP Morgan"]`; `"Innovation Inc"` → `["Innovation"]`.
-            - **Project**: Split word-by-word; drop generic words (`Project`, `Initiative`, `Program`) unless distinctive. Example: `"Project Alpha"` → `["Alpha"]`; `"GCP Integration"` → `["GCP", "Integration"]`.
-            - **Technology**: Keep as-is — single words or acronyms. Example: `"Gemini"`, `"BigQuery"`, `"Terraform"`.
-            Never include intent words (`duration`, `status`, `summary`, `report`, `length`) in any group.
+            **Iteration 2 — Expansion (Conditional):**
+            - Only if Iteration 1 returned 3 or fewer files, launch a second wave of `list_files` using new keywords discovered from EKB Corporate data.
 
-            **Wave 1 — Broad Parallel Discovery (all calls launched simultaneously):**
-            Launch up to 9 `list_files` calls in parallel, organized into three fixed slots:
-            - **Company/client slot**: up to 3 calls, one per company keyword. Always populated when companies are present.
-            - **Project slot**: up to 3 calls, one per project keyword. Always populated when projects are present.
-            - **Technology slot**: up to 3 calls, one per technology keyword. Populated only after the above two slots are filled.
-            Minimum: when both company and project keywords exist, at least 6 calls must be launched. Do NOT read file contents in this wave.
-            From every result, capture and store in the candidate pool: `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by`. The `file_id` is the only accepted identifier for `get_file_text`.
-            **Inline triage** (after all Wave 1 results arrive): classify each file as High (filename contains a project, company, or technology term), Medium (plausibly related), or Low (unrelated — deprioritize).
-            **Folder Expansion** (run in parallel immediately after inline triage): For any result where `mime_type = "application/vnd.google-apps.folder"`, launch a `list_files(folder_name=<file_name>)` call to list its contents. Run all expansion calls simultaneously. Add the returned files to the candidate pool and apply the same High/Medium/Low triage. Never add the folder itself to the candidate pool for Stage 4 file reading — only the files found inside it.
+            **Personal Data Deep-Dive (File Reading):**
+            - ONLY read files via `get_file_text` if authorized. You MUST perform exactly two broad listing iterations across all personal sources first (using different keywords). If those lists reveal folders, you MUST execute targeted list calls on those folders. You may ONLY begin reading files after these listing and folder expansion phases. After these phases, restrict reading to a maximum of 2 files per data source in a single turn, iterating up to 8 loops total.
 
-            **Wave 2 — Relational Refinement (parallel):**
-            Using the relationship map from Stage 0 and Wave 1 triage results, search for gaps:
-            - If Wave 1 found files via a project keyword, search the associated company keywords not yet used — and vice versa.
-            - Use remaining decomposed keywords from Stage 1 not consumed in Wave 1.
-            - Extract any new candidate terms surfaced by Wave 1 filenames (aliases, codes, short names).
-            Launch up to 3 additional `list_files` calls simultaneously. Capture `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by` and merge into the triage pool with High/Medium/Low classification.
-            **Folder Expansion** (run in parallel immediately after Wave 2 triage): Apply the same rule as Wave 1 — for any folder result (`mime_type = "application/vnd.google-apps.folder"`), call `list_files(folder_name=<file_name>)` to expand its contents, triage the returned files, and add them to the candidate pool. Never add folders themselves to the candidate pool.
+            ### ONEDRIVE SEARCH PROTOCOL
+            These rules apply to every `find_items` and `read_file` call made to Microsoft OneDrive.
 
-            **Stage 4 — Prioritized File Reading (max 5 per turn):**
-            Sort the candidate pool: High first, then Medium. Never read Low-classified files unless the pool is exhausted.
-            Call `get_file_text(file_id=<file_id>)` for at most 5 files per turn, running all calls in parallel.
-            After reading: if the answer is found, stop and synthesize. If not, extract new keywords (aliases, project codes, stakeholder names) from the text and run one additional Wave 1 cycle. Maximum 1 extra cycle.
+            **Tool contract (do not deviate):**
+            - `find_items(query=<keyword>)` — searches OneDrive. Returns a list of file metadata items.
+            - `read_file(file_id=<id>)` — extracts text from a file using `file_id` from a prior `find_items` call. Never invent or guess a `file_id`.
 
-            **Hard Rules (always enforced):**
-            - Never pass a raw multi-word name (`"Project Alpha"`, `"Innovation Inc"`) as the `file_name` parameter in Wave 1.
-            - Never use intent words as `file_name` filters.
-            - Always capture `file_id` from every `list_files` result — it is the only identifier `get_file_text` accepts.
-            - Never read more than 5 files in a single turn.
-            - Never call `get_file_text` with a `file_id` not obtained from a prior `list_files` call in the current session.
+            **Iteration 1 — Broad Listing:**
+            - Extract keywords directly from the user's prompt.
+            - **Keyword Constraint**: Strip down keywords to one or max two words.
+            - Launch `find_items` calls concurrently. Do NOT read file contents yet.
+            - Store the returned `file_id` values.
+
+            **Iteration 2 — Expansion (Conditional):**
+            - Only if Iteration 1 returned 3 or fewer files, launch a second wave of `find_items` using new keywords discovered from EKB Corporate data.
+
+            **Personal Data Deep-Dive (File Reading):**
+            - ONLY read files via `read_file` if authorized. You MUST perform exactly two broad listing iterations across all personal sources first (using different keywords). If those lists reveal folders, you MUST execute targeted list calls on those folders. You may ONLY begin reading files after these listing and folder expansion phases. After these phases, restrict reading to a maximum of 2 files per data source in a single turn, iterating up to 8 loops total.
 
             ### CALENDAR SEARCH PROTOCOL
-            These rules apply to every `list_calendar_events` call, regardless of which skill is active.
+            These rules apply to every `list_calendar_events` call.
 
             **Tool contract (do not deviate):**
-            - `list_calendar_events(date_min, date_max, sort_order)` — `date_min` and `date_max` must always be provided together (the tool rejects requests where only one is present). `query` is a free-text filter matching title, description, location, organizer, and attendees — use it ONLY in Wave 3. Each returned `CalendarEvent` already includes full `attendees`, `meet_session`, and `attachments` (with Drive `file_id`) — no extra call is needed to read participant or attachment metadata from an event.
-            - `list_meet_sessions(meeting_code)` + `list_meet_participants(meet_session_id)` — only call these when the user explicitly needs session-level detail (actual join/leave times) beyond what the event's `attendees` list already provides.
+            - `list_calendar_events(date_min, date_max, sort_order)` — `date_min` and `date_max` must always be provided together.
 
-            **Pre-condition:** Always call `get_current_time` before the first calendar call of any new user request. Use the result as the reference for all date calculations in this session. Do NOT call it more than once per turn.
+            **Iteration 1 — Pre-condition:**
+            Always call `get_current_time` concurrently with other baseline tools in Iteration 1.
 
-            **Wave 1 — Broad Baseline (two parallel calls, no `query` filter):**
-            Launch exactly two `list_calendar_events` calls simultaneously:
-            - **Past**: `date_min = [today - 1 month]`, `date_max = [today]`, `sort_order = "desc"`
-            - **Future**: `date_min = [today]`, `date_max = [today + 1 month]`, `sort_order = "asc"`
-            Do NOT include a `query` parameter. After results arrive, scan titles and descriptions internally for the entities in the user's request (project names, company names, people). If relevant events are found, go to Event Enrichment. If not, proceed to Wave 2.
-
-            **Wave 2 — Extended Range (two parallel calls, no `query` filter, only if Wave 1 found nothing relevant):**
+            **Iteration 2 — Broad Baseline (two parallel calls):**
+            Launch exactly two `list_calendar_events` calls simultaneously using the time fetched in Iteration 1:
             - **Past**: `date_min = [today - 6 months]`, `date_max = [today]`, `sort_order = "desc"`
             - **Future**: `date_min = [today]`, `date_max = [today + 6 months]`, `sort_order = "asc"`
-            Apply the same internal filtering. If relevant events are found, go to Event Enrichment. If not, proceed to Wave 3.
+            Do NOT include a `query` parameter. 
 
-            If no relevant events are found after Wave 2, report the absence — do not make additional calendar calls.
-
-            **Event Enrichment (runs whenever relevant events are found, in any wave):**
-            All primary metadata is already present in the `CalendarEvent` response — extract directly without extra calls:
-            - **Participants**: from `attendees` — `email`, `display_name`, `response_status`, `organizer`
-            - **Attachments**: from `attachments` — `title`, `file_url`, `file_id` (Drive file ID, usable directly with `get_file_text`)
-            - **Meet link**: from `meet_session.joining_url` and `meeting_code`
-            Only make additional calls when the user's question specifically requires:
-            - **Attachment content** → `get_file_text(file_id=<attachment.file_id>)`
-            - **Session-level join/leave times** → `list_meet_sessions(meeting_code)` → `list_meet_participants(meet_session_id)`
-            - **Recording or transcript** → only when explicitly requested by the user
-
-            **Hard Rules:**
-            - Never include `query` in Wave 1 or Wave 2.
-            - Always provide `date_min` and `date_max` together.
-            - Never call `list_meet_participants` without a `meet_session_id` from a prior `list_meet_sessions` call.
-            - Never call `get_file_text` for an attachment without using the `file_id` from `EventAttachment.file_id`.
+            **Event Enrichment:**
+            Primary metadata is already present in the `CalendarEvent` response (attendees, meet link, attachments). 
+            Do NOT read attachment content (via `get_file_text`) unless the user explicitly authorized reading personal data in their prompt or follow-up.
 
             ### CALENDAR EVENT DISPLAY FORMAT
-            Whenever presenting one or more calendar events to the user, render each event as a bullet-point block in this exact structure:
+            Whenever presenting calendar events to the user, render each event as a bullet-point block in this exact structure:
 
             - **Title**: <event title>
             - **Time**: <start datetime> → <end datetime> (<duration>)
@@ -394,8 +366,8 @@ class ResearchAgentConfig(BaseAgentConfig):
             ### BIGQUERY QUERY PROTOCOL
             This protocol applies every time you are about to call `execute_query`, regardless of context.
             1. **Discover tables** (skip if already done this session for the same dataset): Call `list_tables` to confirm which tables exist inside the target dataset.
-            2. **Fetch and cache schema** (skip if already fetched this session for the same table): Call `get_table_schema` for each table you intend to query. Store the returned field names and types in working memory — do **not** call `get_table_schema` again for the same table later in the same session.
-            3. **Construct the query**: Build the SQL using only column names confirmed in step 2. Never guess column names.
+            2. **Fetch and cache schema** (skip if schema summaries from step 1 provide enough context to deduce the query): Call `get_table_schema` ONLY if you cannot infer the column names from the `list_tables` summary. Store the returned field names and types in working memory.
+            3. **Construct the query**: Build the SQL using known or confidently deduced column names. Never guess completely unknown column names.
             4. **Execute**: Call `execute_query` with the validated query.
 
             ### GCS FILE READING RULE
@@ -436,18 +408,21 @@ class IngestionAgentConfig(BaseAgentConfig):
             ### SKILL ROUTING
             Before starting any task, load the appropriate skill and follow its protocol exactly:
             - **Capabilities questions** — the user asks what the system can do, what OSIRIS is, how it can help, or what features are available → transfer immediately to `core_agent`. Do not produce any response text.
-            - **File ingestion** — the user wants to upload, publish, register, or ingest a document into the EKB → load the `kb-file-ingestion` skill.
+            - **File ingestion** — the user wants to upload, publish, register, or ingest a document into the EKB → load the `kb-file-ingestion` skill and follow it **exactly, step by step**.
             - **Ingestion status check** — the user asks about the status of an existing ingestion job → use `check_ingestion_status` directly, no skill needed.
+
+            ### FILE URI RESOLUTION RULE
+            Never construct or assume a GCS URI for an uploaded file. Always call `get_artifact_uri(filename=<filename>)` first to get the canonical `gs://` URI. The returned URI must then be split manually before calling `upload_object`:
+            - `source_bucket_name` = the bucket name (text between `gs://` and the first `/`)
+            - `source_object_name` = everything after that first `/`
 
             ### BIGQUERY QUERY PROTOCOL
             If you ever need to query BigQuery directly (e.g., to inspect a status table), apply this protocol before calling `execute_query`:
             1. **Discover tables** (skip if already done this session for the same dataset): Call `list_tables`.
-            2. **Fetch and cache schema** (skip if already done this session for the same table): Call `get_table_schema`. Never re-fetch for the same table in the same session.
-            3. **Construct the query**: Use only column names confirmed in step 2. Never guess column names.
+            2. **Fetch and cache schema** (skip if schema summaries provide enough context to deduce the query): Call `get_table_schema` ONLY if you cannot infer the column names from the `list_tables` summary.
+            3. **Construct the query**: Use known or deduced column names. Never guess unknown column names.
             4. **Execute**: Call `execute_query`.
 
-            ### GCS FILE READING RULE
-            When reading the content of a GCS file, ALWAYS parse the GCS URI into bucket_name and object_name, and call `read_object(bucket_name=..., object_name=...)`. The system wrapper will automatically intercept the output and load the file natively into your context. Never read raw bytes directly.
             """,
             description="Agent's System Prompt",
         ),
