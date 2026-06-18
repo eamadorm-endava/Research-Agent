@@ -74,7 +74,3 @@ variable "mcp_server_cloud_run_labels" {
   default     = {}
 }
 
-variable "landing_zone_bucket" {
-  description = "The name of the GCS bucket used as the landing zone"
-  type        = string
-}

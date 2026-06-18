@@ -27,8 +27,9 @@ module "mcp-server-service-account" {
 
 ################ Cloud Run ################
 locals {
-  cloud_run_region = coalesce(var.mcp_server_cloud_run_region, var.main_region)
-  cloud_run_image  = "${local.cloud_run_region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_name}/${var.mcp_server_cloud_run_name}"
+  cloud_run_region    = coalesce(var.mcp_server_cloud_run_region, var.main_region)
+  cloud_run_image     = "${local.cloud_run_region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_name}/${var.mcp_server_cloud_run_name}"
+  landing_zone_bucket = "${var.project_id}-ai-agent-landing-zone"
 }
 
 module "mcp_server_cloud_run" {
@@ -46,7 +47,7 @@ module "mcp_server_cloud_run" {
   containers = {
     mcp-server = {
       image = "${local.cloud_run_image}:${var.mcp_server_cloud_run_image_tag}"
-      env   = var.mcp_server_cloud_run_env
+      env   = merge(var.mcp_server_cloud_run_env, { "GCS_LANDING_ZONE_BUCKET" = local.landing_zone_bucket })
       resources = {
         limits = {
           cpu    = var.mcp_server_cloud_run_cpu
@@ -78,28 +79,28 @@ module "mcp_server_cloud_run" {
 
 # Read access to the Landing Zone
 resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_viewer" {
-  bucket = var.landing_zone_bucket
+  bucket = local.landing_zone_bucket
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
 
 # Write access to the Landing Zone (for zero-copy file ingestion)
 resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_creator" {
-  bucket = var.landing_zone_bucket
+  bucket = local.landing_zone_bucket
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
 
 # Admin access to the Landing Zone (for dynamically granting IAM conditions to users)
 resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_admin" {
-  bucket = var.landing_zone_bucket
+  bucket = local.landing_zone_bucket
   role   = "roles/storage.admin"
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
 
 # Bucket metadata access (required for GCS SDK internal bucket lookups)
 resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_bucket_viewer" {
-  bucket = var.landing_zone_bucket
+  bucket = local.landing_zone_bucket
   role   = "roles/storage.bucketViewer"
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
