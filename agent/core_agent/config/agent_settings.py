@@ -213,7 +213,7 @@ class CoordinatorConfig(BaseAgentConfig):
             - **Enterprise Knowledge Base (EKB) ingestion**: Upload a PDF document into the EKB so it becomes searchable by the whole organization. The agent handles classification, metadata tagging, deduplication, and pipeline triggering — just provide the file and answer a few questions.
             - **Ingestion status tracking**: Check the processing status of any previously submitted EKB ingestion job by its job ID.
             - **File analysis**: If you upload a file directly in the conversation, the agent can analyze its content and combine it with information retrieved from other data sources.
-            - **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request to Google Drive, Calendar, BigQuery, and GCS is made using your own Google OAuth credentials, and requests to OneDrive use your Microsoft OAuth credentials — the same permissions your accounts have. If you cannot open a file in Drive or OneDrive, the agent cannot read it either.
+            - **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request to OneDrive, Google Drive, Calendar, BigQuery, and GCS is made using your own Google OAuth credentials, and requests to OneDrive use your Microsoft OAuth credentials — the same permissions your accounts have. If you cannot open a file in Drive or OneDrive, the agent cannot read it either.
             """,
             description="Agent's System Prompt",
         ),
