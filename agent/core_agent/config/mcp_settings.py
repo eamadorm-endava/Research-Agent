@@ -166,6 +166,17 @@ class GCSMCPConfig(BaseMCPConfig):
     ]
 
 
+class AtlassianMCPConfig(BaseMCPConfig):
+    """Configuration for the Atlassian (Jira/Confluence) MCP server."""
+
+    model_config = SettingsConfigDict(env_prefix="ATLASSIAN_")
+
+    URL: str = "http://localhost:8085"
+    OAUTH_CONFIG: Optional[BaseOAuthConfig] = None
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = []
+    GEMINI_AUTH_ID: Optional[str] = None
+
+
 class OneDriveMCPConfig(BaseMCPConfig):
     """Configuration for the Microsoft OneDrive MCP server."""
 
