@@ -130,7 +130,7 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
 
     @model_validator(mode="after")
     def construct_uris(self) -> Self:
-        """Dynamically injects the TENANT_ID into the OAuth URIs if they still contain 'common'."""
+        """Dynamically inject the TENANT_ID into the OAuth URIs if they still contain 'common'."""
         if "common" in self.AUTH_URI:
             self.AUTH_URI = self.AUTH_URI.replace("common", self.TENANT_ID)
         if "common" in self.TOKEN_URI:

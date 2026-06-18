@@ -1,0 +1,123 @@
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
+################ APIs ################
+module "enable_apis" {
+  source           = "../base_modules/api-manager"
+  project_services = { (var.project_id) = var.apis_to_enable }
+}
+
+################ Service Accounts ################
+module "mcp-server-service-account" {
+  source     = "../base_modules/iam-service-account"
+  project_id = var.project_id
+  name       = var.mcp_server_service_account_name
+
+  # authoritative roles granted *on* the service account
+  iam = {}
+
+  # non-authoritative roles granted *to* the service account
+  iam_project_roles = { (var.project_id) = var.mcp_server_iam_project_roles }
+
+  depends_on = [
+    module.enable_apis
+  ]
+}
+
+################ Cloud Run ################
+locals {
+  cloud_run_region = coalesce(var.mcp_server_cloud_run_region, var.main_region)
+  cloud_run_image  = "${local.cloud_run_region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_name}/${var.mcp_server_cloud_run_name}"
+}
+
+module "mcp_server_cloud_run" {
+  source              = "../base_modules/cloud-run-v2"
+  project_id          = var.project_id
+  region              = local.cloud_run_region
+  name                = var.mcp_server_cloud_run_name
+  labels              = var.mcp_server_cloud_run_labels
+  deletion_protection = false
+
+  revision = {
+    labels = var.mcp_server_cloud_run_labels
+  }
+
+  containers = {
+    mcp-server = {
+      image = "${local.cloud_run_image}:${var.mcp_server_cloud_run_image_tag}"
+      env = merge(var.mcp_server_cloud_run_env, {
+        LANDING_ZONE_BUCKET = var.landing_zone_bucket
+      })
+      env_from_key = {
+        ATLASSIAN_CREDENTIALS = {
+          secret  = "ATLASSIAN_CREDENTIALS"
+          version = "latest"
+        }
+      }
+      resources = {
+        limits = {
+          cpu    = var.mcp_server_cloud_run_cpu
+          memory = var.mcp_server_cloud_run_memory
+        }
+      }
+    }
+  }
+
+  iam = {}
+
+  service_account_config = {
+    create = false
+    email  = module.mcp-server-service-account.email
+  }
+
+  service_config = {
+    scaling = {
+      min_instance_count = var.mcp_server_cloud_run_min_instances
+    }
+  }
+
+  depends_on = [
+    module.enable_apis
+  ]
+}
+
+################ Bucket IAM (Landing Zone) ################
+
+# Read access to the Landing Zone
+resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_viewer" {
+  bucket = var.landing_zone_bucket
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
+
+# Write access to the Landing Zone (for zero-copy file ingestion)
+resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_creator" {
+  bucket = var.landing_zone_bucket
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
+
+# Admin access to the Landing Zone (for dynamically granting IAM conditions to users)
+resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_admin" {
+  bucket = var.landing_zone_bucket
+  role   = "roles/storage.admin"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
+
+# Bucket metadata access (required for GCS SDK internal bucket lookups)
+resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_bucket_viewer" {
+  bucket = var.landing_zone_bucket
+  role   = "roles/storage.bucketViewer"
+  member = "serviceAccount:${module.mcp-server-service-account.email}"
+}
+
+################ Secret Manager IAM ################
+
+# Grant secret accessor permission to the MCP server service account
+resource "google_secret_manager_secret_iam_member" "atlassian_secret_accessor" {
+  project   = var.project_id
+  secret_id = "ATLASSIAN_CREDENTIALS"
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.mcp-server-service-account.email}"
+}

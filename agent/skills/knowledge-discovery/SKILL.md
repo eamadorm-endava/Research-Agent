@@ -1,6 +1,6 @@
 ---
 name: knowledge-discovery
-description: Expert protocol for high-fidelity data retrieval using concurrent Discovery Loops prioritizing Corporate Data over Personal Data.
+description: Expert protocol for high-fidelity data retrieval using concurrent Corporate Searches (EKB, Jira, Confluence) and sequenced Personal Data discovery.
 ---
 
 ## Pre-Search Validation
@@ -9,7 +9,7 @@ Before proceeding, verify whether the user has clearly stated the target of the 
 
 **A query is considered unclear when it:**
 - Expresses intent without a topic (e.g., "search the EKB", "conduct research", "look it up", "find something")
-- Names only a source, not a subject (e.g., "check the knowledge base", "query the EKB", "search SharePoint")
+- Names only a source, not a subject (e.g., "check the knowledge base", "query the EKB", "search SharePoint", "look into Jira")
 - Is too vague to form a meaningful search (e.g., "find documents", "search for info")
 
 **When the query is unclear**, execution must halt and the following prompt shall be presented:
@@ -17,26 +17,26 @@ Before proceeding, verify whether the user has clearly stated the target of the 
 
 Do not guess, infer, or proceed with a search. Wait for the user's answer before continuing.
 
-**When the query is clear** (contains at least one concrete subject — a project name, company, person, technology, document title, or specific question), proceed immediately to the Discovery Protocol Loops.
+**When the query is clear** (contains at least one concrete subject — a project name, company, person, technology, document title, ticket identifier, or specific question), proceed immediately to the Discovery Protocol Loops.
 
 ## Follow-Up Execution Protocol
 
-When a follow-up question is asked, the current chat history must be scanned. If the specific, detailed answer is NOT already present in the context of previous searches, a completely new Discovery Loop targeting the new information gap MUST be initiated. Do NOT answer "Information is unavailable" without executing a new search.
+When a follow-up question is asked, the current chat history must be scanned. If the specific, detailed answer is NOT already present in the context of previous searches, a completely new Discovery Loop targeting the new information gap MUST be initiated. Do NOT answer "Information is unavailable" without executing a new search across corporate or permitted sources.
 
 Furthermore, if the follow-up question is broad, the exact opt-in prompt regarding personal or authorized data sources MUST be appended at the end of the response (see Mandatory Output Structure).
 
 **Handling the Opt-In ("Yes"):**
-If the user replies "Yes" to the personal data opt-in prompt, this constitutes a follow-up that requires an active search. Because the prompt might just be "Yes", keywords MUST be synthesized from the *original* query and a "Context Graph" built from the prior corporate findings.
+If the user replies "Yes" to the personal data opt-in prompt, this constitutes a follow-up that requires an active search. Because the prompt might just be "Yes", keywords MUST be synthesized from the *original* query and a "Context Graph" built from the prior corporate findings (EKB, Calendar, Jira, Confluence).
 
 **Anchor Extraction (Context Graph)**:
 Build a relational map from the merged corporate results before searching personal data:
-- **Identities**: filename, gcs_uri, document_summary / description.
-- **Context**: description — key for generating personal data listing keywords.
+- **Identities**: filename, gcs_uri, issue keys, confluence page names, summaries.
+- **Context**: description/body texts — key for generating personal data listing keywords.
 - **Entities**: company names (clients/partners), technologies, technical stacks.
-- **Relational Mapping**: map project names to their associated companies and tech stacks — use these as the primary enriched keywords for the personal or authorized-source listing tools.
-- **People**: uploader_email and stakeholders mentioned in summaries.
+- **Relational Mapping**: map project names to their associated companies and tech stacks — use these as the primary enriched keywords for the personal data listing tools.
+- **People**: uploader_email, reporter, assignee, and stakeholders mentioned in summaries.
 
-Immediately execute all tools in **1b. Personal Data Listings** (`list_files`, `find_items`, SharePoint search/discovery tools, `list_objects`, `list_tables`) CONCURRENTLY (in parallel, within the exact same agent step) using these enriched keywords derived from the Context Graph. Do NOT skip them or run them sequentially. Once the files are listed, proceed to the **Personal Data Deep-Dive Protocol** to read the most relevant files.
+Immediately execute all tools in **1c. Personal Data Listings** (`list_files`, `find_items`, SharePoint search/discovery tools, `list_objects`, `list_tables`) CONCURRENTLY (in parallel, within the exact same agent step) using these enriched keywords derived from the Context Graph. Do NOT skip them or run them sequentially. Once the files are listed, proceed to the **Personal Data Deep-Dive Protocol** to read the most relevant files.
 
 ---
 
@@ -45,11 +45,14 @@ Immediately execute all tools in **1b. Personal Data Listings** (`list_files`, `
 **Core Efficiency Rule:** The discovery loops must be short-circuited early. If the required information is fully obtained at the end of *any* iteration, the iteration process must be immediately broken, and the final report generated. All 3 iterations are reached only if the data is highly hidden.
 
 ### Iteration 1: Massive Parallel Discovery
-Launch all baseline data-gathering tools concurrently without waiting.
+Launch all baseline corporate data-gathering tools concurrently without waiting.
 
-**1a. Corporate Searches:**
+**1a. Corporate Searches (EKB & Atlassian Integrations):**
+All corporate discovery queries must trigger simultaneously to gather contextual assets across knowledge nodes:
 - `ekb_semantic_search`: `query` using the full user prompt.
 - `ekb_keyword_search`: `keyword` using primary entities extracted from the prompt.
+- `search_jira_issues`: pass a clean text summary keyword or project constraint JQL mapping to the extracted entity (e.g., `summary ~ "keyword"` or `text ~ "keyword"`).
+- `search_confluence_pages`: pass a CQL expression mapping to the core subject token (e.g., `text ~ "keyword"`).
 - `get_current_time`: fetch time bounds for the Calendar search.
 
 **1b. Mandatory Calendar Sync:**
@@ -68,26 +71,25 @@ Launch all baseline data-gathering tools concurrently without waiting.
   - `list_objects` (GCS personal buckets)
   - `list_tables` (BigQuery personal datasets)
 
-**Early Exit Check:** If the EKB semantic/keyword chunks found in Iteration 1 completely satisfy the request, break the loop and proceed straight to **Mandatory Output Structure**.
+**Early Exit Check:** If the corporate results found in Iteration 1 completely satisfy the request, break the loop and proceed straight to **Mandatory Output Structure**.
 
 ### Iteration 2: Expanded Anchor & Calendar Sync
-If Iteration 1 did not fully answer the query, synthesize the findings to expand the search.
+If Iteration 1 did not fully answer the query, synthesize the findings to expand the search scope.
 
 **2a. Corporate Expansion:**
-- Extract larger anchor keywords from Iteration 1's EKB results (e.g., related project codes, linked companies).
-- Execute 2-3 additional `ekb_semantic_search` / `ekb_keyword_search` calls using these expanded anchors.
+- Extract larger anchor keywords from Iteration 1's EKB, Jira, and Confluence results (e.g., related project codes, linked companies, Jira components, Confluence spaces).
+- Execute 2-3 additional concurrent `ekb_semantic_search` / `ekb_keyword_search` / `search_jira_issues` / `search_confluence_pages` calls using these expanded anchors.
 
 **2b. Personal Data Expansion (Strictly Conditional):**
 - *Condition*: This second expansion must ONLY be executed if the first wave of listing tools was launched AND returned very few files (e.g., 0, 1, 2, or 3 files). If the initial listing was deferred (broad question) or found a healthy amount of files, skip this step.
-- Execute a second massive concurrent listing (`list_files` / `find_items` / SharePoint search/discovery tools / etc.) using the new keywords discovered from the EKB.
+- Execute a second massive concurrent listing (`list_files` / `find_items` / SharePoint search/discovery tools / etc.) using the new keywords discovered from the corporate context.
 
-**Early Exit Check:** If the newly expanded EKB results and Calendar events now satisfy the request, break the loop and proceed straight to **Mandatory Output Structure**.
+**Early Exit Check:** If the newly expanded corporate results and Calendar events now satisfy the request, break the loop and proceed straight to **Mandatory Output Structure**.
 
-### Iteration 3: EKB Deep-Read (Strictly Conditional)
-**Constraint:** The EKB chunks and metadata MUST be relied upon as much as possible.
-- **Trigger:** IF AND ONLY IF the semantic chunks are still insufficient after Iteration 2, OR the full context of a document was explicitly requested.
-- **Action:** Select at most **3** EKB GCS files (based on prior context) and call `read_object` on them concurrently.
-
+### Iteration 3: Corporate Deep-Read (Strictly Conditional)
+**Constraint:** The metadata and summaries from Iteration 1 & 2 MUST be relied upon as much as possible.
+- **Trigger:** IF AND ONLY IF the chunks/metadata are still insufficient after Iteration 2, OR the full context of a document/ticket/page was explicitly requested.
+- **Action:** Select at most **3** corporate items (based on prior context) and call `read_object` (for EKB GCS), `read_confluence_page` (for Confluence), or `get_jira_issue_details` (for Jira) concurrently.
 ---
 
 ## Personal Data Deep-Dive Protocol
@@ -97,8 +99,7 @@ If the reading of personal or authorized shared data was **already requested** i
 **1. Sequenced Discovery and Reading (Up to 8 Loops):**
 To ensure a comprehensive but safe discovery, you MUST follow this strict multi-phase sequence when executing the Deep-Dive:
 
-- **Phase 1 (Iteration 1) — First Broad Listing:** 
-  - Execute the listing tools (`list_files`, `find_items`, SharePoint search/discovery tools, `list_objects`, `list_tables`) across ALL authorized data sources concurrently, using the primary keywords.
+- **Phase 1 (Iteration 1) — First Broad Listing:** - Execute the listing tools (`list_files`, `find_items`, SharePoint search/discovery tools, `list_objects`, `list_tables`) across ALL authorized data sources concurrently, using the primary keywords.
   - **Constraint:** Maximum of **2 list/search requests** per authorized data source in this step. Do NOT read any files/items yet.
 
 - **Phase 1.5 (Iteration 1.5) — First Folder Expansion (Conditional):**
@@ -123,15 +124,15 @@ To ensure a comprehensive but safe discovery, you MUST follow this strict multi-
   - Repeat this analysis and targeted reading loop until the required information is found, up to the maximum limit of 8 total iterations.
 
 **2. Enriched Synthesis:**
-- Generate a new response that **combines the previous Corporate summary** (obtained in the first response) and **enriches it** with the new insights discovered in the personal data.
+- Generate a new response that **combines the previous Corporate summary** (obtained in the first response from EKB, Jira, and Confluence) and **enriches it** with the new insights discovered in the personal data.
 
 ---
 
 ## Mandatory Output Structure
 
 Before writing the response, classify the question:
-- **Concise Mode**: clear, narrow answer (a single fact, name, date, count, status, or yes/no).
-- **Full Report Mode**: answer requires synthesizing across multiple sources, documents, or time periods.
+- **Concise Mode**: clear, narrow answer (a single fact, name, date, count, status, issue state, or yes/no).
+- **Full Report Mode**: answer requires synthesizing across multiple corporate records, documents, issues, or time periods.
 
 ---
 
@@ -145,10 +146,10 @@ Cross-correlate all findings into a unified narrative before writing. The exact 
 
 ```markdown
 ## Summary
-[1–2 paragraphs. Brief context of what was found, the topic, and its relevance. No bullet points.]
+[1–2 paragraphs. Brief context of what was found across corporate systems and files, the topic, and its relevance. No bullet points.]
 
 ## Key Points
-- [Bullet list of the most important facts, decisions, dates, and findings extracted from the sources.]
+- [Bullet list of the most important facts, decisions, ticket updates, page entries, dates, and findings extracted from the sources.]
 
 ## Stakeholders
 - [Name (Role) - email]
@@ -170,7 +171,7 @@ If no relevant meetings are found: `No previous meetings found for this topic.`
 ## References
 | Source | Project Name | Filename | Owner | Created at / Last Update |
 |:---:|:---:|:---:|:---:|:---:|
-| [EKB/Drive/OneDrive/SharePoint/etc] | [Project] | [Filename] | [Email] | [YYYY-MM-DD] |
+| [EKB/Jira/Confluence/Drive/OneDrive/SharePoint/etc] | [Project] | [Filename / Title] | [Email / Assignee] | [YYYY-MM-DD] |
 
 ## Personal / Authorized Data Resources
 **CRITICAL REQUIREMENT:** You MUST append this section and exact prompt at the very bottom of your response IF personal files or authorized shared repositories were NOT searched in Iteration 1 (e.g. because it was a broad question). 
@@ -185,13 +186,12 @@ If genuinely no data exists for a section, write `No information found` under th
 
 ### References Details
 *(mandatory in both modes whenever any data source was used — omit only if the response is based solely on user input with no tool results)*
-**CRITICAL: Include ONLY files, documents, and events from which data was explicitly extracted and cited to produce the summary. NEVER include broad discovery results, unread files, or files that were found but their contents were not actually used in the response.**
 
-| Source | Project Name | Filename | Owner | Created at / Last Update |
-|:---:|:---:|:---:|:---:|
-| EKB / Drive / OneDrive / SharePoint / Cloud Storage / BigQuery | Human-readable file or event name | Author email or display name | `YYYY-MM-DD` |
+| Source | Project Name | Filename / Item Name | Owner / Assignee | Created at / Last Update |
+|:---:|:---:|:---:|:---:|:---:|
+| EKB / Drive / OneDrive / SharePoint / Cloud Storage / BigQuery / Jira / Confluence | Human-readable name | Author email or display name | `YYYY-MM-DD` |
 
-- **Source**: exactly one of `EKB`, `Drive`, `OneDrive`, `SharePoint`, `Cloud Storage`, or `BigQuery`.
+- **Source**: exactly one of `EKB`, `Google Drive`, `OneDrive`, `SharePoint`, `Cloud Storage`, `BigQuery`, `Jira`, or `Confluence`.
   - **`EKB`**: use for ANY data that originates from the Enterprise Knowledge Base.
   - **`Drive`**: Google Drive files.
   - **`OneDrive`**: OneDrive files.

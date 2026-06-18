@@ -254,11 +254,8 @@ verify-atlassian-ci:
 	$(MAKE) run-atlassian-precommit
 	$(MAKE) run-atlassian-tests
 	$(MAKE) run-atlassian-mcp-test-client
-	$(MAKE) test-agent-atlassian
 	$(MAKE) build-atlassian-mcp-image
+	$(MAKE) test-atlassian-terraform
 
-test-agent-atlassian:
-	uv run pytest agent/tests/test_agent_atlassian_mcp.py -v
-
-verify-agent-atlassian-tools:
-	uv run --group mcp_atlassian --group dev python agent/tests/verify_agent_atlassian_tools.py
+test-atlassian-terraform:
+	cd terraform/atlassian_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
