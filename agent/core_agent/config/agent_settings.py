@@ -408,8 +408,13 @@ class IngestionAgentConfig(BaseAgentConfig):
             ### SKILL ROUTING
             Before starting any task, load the appropriate skill and follow its protocol exactly:
             - **Capabilities questions** — the user asks what the system can do, what OSIRIS is, how it can help, or what features are available → transfer immediately to `core_agent`. Do not produce any response text.
-            - **File ingestion** — the user wants to upload, publish, register, or ingest a document into the EKB → load the `kb-file-ingestion` skill.
+            - **File ingestion** — the user wants to upload, publish, register, or ingest a document into the EKB → load the `kb-file-ingestion` skill and follow it **exactly, step by step**.
             - **Ingestion status check** — the user asks about the status of an existing ingestion job → use `check_ingestion_status` directly, no skill needed.
+
+            ### FILE URI RESOLUTION RULE
+            Never construct or assume a GCS URI for an uploaded file. Always call `get_artifact_uri(filename=<filename>)` first to get the canonical `gs://` URI. The returned URI must then be split manually before calling `upload_object`:
+            - `source_bucket_name` = the bucket name (text between `gs://` and the first `/`)
+            - `source_object_name` = everything after that first `/`
 
             ### BIGQUERY QUERY PROTOCOL
             If you ever need to query BigQuery directly (e.g., to inspect a status table), apply this protocol before calling `execute_query`:
@@ -418,8 +423,6 @@ class IngestionAgentConfig(BaseAgentConfig):
             3. **Construct the query**: Use known or deduced column names. Never guess unknown column names.
             4. **Execute**: Call `execute_query`.
 
-            ### GCS FILE READING RULE
-            When reading the content of a GCS file, ALWAYS parse the GCS URI into bucket_name and object_name, and call `read_object(bucket_name=..., object_name=...)`. The system wrapper will automatically intercept the output and load the file natively into your context. Never read raw bytes directly.
             """,
             description="Agent's System Prompt",
         ),

@@ -55,7 +55,9 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 - **Agent landing zone**: always `gs://<project_id>-ai-agent-landing-zone/`.
 - **KB Landing Zone**: use `<project_id>-kb-landing-zone` as `destination_bucket`. Note: The orchestrator should provide `<project_id>`.
 - **BigQuery project**: query `knowledge_base.documents_metadata` directly. Do not use a project prefix.
-- **Job IDs**: always return the `job_id` from the pipeline response to the user.
+- **Job IDs**: always return the `job_id` from **each entry** in `job_responses` in the pipeline response to the user.
+- **URI splitting**: `get_artifact_uri` returns a full `gs://<bucket>/<object_path>` URI. You must split it: `source_bucket_name` = the bucket name (between `gs://` and the first `/`), `source_object_name` = everything after that first `/`.
+- **`path_inside_bucket`**: when calling `upload_object`, set `path_inside_bucket` to the confirmed `ekb_project_name` (e.g., `"Project Alpha"`). Do not include leading or trailing slashes. The tool will construct the final path as `<path_inside_bucket>/<filename>` automatically.
 
 ---
 
@@ -117,26 +119,33 @@ Handle the pre-flight verification result:
 
 ### Step 4 — Upload and Trigger
 
-For all files **simultaneously**:
+**4a — Resolve URIs (parallel)**
+Call `get_artifact_uri(filename=<filename>)` for **all files simultaneously** in a single parallel batch. Collect all `gcs_uri` values from the responses.
 
-**4a — Upload and Stamp**
-Call `get_artifact_uri` to get the GCS URI for each file.
-Then call `upload_object` for every file at the same time:
-- `source_gcs_uri`: URI from `get_artifact_uri`.
+For each returned `gcs_uri` (format: `gs://<bucket>/<object_path>`), split it:
+- `source_bucket_name` = the bucket name (text between `gs://` and the first `/`)
+- `source_object_name` = everything after that first `/`
+
+**4b — Upload to KB Bucket (parallel)**
+Once all URIs are resolved, call `upload_object` for **all files simultaneously**:
+- `source_bucket_name`: extracted from the `get_artifact_uri` response (see above).
+- `source_object_name`: extracted from the `get_artifact_uri` response (see above).
 - `destination_bucket`: `<project_id>-kb-landing-zone`
 - `filename`: confirmed filename.
-- `path_inside_bucket`: confirmed `ekb_project_name`.
+- `path_inside_bucket`: confirmed `ekb_project_name` (no leading/trailing slashes).
 - `metadata`: A JSON object containing `project`, `domain`, `trust-level`, and `pii_status`.
 
-**4b — Trigger Pipeline** *(after all uploads complete)*
-Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` once with all URIs returned by the upload calls. The tool triggers all pipelines in parallel internally and returns one result per file.
+Collect all `destination_uri` values from the upload responses.
 
-**Final Summary:**
+**4c — Trigger Pipeline** *(after all uploads complete)*
+Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` **once** with all `destination_uri` values from step 4b. The tool fires all pipelines in parallel internally and returns a `job_responses` list with one entry per file.
+
+**Final Summary** — iterate `job_responses` to build the table:
 ```markdown
 ### Ingestion Started
 | File | Project | Job ID | Status |
 |:---:|:---:|:---:|:---:|
-| <file1.pdf> | <ekb_project_name> | <job_id> | <status> |
+| <file1.pdf> | <ekb_project_name> | <job_responses[0].job_id> | <job_responses[0].job_status> |
 ```
 
 ---
