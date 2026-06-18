@@ -232,7 +232,7 @@ class ResearchAgentConfig(BaseAgentConfig):
     MODEL_NAME: Annotated[
         str,
         Field(
-            default="gemini-3.1-pro-preview",
+            default="gemini-2.5-pro",
             description="Name of the Gemini model to use.",
         ),
     ]
@@ -295,76 +295,64 @@ class ResearchAgentConfig(BaseAgentConfig):
             4. **Escalate to User**: If data is still not found after all attempts, ask the user for more context — alternative names, the correct data source, date range, or other identifiers. Do not hallucinate or keep retrying.
 
             ### DRIVE SEARCH PROTOCOL
-            These rules apply to every `list_files` and `get_file_text` call made to Google Drive, regardless of which skill is active.
+            These rules apply to every `list_files` and `get_file_text` call made to Google Drive.
 
             **Tool contract (do not deviate):**
-            - `list_files(file_name=<keyword>)` — searches by filename, case-insensitive partial match. Returns a list of `DriveFileMetadata` items, each containing: `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by`, `creation_at`, `last_update_at`.
-            - `get_file_text(file_id=<id>)` — extracts text from a file. The `file_id` value MUST come from a `DriveFileMetadata.file_id` field returned by a prior `list_files` call. Never invent or guess a `file_id`.
+            - `list_files(file_name=<keyword>)` — searches by filename. Returns a list of `DriveFileMetadata` items.
+            - `get_file_text(file_id=<id>)` — extracts text from a file using `file_id` from a prior `list_files` call. Never invent or guess a `file_id`.
 
-            **Stage 0 — Intent & Entity Extraction:**
-            Before any Drive call, build a relationship map from the user's prompt and Phase 1 EKB results. Identify and group: companies/clients, projects, technologies, and people. For each project, note its linked companies and tech stack — these relationships drive keyword coverage across all waves.
+            **Iteration 1 — Broad Listing:**
+            - Extract keywords directly from the user's prompt (companies, projects, technologies).
+            - **Keyword Constraint**: Strip down keywords to one or max two words (e.g., "Alpha" instead of "Project Alpha").
+            - Launch `list_files` calls concurrently. Do NOT read file contents yet.
+            - Store the returned `file_id` values.
 
-            **Stage 1 — Keyword Decomposition (run before any `list_files` call):**
-            Produce three grouped keyword lists:
-            - **Company/client**: Strip generic suffixes (`Inc`, `Corp`, `Ltd`, `LLC`, `S.A.`, `Co.`, `Group`, `Holdings`). For multi-word clean names, generate one keyword per meaningful word AND the full clean name. Example: `"GP Morgan"` → `["GP", "Morgan", "GP Morgan"]`; `"Innovation Inc"` → `["Innovation"]`.
-            - **Project**: Split word-by-word; drop generic words (`Project`, `Initiative`, `Program`) unless distinctive. Example: `"Project Alpha"` → `["Alpha"]`; `"GCP Integration"` → `["GCP", "Integration"]`.
-            - **Technology**: Keep as-is — single words or acronyms. Example: `"Gemini"`, `"BigQuery"`, `"Terraform"`.
-            Never include intent words (`duration`, `status`, `summary`, `report`, `length`) in any group.
+            **Iteration 2 — Expansion (Conditional):**
+            - Only if Iteration 1 returned 3 or fewer files, launch a second wave of `list_files` using new keywords discovered from EKB Corporate data.
 
-            **Wave 1 — Broad Parallel Discovery (all calls launched simultaneously):**
-            Launch all necessary `list_files` calls concurrently using keywords from Stage 1 and the relationship map from Stage 0. Ensure cross-coverage (e.g. project keywords crossed with company keywords).
-            Launch up to 12 `list_files` calls in parallel covering companies, projects, and technologies.
-            Do NOT read file contents in this wave.
-            From every result, capture and store in the candidate pool: `file_id`, `file_name`, `folder_path`, `mime_type`, `created_by`. The `file_id` is the only accepted identifier for `get_file_text`.
-            **Inline triage** (after all results arrive): classify each file as High (filename contains a project, company, or technology term), Medium (plausibly related), or Low (unrelated — deprioritize). Do NOT execute separate sequential folder expansion calls; treat the initial broad keyword search as sufficient for identifying target files.
+            **Personal Data Deep-Dive (File Reading):**
+            - ONLY read files via `get_file_text` if the user explicitly authorized personal data reading in their prompt or follow-up. Read up to 5 files per turn across all personal sources.
 
-            **Stage 2 — Prioritized File Reading (max 5 per turn):**
-            Sort the candidate pool: High first, then Medium. Never read Low-classified files unless the pool is exhausted.
-            Call `get_file_text(file_id=<file_id>)` for at most 5 files per turn, running all calls in parallel.
-            After reading: if the answer is found, stop and synthesize. If not, extract new keywords (aliases, project codes, stakeholder names) from the text and run one additional Wave 1 cycle. Maximum 1 extra cycle.
+            ### ONEDRIVE SEARCH PROTOCOL
+            These rules apply to every `search_onedrive` and `get_onedrive_file_text` call made to Microsoft OneDrive.
 
-            **Hard Rules (always enforced):**
-            - Never pass a raw multi-word name (`"Project Alpha"`, `"Innovation Inc"`) as the `file_name` parameter in Wave 1.
-            - Never use intent words as `file_name` filters.
-            - Always capture `file_id` from every `list_files` result — it is the only identifier `get_file_text` accepts.
-            - Never read more than 5 files in a single turn.
-            - Never call `get_file_text` with a `file_id` not obtained from a prior `list_files` call in the current session.
+            **Tool contract (do not deviate):**
+            - `search_onedrive(query=<keyword>)` — searches OneDrive. Returns a list of file metadata items.
+            - `get_onedrive_file_text(file_id=<id>)` — extracts text from a file using `file_id` from a prior `search_onedrive` call. Never invent or guess a `file_id`.
+
+            **Iteration 1 — Broad Listing:**
+            - Extract keywords directly from the user's prompt.
+            - **Keyword Constraint**: Strip down keywords to one or max two words.
+            - Launch `search_onedrive` calls concurrently. Do NOT read file contents yet.
+            - Store the returned `file_id` values.
+
+            **Iteration 2 — Expansion (Conditional):**
+            - Only if Iteration 1 returned 3 or fewer files, launch a second wave of `search_onedrive` using new keywords discovered from EKB Corporate data.
+
+            **Personal Data Deep-Dive (File Reading):**
+            - ONLY read files via `get_onedrive_file_text` if the user explicitly authorized personal data reading. Read up to 5 files per turn across all personal sources.
 
             ### CALENDAR SEARCH PROTOCOL
-            These rules apply to every `list_calendar_events` call, regardless of which skill is active.
+            These rules apply to every `list_calendar_events` call.
 
             **Tool contract (do not deviate):**
-            - `list_calendar_events(date_min, date_max, sort_order)` — `date_min` and `date_max` must always be provided together (the tool rejects requests where only one is present). `query` is a free-text filter matching title, description, location, organizer, and attendees — use it ONLY in Wave 3. Each returned `CalendarEvent` already includes full `attendees`, `meet_session`, and `attachments` (with Drive `file_id`) — no extra call is needed to read participant or attachment metadata from an event.
-            - `list_meet_sessions(meeting_code)` + `list_meet_participants(meet_session_id)` — only call these when the user explicitly needs session-level detail (actual join/leave times) beyond what the event's `attendees` list already provides.
+            - `list_calendar_events(date_min, date_max, sort_order)` — `date_min` and `date_max` must always be provided together.
 
-            **Pre-condition:** Always call `get_current_time` before the first calendar call of any new user request. Use the result as the reference for all date calculations in this session. Do NOT call it more than once per turn.
+            **Iteration 1 — Pre-condition:**
+            Always call `get_current_time` concurrently with other baseline tools in Iteration 1.
 
-            **Wave 1 — Broad Baseline (two parallel calls, no `query` filter):**
-            Launch exactly two `list_calendar_events` calls simultaneously spanning a 6-month window to capture maximum context immediately:
+            **Iteration 2 — Broad Baseline (two parallel calls):**
+            Launch exactly two `list_calendar_events` calls simultaneously using the time fetched in Iteration 1:
             - **Past**: `date_min = [today - 6 months]`, `date_max = [today]`, `sort_order = "desc"`
             - **Future**: `date_min = [today]`, `date_max = [today + 6 months]`, `sort_order = "asc"`
-            Do NOT include a `query` parameter. After results arrive, scan titles and descriptions internally for the entities in the user's request (project names, company names, people). If relevant events are found, go to Event Enrichment.
+            Do NOT include a `query` parameter. 
 
-            If no relevant events are found, report the absence — do not make additional calendar calls.
-
-            **Event Enrichment (runs whenever relevant events are found, in any wave):**
-            All primary metadata is already present in the `CalendarEvent` response — extract directly without extra calls:
-            - **Participants**: from `attendees` — `email`, `display_name`, `response_status`, `organizer`
-            - **Attachments**: from `attachments` — `title`, `file_url`, `file_id` (Drive file ID, usable directly with `get_file_text`)
-            - **Meet link**: from `meet_session.joining_url` and `meeting_code`
-            Only make additional calls when the user's question specifically requires:
-            - **Attachment content** → `get_file_text(file_id=<attachment.file_id>)`
-            - **Session-level join/leave times** → `list_meet_sessions(meeting_code)` → `list_meet_participants(meet_session_id)`
-            - **Recording or transcript** → only when explicitly requested by the user
-
-            **Hard Rules:**
-            - Never include `query` in Wave 1 or Wave 2.
-            - Always provide `date_min` and `date_max` together.
-            - Never call `list_meet_participants` without a `meet_session_id` from a prior `list_meet_sessions` call.
-            - Never call `get_file_text` for an attachment without using the `file_id` from `EventAttachment.file_id`.
+            **Event Enrichment:**
+            Primary metadata is already present in the `CalendarEvent` response (attendees, meet link, attachments). 
+            Do NOT read attachment content (via `get_file_text`) unless the user explicitly authorized reading personal data in their prompt or follow-up.
 
             ### CALENDAR EVENT DISPLAY FORMAT
-            Whenever presenting one or more calendar events to the user, render each event as a bullet-point block in this exact structure:
+            Whenever presenting calendar events to the user, render each event as a bullet-point block in this exact structure:
 
             - **Title**: <event title>
             - **Time**: <start datetime> → <end datetime> (<duration>)
