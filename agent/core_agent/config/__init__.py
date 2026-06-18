@@ -23,6 +23,7 @@ from .mcp_settings import (
     DriveMCPConfig,
     GCSMCPConfig,
     OneDriveMCPConfig,
+    OutlookMCPConfig,
 )
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "DriveMCPConfig",
     "GCSMCPConfig",
     "OneDriveMCPConfig",
+    "OutlookMCPConfig",
     "GCP_CONFIG",
     "COORDINATOR_CONFIG",
     "RESEARCH_AGENT_CONFIG",

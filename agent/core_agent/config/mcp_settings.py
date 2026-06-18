@@ -188,3 +188,27 @@ class OneDriveMCPConfig(BaseMCPConfig):
             ),
         ),
     ]
+
+
+class OutlookMCPConfig(BaseMCPConfig):
+    """Configuration for the Microsoft Outlook MCP server."""
+
+    model_config = SettingsConfigDict(env_prefix="OUTLOOK_")
+
+    URL: str = "http://localhost:8086"
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
+        "Files.Read.All",
+        "Sites.Read.All",
+        "offline_access",
+    ]
+    GEMINI_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ms-auth-id",
+            description="Auth Resource ID for Microsoft Outlook.",
+            validation_alias=AliasChoices(
+                "OUTLOOK_AUTH_ID",
+                "GEMINI_MICROSOFT_AUTH_ID",
+            ),
+        ),
+    ]

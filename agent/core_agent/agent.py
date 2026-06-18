@@ -44,9 +44,9 @@ research_agent = (
     .with_skills(["meeting-summary", "knowledge-discovery"])
     .with_mcp_servers(
         [
-            BIGQUERY_MCP_CONFIG,
-            DRIVE_MCP_CONFIG,
-            CALENDAR_MCP_CONFIG,
+            #BIGQUERY_MCP_CONFIG,
+            #DRIVE_MCP_CONFIG,
+            #CALENDAR_MCP_CONFIG,
             GCS_MCP_CONFIG,
             # ONEDRIVE_MCP_CONFIG,
         ]
