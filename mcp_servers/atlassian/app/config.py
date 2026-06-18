@@ -1,11 +1,7 @@
-from pathlib import Path
 from typing import Annotated, Optional
 from pydantic import Field, SecretStr, BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from loguru import logger
-
-_ATLASSIAN_DIR = Path(__file__).parent.parent
-_ENV_FILE = _ATLASSIAN_DIR / ".env"
 
 
 class AtlassianCredentials(BaseModel):
@@ -17,12 +13,11 @@ class AtlassianCredentials(BaseModel):
     jira_cloud_id: Optional[str] = Field(default="", alias="JIRA_CLOUD_ID")
 
 
-
 class AtlassianMcpConfigBase(BaseSettings):
     """Shared immutable configuration base for the Atlassian MCP server."""
 
     model_config = SettingsConfigDict(
-        env_file=(str(_ENV_FILE), ".env"),
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
         frozen=True,
