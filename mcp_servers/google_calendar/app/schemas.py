@@ -163,6 +163,13 @@ class ListCalendarEventsRequest(BaseRequest):
 
 
 class ListCalendarEventsResponse(BaseResponse):
+    server_current_time_utc: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="The current server time in UTC format. Use this along with event timezones to group events into 'Past' or 'Future'.",
+        ),
+    ]
     events: Annotated[
         list[CalendarEvent],
         Field(
