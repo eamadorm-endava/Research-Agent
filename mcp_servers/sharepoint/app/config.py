@@ -17,46 +17,6 @@ class SharePointMCPConfigBase(BaseSettings):
     )
 
 
-class SharePointAuthConfig(SharePointMCPConfigBase):
-    """Configuration for Microsoft Entra authentication settings."""
-
-    TENANT_ID: Annotated[
-        str,
-        Field(
-            default="",
-            validation_alias=AliasChoices("MICROSOFT_TENANT_ID", "TENANT_ID"),
-            description="The Microsoft Entra Tenant ID.",
-        ),
-    ]
-    CLIENT_ID: Annotated[
-        str,
-        Field(
-            default="",
-            validation_alias=AliasChoices("MICROSOFT_CLIENT_ID", "CLIENT_ID"),
-            description="The Microsoft Entra App Registration Client ID.",
-        ),
-    ]
-    CLIENT_SECRET: Annotated[
-        str,
-        Field(
-            default="",
-            validation_alias=AliasChoices("MICROSOFT_CLIENT_SECRET", "CLIENT_SECRET"),
-            description="The Microsoft Entra App Registration Client Secret.",
-        ),
-    ]
-    SCOPES: Annotated[
-        list[str],
-        Field(
-            default=[
-                "offline_access",
-                "Files.Read.All",
-                "Sites.Read.All",
-            ],
-            description="The OAuth scopes required for SharePoint content access.",
-        ),
-    ]
-
-
 class SharePointServerConfig(SharePointMCPConfigBase):
     """Configuration for the MCP server network/runtime settings."""
 
@@ -150,5 +110,4 @@ class SharePointServerConfig(SharePointMCPConfigBase):
     ]
 
 
-SHAREPOINT_AUTH_CONFIG = SharePointAuthConfig()
 SHAREPOINT_SERVER_CONFIG = SharePointServerConfig()
