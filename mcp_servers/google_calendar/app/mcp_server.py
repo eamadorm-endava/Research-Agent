@@ -3,6 +3,7 @@ from loguru import logger
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
+from datetime import datetime, timezone
 
 from .config import CALENDAR_API_CONFIG, CALENDAR_SERVER_CONFIG
 from .security import GoogleCalendarTokenVerifier, create_events_client
@@ -71,6 +72,7 @@ async def list_calendar_events(
         )
         return ListCalendarEventsResponse(
             execution_status="success",
+            server_current_time_utc=datetime.now(timezone.utc).isoformat(),
             events=events,
         )
     except Exception as exc:
