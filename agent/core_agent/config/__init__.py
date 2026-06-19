@@ -23,6 +23,7 @@ from .mcp_settings import (
     DriveMCPConfig,
     GCSMCPConfig,
     OneDriveMCPConfig,
+    SharePointMCPConfig,
     AtlassianMCPConfig,
 )
 
@@ -49,5 +50,6 @@ __all__ = [
     "DriveMCPConfig",
     "GCSMCPConfig",
     "OneDriveMCPConfig",
+    "SharePointMCPConfig",
     "AtlassianMCPConfig",
 ]

@@ -13,7 +13,7 @@ class AuthenticationError(Exception):
 class DriveSchemaModel(BaseModel):
     """Shared schema base for the Google Drive MCP server."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
 
 class AgentDependencies(BaseModel):

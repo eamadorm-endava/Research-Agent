@@ -69,7 +69,7 @@ SHARED_SECRETS_TO_DELETE="GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,MICR
 
 # --- CICD Trigger Parameters (Bootstrap) ---
 DELETE_BOOTSTRAP="false"
-TRIGGER_BASES_STR="ai-agent,bq-mcp-server,gcs-mcp-server,drive-mcp-server,calendar-mcp-server,ekb-pipeline,onedrive-mcp-server"
+TRIGGER_BASES_STR="ai-agent,bq-mcp-server,gcs-mcp-server,drive-mcp-server,calendar-mcp-server,ekb-pipeline,onedrive-mcp-server,sharepoint-mcp-server"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do

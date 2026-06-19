@@ -13,6 +13,7 @@ set -euo pipefail
 #   - Google Drive MCP server
 #   - Google Calendar MCP server
 #   - OneDrive MCP server
+#   - SharePoint MCP server
 #
 # It intentionally does not destroy shared resources, the AI Agent, the EKB
 # pipeline, the Terraform state bucket, or the Terraform service account.

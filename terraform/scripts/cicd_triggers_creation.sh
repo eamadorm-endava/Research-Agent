@@ -117,6 +117,10 @@ create_trigger "calendar-mcp-server-services-apply" "push" "terraform/calendar_m
 create_trigger "onedrive-mcp-server-services-plan" "pr" "terraform/onedrive_mcp_server_resources" "terraform/onedrive_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/onedrive/**"
 create_trigger "onedrive-mcp-server-services-apply" "push" "terraform/onedrive_mcp_server_resources" "terraform/onedrive_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/onedrive/**"
 
+# Sharepoint MCP triggers
+create_trigger "sharepoint-mcp-server-services-plan" "pr" "terraform/sharepoint_mcp_server_resources" "terraform/sharepoint_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/sharepoint/**"
+create_trigger "sharepoint-mcp-server-services-apply" "push" "terraform/sharepoint_mcp_server_resources" "terraform/sharepoint_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/sharepoint/**"
+
 # Atlassian MCP triggers
 create_trigger "atlassian-mcp-server-services-plan" "pr" "terraform/atlassian_mcp_server_resources" "terraform/atlassian_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/atlassian/**"
 create_trigger "atlassian-mcp-server-services-apply" "push" "terraform/atlassian_mcp_server_resources" "terraform/atlassian_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/atlassian/**"
