@@ -1,38 +1,37 @@
-# Define a global ARG before the first FROM
 ARG UV_VERSION=0.10.7
-
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv_image
-FROM python:3.12-slim
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+FROM python:3.12-alpine AS builder
 
-# Update OS packages to patch vulnerabilities
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+ENV UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
+WORKDIR /app
 COPY --from=uv_image /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
+RUN uv sync --group mcp_drive --no-dev --no-install-project --locked
+COPY mcp_servers/google_drive/app/ mcp_servers/google_drive/app/
 
-# Create a non-root user for execution
-RUN useradd -m -s /bin/bash appuser
+# --- Runtime Stage ---
+FROM python:3.12-alpine
 
 WORKDIR /app
 
-# NOTE: The Docker build context MUST be the root of the repository
-COPY pyproject.toml uv.lock ./
+RUN adduser -D nonroot
 
-# Install only the Drive MCP server dependencies using uv
-# Install only the Drive MCP server dependencies using uv
-RUN uv sync --group mcp_drive --no-dev --no-install-project --locked
+# Remove native package managers to ensure 0 CVEs in scanners (e.g., Artifact Registry)
+RUN rm -rf /usr/local/lib/python3.12/site-packages/pip* \
+           /usr/local/lib/python3.12/site-packages/setuptools* \
+           /usr/local/lib/python3.12/ensurepip \
+           /usr/local/bin/pip*
 
-# Copy the app directory to preserve module structure
-COPY mcp_servers/google_drive/app/ mcp_servers/google_drive/app/
+COPY --from=builder --chown=nonroot:nonroot /app /app
+USER nonroot
 
-# Change ownership of the app directory to the non-root user
-RUN chown -R appuser:appuser /app
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
 
-# Switch to the non-root user for security (least privilege)
-USER appuser
-
-EXPOSE ${PORT}
-
-CMD ["sh", "-c", "uv run --group mcp_drive --no-sync python -m mcp_servers.google_drive.app.main --host 0.0.0.0 --port ${PORT}"]
+EXPOSE 8080
+ENTRYPOINT ["python", "-m", "mcp_servers.google_drive.app.main", "--host", "0.0.0.0", "--port", "8080"]
