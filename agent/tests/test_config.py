@@ -74,7 +74,7 @@ def test_gcs_mcp_config_default_scopes_include_identity():
 
 
 def test_agent_config_validation():
-    """Test that CoordinatorConfig enforces data types and constraints inherited from BaseAgentConfig."""
+    """Test that CoordinatorConfig enforces data types and constraints inherited from CoreAgentConfig."""
     with patch.dict(os.environ, clear=True):
         config = CoordinatorConfig()
         assert config.TEMPERATURE == 0.3
