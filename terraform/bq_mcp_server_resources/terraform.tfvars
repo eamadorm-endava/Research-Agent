@@ -16,10 +16,7 @@ apis_to_enable = [
 
 mcp_server_service_account_name = "bq-mcp-server"
 
-mcp_server_iam_project_roles = [
-  "roles/bigquery.dataEditor",
-  "roles/bigquery.jobUser"
-]
+mcp_server_iam_project_roles = []
 
 ################ Artifact Registry ################
 

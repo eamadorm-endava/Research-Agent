@@ -9,7 +9,8 @@ services_to_enable = [
   "bigquery.googleapis.com",
   "artifactregistry.googleapis.com",
   "bigqueryconnection.googleapis.com",
-  "aiplatform.googleapis.com"
+  "aiplatform.googleapis.com",
+  "containerscanning.googleapis.com"
 ]
 
 ################ Naming Configuration ################

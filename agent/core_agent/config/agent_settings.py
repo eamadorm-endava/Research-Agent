@@ -61,7 +61,7 @@ class GCPConfig(BaseSettings):
     ]
 
 
-class BaseAgentConfig(BaseSettings):
+class CoreAgentConfig(BaseSettings):
     """Holds base configuration values for the ADK agent: model, generation, and retry settings."""
 
     model_config = SettingsConfigDict(
@@ -183,7 +183,7 @@ class BaseAgentConfig(BaseSettings):
     ]
 
 
-class CoordinatorConfig(BaseAgentConfig):
+class CoordinatorConfig(CoreAgentConfig):
     """Configuration for the Coordinator Agent."""
 
     AGENT_NAME: Annotated[
@@ -235,7 +235,7 @@ You are the primary interface for the user. Your objective is to analyze the use
     ]
 
 
-class ResearchAgentConfig(BaseAgentConfig):
+class ResearchAgentConfig(CoreAgentConfig):
     """Configuration for the Research and Meeting Specialist Agent."""
 
     AGENT_NAME: Annotated[
@@ -305,7 +305,7 @@ When the user asks a follow-up question:
     ]
 
 
-class IngestionAgentConfig(BaseAgentConfig):
+class IngestionAgentConfig(CoreAgentConfig):
     """Configuration for the EKB Ingestion Specialist Agent."""
 
     AGENT_NAME: Annotated[

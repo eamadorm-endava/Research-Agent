@@ -7,7 +7,13 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# Update OS packages to patch vulnerabilities
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 COPY --from=uv_image /uv /uvx /bin/
+
+# Create a non-root user for execution
+RUN useradd -m -s /bin/bash appuser
 
 WORKDIR /app
 
@@ -15,10 +21,17 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # Install only the Drive MCP server dependencies using uv
-RUN uv sync --group mcp_drive --no-dev --no-install-project
+# Install only the Drive MCP server dependencies using uv
+RUN uv sync --group mcp_drive --no-dev --no-install-project --locked
 
 # Copy the app directory to preserve module structure
 COPY mcp_servers/google_drive/app/ mcp_servers/google_drive/app/
+
+# Change ownership of the app directory to the non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to the non-root user for security (least privilege)
+USER appuser
 
 EXPOSE ${PORT}
 

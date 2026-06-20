@@ -26,7 +26,7 @@ from google.genai.types import (
 )
 from loguru import logger
 
-from ..config import BaseAgentConfig, BaseMCPConfig, GCPConfig
+from ..config import CoreAgentConfig, BaseMCPConfig, GCPConfig
 from .mcp_factory import MCPToolsetBuilder
 from .skills_factory import get_skill
 
@@ -36,16 +36,16 @@ class AgentBuilder:
 
     def __init__(
         self,
-        agent_config: BaseAgentConfig,
+        agent_config: CoreAgentConfig,
         gcp_config: GCPConfig,
     ) -> None:
         """Initializes the AgentBuilder, configures the VertexAI client, and sets up the MCP toolset builder.
 
         Args:
-            agent_config: BaseAgentConfig -> Core agent behavioural settings.
+            agent_config: CoreAgentConfig -> Core agent behavioural settings.
             gcp_config: GCPConfig -> Google Cloud Platform project settings.
         """
-        self.agent_config: BaseAgentConfig = agent_config
+        self.agent_config: CoreAgentConfig = agent_config
         self.gcp_config: GCPConfig = gcp_config
         self._mcp_builder: MCPToolsetBuilder = MCPToolsetBuilder()
         self._registered_tools: list[Union[BaseTool, FunctionTool, BaseToolset]] = []
@@ -158,7 +158,7 @@ class AgentBuilder:
         """Sets the before_agent_callback for the agent.
         Executed right before the agent begins its main execution loop. Use this to inject system prompts, dynamic UI elements, or verify session preconditions.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/base_agent.py#L152
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/base_agent.py#L152
 
         Args:
             callback: Optional[BeforeAgentCallback] -> The callback function to run before agent execution.
@@ -174,7 +174,7 @@ class AgentBuilder:
         """Sets the after_agent_callback for the agent.
         Executed right after the agent's main execution loop completes. Use this to format final outputs, clean up state, or track completion metrics.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/base_agent.py#L166
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/base_agent.py#L166
 
         Args:
             callback: Optional[AfterAgentCallback] -> The callback function to run after agent execution.
@@ -192,7 +192,7 @@ class AgentBuilder:
         """Sets the before_model_callback for the agent.
         Executed immediately before the LLM is called. Use this to inspect prompts, track token limits, or implement caching logic.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L406
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/llm_agent.py#L406
 
         Args:
             callback: Optional[BeforeModelCallback] -> The callback function to run before the model is called.
@@ -208,7 +208,7 @@ class AgentBuilder:
         """Sets the after_model_callback for the agent.
         Executed immediately after the LLM responds. Use this to log raw model outputs, parse structured data, or enforce safety filters.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L421
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/llm_agent.py#L421
 
         Args:
             callback: Optional[AfterModelCallback] -> The callback function to run after the model is called.
@@ -224,7 +224,7 @@ class AgentBuilder:
         """Sets the before_tool_callback for the agent.
         Executed right before a specific tool is invoked. Use this to validate inputs, log arguments, or enforce authorization checks.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L450
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/llm_agent.py#L450
 
         Args:
             callback: Optional[BeforeToolCallback] -> The callback function to run before a tool is executed.
@@ -240,7 +240,7 @@ class AgentBuilder:
         """Sets the after_tool_callback for the agent.
         Executed right after a tool finishes execution. Use this to transform raw tool outputs or handle specific return states.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L465
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/llm_agent.py#L465
 
         Args:
             callback: Optional[AfterToolCallback] -> The callback function to run after a tool is executed.
@@ -258,7 +258,7 @@ class AgentBuilder:
         """Sets the on_model_error_callback for the agent.
         Executed when the LLM throws an exception. Use this to implement custom retries, fallback models, or user-friendly error messages.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L435
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/llm_agent.py#L435
 
         Args:
             callback: Optional[OnModelErrorCallback] -> The callback function to handle model execution errors.
@@ -276,7 +276,7 @@ class AgentBuilder:
         """Sets the on_tool_error_callback for the agent.
         Executed when a tool throws an exception. Use this to swallow non-fatal errors, reformat stack traces, or trigger alternative tools.
         If a list of callbacks is provided, execution stops at the first callback that returns a non-None value.
-        See: https://github.com/google/adk-python/blob/v2.2.0/src/google/adk/agents/llm_agent.py#L480
+        See: https://github.com/google/adk-python/blob/v2.3.0/src/google/adk/agents/llm_agent.py#L480
 
         Args:
             callback: Optional[OnToolErrorCallback] -> The callback function to handle tool execution errors.

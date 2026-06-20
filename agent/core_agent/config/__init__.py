@@ -4,7 +4,7 @@ from .agent_settings import (
     RESEARCH_AGENT_CONFIG,
     INGESTION_AGENT_CONFIG,
     GCPConfig,
-    BaseAgentConfig,
+    CoreAgentConfig,
     CoordinatorConfig,
     ResearchAgentConfig,
     IngestionAgentConfig,
@@ -37,7 +37,7 @@ __all__ = [
     "MICROSOFT_AUTH_CONFIG",
     # Config classes (needed for type hints and MCP instantiation)
     "GCPConfig",
-    "BaseAgentConfig",
+    "CoreAgentConfig",
     "CoordinatorConfig",
     "ResearchAgentConfig",
     "IngestionAgentConfig",
