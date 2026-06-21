@@ -34,9 +34,9 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         """
         super().__init__(name)
         self._bq_service = MetricsBQService(
-            project_id=METRICS_CONFIG.project_id,
-            dataset_id=METRICS_CONFIG.dataset_id,
-            table_id=METRICS_CONFIG.table_id,
+            project_id=METRICS_CONFIG.PROJECT_ID,
+            dataset_id=METRICS_CONFIG.DATASET_ID,
+            table_id=METRICS_CONFIG.TABLE_ID,
         )
         self._active_runs: dict[str, MetricsRecord] = {}
         # Fallback for tool tracking if context store isn't accessible, though we clean it up safely.
