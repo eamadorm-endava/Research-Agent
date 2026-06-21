@@ -8,7 +8,7 @@ class MetricsConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="METRICS_",
-        env_file=".env",
+        env_file="core_agent/.env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
