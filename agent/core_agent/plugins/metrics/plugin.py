@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from typing import Any, Optional
 from loguru import logger
-from google.cloud import bigquery
 from google.genai import types
 
 from google.adk.plugins.base_plugin import BasePlugin
@@ -11,6 +10,7 @@ from google.adk.tools.base_tool import BaseTool
 
 from .config import METRICS_CONFIG
 from .schemas import MetricsRecord, ToolUsageRecord
+from .bq_service import MetricsBQService, InsertMetricsRequest
 
 
 class ResponseTimeMetricsPlugin(BasePlugin):
@@ -18,12 +18,12 @@ class ResponseTimeMetricsPlugin(BasePlugin):
 
     Measures initial prompt ingestion, final response generation, and execution times
     for all invoked tools, calculating processing durations in seconds. Writes logs
-    asynchronously/synchronously to a BigQuery table using the streaming buffer.
+    asynchronously using the injected MetricsBQService.
     """
 
     def __init__(self, name: str = "response_time_metrics_plugin"):
         """
-        Initializes the metrics plugin and the BigQuery client.
+        Initializes the metrics plugin and the BigQuery service.
 
         Args:
             name: str -> The name of the plugin
@@ -32,25 +32,13 @@ class ResponseTimeMetricsPlugin(BasePlugin):
             None -> No return
         """
         super().__init__(name)
-        self.project_id = METRICS_CONFIG.project_id
-        self.dataset_id = METRICS_CONFIG.dataset_id
-        self.table_id = METRICS_CONFIG.table_id
-        self.table_ref = f"{self.project_id}.{self.dataset_id}.{self.table_id}"
-        self._client = None
-        self._runs: dict[str, dict] = {}
-        self._active_tools: dict[str, dict] = {}
-
-    @property
-    def client(self) -> bigquery.Client:
-        """
-        Lazily instantiates the BigQuery client to avoid authentication checks at init time.
-
-        Returns:
-            bigquery.Client -> The initialized BigQuery client
-        """
-        if self._client is None:
-            self._client = bigquery.Client()
-        return self._client
+        self._bq_service = MetricsBQService(
+            project_id=METRICS_CONFIG.project_id,
+            dataset_id=METRICS_CONFIG.dataset_id,
+            table_id=METRICS_CONFIG.table_id,
+        )
+        # Fallback for tool tracking if context store isn't accessible, though we clean it up safely.
+        self._active_tools: dict[str, ToolUsageRecord] = {}
 
     async def before_run_callback(
         self, *, invocation_context: InvocationContext
@@ -64,16 +52,14 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         Returns:
             Optional[types.Content] -> Always returns None
         """
-        prompt_id = invocation_context.invocation_id
-        if prompt_id not in self._runs:
-            self._runs[prompt_id] = {
-                "session_id": invocation_context.session.id,
-                "user_id": invocation_context.user_id,
-                "prompt_id": prompt_id,
-                "prompt": "",
-                "initial_time": datetime.now(timezone.utc),
-                "tools_used": [],
-            }
+        if "metrics_record" not in invocation_context.store:
+            invocation_context.store["metrics_record"] = MetricsRecord(
+                session_id=invocation_context.session.id,
+                user_id=invocation_context.user_id,
+                prompt_id=invocation_context.invocation_id,
+                prompt="",
+                initial_time=datetime.now(timezone.utc),
+            )
         return None
 
     async def on_user_message_callback(
@@ -92,23 +78,22 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         Returns:
             Optional[types.Content] -> Always returns None
         """
-        prompt_id = invocation_context.invocation_id
         prompt_text = ""
         if user_message and user_message.parts:
             prompt_text = "".join(part.text for part in user_message.parts if part.text)
 
-        if prompt_id not in self._runs:
-            self._runs[prompt_id] = {
-                "session_id": invocation_context.session.id,
-                "user_id": invocation_context.user_id,
-                "prompt_id": prompt_id,
-                "prompt": prompt_text,
-                "initial_time": datetime.now(timezone.utc),
-                "tools_used": [],
-            }
+        if "metrics_record" not in invocation_context.store:
+            invocation_context.store["metrics_record"] = MetricsRecord(
+                session_id=invocation_context.session.id,
+                user_id=invocation_context.user_id,
+                prompt_id=invocation_context.invocation_id,
+                prompt=prompt_text,
+                initial_time=datetime.now(timezone.utc),
+            )
         else:
-            self._runs[prompt_id]["prompt"] = prompt_text
-            self._runs[prompt_id]["initial_time"] = datetime.now(timezone.utc)
+            record: MetricsRecord = invocation_context.store["metrics_record"]
+            record.prompt = prompt_text
+            record.initial_time = datetime.now(timezone.utc)
         return None
 
     async def before_tool_callback(
@@ -129,10 +114,9 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         Returns:
             Optional[dict] -> Always returns None
         """
-        self._active_tools[tool_context.function_call_id] = {
-            "tool_name": tool.name,
-            "initial_time": datetime.now(timezone.utc),
-        }
+        self._active_tools[tool_context.function_call_id] = ToolUsageRecord(
+            tool_name=tool.name, initial_time=datetime.now(timezone.utc)
+        )
         return None
 
     async def after_tool_callback(
@@ -184,24 +168,27 @@ class ResponseTimeMetricsPlugin(BasePlugin):
     def _record_tool_completion(self, tool_context: ToolContext) -> None:
         """
         Utility to calculate duration and append tool metric records.
-
-        Args:
-            tool_context: ToolContext -> The context of the tool execution
-
-        Returns:
-            None -> No return
         """
-        tool_info = self._active_tools.pop(tool_context.function_call_id, None)
-        if tool_info:
+        tool_record = self._active_tools.pop(tool_context.function_call_id, None)
+        if tool_record:
             final_time = datetime.now(timezone.utc)
-            tool_info["final_time"] = final_time
-            tool_info["tool_full_time"] = (
-                final_time - tool_info["initial_time"]
+            tool_record.final_time = final_time
+            tool_record.tool_full_time = (
+                final_time - tool_record.initial_time
             ).total_seconds()
 
-            run_id = tool_context.invocation_id
-            if run_id in self._runs:
-                self._runs[run_id]["tools_used"].append(tool_info)
+            # We store the completed tool record back into active_tools so it can be picked up
+            # by the after_run_callback or if we somehow pass context around.
+            # Wait, no, we need to append it to the current turn's tools_used.
+            # But we don't have access to invocation_context here. We can store it in a dict
+            # mapped by invocation_id.
+            # However, since _active_tools is global, maybe we just use a similar dictionary
+            # for completed tools per invocation_id.
+            if not hasattr(self, "_completed_tools"):
+                self._completed_tools: dict[str, list[ToolUsageRecord]] = {}
+            if tool_context.invocation_id not in self._completed_tools:
+                self._completed_tools[tool_context.invocation_id] = []
+            self._completed_tools[tool_context.invocation_id].append(tool_record)
 
     async def after_run_callback(
         self, *, invocation_context: InvocationContext
@@ -215,18 +202,29 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         Returns:
             None -> No return
         """
-        prompt_id = invocation_context.invocation_id
-        run_info = self._runs.pop(prompt_id, None)
-        if not run_info:
+        record: MetricsRecord | None = invocation_context.store.pop(
+            "metrics_record", None
+        )
+        if not record:
             return
 
         final_time = datetime.now(timezone.utc)
-        time_to_answer = (final_time - run_info["initial_time"]).total_seconds()
+        record.final_time = final_time
+        record.time_to_answer = (final_time - record.initial_time).total_seconds()
+        record.agent_response = self._extract_agent_response(invocation_context)
 
-        agent_response = self._extract_agent_response(invocation_context)
-        self._insert_metrics_to_bigquery(
-            run_info, agent_response, final_time, time_to_answer
+        # Attach any completed tools
+        completed_tools = getattr(self, "_completed_tools", {}).pop(
+            invocation_context.invocation_id, []
         )
+        record.tools_used = completed_tools
+
+        # Async dispatch to BQ Service
+        try:
+            request = InsertMetricsRequest(record=record)
+            await self._bq_service.insert_metrics(request)
+        except Exception as e:
+            logger.error(f"Error calling MetricsBQService: {e}")
 
     def _extract_agent_response(self, invocation_context: InvocationContext) -> str:
         """
@@ -253,59 +251,3 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         except Exception as e:
             logger.warning(f"Could not extract agent response from context events: {e}")
         return agent_response
-
-    def _insert_metrics_to_bigquery(
-        self,
-        run_info: dict,
-        agent_response: str,
-        final_time: datetime,
-        time_to_answer: float,
-    ) -> None:
-        """
-        Assemble and write the row data to BigQuery.
-
-        Args:
-            run_info: dict -> The raw timing dictionary
-            agent_response: str -> The extracted agent response text
-            final_time: datetime -> The final end timestamp of the turn
-            time_to_answer: float -> The total duration of the turn in seconds
-
-        Returns:
-            None -> No return
-        """
-        try:
-            tools_used_records = [
-                ToolUsageRecord(
-                    tool_name=t["tool_name"],
-                    initial_time=t["initial_time"],
-                    final_time=t["final_time"],
-                    tool_full_time=t["tool_full_time"],
-                )
-                for t in run_info["tools_used"]
-            ]
-
-            record = MetricsRecord(
-                session_id=run_info["session_id"],
-                user_id=run_info["user_id"],
-                prompt_id=run_info["prompt_id"],
-                prompt=run_info["prompt"],
-                agent_response=agent_response,
-                initial_time=run_info["initial_time"],
-                final_time=final_time,
-                time_to_answer=time_to_answer,
-                tools_used=tools_used_records,
-            )
-
-            row_data = record.model_dump(mode="json")
-            errors = self.client.insert_rows_json(self.table_ref, [row_data])
-            if errors:
-                logger.error(
-                    f"Failed to insert response time metrics to BigQuery: {errors}"
-                )
-            else:
-                logger.info(
-                    f"Successfully logged response time metrics to BigQuery for session {record.session_id}"
-                )
-
-        except Exception as e:
-            logger.error(f"Error logging metrics to BigQuery: {e}")

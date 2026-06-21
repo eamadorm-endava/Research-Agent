@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 from google.genai import types
 
 from google.adk.tools import ToolContext
@@ -8,30 +8,30 @@ from agent.core_agent.plugins.metrics.plugin import ResponseTimeMetricsPlugin
 
 
 @pytest.fixture
-def mock_bq_client():
-    """Mocks the BigQuery client to avoid real network operations."""
-    with patch(
-        "agent.core_agent.plugins.metrics.plugin.bigquery.Client"
-    ) as mock_client_cls:
-        mock_client = MagicMock()
-        mock_client.insert_rows_json.return_value = []
-        mock_client_cls.return_value = mock_client
-        yield mock_client
+def mock_bq_service():
+    """Mocks the MetricsBQService to avoid real network operations."""
+    with patch("agent.core_agent.plugins.metrics.plugin.MetricsBQService") as mock_cls:
+        mock_service = MagicMock()
+        mock_service.insert_metrics = AsyncMock()
+        mock_cls.return_value = mock_service
+        yield mock_service
 
 
 @pytest.fixture
-def metrics_plugin(mock_bq_client):
-    """Instantiates the ResponseTimeMetricsPlugin with the mocked BigQuery client."""
+def metrics_plugin(mock_bq_service):
+    """Instantiates the ResponseTimeMetricsPlugin with the mocked BQ service."""
     return ResponseTimeMetricsPlugin()
 
 
 @pytest.mark.asyncio
-async def test_metrics_plugin_happy_path(metrics_plugin, mock_bq_client):
+async def test_metrics_plugin_happy_path(metrics_plugin, mock_bq_service):
     """Verifies timing tracking and successful metrics collection on standard runner execution."""
     mock_invocation_ctx = MagicMock()
     mock_invocation_ctx.invocation_id = "test-invocation-123"
     mock_invocation_ctx.session.id = "test-session-456"
     mock_invocation_ctx.user_id = "test-user-789"
+    # Provide a simple dictionary dict for the context store
+    mock_invocation_ctx.store = {}
 
     # Run before_run
     await metrics_plugin.before_run_callback(invocation_context=mock_invocation_ctx)
@@ -72,31 +72,29 @@ async def test_metrics_plugin_happy_path(metrics_plugin, mock_bq_client):
     await metrics_plugin.after_run_callback(invocation_context=mock_invocation_ctx)
 
     # Verify BigQuery insertion
-    mock_bq_client.insert_rows_json.assert_called_once()
-    args, _ = mock_bq_client.insert_rows_json.call_args
-    table_ref, rows = args
-    assert table_ref == "ag-core-ops-auj0.agent_metrics.response_times"
-    assert len(rows) == 1
+    mock_bq_service.insert_metrics.assert_called_once()
+    request = mock_bq_service.insert_metrics.call_args[0][0]
 
-    row = rows[0]
-    assert row["session_id"] == "test-session-456"
-    assert row["user_id"] == "test-user-789"
-    assert row["prompt_id"] == "test-invocation-123"
-    assert row["prompt"] == "Hello Agent!"
-    assert row["agent_response"] == "The current time is 12:00."
-    assert row["time_to_answer"] >= 0
-    assert len(row["tools_used"]) == 1
-    assert row["tools_used"][0]["tool_name"] == "GetCurrentTimeTool"
-    assert row["tools_used"][0]["tool_full_time"] >= 0
+    record = request.record
+    assert record.session_id == "test-session-456"
+    assert record.user_id == "test-user-789"
+    assert record.prompt_id == "test-invocation-123"
+    assert record.prompt == "Hello Agent!"
+    assert record.agent_response == "The current time is 12:00."
+    assert record.time_to_answer >= 0
+    assert len(record.tools_used) == 1
+    assert record.tools_used[0].tool_name == "GetCurrentTimeTool"
+    assert record.tools_used[0].tool_full_time >= 0
 
 
 @pytest.mark.asyncio
-async def test_metrics_plugin_tool_error(metrics_plugin, mock_bq_client):
+async def test_metrics_plugin_tool_error(metrics_plugin, mock_bq_service):
     """Ensures tool execution time is tracked correctly even when the tool call fails."""
     mock_invocation_ctx = MagicMock()
     mock_invocation_ctx.invocation_id = "test-invocation-123"
     mock_invocation_ctx.session.id = "test-session-456"
     mock_invocation_ctx.user_id = "test-user-789"
+    mock_invocation_ctx.store = {}
 
     await metrics_plugin.before_run_callback(invocation_context=mock_invocation_ctx)
 
@@ -119,20 +117,20 @@ async def test_metrics_plugin_tool_error(metrics_plugin, mock_bq_client):
     mock_invocation_ctx._get_events.return_value = []
     await metrics_plugin.after_run_callback(invocation_context=mock_invocation_ctx)
 
-    mock_bq_client.insert_rows_json.assert_called_once()
-    args, _ = mock_bq_client.insert_rows_json.call_args
-    rows = args[1]
-    assert len(rows[0]["tools_used"]) == 1
-    assert rows[0]["tools_used"][0]["tool_name"] == "ExecuteQueryTool"
-    assert rows[0]["tools_used"][0]["tool_full_time"] >= 0
+    mock_bq_service.insert_metrics.assert_called_once()
+    request = mock_bq_service.insert_metrics.call_args[0][0]
+    record = request.record
+    assert len(record.tools_used) == 1
+    assert record.tools_used[0].tool_name == "ExecuteQueryTool"
+    assert record.tools_used[0].tool_full_time >= 0
 
 
 @pytest.mark.asyncio
 async def test_metrics_plugin_bigquery_error_caught_silently(
-    metrics_plugin, mock_bq_client
+    metrics_plugin, mock_bq_service
 ):
     """Verifies that failures during BQ insert_rows_json are caught silently and do not break execution."""
-    mock_bq_client.insert_rows_json.side_effect = Exception(
+    mock_bq_service.insert_metrics.side_effect = Exception(
         "BigQuery server unavailable"
     )
 
@@ -140,9 +138,10 @@ async def test_metrics_plugin_bigquery_error_caught_silently(
     mock_invocation_ctx.invocation_id = "test-invocation-123"
     mock_invocation_ctx.session.id = "test-session-456"
     mock_invocation_ctx.user_id = "test-user-789"
+    mock_invocation_ctx.store = {}
 
     await metrics_plugin.before_run_callback(invocation_context=mock_invocation_ctx)
     await metrics_plugin.after_run_callback(invocation_context=mock_invocation_ctx)
 
     # Should not raise exception and execute cleanly
-    mock_bq_client.insert_rows_json.assert_called_once()
+    mock_bq_service.insert_metrics.assert_called_once()
