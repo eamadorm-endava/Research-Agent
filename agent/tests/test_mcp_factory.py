@@ -1,7 +1,12 @@
 import os
 from unittest.mock import patch, MagicMock
 
-from agent.core_agent.config import BigQueryMCPConfig, GCSMCPConfig, GoogleAuthConfig
+from agent.core_agent.config import (
+    BigQueryMCPConfig,
+    GCSMCPConfig,
+    GoogleAuthConfig,
+    AtlassianMCPConfig,
+)
 from agent.core_agent.builder.mcp_factory import MCPToolsetBuilder
 
 
@@ -17,10 +22,17 @@ pytestmark = pytest.mark.filterwarnings(
 def test_get_mcp_toolset_local_with_scopes():
     """Test factory creates a tool with correct local Auth Scheme structures."""
     with patch.dict(os.environ, clear=True):
-        mcp_config = BigQueryMCPConfig()
-        auth_config = GoogleAuthConfig()
+        mcp_config = BigQueryMCPConfig(_env_file=None)
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            AUTH_URI="https://mock.auth.com",
+            TOKEN_URI="https://mock.token.com",
+            _env_file=None,
+        )
 
-    builder = MCPToolsetBuilder(auth_config)
+    builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=False)
 
     assert tool._connection_params.url == "http://localhost:8080/mcp"
@@ -33,10 +45,17 @@ def test_get_mcp_toolset_local_with_scopes():
 def test_get_mcp_toolset_local_with_gcs_scopes():
     """Test factory creates a GCS tool with delegated OAuth locally."""
     with patch.dict(os.environ, clear=True):
-        mcp_config = GCSMCPConfig()
-        auth_config = GoogleAuthConfig()
+        mcp_config = GCSMCPConfig(_env_file=None)
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            AUTH_URI="https://mock.auth.com",
+            TOKEN_URI="https://mock.token.com",
+            _env_file=None,
+        )
 
-    builder = MCPToolsetBuilder(auth_config)
+    builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=False)
 
     assert tool._connection_params.url == "http://localhost:8082/mcp"
@@ -48,10 +67,9 @@ def test_get_mcp_toolset_local_with_gcs_scopes():
 def test_get_mcp_toolset_prod_mode_logic():
     """Test factory prod mode structures (delegated token, no ADK schemes)."""
     with patch.dict(os.environ, {"BIGQUERY_AUTH_ID": "test-id"}, clear=True):
-        mcp_config = BigQueryMCPConfig()
-        auth_config = GoogleAuthConfig()
+        mcp_config = BigQueryMCPConfig(_env_file=None)
 
-    builder = MCPToolsetBuilder(auth_config)
+    builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=True)
 
     # NO explicit auth scheme inside the ADK in prod
@@ -74,9 +92,8 @@ def test_get_mcp_toolset_prod_mode_gcs_uses_delegated_token():
     """Test factory prod mode for GCS forwards the delegated OAuth token."""
     with patch.dict(os.environ, {"GCS_AUTH_ID": "gcs-auth-id"}, clear=True):
         mcp_config = GCSMCPConfig()
-        auth_config = GoogleAuthConfig()
 
-    builder = MCPToolsetBuilder(auth_config)
+    builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=True)
 
     # No ADK schemes
@@ -100,6 +117,35 @@ def test_mcp_config_alias_precedence():
         {"BIGQUERY_AUTH_ID": "specific-id", "GEMINI_GOOGLE_AUTH_ID": "generic-id"},
         clear=True,
     ):
-        mcp_config = BigQueryMCPConfig()
+        mcp_config = BigQueryMCPConfig(_env_file=None)
 
-    assert mcp_config.GEMINI_GOOGLE_AUTH_ID == "specific-id"
+    assert mcp_config.GEMINI_AUTH_ID == "specific-id"
+
+
+def test_get_mcp_toolset_atlassian_local_and_prod():
+    """Test factory creates Atlassian toolset with correct properties (no local auth, GCS headers)."""
+    with patch.dict(os.environ, clear=True):
+        mcp_config = AtlassianMCPConfig(_env_file=None)
+
+    builder = MCPToolsetBuilder()
+
+    # 1. Local execution mode
+    tool_local = builder.build(mcp_config, prod_execution=False)
+    assert tool_local._connection_params.url == "http://localhost:8085/mcp"
+    assert tool_local._auth_scheme is None
+    assert tool_local._auth_credential is None
+
+    # 2. Prod execution mode
+    tool_prod = builder.build(mcp_config, prod_execution=True)
+    assert tool_prod._connection_params.url == "http://localhost:8085/mcp"
+    assert tool_prod._auth_scheme is None
+    assert tool_prod._auth_credential is None
+
+    # Verify headers (should contain X-Serverless-Authorization but NO Authorization header)
+    ctx = MagicMock()
+    with patch(
+        "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+    ):
+        headers = tool_prod._header_provider(ctx)
+        assert headers["X-Serverless-Authorization"] == "Bearer id-token"
+        assert "Authorization" not in headers

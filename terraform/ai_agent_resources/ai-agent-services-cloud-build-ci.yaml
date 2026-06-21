@@ -1,3 +1,6 @@
+substitutions:
+  _REGION: "us-central1"
+
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
   - name: 'hashicorp/terraform:1.12.2'
@@ -39,7 +42,11 @@ steps:
   # Step 4: Run Terraform Plan
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
-    args: ['plan', '-out=tfplan']
+    args:
+      - 'plan'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_REGION}'
+      - '-out=tfplan'
     dir: 'terraform/ai_agent_resources'
 
 # This matches the custom SA you created in your bootstrap script

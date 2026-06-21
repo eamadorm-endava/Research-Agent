@@ -176,10 +176,11 @@ chmod +x terraform/scripts/delete_mcp_servers.sh
 
 The script destroys these stacks using the same backend prefixes as the Cloud Build pipelines:
 
-- `terraform/gcs_mcp_server_resources`
 - `terraform/bq_mcp_server_resources`
 - `terraform/drive_mcp_server_resources`
-- `terraform/google_calendar_mcp_server_resources`
+- `terraform/calendar_mcp_server_resources`
+- `terraform/onedrive_mcp_server_resources`
+- `terraform/sharepoint_mcp_server_resources`
 
 To also remove the MCP Cloud Build triggers after the Terraform destroy completes, run:
 
@@ -187,11 +188,22 @@ To also remove the MCP Cloud Build triggers after the Terraform destroy complete
 DELETE_MCP_TRIGGERS=true ./terraform/scripts/delete_mcp_servers.sh
 ```
 
-The MCP Cloud Run modules set `deletion_protection = false` so Terraform can safely apply that change before creating the destroy plan.
+The MCP Cloud Run modules natively set `deletion_protection = false` in their Terraform definitions, allowing them to be cleanly destroyed without manual intervention.
 
-##  Cleanup
-To remove resources created by these scripts:
+## Master Deletion Orchestrator
+
+Use `deletion_manager.sh` as the central tool to dismantle your infrastructure. It can gracefully tear down specific components or execute a total "scorched earth" deletion.
 
 ```
-./terraform/scripts/cleanup.sh
+./terraform/scripts/deletion_manager.sh \
+    --project <PROJECT_ID> \
+    --region <REGION> \
+    --delete-ai-agent true \
+    --delete-mcp-servers true \
+    --delete-ekb-pipeline true \
+    --delete-shared-resources true \
+    --delete-bootstrap true \
+    [... additional component-specific parameters ...]
 ```
+
+The script is heavily parameterized and enforces explicit confirmations and variable injections to prevent accidental deletions. Run it without arguments to see the required parameters for each phase.

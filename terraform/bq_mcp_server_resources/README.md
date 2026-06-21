@@ -103,17 +103,19 @@ Permissions are managed (assigned) under the `service_accounts/` directory. It c
 
 ## CI/CD workflow
 
-This project uses Google Cloud Build for automated deployments:
+This project uses Google Cloud Build for automated deployments defined via YAML parameterization schemas:
 
-1. **Feature Branches:** Create a branch for your changes (e.g., `feature/add-sa-roles`).
-2. **Pull Request:** Opening a PR to `main` triggers a `terraform plan`.
-    - View the results in the GitHub "Checks" tab or GCP Cloud Build history.
-    - The PR cannot be merged if the plan fails.
-    - The PR requires at least one approver.
-    - Note: If the build fails with "Exit Status 3", run terraform fmt locally and push again.
-
-3. **Merge to Main:** Merging the PR triggers `terraform apply`.
-   - Ensure the plan was reviewed before merging.
+1. **Feature Branches:** Create a branch for your changes (e.g., `feature/bq-integrations`).
+2. **Pull Request:** Opening a PR to `main` triggers a complete CI execution (`mcp-server-services-cloud-build-ci.yaml`):
+    - Code quality tools (`make run-bq-precommit`).
+    - Unit tests (`make run-bq-tests`).
+    - Docker container virtualized build validation.
+    - Security-compliant `terraform plan`.
+    - Note: The PR cannot be merged if any of the checks (especially formatting/linting) fail.
+3. **Merge to Main:** Merging the PR triggers the Continuous Deployment phase (`mcp-server-services-cloud-build-cd.yaml`):
+    - API Bootstrap `terraform apply -target=module.enable_apis`
+    - Parallel `docker push` tagging both the `${COMMIT_SHA}` and `latest`.
+    - Live updates in the environment orchestrating `terraform apply tfplan`.
 
 ## Usage
 
@@ -123,24 +125,25 @@ To create service accounts, define the service account names and IAM role mappin
 
 Example:
 
-```
-project_id             = "mock-project-id"
-main_region            = "us-central1"
-developers_group_email = "my-dev-team@email.com"
-apis_to_enable = {
-  "mock-project-id" = [
-    "bigquery.googleapis.com",
-    "storage.googleapis.com",
-  ]
-}
-mcp_server_service_account_name = "mcp-server"
-mcp_server_iam_project_roles = {
-  "mock-project-id" = [
-    "roles/bigquery.dataViewer",
-    "roles/bigquery.jobUser",
-    "roles/storage.objectUser"
-  ]
-}
+```hcl
+# project_id and main_region must be passed via -var flags
+
+developers_group_email = "your-devs-group@domain.com"
+
+apis_to_enable = [
+  "bigquery.googleapis.com",
+  "run.googleapis.com",
+  "artifactregistry.googleapis.com"
+]
+
+mcp_server_service_account_name = "bq-mcp-server"
+
+mcp_server_iam_project_roles = [
+  "roles/bigquery.dataEditor",
+  "roles/bigquery.jobUser",
+  "roles/storage.objectUser"
+]
+
 artifact_registry_name         = "mcp-servers"
 mcp_server_cloud_run_name      = "bigquery-mcp-server"
 mcp_server_cloud_run_region    = "us-central1"
@@ -150,10 +153,11 @@ mcp_server_cloud_run_image_tag = "latest"
 ## Variables
 
 | Name | Description | Type | Default | Required |
-|---|---|---|---|:---:|
-| `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
-| `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
-| `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
-| `mcp_server_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `mcp_server_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
-
+|------|-------------|------|---------|:--------:|
+| `project_id` | The ID of the project where the resources will be created. (MUST be passed dynamically) | `string` | n/a | yes |
+| `main_region` | The main region of the project. (MUST be passed dynamically) | `string` | n/a | yes |
+| `developers_group_email` | The email of the Google Group that will be granted the Service Account User role. | `string` | n/a | yes |
+| `apis_to_enable` | A list of Service APIs to enable. | `list(string)` | `[]` | no |
+| `mcp_server_service_account_name` | The name of the service account. | `string` | n/a | yes |
+| `mcp_server_iam_project_roles` | A list of roles to be assigned to the service account. | `list(string)` | `[]` | no |
+ 

@@ -1,4 +1,4 @@
-PROJECT_ID?=ag-core-ops-auj0# ?= is used to set a default value if the variable is not set in the .env file
+PROJECT_ID?=host-ge-prod-endava-01-yd8e# ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
 BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
@@ -6,7 +6,7 @@ GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
 CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
 EKB_PIPELINE_URL?=https://ekb-pipeline-server-753988132239.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
-ARTIFACT_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
+LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 ### General Commands ###
 
 gcloud-auth:
@@ -31,7 +31,10 @@ verify-all-ci:
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
 	$(MAKE) verify-metrics-ci
+	$(MAKE) verify-onedrive-ci
+	$(MAKE) verify-sharepoint-ci
 	$(MAKE) verify-ekb-ci
+	$(MAKE) verify-atlassian-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -52,7 +55,7 @@ test-agent:
 
 run-ui-agent:
 	cd agent && \
-	uv run --group ai-agent adk web --port 8000 --artifact_service_uri gs://$(ARTIFACT_BUCKET)
+	uv run --group ai-agent adk web --port 8000 --artifact_service_uri gs://$(LANDING_ZONE_BUCKET)
 
 deploy-agent:
 	uv export \
@@ -69,7 +72,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},ARTIFACT_BUCKET=${ARTIFACT_BUCKET}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
@@ -140,7 +143,7 @@ verify-gcs-ci:
 	$(MAKE) test-gcs-terraform
 
 test-gcs-terraform:
-	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
+	cd terraform/gcs_mcp_server_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### Google Calendar & Meet MCP Commands ###
 
@@ -177,6 +180,52 @@ verify-metrics-ci:
 test-metrics-terraform:
 	cd terraform/metrics_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
+### OneDrive MCP Commands ###
+
+run-onedrive-precommit:
+	uvx pre-commit run --files mcp_servers/onedrive/**/*
+
+run-onedrive-tests:
+	uv run --group mcp_onedrive pytest mcp_servers/onedrive/tests/
+
+run-onedrive-mcp-locally:
+	uv run --group mcp_onedrive python -m mcp_servers.onedrive.app.main --host localhost --port 8084
+
+build-onedrive-mcp-image:
+	docker build -t test-onedrive-mcp-server -f mcp_servers/onedrive/Dockerfile .
+
+verify-onedrive-ci:
+	$(MAKE) run-onedrive-precommit
+	$(MAKE) run-onedrive-tests
+	$(MAKE) build-onedrive-mcp-image
+	$(MAKE) test-onedrive-terraform
+
+test-onedrive-terraform:
+	cd terraform/onedrive_mcp_server_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### SharePoint MCP Commands ###
+
+run-sharepoint-precommit:
+	uvx pre-commit run --files mcp_servers/sharepoint/**/*
+
+run-sharepoint-tests:
+	uv run --group mcp_sharepoint pytest mcp_servers/sharepoint/tests/
+
+run-sharepoint-mcp-locally:
+	uv run --group mcp_sharepoint python -m mcp_servers.sharepoint.app.main --host localhost --port 8086
+
+build-sharepoint-mcp-image:
+	docker build -t test-sharepoint-mcp-server -f mcp_servers/sharepoint/Dockerfile .
+
+verify-sharepoint-ci:
+	$(MAKE) run-sharepoint-precommit
+	$(MAKE) run-sharepoint-tests
+	$(MAKE) build-sharepoint-mcp-image
+	$(MAKE) test-sharepoint-terraform
+
+test-sharepoint-terraform:
+	cd terraform/sharepoint_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
 ### EKB Pipeline Commands ###
 
 run-ekb-precommit:
@@ -196,4 +245,34 @@ verify-ekb-ci:
 	$(MAKE) test-ekb-terraform
 
 test-ekb-terraform:
-	cd terraform/ekb_pipeline_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+	cd terraform/ekb_pipeline_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### Atlassian MCP Commands ###
+
+run-atlassian-precommit:
+	uvx pre-commit run --files mcp_servers/atlassian/**/*
+
+run-atlassian-tests:
+	uv run --group mcp_atlassian pytest mcp_servers/atlassian/tests/
+
+run-atlassian-mcp-locally:
+	uv run --group mcp_atlassian python -m mcp_servers.atlassian.app.main --host localhost --port 8085
+
+run-atlassian-mcp-smoke:
+	uv run --group mcp_atlassian python mcp_servers/atlassian/scripts/mcp_smoke_test.py --endpoint http://localhost:8085/mcp
+
+run-atlassian-mcp-test-client:
+	uv run --group mcp_atlassian python mcp_servers/atlassian/scripts/test_mcp_client.py
+
+build-atlassian-mcp-image:
+	docker build -t test-atlassian-mcp-server -f mcp_servers/atlassian/Dockerfile .
+
+verify-atlassian-ci:
+	$(MAKE) run-atlassian-precommit
+	$(MAKE) run-atlassian-tests
+	$(MAKE) run-atlassian-mcp-test-client
+	$(MAKE) build-atlassian-mcp-image
+	$(MAKE) test-atlassian-terraform
+
+test-atlassian-terraform:
+	cd terraform/atlassian_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate

@@ -20,8 +20,8 @@ The module implements a **Conditional Authentication Gate** to balance security 
 
 ### 2.1 Service Account (SA) Flow
 Used exclusively for moves from the **Landing Zone** to the **Knowledge Base**.
-- **Source**: `ag-core-ops-auj0-ai-agent-landing-zone`
-- **Destination**: `ag-core-ops-auj0-kb-landing-zone`
+- **Source**: `<mock-project-id>-ai-agent-landing-zone`
+- **Destination**: `<mock-project-id>-kb-landing-zone`
 - **Credential**: Uses the Cloud Run instance's Service Account. This allows the agent to trigger ingestion without requiring the user to have direct write access to the KB.
 
 ### 2.2 OAuth Flow
@@ -32,8 +32,8 @@ Used for all other operations (e.g., user-to-user bucket moves).
 ## 3. Configuration
 
 The module uses environment variables to identify the protected ingestion zones:
-- `GCS_LANDING_ZONE_BUCKET`: Defaults to `ag-core-ops-auj0-ai-agent-landing-zone`.
-- `GCS_KB_INGESTION_BUCKET`: Defaults to `ag-core-ops-auj0-kb-landing-zone`.
+- `GCS_LANDING_ZONE_BUCKET`: Defaults to `<mock-project-id>-ai-agent-landing-zone`.
+- `GCS_KB_INGESTION_BUCKET`: Defaults to `<mock-project-id>-kb-landing-zone`.
 
 ## 4. Metadata Preservation
 

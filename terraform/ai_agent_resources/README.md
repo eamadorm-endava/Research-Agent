@@ -131,29 +131,25 @@ To create service accounts, define the service account names and IAM role mappin
 
 Example:
 
-```
-project_id             = "mock-project-id"
+```hcl
 developers_group_email = "gcu_latam_team_devs@endava.com"
-main_region            = "us-central1"
-apis_to_enable = {
-  "mock-project-id" = [
-    "aiplatform.googleapis.com",
-    "modelarmor.googleapis.com",
-  ]
-}
-ai_agent_service_account_name = "adk-agent"
-ai_agent_iam_project_roles = {
-  "mock-project-id" = [
-    "roles/aiplatform.user",
-    "roles/modelarmor.user"
-  ]
-}
-vertex_ai_agent_iam_project_roles = {
-  "mock-project-id" = [
-    "roles/modelarmor.user"
-  ]
-}
 
+apis_to_enable = [
+  "aiplatform.googleapis.com",
+  "modelarmor.googleapis.com",
+]
+
+ai_agent_service_account_name = "adk-agent"
+landing_zone_bucket_name      = "ai-agent-landing-zone"
+
+ai_agent_iam_project_roles = [
+  "roles/aiplatform.user",
+  "roles/modelarmor.user"
+]
+
+vertex_ai_agent_iam_project_roles = [
+  "roles/modelarmor.user"
+]
 ```
 
 ## Variables
@@ -161,8 +157,11 @@ vertex_ai_agent_iam_project_roles = {
 | Name | Description | Type | Default | Required |
 |---|---|---|---|:---:|
 | `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
+| `main_region` | The main region for GCP resources. | `string` | n/a | yes |
 | `developers_group_email` | Google Group email granted `TokenCreator` and `ServiceAccountUser` roles for impersonation. | `string` | n/a | yes |
-| `apis_to_enable` | Service APIs to enable, mapped by project ID. | `map(list(string))` | `{}` | yes |
+| `apis_to_enable` | List of Service APIs to enable in the project. | `list(string)` | `[]` | yes |
 | `ai_agent_service_account_name` | The name of the ADK service account (the part before the @). | `string` | n/a | yes |
-| `ai_agent_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the ADK service account. | `map(list(string))` | `{}` | no |
-| `vertex-ai-search-agent_iam_project_roles` | Map of project IDs to a list of roles to be assigned to the Vertex AI Search Agent service account. | `map(list(string))` | `{}` | no |
+| `landing_zone_bucket_name` | The name of the GCS bucket for the landing zone. | `string` | n/a | yes |
+| `ai_agent_iam_project_roles` | A list of roles to be assigned to the ADK service account in the project. | `list(string)` | `[]` | no |
+| `vertex_ai_agent_iam_project_roles` | A list of roles to be assigned to the Vertex AI Search Agent service account. | `list(string)` | `[]` | no |
+| `discovery_engine_service_agent_iam_project_roles` | A list of roles to be assigned to the Discovery Engine service agent. | `list(string)` | `[]` | no |

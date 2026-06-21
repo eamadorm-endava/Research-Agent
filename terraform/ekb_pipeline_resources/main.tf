@@ -4,8 +4,10 @@ data "google_project" "project" {
 
 ################ APIs ################
 module "enable_apis" {
-  source           = "../base_modules/api-manager"
-  project_services = var.project_services
+  source = "../base_modules/api-manager"
+  project_services = {
+    (var.project_id) = var.project_services
+  }
 }
 
 ################ Service Accounts ################
@@ -20,7 +22,9 @@ module "ekb-pipeline-service-account" {
   }
 
   # non-authoritative roles granted *to* the service account
-  iam_project_roles = var.ekb_pipeline_iam_project_roles
+  iam_project_roles = {
+    (var.project_id) = var.ekb_pipeline_iam_project_roles
+  }
 
   depends_on = [
     module.enable_apis
@@ -163,11 +167,18 @@ resource "google_storage_bucket_iam_member" "ekb_sa_landing_admin" {
   member = "serviceAccount:${module.ekb-pipeline-service-account.email}"
 }
 
+# Create DLP API Service Agent identity explicitly
+resource "google_project_service_identity" "dlp_sa" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "dlp.googleapis.com"
+}
+
 # DLP API Service Agent access to Landing Zone (required to scan files during ingestion)
 resource "google_storage_bucket_iam_member" "dlp_sa_landing_viewer" {
   bucket = "${var.project_id}${var.kb_landing_zone_bucket_suffix}"
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:service-${data.google_project.project.number}@dlp-api.iam.gserviceaccount.com"
+  member = "serviceAccount:${google_project_service_identity.dlp_sa.email}"
 }
 
 # GCS Bucket Access (RAG Staging)

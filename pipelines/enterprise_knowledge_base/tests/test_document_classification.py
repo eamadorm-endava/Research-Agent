@@ -266,14 +266,14 @@ def test_run_orchestrates_full_pipeline_successfully(
     with patch(
         "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.EKB_CONFIG"
     ) as mock_config:
-        mock_config.PROJECT_ID = "ag-core-ops-auj0"
+        mock_config.PROJECT_ID = "mock-project-id"
         result = pipeline.run(landing_uri)
 
     assert isinstance(result, RunResponse)
     assert result.final_domain == "it"
     assert result.final_security_tier == 1
     # Should return original destination URI because no masking occurred
-    assert result.final_sanitized_uri == "gs://ag-core-ops-auj0-kb-it/p1/public/doc.pdf"
+    assert result.final_sanitized_uri == "gs://mock-project-id-kb-it/p1/public/doc.pdf"
 
     # Verify sequence
     mock_gcs.get_blob_metadata.assert_called()
@@ -362,7 +362,7 @@ def test_run_returns_masked_uri_when_sanitized(
     with patch(
         "pipelines.enterprise_knowledge_base.app.document_classification.pipeline.EKB_CONFIG"
     ) as mock_config:
-        mock_config.PROJECT_ID = "ag-core-ops-auj0"
+        mock_config.PROJECT_ID = "mock-project-id"
         result = pipeline.run(landing_uri)
 
     assert result.final_domain == "executives"
@@ -370,7 +370,7 @@ def test_run_returns_masked_uri_when_sanitized(
     # Should return the final destination of the MASKED file
     assert (
         result.final_sanitized_uri
-        == "gs://ag-core-ops-auj0-kb-executives/top-secret/strictly-confidential/secret_masked.txt"
+        == "gs://mock-project-id-kb-executives/top-secret/strictly-confidential/secret_masked.txt"
     )
 
 

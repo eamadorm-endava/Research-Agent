@@ -2,12 +2,8 @@ import pytest
 from unittest.mock import MagicMock
 from agent.core_agent.builder import AppBuilder
 from agent.core_agent.config import GCPConfig, CoordinatorConfig
-from agent.core_agent.plugins.ingestion.plugin import (
-    GeminiEnterpriseFileIngestionPlugin,
-)
 from google.adk.agents import BaseAgent
 from google.adk.plugins.base_plugin import BasePlugin
-from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from vertexai.agent_engines import AdkApp
 from google.adk.apps.app import App
 
@@ -28,7 +24,7 @@ def mock_agent():
 def mock_configs():
     return {
         "gcp_prod": GCPConfig(
-            PROD_EXECUTION=True, ARTIFACT_BUCKET="test-bucket", REGION="us-central1"
+            PROD_EXECUTION=True, LANDING_ZONE_BUCKET="test-bucket", REGION="us-central1"
         ),
         "gcp_local": GCPConfig(PROD_EXECUTION=False),
         "agent": CoordinatorConfig(AGENT_NAME="test_agent"),
@@ -60,54 +56,6 @@ def test_app_builder_local_assembly(mock_agent, mock_configs):
 
     assert isinstance(app, App)
     assert app.name == "test_agent"
-
-
-def test_app_builder_local_default_plugin_is_save_files(mock_agent, mock_configs):
-    """Test that AppBuilder registers SaveFilesAsArtifactsPlugin by default in local mode."""
-    builder = AppBuilder(
-        agent=mock_agent,
-        gcp_config=mock_configs["gcp_local"],
-        agent_config=mock_configs["agent"],
-    )
-
-    app = builder.build()
-
-    assert any(isinstance(p, SaveFilesAsArtifactsPlugin) for p in app.plugins)
-
-
-def test_app_builder_prod_has_no_save_files_plugin(mock_agent, mock_configs):
-    """Test that AppBuilder does not register SaveFilesAsArtifactsPlugin in production.
-
-    SaveFilesAsArtifactsPlugin targets ADK Web UI only; Gemini Enterprise does
-    not apply it and including it breaks GE artifact rendering.
-    """
-    builder = AppBuilder(
-        agent=mock_agent,
-        gcp_config=mock_configs["gcp_prod"],
-        agent_config=mock_configs["agent"],
-    )
-
-    assert not any(
-        isinstance(p, SaveFilesAsArtifactsPlugin) for p in builder._registered_plugins
-    )
-
-
-def test_app_builder_prod_registers_ge_file_ingestion_plugin(mock_agent, mock_configs):
-    """Test that AppBuilder registers GeminiEnterpriseFileIngestionPlugin in production.
-
-    In production, user-uploaded files arrive as inline data from Gemini Enterprise
-    and must be persisted to GCS via this plugin.
-    """
-    builder = AppBuilder(
-        agent=mock_agent,
-        gcp_config=mock_configs["gcp_prod"],
-        agent_config=mock_configs["agent"],
-    )
-
-    assert any(
-        isinstance(p, GeminiEnterpriseFileIngestionPlugin)
-        for p in builder._registered_plugins
-    )
 
 
 def test_app_builder_with_plugins(mock_agent, mock_configs):

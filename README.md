@@ -133,7 +133,7 @@ Research-Agent/
 │   ├── bq_mcp_server_resources/       # BigQuery MCP server infrastructure
 │   ├── gcs_mcp_server_resources/      # GCS MCP server infrastructure
 │   ├── drive_mcp_server_resources/    # Google Drive MCP server infrastructure
-│   ├── google_calendar_mcp_server_resources/ # Calendar MCP server infrastructure
+│   ├── calendar_mcp_server_resources/ # Calendar MCP server infrastructure
 │   ├── ekb_pipeline_resources/        # EKB pipeline Cloud Run and supporting resources
 │   ├── base_modules/                  # Shared reusable Terraform modules
 │   ├── shared_resources/              # Shared state bucket and Artifact Registry
@@ -226,3 +226,4 @@ For more detailed information about each component, refer to the following docum
 ### ADK Framework
 - [ADK Introduction](docs/ADK/ADK-01-Intro.md): Introduction to the Agent Development Kit.
 - [AI Agent Development Guide](docs/AI-Agent-Development/README.md): Step-by-step guide for building, deploying, and connecting agents.
+ 

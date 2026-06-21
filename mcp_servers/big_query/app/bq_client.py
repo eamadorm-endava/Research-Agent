@@ -7,7 +7,7 @@ from google.cloud.bigquery.schema import SchemaField
 from google.cloud.exceptions import GoogleCloudError, NotFound
 from google.oauth2.credentials import Credentials
 
-from .config import BIGQUERY_API_CONFIG, BIGQUERY_AUTH_CONFIG
+from .config import BIGQUERY_API_CONFIG, BIGQUERY_AUTH_CONFIG, BIGQUERY_SERVER_CONFIG
 from .schemas import AuthenticationError, KeywordSearchRequest, SemanticSearchRequest
 
 # Configure logging
@@ -332,7 +332,7 @@ class BigQueryManager:
         try:
             job_config = bigquery.QueryJobConfig(query_parameters=query_params)
             query_job = self.client.query(
-                query, project=request.project_id, job_config=job_config
+                query, project=BIGQUERY_SERVER_CONFIG.project_id, job_config=job_config
             )
             results = query_job.result()
 
@@ -361,7 +361,7 @@ class BigQueryManager:
         Returns distinct filenames and project names for all chunks containing the keyword.
 
         Args:
-            request: KeywordSearchRequest -> Structured request containing project_id and a single keyword.
+            request: KeywordSearchRequest -> Structured request containing a single keyword.
 
         Returns:
             List[Dict[str, Any]] -> A list of dicts with 'filename' and 'project_id' keys.
@@ -388,7 +388,7 @@ class BigQueryManager:
         try:
             job_config = bigquery.QueryJobConfig(query_parameters=query_params)
             query_job = self.client.query(
-                query, project=request.project_id, job_config=job_config
+                query, project=BIGQUERY_SERVER_CONFIG.project_id, job_config=job_config
             )
             results = query_job.result()
 

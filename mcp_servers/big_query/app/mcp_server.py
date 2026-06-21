@@ -84,23 +84,20 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
     """
     Creates a new Google Cloud BigQuery dataset.
     Args:
-        request (CreateDatasetRequest): Structured request containing project_id, dataset_id, and location.
+        request: CreateDatasetRequest -> Structured request containing project_id, dataset_id, and location.
     Returns:
-        CreateDatasetResponse: Full request details and status.
+        CreateDatasetResponse -> Full request details and status.
     """
-    logger.info(
-        f"Tool call: create_dataset(project_id={request.project_id}, dataset_id={request.dataset_id})"
-    )
+    logger.info(f"Tool call: create_dataset(dataset_id={request.dataset_id})")
     try:
         bq_manager = _make_bq_manager()
         full_id = await asyncio.to_thread(
             bq_manager.create_dataset,
-            request.project_id,
+            BIGQUERY_SERVER_CONFIG.project_id,
             request.dataset_id,
             request.location,
         )
         return CreateDatasetResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             location=request.location,
             execution_status="success",
@@ -108,7 +105,6 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
         )
     except AuthenticationError as e:
         return CreateDatasetResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             location=request.location,
             execution_status="error",
@@ -116,7 +112,6 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
         )
     except Exception as e:
         return CreateDatasetResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             location=request.location,
             execution_status="error",
@@ -129,30 +124,29 @@ async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
     """
     Lists all datasets in a BigQuery project.
     Args:
-        request (ListDatasetsRequest): Structured request containing the project_id.
+        request: ListDatasetsRequest -> Structured request containing the project_id.
     Returns:
-        ListDatasetsResponse: A List[str] containing dataset IDs.
+        ListDatasetsResponse -> A List[str] containing dataset IDs.
     """
-    logger.info(f"Tool call: list_datasets(project_id={request.project_id})")
+    logger.info("Tool call: list_datasets()")
     try:
         bq_manager = _make_bq_manager()
-        datasets = await asyncio.to_thread(bq_manager.list_datasets, request.project_id)
+        datasets = await asyncio.to_thread(
+            bq_manager.list_datasets, BIGQUERY_SERVER_CONFIG.project_id
+        )
         return ListDatasetsResponse(
-            project_id=request.project_id,
             datasets=datasets,
             execution_status="success",
-            execution_message=f"Found {len(datasets)} datasets in project {request.project_id}.",
+            execution_message=f"Found {len(datasets)} datasets in project {BIGQUERY_SERVER_CONFIG.project_id}.",
         )
     except AuthenticationError as e:
         return ListDatasetsResponse(
-            project_id=request.project_id,
             datasets=[],
             execution_status="error",
             execution_message=f"Authentication Error: {e}",
         )
     except Exception as e:
         return ListDatasetsResponse(
-            project_id=request.project_id,
             datasets=[],
             execution_status="error",
             execution_message=_format_execution_error(e),
@@ -164,24 +158,23 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
     """
     Creates a new table in BigQuery.
     Args:
-        request (CreateTableRequest): Structured request containing project_id, dataset_id, table_id, and schema_fields.
+        request: CreateTableRequest -> Structured request containing project_id, dataset_id, table_id, and schema_fields.
     Returns:
-        CreateTableResponse: Full request details and status.
+        CreateTableResponse -> Full request details and status.
     """
     logger.info(
-        f"Tool call: create_table(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})"
+        f"Tool call: create_table(dataset_id={request.dataset_id}, table_id={request.table_id})"
     )
     try:
         bq_manager = _make_bq_manager()
         full_id = await asyncio.to_thread(
             bq_manager.create_table,
-            request.project_id,
+            BIGQUERY_SERVER_CONFIG.project_id,
             request.dataset_id,
             request.table_id,
             request.schema_fields,
         )
         return CreateTableResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             schema_fields=request.schema_fields,
@@ -190,7 +183,6 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
         )
     except AuthenticationError as e:
         return CreateTableResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             schema_fields=request.schema_fields,
@@ -199,7 +191,6 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
         )
     except Exception as e:
         return CreateTableResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             schema_fields=request.schema_fields,
@@ -213,23 +204,22 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
     """
     Retrieves the schema definition of a specific table.
     Args:
-        request (GetTableSchemaRequest): Structured request containing project_id, dataset_id, and table_id.
+        request: GetTableSchemaRequest -> Structured request containing project_id, dataset_id, and table_id.
     Returns:
-        GetTableSchemaResponse: The schema fields as a List[Dict[str, Any]].
+        GetTableSchemaResponse -> The schema fields as a List[Dict[str, Any]].
     """
     logger.info(
-        f"Tool call: get_table_schema(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})"
+        f"Tool call: get_table_schema(dataset_id={request.dataset_id}, table_id={request.table_id})"
     )
     try:
         bq_manager = _make_bq_manager()
         schema_fields = await asyncio.to_thread(
             bq_manager.get_table_schema,
-            request.project_id,
+            BIGQUERY_SERVER_CONFIG.project_id,
             request.dataset_id,
             request.table_id,
         )
         return GetTableSchemaResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             fields=[field.to_api_repr() for field in schema_fields],
@@ -238,7 +228,6 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
         )
     except AuthenticationError as e:
         return GetTableSchemaResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             fields=[],
@@ -247,7 +236,6 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
         )
     except Exception as e:
         return GetTableSchemaResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             fields=[],
@@ -261,20 +249,19 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
     """
     Retrieves a list of all tables within a given dataset.
     Args:
-        request (ListTablesRequest): Structured request containing project_id and dataset_id.
+        request: ListTablesRequest -> Structured request containing project_id and dataset_id.
     Returns:
-        ListTablesResponse: A List[str] of table IDs.
+        ListTablesResponse -> A List[str] of table IDs.
     """
-    logger.info(
-        f"Tool call: list_tables(project_id={request.project_id}, dataset_id={request.dataset_id})"
-    )
+    logger.info(f"Tool call: list_tables(dataset_id={request.dataset_id})")
     try:
         bq_manager = _make_bq_manager()
         tables = await asyncio.to_thread(
-            bq_manager.list_tables, request.project_id, request.dataset_id
+            bq_manager.list_tables,
+            BIGQUERY_SERVER_CONFIG.project_id,
+            request.dataset_id,
         )
         return ListTablesResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             tables=tables,
             execution_status="success",
@@ -282,7 +269,6 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
         )
     except AuthenticationError as e:
         return ListTablesResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             tables=[],
             execution_status="error",
@@ -290,7 +276,6 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
         )
     except Exception as e:
         return ListTablesResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             tables=[],
             execution_status="error",
@@ -303,24 +288,23 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
     """
     Inserts one or more rows into an existing table.
     Args:
-        request (AddRowsRequest): Structured request containing project_id, dataset_id, table_id, and rows.
+        request: AddRowsRequest -> Structured request containing project_id, dataset_id, table_id, and rows.
     Returns:
-        AddRowsResponse: Full request details and status.
+        AddRowsResponse -> Full request details and status.
     """
     logger.info(
-        f"Tool call: add_rows(project_id={request.project_id}, dataset_id={request.dataset_id}, table_id={request.table_id})"
+        f"Tool call: add_rows(dataset_id={request.dataset_id}, table_id={request.table_id})"
     )
     try:
         bq_manager = _make_bq_manager()
         await asyncio.to_thread(
             bq_manager.insert_rows,
-            request.project_id,
+            BIGQUERY_SERVER_CONFIG.project_id,
             request.dataset_id,
             request.table_id,
             request.rows,
         )
         return AddRowsResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             rows=request.rows,
@@ -329,7 +313,6 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
         )
     except AuthenticationError as e:
         return AddRowsResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             rows=request.rows,
@@ -338,7 +321,6 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
         )
     except Exception as e:
         return AddRowsResponse(
-            project_id=request.project_id,
             dataset_id=request.dataset_id,
             table_id=request.table_id,
             rows=request.rows,
@@ -352,18 +334,17 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     """
     Executes a read-only SQL query against BigQuery.
     Args:
-        request (ExecuteQueryRequest): Structured request containing project_id and query.
+        request: ExecuteQueryRequest -> Structured request containing project_id and query.
     Returns:
-        ExecuteQueryResponse: The query results as a List[Dict[str, Any]].
+        ExecuteQueryResponse -> The query results as a List[Dict[str, Any]].
     """
-    logger.info(f"Tool call: execute_query(project_id={request.project_id})")
+    logger.info("Tool call: execute_query()")
     try:
         bq_manager = _make_bq_manager()
         results = await asyncio.to_thread(
-            bq_manager.execute_query, request.project_id, request.query
+            bq_manager.execute_query, BIGQUERY_SERVER_CONFIG.project_id, request.query
         )
         return ExecuteQueryResponse(
-            project_id=request.project_id,
             query=request.query,
             results=results,
             execution_status="success",
@@ -371,7 +352,6 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
         )
     except AuthenticationError as e:
         return ExecuteQueryResponse(
-            project_id=request.project_id,
             query=request.query,
             results=[],
             execution_status="error",
@@ -379,7 +359,6 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
         )
     except Exception as e:
         return ExecuteQueryResponse(
-            project_id=request.project_id,
             query=request.query,
             results=[],
             execution_status="error",
@@ -392,9 +371,9 @@ async def ekb_semantic_search(request: SemanticSearchRequest) -> SemanticSearchR
     """
     Performs a semantic search against the Enterprise Knowledge Base.
     Args:
-        request (SemanticSearchRequest): Structured request containing the query and optional filters.
+        request: SemanticSearchRequest -> Structured request containing the query and optional filters.
     Returns:
-        SemanticSearchResponse: The search results and execution status.
+        SemanticSearchResponse -> The search results and execution status.
     """
     logger.info(f"Tool call: ekb_semantic_search(query={request.query})")
     try:
@@ -425,9 +404,9 @@ async def ekb_keyword_search(request: KeywordSearchRequest) -> KeywordSearchResp
     Performs a deterministic keyword search against the Enterprise Knowledge Base chunks.
     Returns distinct filenames and project names for all documents containing the keyword.
     Args:
-        request (KeywordSearchRequest): Structured request containing project_id and a single keyword.
+        request: KeywordSearchRequest -> Structured request containing project_id and a single keyword.
     Returns:
-        KeywordSearchResponse: Distinct filenames and project names matching the keyword.
+        KeywordSearchResponse -> Distinct filenames and project names matching the keyword.
     """
     logger.info(f"Tool call: ekb_keyword_search(keyword={request.keyword})")
     try:

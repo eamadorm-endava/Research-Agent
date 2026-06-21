@@ -19,6 +19,8 @@ module "artifact_registry" {
   name       = var.artifact_registry_name
   location   = local.artifact_registry_region
 
+  enable_vulnerability_scanning = true
+
   format = {
     docker = {
       standard = {}
@@ -60,11 +62,16 @@ resource "google_bigquery_dataset" "knowledge_base" {
   depends_on                 = [module.enable_apis]
 }
 
+resource "time_sleep" "wait_for_iam_propagation" {
+  depends_on      = [google_project_iam_member.connection_ai_user]
+  create_duration = "45s"
+}
+
 resource "google_bigquery_job" "create_multimodal_model" {
   # Deterministic job_id: stable within a project so re-applies don't re-run the job,
   # but changes when project_id or connection_id change (e.g. after a project migration),
   # which forces Terraform to destroy the stale state entry and create a fresh job.
-  job_id   = "create-multimodal-model-${substr(md5("${var.project_id}-${var.bq_vertex_connection_id}"), 0, 8)}"
+  job_id   = "create-multimodal-model-${substr(md5("${var.project_id}-${var.bq_vertex_connection_id}-v2"), 0, 8)}"
   project  = var.project_id
   location = var.main_region
 
@@ -81,7 +88,7 @@ EOF
 
   depends_on = [
     google_bigquery_connection.vertex_ai_connection,
-    google_project_iam_member.connection_ai_user,
+    time_sleep.wait_for_iam_propagation,
     google_bigquery_dataset.knowledge_base
   ]
 }
@@ -183,7 +190,7 @@ resource "google_storage_bucket" "kb_domain_buckets" {
   depends_on                  = [module.enable_apis]
 }
 
-resource "google_storage_bucket" "artifact_bucket" {
+resource "google_storage_bucket" "landing_zone_bucket" {
   project                     = var.project_id
   name                        = "${var.project_id}-${var.ai_agent_landing_zone_bucket}"
   location                    = var.main_region
@@ -192,6 +199,15 @@ resource "google_storage_bucket" "artifact_bucket" {
 
   versioning {
     enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = var.landing_zone_retention_days
+    }
+    action {
+      type = "Delete"
+    }
   }
 
   depends_on = [module.enable_apis]

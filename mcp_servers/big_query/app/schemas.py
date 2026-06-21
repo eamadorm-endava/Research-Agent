@@ -1,17 +1,9 @@
 from typing import List, Dict, Any, Annotated, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from enum import StrEnum
 import re
 
 
-class AvailableProject(StrEnum):
-    DEV = "ag-core-ops-auj0"
-
-
 # Reusable Types
-PROJECT_ID = Annotated[
-    AvailableProject, Field(description="The mandatory GCP Project ID.")
-]
 DATASET_ID = Annotated[
     str,
     Field(
@@ -50,6 +42,60 @@ ROWS = Annotated[
 ]
 
 
+class AgentDependencies(BaseModel):
+    app_name: Annotated[
+        str,
+        Field(
+            description="The name of the calling application or agent.",
+        ),
+    ]
+    user_id: Annotated[
+        str,
+        Field(
+            description="The unique identifier of the user using the agent",
+        ),
+    ]
+    session_id: Annotated[
+        str,
+        Field(
+            description="The current session or conversation ID with the agent",
+        ),
+    ]
+
+
+class BaseRequest(BaseModel):
+    dependencies: Annotated[
+        Optional[AgentDependencies],
+        Field(
+            default=None,
+            exclude=True,
+            description=(
+                """
+                Parameters that needs to be injected by the framework. The LLM will not see this parameters due to exclude = True to avoid LLM hallucinations.
+                """
+            ),
+        ),
+    ]
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        """
+        Removes the dependencies field from the generated JSON Schema to prevent LLM hallucinations.
+
+        Args:
+            core_schema: Any -> The core Pydantic schema being processed.
+            handler: Any -> The schema generation handler.
+
+        Returns:
+            dict -> The modified JSON Schema dictionary.
+        """
+        json_schema = super().__get_pydantic_json_schema__(core_schema, handler)
+        json_schema = handler.resolve_ref_schema(json_schema)
+        if "properties" in json_schema and "dependencies" in json_schema["properties"]:
+            json_schema["properties"].pop("dependencies")
+        return json_schema
+
+
 class BaseResponse(BaseModel):
     """
     Base response model for all BigQuery tools.
@@ -71,12 +117,11 @@ class AuthenticationError(Exception):
     """Raised when delegated OAuth authentication fails."""
 
 
-class GetTableSchemaRequest(BaseModel):
+class GetTableSchemaRequest(BaseRequest):
     """
     Request model for retrieving table schema.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     table_id: TABLE_ID
 
@@ -89,12 +134,11 @@ class GetTableSchemaResponse(GetTableSchemaRequest, BaseResponse):
     fields: SCHEMA_DEFINITION
 
 
-class CreateDatasetRequest(BaseModel):
+class CreateDatasetRequest(BaseRequest):
     """
     Request model for creating a dataset.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     location: LOCATION
 
@@ -108,12 +152,10 @@ class CreateDatasetResponse(CreateDatasetRequest, BaseResponse):
     pass
 
 
-class ListDatasetsRequest(BaseModel):
+class ListDatasetsRequest(BaseRequest):
     """
     Request model for listing datasets.
     """
-
-    project_id: PROJECT_ID
 
 
 class ListDatasetsResponse(ListDatasetsRequest, BaseResponse):
@@ -124,14 +166,13 @@ class ListDatasetsResponse(ListDatasetsRequest, BaseResponse):
     datasets: Annotated[List[str], Field(description="A list of dataset ID strings.")]
 
 
-class CreateTableRequest(BaseModel):
+class CreateTableRequest(BaseRequest):
     """
     Request model for creating a table.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     table_id: TABLE_ID
     schema_fields: SCHEMA_DEFINITION
@@ -146,12 +187,11 @@ class CreateTableResponse(CreateTableRequest, BaseResponse):
     pass
 
 
-class ListTablesRequest(BaseModel):
+class ListTablesRequest(BaseRequest):
     """
     Request model for listing tables.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
 
 
@@ -163,12 +203,11 @@ class ListTablesResponse(ListTablesRequest, BaseResponse):
     tables: Annotated[List[str], Field(description="A list of table ID strings.")]
 
 
-class AddRowsRequest(BaseModel):
+class AddRowsRequest(BaseRequest):
     """
     Request model for inserting rows into a table.
     """
 
-    project_id: PROJECT_ID
     dataset_id: DATASET_ID
     table_id: TABLE_ID
     rows: ROWS
@@ -183,12 +222,11 @@ class AddRowsResponse(AddRowsRequest, BaseResponse):
     pass
 
 
-class ExecuteQueryRequest(BaseModel):
+class ExecuteQueryRequest(BaseRequest):
     """
     Request model for executing a SQL query.
     """
 
-    project_id: PROJECT_ID
     query: QUERY
 
     @field_validator("query")
@@ -211,12 +249,11 @@ class ExecuteQueryResponse(ExecuteQueryRequest, BaseResponse):
     results: ROWS
 
 
-class SemanticSearchRequest(BaseModel):
+class SemanticSearchRequest(BaseRequest):
     """
     Request model for performing a semantic search against the knowledge base.
     """
 
-    project_id: PROJECT_ID
     query: Annotated[
         str, Field(description="The natural language query to search for.")
     ]
@@ -248,12 +285,11 @@ class SemanticSearchResponse(BaseResponse):
     results: ROWS
 
 
-class KeywordSearchRequest(BaseModel):
+class KeywordSearchRequest(BaseRequest):
     """
     Request model for a deterministic keyword search against knowledge base chunks.
     """
 
-    project_id: PROJECT_ID
     keyword: Annotated[
         str,
         Field(

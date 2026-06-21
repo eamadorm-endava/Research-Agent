@@ -10,8 +10,9 @@ class BigQueryMcpConfigBase(BaseSettings):
     """Shared immutable configuration base for the BigQuery MCP server."""
 
     model_config = SettingsConfigDict(
-        extra="forbid",
+        extra="ignore",
         frozen=True,
+        env_file=".env",
         env_file_encoding="utf-8",
     )
 
@@ -55,6 +56,14 @@ class BigQueryServerConfig(BigQueryMcpConfigBase):
         Field(
             default="bigquery-mcp-server",
             description="Published name of the BigQuery MCP server.",
+        ),
+    ]
+    project_id: Annotated[
+        str,
+        Field(
+            default="mock-bq-project-id",
+            validation_alias="BQ_PROJECT_ID",
+            description="The BigQuery project ID to use for all requests.",
         ),
     ]
     default_host: Annotated[

@@ -10,18 +10,17 @@ variable "developers_group_email" {
 }
 
 variable "apis_to_enable" {
-  description = "Service APIs to enable, mapped by project ID."
-  type        = map(list(string))
-  default     = {}
+  description = "Service APIs to enable."
+  type        = list(string)
+  default     = []
 }
 
 variable "main_region" {
   description = "The main region for GCP resources."
   type        = string
-  default     = "us-central1"
 }
 
-variable "artifact_bucket_name" {
+variable "landing_zone_bucket_name" {
   description = "The name of the GCS bucket for session artifacts."
   type        = string
 }
@@ -34,23 +33,23 @@ variable "ai_agent_service_account_name" {
 }
 
 variable "ai_agent_iam_project_roles" {
-  description = "Map of project IDs to a list of roles to be assigned to the service account."
-  type        = map(list(string))
-  default     = {}
+  description = "A list of roles to be assigned to the service account."
+  type        = list(string)
+  default     = []
 }
 
 #vertex-ai-search-agent service account and IAM roles
 variable "vertex_ai_agent_iam_project_roles" {
-  description = "Map of project IDs to a list of roles to be assigned to the service account."
-  type        = map(list(string))
-  default     = {}
+  description = "A list of roles to be assigned to the service account."
+  type        = list(string)
+  default     = []
 }
 
 #Discovery Engine service account and IAM roles
 variable "discovery_engine_service_agent_iam_project_roles" {
-  description = "Map of project IDs to a list of roles to be assigned to the Discovery Engine service agent."
-  type        = map(list(string))
-  default     = {}
+  description = "A list of roles to be assigned to the Discovery Engine service agent."
+  type        = list(string)
+  default     = []
 }
 
 variable "bq_metrics_dataset_id" {

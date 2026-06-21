@@ -25,6 +25,60 @@ TimeFilterType = Annotated[
 ]
 
 
+class AgentDependencies(BaseModel):
+    app_name: Annotated[
+        str,
+        Field(
+            description="The name of the calling application or agent.",
+        ),
+    ]
+    user_id: Annotated[
+        str,
+        Field(
+            description="The unique identifier of the user using the agent",
+        ),
+    ]
+    session_id: Annotated[
+        str,
+        Field(
+            description="The current session or conversation ID with the agent",
+        ),
+    ]
+
+
+class BaseRequest(BaseModel):
+    dependencies: Annotated[
+        Optional[AgentDependencies],
+        Field(
+            default=None,
+            exclude=True,
+            description=(
+                """
+                Parameters that needs to be injected by the framework. The LLM will not see this parameters due to exclude = True to avoid LLM hallucinations.
+                """
+            ),
+        ),
+    ]
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        """
+        Removes the dependencies field from the generated JSON Schema to prevent LLM hallucinations.
+
+        Args:
+            core_schema: Any -> The core Pydantic schema being processed.
+            handler: Any -> The schema generation handler.
+
+        Returns:
+            dict -> The modified JSON Schema dictionary.
+        """
+        json_schema = super().__get_pydantic_json_schema__(core_schema, handler)
+        json_schema = handler.resolve_ref_schema(json_schema)
+        if "properties" in json_schema and "dependencies" in json_schema["properties"]:
+            json_schema["properties"].pop("dependencies")
+        return json_schema
+
+
 class BaseResponse(BaseModel):
     """
     Base response model for all Google Calendar and Meet tools.
@@ -45,7 +99,7 @@ class BaseResponse(BaseModel):
     ]
 
 
-class ListCalendarEventsRequest(BaseModel):
+class ListCalendarEventsRequest(BaseRequest):
     """
     Request schema for listing calendar events with optional time filters.
     """
@@ -109,6 +163,13 @@ class ListCalendarEventsRequest(BaseModel):
 
 
 class ListCalendarEventsResponse(BaseResponse):
+    server_current_time_utc: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="The current server time in UTC format. Use this along with event timezones to group events into 'Past' or 'Future'.",
+        ),
+    ]
     events: Annotated[
         list[CalendarEvent],
         Field(
@@ -117,7 +178,7 @@ class ListCalendarEventsResponse(BaseResponse):
     ]
 
 
-class ListMeetSessionsRequest(BaseModel):
+class ListMeetSessionsRequest(BaseRequest):
     meeting_code: Annotated[
         str,
         Field(
@@ -135,7 +196,7 @@ class ListMeetSessionsResponse(BaseResponse, ListMeetSessionsRequest):
     ]
 
 
-class ListMeetParticipantsRequest(BaseModel):
+class ListMeetParticipantsRequest(BaseRequest):
     meet_session_id: Annotated[
         str,
         Field(
@@ -153,7 +214,7 @@ class ListMeetParticipantsResponse(BaseResponse, ListMeetParticipantsRequest):
     ]
 
 
-class GetMeetRecordingRequest(BaseModel):
+class GetMeetRecordingRequest(BaseRequest):
     recording_id: Annotated[
         str,
         Field(
@@ -171,7 +232,7 @@ class GetMeetRecordingResponse(BaseResponse, GetMeetRecordingRequest):
     ]
 
 
-class GetMeetTranscriptRequest(BaseModel):
+class GetMeetTranscriptRequest(BaseRequest):
     transcript_id: Annotated[
         str,
         Field(

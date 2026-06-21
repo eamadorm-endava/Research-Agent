@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # --- Configuration ---
 
 #service accounts and IAM roles (exported for use in sub-scripts)
-export PROJECT_ID="ag-core-ops-auj0"
+export PROJECT_ID="host-ge-prod-endava-01-yd8e"
 export SA_NAME="terraform-sa-gemini-project"
 export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 USER_EMAIL="emmanuel.amador@endava.com"
@@ -25,9 +25,17 @@ REPO_OWNER="eamadorm-endava"
 BRANCH_NAME="" # Your specific development branch
 export GITHUB_REGION="us-central1"
 export GITHUB_CONNECTION_NAME="eamadorm-github-connection"
+export REPOSITORY_SLUG="${REPO_OWNER}-${REPO_NAME}"
 APPLY_SHARED_RESOURCES="${APPLY_SHARED_RESOURCES:-true}"
 
 echo "Starting bootstrap for project: $PROJECT_ID"
+
+# 0. Enable fundamental APIs
+echo "Enabling fundamental APIs (Service Usage, Resource Manager)..."
+gcloud services enable \
+    serviceusage.googleapis.com \
+    cloudresourcemanager.googleapis.com \
+    --project=$PROJECT_ID
 
 # 1. Create the Service Account
 if ! gcloud iam service-accounts describe $SA_EMAIL --project=$PROJECT_ID > /dev/null 2>&1; then
@@ -52,7 +60,8 @@ ROLES=(
     "roles/run.admin" # To deploy services to Cloud Run
     "roles/iam.serviceAccountUser" # To allow the SA to act as itself
     "roles/aiplatform.admin" # To deploy the agent to Agent Engine
-    "roles/secretmanager.secretAccessor" # To access secrets in Secret Manager
+    "roles/secretmanager.admin" # To create, access, and delete secrets in Secret Manager
+    "roles/cloudbuild.admin" # To manage (create and delete) Cloud Build triggers
     "roles/discoveryengine.admin" # To create Auth resources and register agents in Gemini Enterprise
     "roles/dlp.admin" # To manage DLP templates and jobs
     "roles/bigquery.admin" # To manage BigQuery datasets and tables

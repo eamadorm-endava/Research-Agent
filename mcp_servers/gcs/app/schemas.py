@@ -37,6 +37,60 @@ PROJECT_ID = Annotated[
 ]
 
 
+class AgentDependencies(BaseModel):
+    app_name: Annotated[
+        str,
+        Field(
+            description="The name of the calling application or agent.",
+        ),
+    ]
+    user_id: Annotated[
+        str,
+        Field(
+            description="The unique identifier of the user using the agent",
+        ),
+    ]
+    session_id: Annotated[
+        str,
+        Field(
+            description="The current session or conversation ID with the agent",
+        ),
+    ]
+
+
+class BaseRequest(BaseModel):
+    dependencies: Annotated[
+        Optional[AgentDependencies],
+        Field(
+            default=None,
+            exclude=True,
+            description=(
+                """
+                Parameters that needs to be injected by the framework. The LLM will not see this parameters due to exclude = True to avoid LLM hallucinations.
+                """
+            ),
+        ),
+    ]
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        """
+        Removes the dependencies field from the generated JSON Schema to prevent LLM hallucinations.
+
+        Args:
+            core_schema: Any -> The core Pydantic schema being processed.
+            handler: Any -> The schema generation handler.
+
+        Returns:
+            dict -> The modified JSON Schema dictionary.
+        """
+        json_schema = super().__get_pydantic_json_schema__(core_schema, handler)
+        json_schema = handler.resolve_ref_schema(json_schema)
+        if "properties" in json_schema and "dependencies" in json_schema["properties"]:
+            json_schema["properties"].pop("dependencies")
+        return json_schema
+
+
 class BaseResponse(BaseModel):
     execution_status: Annotated[
         Literal["success", "error"],
@@ -50,20 +104,6 @@ class BaseResponse(BaseModel):
 
 class AuthenticationError(Exception):
     """Raised when delegated OAuth authentication fails."""
-
-
-class BaseRequest(BaseModel):
-    user_identity_context: Annotated[
-        Optional[Dict[str, str]],
-        Field(
-            default=None,
-            description=(
-                "Optional opaque identity context supplied by the agent "
-                "(for example user principal, authorization resource ID, session ID). "
-                "Do not include raw bearer tokens in this payload field."
-            ),
-        ),
-    ]
 
 
 class CreateBucketRequest(BaseRequest):
@@ -89,13 +129,8 @@ class UpdateBucketLabelsResponse(UpdateBucketLabelsRequest, BaseResponse):
 
 
 class UploadObjectRequest(BaseRequest):
-    source_gcs_uri: Annotated[
-        str,
-        Field(
-            description="The source GCS URI (gs://bucket/object).",
-            pattern=r"^gs://[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]/.+$",
-        ),
-    ]
+    source_bucket_name: BUCKET_NAME
+    source_object_name: OBJECT_NAME
     destination_bucket: BUCKET_NAME
     filename: Annotated[
         str,
@@ -112,22 +147,13 @@ class UploadObjectRequest(BaseRequest):
             description="Optional folder path inside the destination bucket. Do not include leading/trailing slashes.",
         ),
     ]
-
-    @property
-    def source_bucket(self) -> str:
-        """Extracts the bucket name from the source GCS URI."""
-        import re
-
-        match = re.match(r"^gs://([^/]+)/", self.source_gcs_uri)
-        return match.group(1) if match else ""
-
-    @property
-    def source_object(self) -> str:
-        """Extracts the object path from the source GCS URI."""
-        import re
-
-        match = re.match(r"^gs://[^/]+/(.+)$", self.source_gcs_uri)
-        return match.group(1) if match else ""
+    metadata: Annotated[
+        Optional[Dict[str, Any]],
+        Field(
+            default=None,
+            description="Optional metadata to set on the object during upload.",
+        ),
+    ]
 
     @property
     def destination_path(self) -> str:
@@ -161,12 +187,18 @@ class GcsObjectMetadata(BaseModel):
 
 
 class ReadObjectResponse(BaseResponse):
-    bucket_name: BUCKET_NAME
-    object_name: OBJECT_NAME
     gcs_uri: Annotated[str, Field(description="The canonical GCS URI (gs://...).")]
+    mime_type: Annotated[str, Field(description="The MIME type of the file.")]
     metadata: Annotated[
         GcsObjectMetadata,
         Field(description="Strictly typed object metadata."),
+    ]
+    inject_file_data: Annotated[
+        bool,
+        Field(
+            default=True,
+            description="Internal flag to trigger zero-copy file ingestion.",
+        ),
     ]
 
 

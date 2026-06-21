@@ -13,15 +13,11 @@ variable "developers_group_email" {
   type        = string
 }
 
-variable "agent_service_account_email" {
-  description = "The email of the Agent's Service Account that will be granted the Run Invoker role."
-  type        = string
-}
 
 variable "project_services" {
-  description = "Service APIs to enable, mapped by project ID."
-  type        = map(list(string))
-  default     = {}
+  description = "Service APIs to enable."
+  type        = list(string)
+  default     = []
 }
 
 # EKB Pipeline service account and IAM roles
@@ -33,9 +29,9 @@ variable "ekb_pipeline_service_account_name" {
 }
 
 variable "ekb_pipeline_iam_project_roles" {
-  description = "Map of project IDs to a list of roles to be assigned to the service account."
-  type        = map(list(string))
-  default     = {}
+  description = "List of roles to be assigned to the service account."
+  type        = list(string)
+  default     = []
 }
 
 ################ Artifact Registry ################

@@ -7,6 +7,7 @@ from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
 from google.oauth2.credentials import Credentials
+import shutil
 
 from .config import GCS_API_CONFIG, GCS_AUTH_CONFIG
 from .schemas import AuthenticationError
@@ -112,6 +113,62 @@ class GCSManager:
             logger.error(f"Error updating labels for bucket {bucket_name}: {e}")
             raise
 
+    def grant_folder_iam_condition(
+        self,
+        bucket_name: str,
+        folder_prefix: str,
+        user_email: str,
+    ) -> None:
+        """Adds a conditional IAM binding granting roles/storage.objectAdmin on a specific user folder.
+
+        Args:
+            bucket_name: str -> The string name of the GCS bucket.
+            folder_prefix: str -> The specific folder path granting access to the user.
+            user_email: str -> The identity of the user.
+
+        Returns:
+            None -> Mutates the GCS IAM policy in place.
+        """
+        try:
+            bucket = self.client.bucket(bucket_name)
+            resource_prefix = (
+                f"projects/_/buckets/{bucket_name}/objects/{folder_prefix}"
+            )
+            condition_expr = f'resource.name.startsWith("{resource_prefix}")'
+            iam_policy = bucket.get_iam_policy(requested_policy_version=3)
+            iam_policy.version = 3
+
+            already_granted = any(
+                binding.get("role") == "roles/storage.objectAdmin"
+                and f"user:{user_email}" in binding.get("members", set())
+                and (binding.get("condition") or {}).get("expression") == condition_expr
+                for binding in iam_policy.bindings
+            )
+
+            if already_granted:
+                logger.debug(
+                    f"Folder-level IAM binding already exists for '{user_email}' on '{resource_prefix}'"
+                )
+                return
+
+            iam_policy.bindings.append(
+                {
+                    "role": "roles/storage.objectAdmin",
+                    "members": {f"user:{user_email}"},
+                    "condition": {
+                        "title": "uploader-folder-access",
+                        "expression": condition_expr,
+                    },
+                }
+            )
+            bucket.set_iam_policy(iam_policy)
+            logger.info(
+                f"Granted folder-level roles/storage.objectAdmin to '{user_email}' on '{resource_prefix}'"
+            )
+        except Exception as e:
+            logger.error(f"Error granting folder IAM condition on {bucket_name}: {e}")
+            raise
+
     def copy_blob(
         self,
         source_bucket_name: str,
@@ -150,26 +207,59 @@ class GCSManager:
             )
             raise
 
-    def download_object_as_bytes(self, bucket_name: str, object_name: str) -> bytes:
+    def stream_to_landing_zone(
+        self,
+        source_bucket_name: str,
+        source_object_name: str,
+        dest_bucket_name: str,
+        dest_object_name: str,
+        dest_gcs_manager: "GCSManager",  # GCSManager class, defined as string to avoid circular imports
+        content_type: Optional[str] = None,
+    ) -> storage.Blob:
         """
-        Downloads an object from GCS and returns its content as bytes.
+        Streams a blob from the source bucket (using this manager's credentials)
+        to the destination bucket (using dest_gcs_manager's credentials) chunk by chunk.
 
         Args:
-            bucket_name: The name of the bucket.
-            object_name: The name of the object to download.
+            source_bucket_name: The name of the source bucket.
+            source_object_name: The name of the source object.
+            dest_bucket_name: The name of the destination bucket.
+            dest_object_name: The name of the destination object.
+            dest_gcs_manager: A separate GCSManager with credentials for the destination.
+            content_type: Optional MIME type to set on the destination blob during upload.
 
         Returns:
-            bytes: The downloaded content.
+            storage.Blob: The new blob object in the destination.
         """
         try:
-            bucket = self.client.bucket(bucket_name)
-            blob = bucket.blob(object_name)
-            content = blob.download_as_bytes()
-            logger.info(f"Object {object_name} downloaded from bucket {bucket_name}.")
-            return content
-        except GoogleCloudError as e:
+            source_bucket = self.client.bucket(source_bucket_name)
+            source_blob = source_bucket.blob(source_object_name)
+
+            dest_bucket = dest_gcs_manager.client.bucket(dest_bucket_name)
+            dest_blob = dest_bucket.blob(dest_object_name)
+
+            logger.info(
+                f"Starting stream transfer of gs://{source_bucket_name}/{source_object_name} "
+                f"to gs://{dest_bucket_name}/{dest_object_name}"
+            )
+
+            # Requires google-cloud-storage >= 2.0.0
+            with source_blob.open("rb") as f_in:
+                # Set content_type here to avoid needing an extra update_object_metadata API call later
+                with dest_blob.open("wb", content_type=content_type) as f_out:
+                    # length=8 * 1024 * 1024 sets the streaming chunk size to exactly 8 Megabytes.
+                    # This prevents Out Of Memory (OOM) errors by only keeping 8MB of data in RAM at any given time.
+                    # As a result, the server can safely stream massive files (like gigabyte-sized videos or datasets)
+                    # without ever exceeding its container memory limits.
+                    shutil.copyfileobj(f_in, f_out, length=8 * 1024 * 1024)
+
+            logger.info(
+                f"Successfully streamed object to gs://{dest_bucket_name}/{dest_object_name}"
+            )
+            return dest_blob
+        except Exception as e:
             logger.error(
-                f"Error downloading object {object_name} from bucket {bucket_name}: {e}"
+                f"Error streaming blob from {source_bucket_name} to {dest_bucket_name}: {e}"
             )
             raise
 

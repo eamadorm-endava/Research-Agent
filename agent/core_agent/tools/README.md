@@ -1,50 +1,11 @@
-# Agent Tools
+# ADK Tools Documentation
 
-This module contains standalone ADK tools that are explicitly registered with agents to provide specific capabilities.
+This directory contains the custom tools registered with the ADK `AgentBuilder`. 
 
-## Tools Overview
+## Implementation Standards
+All ADK tools must follow these structural requirements:
 
-### `artifact_tools.py`
-- **`GetArtifactUriTool`**: Retrieves the canonical GCS URI for a file registered in the current session.
-- **`ImportGcsToArtifactTool`**: Registers an external GCS object as an ADK session artifact for zero-copy analysis.
-
-### `kb_tools.py`
-- **`TriggerEKBPipelineTool`**: POSTs a GCS document URI to the EKB pipeline `/ingest` endpoint, stores the returned `job_id` in session state under `pending_ingestions`, and returns a user-friendly confirmation.
-- **`CheckIngestionStatusTool`**: GETs the current status of a specific EKB ingestion job by `job_id` from the pipeline `/status/{job_id}` endpoint.
-
-Both tools authenticate against the EKB Cloud Run service using a GCP OIDC identity token obtained at call time via the `security` module.
-
-### `kb_schemas.py`
-Pydantic `BaseModel` schemas used by `kb_tools.py`:
-- **`TriggerEKBPipelineBatchRequest`** / **`TriggerEKBPipelineResponse`** — input and output for the trigger tool.
-- **`CheckIngestionStatusRequest`** / **`CheckIngestionStatusResponse`** — input and output for the status tool.
-
-### `time_tools.py`
-- **`GetCurrentTimeTool`**: Returns the current date and time in ISO 8601 format for the Central Time zone (America/Chicago). Used by the Research Specialist to anchor date calculations before calendar queries.
-
-## Registration
-
-Tools are registered per agent via `AgentBuilder.with_native_tools()`:
-
-```python
-# Research Specialist
-agent_builder.with_native_tools([
-    GetArtifactUriTool(),
-    ImportGcsToArtifactTool(),
-    GetCurrentTimeTool(),
-    load_artifacts,
-])
-
-# Ingestion Specialist
-agent_builder.with_native_tools([
-    GetArtifactUriTool(),
-    ImportGcsToArtifactTool(),
-    TriggerEKBPipelineTool(),
-    CheckIngestionStatusTool(),
-    load_artifacts,
-])
-
-# Coordinator
-agent_builder.with_native_tools([GetArtifactUriTool(), load_artifacts])
-```
-
+1. **Inherit from `BaseTool`**: Your tool class must extend `google.adk.tools.BaseTool`.
+2. **Implement `_get_declaration()`**: You must override this method to provide the Gemini `types.FunctionDeclaration`. This tells the LLM what the tool does and what parameters it requires.
+3. **Async Execution**: The business logic must be implemented inside an asynchronous `run_async(self, ...)` or `execute(...)` method as expected by the ADK wrapper.
+4. **Configuration**: If your tool requires environment variables (e.g., URLs, API keys), define a `config.py` in your tool's folder using Pydantic `BaseSettings`.

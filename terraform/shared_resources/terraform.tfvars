@@ -1,4 +1,4 @@
-main_region                  = "us-central1"
+# project_id and main_region are passed dynamically via -var in CI/CD
 artifact_registry_name       = "mcp-servers"
 ai_agent_landing_zone_bucket = "ai-agent-landing-zone"
 
@@ -9,7 +9,8 @@ services_to_enable = [
   "bigquery.googleapis.com",
   "artifactregistry.googleapis.com",
   "bigqueryconnection.googleapis.com",
-  "aiplatform.googleapis.com"
+  "aiplatform.googleapis.com",
+  "containerscanning.googleapis.com"
 ]
 
 ################ Naming Configuration ################

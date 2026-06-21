@@ -9,7 +9,7 @@ class JobStatus(str, Enum):
     ERROR = "error"
 
 
-JobIdType = Annotated[str, Field(description="Unique identifier for the ingestion job")]
+JobId = Annotated[str, Field(description="Unique identifier for the ingestion job")]
 
 
 class OrchestratorRunRequest(BaseModel):
@@ -41,7 +41,7 @@ class PipelineResult(BaseModel):
 class OrchestratorRunResponse(BaseModel):
     """Response schema for the initial async trigger."""
 
-    job_id: JobIdType
+    job_id: JobId
     status: Annotated[JobStatus, Field(description="Current status of the job")]
     message: Annotated[str, Field(description="Informational message about the job")]
 

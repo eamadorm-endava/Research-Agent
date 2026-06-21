@@ -4,7 +4,6 @@ from agent.core_agent.builder import AgentBuilder
 from agent.core_agent.config import (
     CoordinatorConfig,
     GCPConfig,
-    GoogleAuthConfig,
     BigQueryMCPConfig,
 )
 
@@ -14,7 +13,6 @@ def mock_configs():
     return {
         "agent": CoordinatorConfig(),
         "gcp": GCPConfig(PROJECT_ID="test-project", REGION="us-central1"),
-        "auth": GoogleAuthConfig(),
     }
 
 
@@ -24,7 +22,6 @@ def test_agent_builder_initialization(mock_vertex_client, mock_configs):
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
 
     mock_vertex_client.assert_called_once_with(
@@ -39,7 +36,6 @@ def test_agent_builder_fluent_chaining(mock_vertex_client, mock_configs):
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
 
     with (
@@ -66,7 +62,6 @@ def test_agent_builder_final_assembly(
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
 
     agent = builder.build()
@@ -87,7 +82,6 @@ def test_agent_builder_empty_registered_tools(mock_vertex_client, mock_configs):
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
 
     # No calls to with_skills or with_mcp_servers
@@ -102,7 +96,6 @@ def test_agent_builder_with_subagents(mock_vertex_client, mock_configs):
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
 
     mock_sub_agent = MagicMock()
@@ -124,7 +117,6 @@ def test_agent_builder_subagents_appear_in_sub_agents_param(
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
 
     mock_sub_agent = MagicMock()
@@ -139,46 +131,6 @@ def test_agent_builder_subagents_appear_in_sub_agents_param(
 
 @patch("agent.core_agent.builder.agent_builder.vertexai.Client")
 @patch("agent.core_agent.builder.agent_builder.Agent")
-def test_build_default_enables_artifact_rendering(
-    mock_agent_class, mock_vertex_client, mock_configs
-):
-    """Test that build() with default args sets after_agent_callback to render_pending_artifacts."""
-    from agent.core_agent.callbacks.artifact_rendering import render_pending_artifacts
-
-    builder = AgentBuilder(
-        agent_config=mock_configs["agent"],
-        gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
-    )
-    builder.build()
-
-    _, kwargs = mock_agent_class.call_args
-    assert kwargs["after_agent_callback"] is render_pending_artifacts
-
-
-@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
-@patch("agent.core_agent.builder.agent_builder.Agent")
-def test_build_disable_artifact_rendering_clears_callback(
-    mock_agent_class, mock_vertex_client, mock_configs
-):
-    """Test that build(enable_artifact_rendering=False) sets after_agent_callback to None.
-
-    Used for specialists that never produce file_data output (e.g., ingestion-only agents)
-    to skip the render_pending_artifacts callback overhead.
-    """
-    builder = AgentBuilder(
-        agent_config=mock_configs["agent"],
-        gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
-    )
-    builder.build(enable_artifact_rendering=False)
-
-    _, kwargs = mock_agent_class.call_args
-    assert kwargs["after_agent_callback"] is None
-
-
-@patch("agent.core_agent.builder.agent_builder.vertexai.Client")
-@patch("agent.core_agent.builder.agent_builder.Agent")
 def test_with_output_key_sets_key_on_agent(
     mock_agent_class, mock_vertex_client, mock_configs
 ):
@@ -186,7 +138,6 @@ def test_with_output_key_sets_key_on_agent(
     builder = AgentBuilder(
         agent_config=mock_configs["agent"],
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
     result = builder.with_output_key("research_context")
 
@@ -210,7 +161,6 @@ def test_build_passes_description_to_agent(
     builder = AgentBuilder(
         agent_config=ResearchAgentConfig(),
         gcp_config=mock_configs["gcp"],
-        auth_config=mock_configs["auth"],
     )
     builder.build()
 
