@@ -219,12 +219,23 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         )
         record.tools_used = completed_tools
 
-        # Async dispatch to BQ Service
-        try:
-            request = InsertMetricsRequest(record=record)
-            await self._bq_service.insert_metrics(request)
-        except Exception as e:
-            logger.error(f"Error calling MetricsBQService: {e}")
+        # Async dispatch to BQ Service (fire and forget to minimize plugin execution time)
+        request = InsertMetricsRequest(record=record)
+
+        async def _fire_and_forget_insert() -> None:
+            try:
+                await self._bq_service.insert_metrics(request)
+            except Exception as e:
+                logger.error(f"Error calling MetricsBQService: {e}")
+
+        # Keep a strong reference to the background task to prevent garbage collection mid-execution
+        import asyncio
+
+        if not hasattr(self, "_background_tasks"):
+            self._background_tasks = set()
+        task = asyncio.create_task(_fire_and_forget_insert())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def _extract_agent_response(self, invocation_context: InvocationContext) -> str:
         """
