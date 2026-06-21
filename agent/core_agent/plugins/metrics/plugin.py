@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Optional
 from loguru import logger
+import asyncio
 from google.genai import types
 
 from google.adk.plugins.base_plugin import BasePlugin
@@ -37,6 +38,7 @@ class ResponseTimeMetricsPlugin(BasePlugin):
             dataset_id=METRICS_CONFIG.dataset_id,
             table_id=METRICS_CONFIG.table_id,
         )
+        self._active_runs: dict[str, MetricsRecord] = {}
         # Fallback for tool tracking if context store isn't accessible, though we clean it up safely.
         self._active_tools: dict[str, ToolUsageRecord] = {}
 
@@ -52,11 +54,12 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         Returns:
             Optional[types.Content] -> Always returns None
         """
-        if "metrics_record" not in invocation_context.store:
-            invocation_context.store["metrics_record"] = MetricsRecord(
+        invocation_id = invocation_context.invocation_id
+        if invocation_id not in self._active_runs:
+            self._active_runs[invocation_id] = MetricsRecord(
                 session_id=invocation_context.session.id,
                 user_id=invocation_context.user_id,
-                prompt_id=invocation_context.invocation_id,
+                prompt_id=invocation_id,
                 prompt="",
                 initial_time=datetime.now(timezone.utc),
             )
@@ -82,16 +85,17 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         if user_message and user_message.parts:
             prompt_text = "".join(part.text for part in user_message.parts if part.text)
 
-        if "metrics_record" not in invocation_context.store:
-            invocation_context.store["metrics_record"] = MetricsRecord(
+        invocation_id = invocation_context.invocation_id
+        if invocation_id not in self._active_runs:
+            self._active_runs[invocation_id] = MetricsRecord(
                 session_id=invocation_context.session.id,
                 user_id=invocation_context.user_id,
-                prompt_id=invocation_context.invocation_id,
+                prompt_id=invocation_id,
                 prompt=prompt_text,
                 initial_time=datetime.now(timezone.utc),
             )
         else:
-            record: MetricsRecord = invocation_context.store["metrics_record"]
+            record: MetricsRecord = self._active_runs[invocation_id]
             record.prompt = prompt_text
             record.initial_time = datetime.now(timezone.utc)
         return None
@@ -202,8 +206,8 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         Returns:
             None -> No return
         """
-        record: MetricsRecord | None = invocation_context.store.pop(
-            "metrics_record", None
+        record: MetricsRecord | None = self._active_runs.pop(
+            invocation_context.invocation_id, None
         )
         if not record:
             return
@@ -229,7 +233,6 @@ class ResponseTimeMetricsPlugin(BasePlugin):
                 logger.error(f"Error calling MetricsBQService: {e}")
 
         # Keep a strong reference to the background task to prevent garbage collection mid-execution
-        import asyncio
 
         if not hasattr(self, "_background_tasks"):
             self._background_tasks = set()

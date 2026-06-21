@@ -30,8 +30,6 @@ async def test_metrics_plugin_happy_path(metrics_plugin, mock_bq_service):
     mock_invocation_ctx.invocation_id = "test-invocation-123"
     mock_invocation_ctx.session.id = "test-session-456"
     mock_invocation_ctx.user_id = "test-user-789"
-    # Provide a simple dictionary dict for the context store
-    mock_invocation_ctx.store = {}
 
     # Run before_run
     await metrics_plugin.before_run_callback(invocation_context=mock_invocation_ctx)
@@ -71,6 +69,14 @@ async def test_metrics_plugin_happy_path(metrics_plugin, mock_bq_service):
     # Run after_run
     await metrics_plugin.after_run_callback(invocation_context=mock_invocation_ctx)
 
+    if (
+        hasattr(metrics_plugin, "_background_tasks")
+        and metrics_plugin._background_tasks
+    ):
+        import asyncio
+
+        await asyncio.gather(*metrics_plugin._background_tasks)
+
     # Verify BigQuery insertion
     mock_bq_service.insert_metrics.assert_called_once()
     request = mock_bq_service.insert_metrics.call_args[0][0]
@@ -94,7 +100,6 @@ async def test_metrics_plugin_tool_error(metrics_plugin, mock_bq_service):
     mock_invocation_ctx.invocation_id = "test-invocation-123"
     mock_invocation_ctx.session.id = "test-session-456"
     mock_invocation_ctx.user_id = "test-user-789"
-    mock_invocation_ctx.store = {}
 
     await metrics_plugin.before_run_callback(invocation_context=mock_invocation_ctx)
 
@@ -117,6 +122,14 @@ async def test_metrics_plugin_tool_error(metrics_plugin, mock_bq_service):
     mock_invocation_ctx._get_events.return_value = []
     await metrics_plugin.after_run_callback(invocation_context=mock_invocation_ctx)
 
+    if (
+        hasattr(metrics_plugin, "_background_tasks")
+        and metrics_plugin._background_tasks
+    ):
+        import asyncio
+
+        await asyncio.gather(*metrics_plugin._background_tasks)
+
     mock_bq_service.insert_metrics.assert_called_once()
     request = mock_bq_service.insert_metrics.call_args[0][0]
     record = request.record
@@ -138,10 +151,17 @@ async def test_metrics_plugin_bigquery_error_caught_silently(
     mock_invocation_ctx.invocation_id = "test-invocation-123"
     mock_invocation_ctx.session.id = "test-session-456"
     mock_invocation_ctx.user_id = "test-user-789"
-    mock_invocation_ctx.store = {}
 
     await metrics_plugin.before_run_callback(invocation_context=mock_invocation_ctx)
     await metrics_plugin.after_run_callback(invocation_context=mock_invocation_ctx)
+
+    if (
+        hasattr(metrics_plugin, "_background_tasks")
+        and metrics_plugin._background_tasks
+    ):
+        import asyncio
+
+        await asyncio.gather(*metrics_plugin._background_tasks)
 
     # Should not raise exception and execute cleanly
     mock_bq_service.insert_metrics.assert_called_once()
