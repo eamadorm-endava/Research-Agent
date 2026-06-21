@@ -90,6 +90,10 @@ module "metrics_dataset" {
     delete_contents_on_destroy = true
   }
 
+  iam = {
+    "roles/bigquery.dataEditor" = ["serviceAccount:${module.ai-agent-service-account.email}"]
+  }
+
   tables = {
     (var.bq_metrics_table_id) = {
       labels              = {}
