@@ -6,7 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class MetricsConfig(BaseSettings):
     """Configuration for the Metrics Plugin."""
 
-    model_config = SettingsConfigDict(env_prefix="METRICS_")
+    model_config = SettingsConfigDict(
+        env_prefix="METRICS_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     PROJECT_ID: Annotated[
         str, Field(description="GCP Project ID", default="mock-project-id")
