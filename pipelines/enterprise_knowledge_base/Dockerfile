@@ -20,6 +20,9 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 
+# Install required shared libraries (like libstdc++) for C++ extensions such as PyMuPDF
+RUN apk add --no-cache libstdc++
+
 RUN adduser -D nonroot
 
 # Remove native package managers to ensure 0 CVEs in scanners (e.g., Artifact Registry)
