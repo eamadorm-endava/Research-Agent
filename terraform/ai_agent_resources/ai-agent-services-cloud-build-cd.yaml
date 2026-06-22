@@ -111,7 +111,8 @@ steps:
           --client-secret "$$MICROSOFT_OAUTH_CLIENT_SECRET" \
           --scopes "${_MICROSOFT_OAUTH_SCOPES}" \
           --auth-uri-base "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize" \
-          --token-uri "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/token"
+          --token-uri "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/token" \
+          --prompt "select_account"
 
   
   # Step 6: Deploy the AI-Agent to Agent Engine
