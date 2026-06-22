@@ -28,11 +28,18 @@ class OutlookClient:
             "Accept": "application/json",
         }
 
-    async def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _get(self, 
+                   path: str, 
+                   params: dict[str, Any] | None = None, 
+                   headers: dict[str, Any] | None = None) -> dict[str, Any]:
+        request_headers = self.headers.copy()
+        if headers:
+            request_headers.update(headers)
+
         async with httpx.AsyncClient(timeout=OUTLOOK_SERVER_CONFIG.timeout_seconds) as client:
             response = await client.get(
-                f"{OUTLOOK_SERVER_CONFIG.base_url}{path}",
-                headers=self._headers(),
+                f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}{path}",
+                headers=request_headers,
                 params=params,
             )
             response.raise_for_status()
@@ -41,8 +48,8 @@ class OutlookClient:
     async def _post(self, path: str, json: dict[str, Any] | None = None) -> dict[str, Any] | None:
         async with httpx.AsyncClient(timeout=OUTLOOK_SERVER_CONFIG.timeout_seconds) as client:
             response = await client.post(
-                f"{OUTLOOK_SERVER_CONFIG.base_url}{path}",
-                headers=self._headers(),
+                f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}{path}",
+                headers=self.headers,
                 json=json,
             )
             response.raise_for_status()

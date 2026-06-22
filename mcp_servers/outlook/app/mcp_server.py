@@ -1,4 +1,5 @@
 import asyncio
+import re
 from loguru import logger
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
@@ -60,6 +61,16 @@ def to_message_summary(raw: dict) -> MessageSummary:
     )
 
 
+def normalize_email_text(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    text = value.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    return text.strip()
+
+
 @mcp.tool()
 async def outlook_get_profile(request: GetProfileRequest) -> GetProfileResponse:
     try:
@@ -73,6 +84,7 @@ async def outlook_get_profile(request: GetProfileRequest) -> GetProfileResponse:
             user_id=profile.get("id"),
         )
     except Exception as exc:
+        logger.exception("Error during outlook_get_profile execution")
         return GetProfileResponse(
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
@@ -94,6 +106,7 @@ async def outlook_list_messages(request: ListMessagesRequest) -> ListMessagesRes
             messages=[to_message_summary(message) for message in raw_messages],
         )
     except Exception as exc:
+        logger.exception("Error during outlook_list_messages execution")
         return ListMessagesResponse(
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
@@ -110,6 +123,7 @@ async def outlook_search_messages(request: SearchMessagesRequest) -> SearchMessa
             messages=[to_message_summary(message) for message in raw_messages],
         )
     except Exception as exc:
+        logger.exception("Error during outlook_search_messages execution")
         return SearchMessagesResponse(
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
@@ -141,7 +155,10 @@ async def outlook_get_message(request: GetMessageRequest) -> GetMessageResponse:
             ],
             received_at=raw.get("receivedDateTime"),
             body_content_type=body.get("contentType"),
-            body=body.get("content"),
+            body_text=body.get("content"),
+            body_markdown=normalize_email_text(body.get("content")),
+            body_html_available=False,
+            body_preview=raw.get("bodyPreview"),
             attachments=[
                 {
                     "id": attachment.get("id"),
@@ -153,6 +170,7 @@ async def outlook_get_message(request: GetMessageRequest) -> GetMessageResponse:
             ],
         )
     except Exception as exc:
+        logger.exception("Error during outlook_get_message execution")
         return GetMessageResponse(
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
@@ -176,6 +194,7 @@ async def outlook_create_draft(request: CreateDraftRequest) -> CreateDraftRespon
             web_link=draft.get("webLink"),
         )
     except Exception as exc:
+        logger.exception("Error during outlook_create_draft execution")
         return CreateDraftResponse(
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
@@ -197,6 +216,7 @@ async def outlook_send_mail(request: SendMailRequest) -> SendMailResponse:
 
         return SendMailResponse(sent=True)
     except Exception as exc:
+        logger.exception("Error during outlook_send_mail execution")
         return SendMailResponse(
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
@@ -211,6 +231,7 @@ async def outlook_send_draft(request: SendDraftRequest) -> SendDraftResponse:
 
         return SendDraftResponse(sent=True)
     except Exception as exc:
+        logger.exception("Error during outlook_send_draft execution")
         return SendDraftResponse(
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),

@@ -143,7 +143,19 @@ class GetMessageResponse(BaseResponse):
     cc_recipients: list[str] = Field(default_factory=list)
     received_at: datetime | None = None
     body_content_type: str | None = None
-    body: str | None = None
+    body_text: str | None = Field(
+        default=None,
+        description="Plain text representation of the email body.",
+    )
+    body_markdown: str | None = Field(
+        default=None,
+        description="Chat-friendly Markdown representation of the email body.",
+    )
+    body_html_available: bool = Field(
+        default=False,
+        description="Whether HTML representation of the email body is available.",
+    )
+    body_preview: str | None = None
     attachments: list[AttachmentMetadata] = Field(default_factory=list)
 
 

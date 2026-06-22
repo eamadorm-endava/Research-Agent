@@ -1,275 +1,150 @@
 ---
 name: knowledge-discovery
-description: Expert protocol for high-fidelity data retrieval and analysis using Contextual Anchoring and Parallel Discovery.
+description: Expert protocol for high-fidelity data retrieval across Corporate and Personal data sources. Triggered on ANY request to find, search, investigate, or summarize information, whether broad or narrow.
 ---
 
 ## Pre-Search Validation
+Before proceeding, verify whether the user has clearly stated the target of the search.
+**A query is considered unclear when it:**
+- Expresses intent without a topic (e.g., "search the EKB", "conduct research", "look it up").
+- Names only a source, not a subject (e.g., "check the knowledge base", "query the EKB", "search SharePoint").
+- Is too vague to form a meaningful search (e.g., "find documents", "search for info").
 
-Before doing anything else, check whether the user has clearly stated what they want to search for.
-
-**A query is unclear when it:**
-- Expresses intent without a topic (e.g., "search the EKB", "do a research", "look it up", "find something")
-- Names only a source, not a subject (e.g., "check the knowledge base", "query the EKB")
-- Is too vague to form a meaningful search (e.g., "find documents", "search for info")
-
-**When the query is unclear**, stop and ask:
+**When the query is unclear**, execution must halt. Do not guess, infer, or proceed with a search. Respond EXACTLY with:
 > "What topic, document, project, or information would you like me to search for?"
 
-Do not guess, infer, or proceed with a search. Wait for the user's answer before continuing.
+## Phase 0: Pre-Search Keyword Extraction
+Before launching any search tools, internally analyze the user's prompt to distill the core subjects.
+- Extract the primary entities (e.g., project names, company names, specific technologies).
+- Strip these down into **pure keywords of maximum 1 or 2 words** (e.g., extracting "Alpha" from "Project Alpha status report").
+- These distilled keywords MUST be used for all keyword-based corporate searches in Phase 1 to ensure high recall. NEVER use the raw, conversational user query for keyword parameters.
 
-**When the query is clear** (contains at least one concrete subject — a project name, company, person, technology, document title, or specific question), proceed immediately to Intent Classification below.
+## Phase 1: Massive Parallel Corporate Discovery
 
----
+**CRITICAL RULE:** Do NOT launch personal data tools in this step unless the user explicitly declared them in their prompt. Corporate data MUST be searched first.
+**OMNI-SEARCH PROTOCOL:** If the user explicitly asks to search "all sources", "everywhere", or "all data" (e.g. "en todas las fuentes posibles"), you MUST bypass the sequential flow. You must launch **both Corporate (Phase 1) and Personal (Phase 4) listing/search tools concurrently** in the very first turn.
 
-## Intent Classification
-Before any retrieval, classify the user's request into one of two modes:
+Execute exactly 6 corporate tools CONCURRENTLY in a single parallel turn:
+1. `ekb_semantic_search`: `query` using the specific core request extracted from the user's prompt (e.g., "Alpha project status" rather than "Hello, can you tell me about the Alpha project status?"). Do NOT use the raw conversational prompt.
+2. `ekb_keyword_search`: `keyword` using the distilled 1-2 word entities from Phase 0.
+3. `search_jira_issues`: JQL mapping to the distilled 1-2 word entities.
+4. `search_confluence_pages`: CQL expression mapping to the distilled 1-2 word entities.
+5. `search_sharepoint_sites`: broad business keyword (1-2 words max) from Phase 0.
+6. `list_calendar_events`: call with `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
 
-**Targeted Mode** — user asks for a precise, narrow fact, or mentions a specific document:
-- "What is the project duration?"
-- "Give me the start date of the SoW"
-- "What does the contract say about pricing?"
-- "Search for a file called Innovation SoW and tell me the main points of it"
-- "What budget was approved for project X?"
-→ Converge fast. Use the two-wave EKB search + GCS long-context escalation.
+## Phase 2: Strict Relevance Filtering
+Evaluate the returned corporate data. If a source returns a keyword match that is semantically irrelevant to the user's prompt, you MUST completely ignore it to avoid distractions. NEVER include irrelevant matches in the final response or the references table.
 
-**Discovery Mode** — user asks a broad or exploratory question:
-- "Tell me about project X"
-- "What do we know about company Y?"
-- "Find all documents related to Z"
-- "Summarize everything we have on this topic"
-- "Give me all the projects that are related with the technology X"
-- "Tell me all the projects related to the specific sector Y"
-→ Cast a wide net across all sources. Synthesize across EKB, Calendar, BQ, and Drive.
+## Phase 3: Corporate Response & Mandatory UX Flow
+Generate the response based ONLY on the relevant corporate data.
+**CRITICAL REQUIREMENT:** At the end of the response, you MUST:
+1. Explicitly list which corporate sources were used to generate the answer.
+2. Conditionally ask the user the exact prompt below. **DO NOT ask this if:** you are just responding to conversational chat (e.g., "thanks"), you did not perform a search, or you already searched personal data sources.
+> "This information was obtained from corporate data sources. Would you like me to also search in your personal data sources (Google Drive, OneDrive, Cloud Storage buckets, and BigQuery tables)? It might take a few minutes."
 
----
+## Phase 4: Personal Source Expansion
+ONLY if the user replies "Yes" (or explicitly requested it upfront), execute the personal data source tools.
 
-## Targeted Mode Protocol
+**Anchor Extraction (Context Graph)**:
+Before searching personal data, build a relational map from the merged corporate results to generate enriched keywords. Do NOT just send the raw user query.
+- **Identities**: issue keys, confluence page names, sharepoint site/page ids, summaries.
+- **Context**: description/body texts — key for generating personal data listing keywords.
+- **Entities**: company names (clients/partners), technologies, technical stacks.
+- **Relational Mapping**: map project names to their associated companies and tech stacks. Use these mapped pairs as the primary enriched keywords for the personal data listing tools.
+- **People**: uploader_email, reporter, assignee, and stakeholders mentioned in summaries.
 
-### Wave 1 — Broad Semantic + Keyword Discovery
-Run both calls simultaneously:
+Use these enriched, mapped keywords (1 to 2 words max) to execute the personal data source tools concurrently.
 
-**1a. Semantic Search** — `ekb_semantic_search`:
-- `query`: user's keywords or document name — strip intent words (`"give me"`, `"what is"`, `"duration"`, `"status"`, `"date"`, `"summary"`)
-- `top_k`: `15`
+## Phase 5: Deep Content Extraction (Universal)
+Whether you are extracting context from personal data (Phase 4) or the user is asking to deep dive into a corporate result (Phase 3), you MUST execute the respective deep-read tools (`get_file_text`, `read_file`, `get_sharepoint_site_page`, `read_confluence_page`, `get_jira_issue_details`, etc.) on the top hits to extract the full body text and generate an enriched, in-depth summary. Do not stop at just listing titles.
 
-Do NOT include `filename`, `domain`, `project_filter`, or `trust_level`.
-
-**1b. Keyword Search** — `ekb_keyword_search`:
-- `keyword`: the primary entity from the user's query — a technology name, sector, company, or person. Strip all intent words and keep only a single word (e.g., `"React"`, `"healthcare"`, `"banking"`, `"Acme"`).
-
-**After both complete — merge and store:**
-- Build a unified file pool: combine all `filename` values from both results, deduplicated.
-- From semantic results, also extract and store: `gcs_uri`, `chunk_data`, `document_summary`, `domain`.
-- From keyword results, also extract and store: `gcs_uri`, `uploader_email`, `description`.
-- Files that appear in both results are the highest-confidence anchors and must be ranked first for Wave 2.
-
-**Zero-result fallback rules:**
-- Both return zero → skip Wave 2 and GCS Long Context. Proceed immediately to Calendar Search Protocol + Drive Search Protocol in parallel. **Keyword source for Drive**: extract entities (companies, projects, technologies, people) directly from the user's original prompt — do not wait for EKB results. These user-prompt keywords are the primary input for Drive (Stage 0 entity extraction). Do not use EKB-derived terms as input because there are none.
-- Only `ekb_semantic_search` returns zero → use keyword search results as the sole anchor pool and proceed to Wave 2 normally.
-- Only `ekb_keyword_search` returns zero → proceed to Wave 2 using semantic results only.
-
-### Wave 1.5 — Focused Semantic Search on Keyword-Identified Files
-*(Run immediately after Wave 1 completes. Only if `ekb_keyword_search` returned results.)*
-
-For every file returned by `ekb_keyword_search`, launch one `ekb_semantic_search` call. Run all simultaneously:
-- `query`: the user's specific final information need — articulate the exact answer being sought, not the user's raw phrasing (e.g., for "give me React projects", use "React project name, client, deliverables, and outcomes")
-- `filename`: exact verbatim value from the `ekb_keyword_search` result `filename` field — never paraphrase
-- `top_k`: `10`
-
-Merge the returned chunks into the unified file pool from Wave 1.
-
-**Hard Rules:**
-- Maximum 10 parallel calls. If `ekb_keyword_search` returned more than 10 files, take the first 10.
-- `filename` MUST come verbatim from an `ekb_keyword_search` result in this session.
-- Files searched here must NOT be re-searched in Wave 2.
-
-### Wave 2 — Per-File Focused Search (only if Wave 1 returned results)
-Select the top 3 most relevant files from Wave 1, ranked by ascending cosine distance, that were NOT already covered in Wave 1.5. For each, launch one `ekb_semantic_search` call. Run all simultaneously:
-- `query`: the user's actual information need — what they want to know, not the filename
-- `filename`: exact verbatim value from the `filename` field of a Wave 1 result — never paraphrase or rewrite
-- `top_k`: `30`
-
-Run the **CALENDAR SEARCH PROTOCOL** and the **DRIVE SEARCH PROTOCOL** (from the system prompt) in parallel with Wave 2, starting all three immediately after Wave 1 completes. Both Calendar and Drive run regardless of Wave 1 outcome — they are never skipped, even when EKB returned results. **Keyword priority for Drive**: first use terms extracted from the user's original prompt (company names, project names, technologies, people); then supplement with any entities derived from Wave 1 EKB results.
-
-**Hard Rules:**
-- Run all Wave 2 calls simultaneously.
-- `filename` MUST come verbatim from a prior `ekb_semantic_search` result `filename` field in this session. Never use user's phrasing.
-- `top_k` must be `30` in Wave 2 to maximize chunk coverage per file.
-
-### GCS Long Context (only if Wave 1 + Wave 2 chunks are insufficient)
-Trigger ONLY when both waves returned results but the specific data was NOT found within the returned chunks. Do NOT trigger if Wave 1 returned zero results — go to Drive Search instead.
-
-For the top 3 files used in Wave 2, run all steps in parallel (following the **GCS FILE READING RULE** from the system prompt):
-1. Parse each `gcs_uri` → `bucket_name` (everything between `gs://` and the first `/`) and `object_name` (everything after that first `/`).
-2. Call `read_object(bucket_name=<bucket_name>, object_name=<object_name>)`. The system wrapper will automatically intercept this call and load the file natively into your context.
-
-### Drive Search (Targeted Mode)
-Drive search always runs — it is not conditional on EKB results. It runs in parallel with Wave 2 and Calendar (see above). Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**:
-1. **Primary**: entities and keywords extracted directly from the user's original prompt (companies, projects, technologies, people).
-2. **Supplementary**: entities found in Wave 1 / Wave 1.5 EKB results — add these to the keyword pool after user-prompt extraction to expand coverage.
-3. **EKB empty**: if Wave 1 returned zero results, proceed with user-prompt keywords only.
+### EKB vs. Personal Data Definitions
+The current Google Cloud project ID is `<project_id>`. Use this logic to distinguish EKB vs Personal sources:
+- **Corporate EKB Buckets**: Any GCS bucket starting with `<project_id>-kb-` (e.g., `<project_id>-kb-finance`, `<project_id>-kb-hr`, `<project_id>-kb-it`).
+  - **CRITICAL RESTRICTION**: NEVER search in infrastructural buckets like `<project_id>-kb-landing-zone` or `<project_id>-kb-rag-staging`. Only target domain-specific buckets.
+- **Corporate EKB Datasets**: The `knowledge_base` BigQuery dataset.
+- **Personal Sources**: Google Drive, Microsoft OneDrive, and ANY BigQuery table or Cloud Storage bucket that does NOT match the EKB patterns above.
 
 ---
 
-## Discovery Mode Protocol
+## Data Source Tool Gotchas (MUST READ)
 
-### Phase 1: Contextual Anchoring (The Hook)
-1. **Parallel Search**: Run both calls simultaneously:
+### UNIVERSAL READING LIMITS
+- **Max Concurrency Per Turn**: You may execute a MAXIMUM of **5 deep-read tools concurrently** in a single turn.
+- **Dynamic Max Per Source**: 
+  - **Multi-Source (Omni-Search)**: If you are reading from multiple data sources in the same loop, you may read a maximum of **2 files per data source**.
+  - **Single-Source**: If you are doing a deep dive into only a **single data source** (e.g., only Confluence, or only SharePoint), you may use your full concurrency limit to read up to **5 files from that single source**.
+- **Max Loop Limit**: You are allowed to iterate up to a maximum of **8 internal reading loops**.
 
-   **1a. Semantic Search** — `ekb_semantic_search`:
-   - `query`: user's natural language question
-   - `top_k`: `10`
+### EKB DEEP DIVE PREFERENCE
+- For EKB data (vectorized in BQ), you MUST prefer using `ekb_semantic_search` to obtain more targeted information.
+- ONLY use `read_object` to read the full GCS file from a domain bucket if the absolute full context of the entire document is needed, or if the user explicitly requires full reading to be accurate and precise.
 
-   Never add `filename`, `domain`, `project_filter`, or `trust_level`.
+### SHAREPOINT
+- **Sequence**: 1. `search_sharepoint_sites`, 2. `discover_sharepoint_site_content`, 3. `list_sharepoint_site_drives` / `list_sharepoint_site_lists` / `list_sharepoint_site_pages`, 4. `get_sharepoint_site_page` / `ingest_sharepoint_drive_item`.
+- Never invent IDs; use IDs returned by prior SharePoint tool calls. Do not expose raw IDs in the final answer.
 
-   **1b. Keyword Search** — `ekb_keyword_search`:
-   - `keyword`: the primary entity from the user's query — a technology name, sector, company, or person. Strip all intent words and keep only a single word (e.g., `"React"`, `"healthcare"`, `"banking"`, `"Acme"`).
+### GOOGLE DRIVE
+- `list_files(file_name=<keyword>)` — returns list of files. Strip keywords to max two words, but **single-word keywords are heavily preferred** for maximum discovery.
+- `get_file_text(file_id=<id>)` — extracts text using a real `file_id`.
 
-2. **Anchor Extraction**: Build a "Context Graph" from the merged results of both calls:
-   - **Identities**: `filename`, `gcs_uri`, `document_summary` / `description`.
-   - **Context**: `description` — key for generating Phase 2 Drive keywords.
-   - **Entities**: company names (clients/partners), technologies, technical stacks.
-   - **Relational Mapping**: map project names to their associated companies and tech stacks — use these as primary anchors for Phase 2 Drive and Calendar searches.
-   - **People**: `uploader_email` and stakeholders mentioned in summaries.
-   - **Locations**: `gcs_uri` values (for GCS deep-dive in Phase 3 Level 1).
+### MICROSOFT ONEDRIVE
+- `find_items(query=<keyword>)` — searches OneDrive.
+- `read_file(file_id=<id>)` — extracts text using a real `file_id`.
 
-3. **Focused Keyword-File Search**: Immediately after Anchor Extraction, for every file returned by `ekb_keyword_search`, launch one `ekb_semantic_search` call. Run all simultaneously:
-   - `query`: the user's specific final information need — articulate the exact answer being sought, not the raw question
-   - `filename`: exact verbatim value from an `ekb_keyword_search` result `filename` field — never paraphrase
-   - `top_k`: `10`
+### CALENDAR
+- The response schema includes `server_current_time_utc`. Use this along with the events' timezones to accurately classify events as `Past` or `Future` relative to the server time.
+- Display Format: render each event as a bullet-point block (Title, Time, Attendees, Meet link, Attachments, Description) separated by `---`.
 
-   Merge the returned chunks into the Context Graph. Files searched here must NOT be re-searched in Phase 3 Level 1.
+### BIGQUERY
+1. `list_tables` to confirm which tables exist.
+2. `get_table_schema` if column names can't be inferred.
+3. `execute_query` with validated SQL.
 
-   **Hard Rules:**
-   - Maximum 10 parallel calls. If `ekb_keyword_search` returned more than 10 files, take the first 10.
+### JIRA & CONFLUENCE
+- **Jira**: `search_jira_issues` followed by `get_jira_issue_details` if needed.
+- **Confluence**: `search_confluence_pages` followed by `read_confluence_page` if needed. Returns `inject_file_data: True`.
 
-4. **Expansion**: If results are narrow, broaden using extracted entities before moving to Phase 2.
-   - **Zero-Result Fallback**: If both searches return no results, extract keywords directly from the user's original prompt (company names, project names, technologies, dates, people) and use those as Phase 2 anchors. Skip Phase 2b (no BQ project context to anchor against).
-   - If only one of the two searches returns results, use those results as the sole anchor pool and proceed normally.
+### GCS FILE READING
+- If reading a file directly from GCS, parse the GCS URI into `bucket_name` and `object_name`, and call `read_object`. The system intercepts it and loads it natively.
 
-### Phase 2: Parallel Context Acquisition (Broad Search)
-Launch all the following simultaneously. *Efficiency Rule: never repeat the same tool call with the same parameters in the same session.*
-
-**2a. Calendar** — Follow the **CALENDAR SEARCH PROTOCOL** defined in the system prompt exactly.
-
-**2b. BigQuery (Structural Context)** — Follow the **BIGQUERY QUERY PROTOCOL** defined in the system prompt. Target the `documents_metadata` table inside the `knowledge_base` dataset. Retrieve metadata (summaries, domain, project associations) linked to the entities identified in Phase 1. Skip if Phase 1 returned zero EKB results. Include always the filter: where latest = true. So it always get the last version of the document.
-
-**2c. Google Drive** — Follow the **DRIVE SEARCH PROTOCOL** defined in the system prompt (Stage 0 through Wave 2 only). Do NOT execute Stage 4 file reading in Phase 2 — file reading is deferred to Phase 3 Level 3. **Keyword priority for Stage 0 entity extraction and Stage 1 keyword decomposition**: (1) primary — entities and keywords extracted directly from the user's original prompt; (2) supplementary — entities found in Phase 1 EKB results, added to the keyword pool after user-prompt extraction to expand coverage. If Phase 1 returned zero results, proceed with user-prompt keywords only.
-
-### Phase 3: Synthesis & Targeted Deep Dive (Escalation Path)
-
-**Level 1: EKB Deep-Dive (GCS)**
-For the top 3 high-relevance `gcs_uri` values from Phase 1 that were NOT already covered in Phase 1 step 3, run in parallel (following the **GCS FILE READING RULE** from the system prompt):
-1. Parse each `gcs_uri` → `bucket_name` (everything between `gs://` and the first `/`) and `object_name` (everything after).
-2. Call `read_object(bucket_name=<bucket_name>, object_name=<object_name>)`. The system wrapper will automatically intercept this call and load the file natively into your context.
-
-**Level 2: Calendar Deep-Dive (Personal Context)**
-From relevant events found in Phase 2a, apply the Selective Attachment Reading rule (from the **CALENDAR SEARCH PROTOCOL** in the system prompt): call `get_file_text(file_id=<EventAttachment.file_id>)` only when `EventAttachment.title` or `CalendarEvent.description` contains a term directly relevant to the query.
-
-**Level 3: Drive Iterative Discovery**
-Execute Stage 4 of the **DRIVE SEARCH PROTOCOL** (Prioritized File Reading) against the candidate pool built in Phase 2c: High-triage files first, then Medium. At most 5 `get_file_text` calls per turn, all in parallel. If answer not found, extract new keywords from text and run one additional Wave 1 cycle. Maximum 1 extra cycle.
-
-**Level 4: Relationship Fallback (Implicit Mapping)**
-Analyze EKB metadata (descriptions, summaries, tech stacks) for shared technologies, industry themes, or generalities. Use these broader themes to re-evaluate Phase 2 results for high-fidelity implicit relationships.
-
-**Level 5: Final Conclusion**
-Produce the standard output. Write `No information found` under any section where data is missing. The `## Extend Search?` section from **Final Escalation** below MUST appear — omitting it when Level 5 is reached means the task is incomplete.
+### MICROSOFT OUTLOOK
+- `list_messages()` to list messages.
+- `search_messages()` to search messages with given keywords.
+- `send_mail()` to send emails.
 
 ---
 
-## Cross-Mode Fallback
+## Output Format (Full Report Mode)
+When synthesizing information from multiple sources, structure your final response using the exact markdown template below. **Do NOT include the "Output Format" title in your response.**
 
-**Targeted → Discovery Fallback:**
-If Targeted Mode has exhausted all steps without finding the answer, continue with Discovery Mode's unique steps — skipping any tool calls already made:
-- Run Phase 2b BQ `documents_metadata` query if not already executed.
-- Re-run Drive search with full keyword decomposition if the entity map differs meaningfully from keywords already used. Do not repeat identical `list_files` calls.
-- Do NOT repeat `ekb_semantic_search`, `ekb_keyword_search`, `get_current_time`, or `list_calendar_events` calls already made.
+### Formatting Rules
+1. **STRICT NO-MONOLOGUE RULE:** You MUST NOT output conversational filler, internal thoughts, or intermediate status updates (e.g., "I have searched X", "I am now reading Y"). Your final response must strictly start with `## Summary`.
+2. **Meeting Sections:** Omit the "Upcoming Meetings" and "Previous Meetings" sections entirely if no calendar search was executed or if no events exist in those timeframes.
+3. **Reference Table Source Names:** Only use `BigQuery` or `Cloud Storage` for Personal Sources in the References table. EKB buckets and `knowledge_base` datasets must be attributed as `EKB`.
+4. **Personal Search Follow-Up Prompt:** If you retrieved data from corporate sources AND you have NOT yet searched personal data, you must display the following question (outside of the Reference table)
+"This information was obtained from corporate data sources. Would you like me to also search in your personal data sources (Google Drive, OneDrive, Cloud Storage buckets, and BigQuery tables)? It might take a few minutes."
 
-**Discovery → Targeted Fallback:**
-If Discovery Mode has exhausted all phases (Phase 1 through Level 4) without finding the answer, run Targeted Mode's unique steps — skipping any tool calls already made:
-- Wave 2 per-file EKB searches (`top_k=30`) using the top 3 filenames confirmed in Phase 1 or Level 1 results.
-- GCS Long Context for those 3 files if their content was not already loaded in Level 1.
-- Do NOT repeat Wave 1, calendar calls, Drive calls, or BQ calls already made.
+### Output Template
+```markdown
+## Summary
+[1–2 paragraphs. Brief context of what was found across the systems, the core topic, and its relevance. No bullet points.]
 
----
-
-## Final Escalation
-Trigger ONLY after both modes (including their cross-mode fallbacks) are fully exhausted.
-
-Produce the standard output with `No information found` under all sections, then append the mandatory `## Extend Search?` section verbatim:
-
-> "I have searched the Enterprise Knowledge Base, Google Calendar, Google Drive, and BigQuery using the available context and found no matching data. Would you like me to extend the search to your personal GCS buckets or BigQuery tables? If yes, please share the bucket name, path prefix, or table/dataset identifier and I will search there directly."
-
-When the user provides a personal GCS target: use `list_objects(bucket_name=<name>, prefix=<prefix>)` to list objects, then follow the GCS FILE READING RULE to load relevant files.
-When the user provides a personal BQ target: follow the BIGQUERY QUERY PROTOCOL using `list_datasets` + `list_tables` + `execute_query`.
-
----
-
-## Mandatory Output Structure
-Before writing the response, classify the question:
-- **Concise Mode**: clear, narrow answer (a single fact, name, date, count, status, or yes/no).
-- **Full Report Mode**: answer requires synthesizing across multiple sources, documents, or time periods.
-
----
-
-#### Concise Mode
-Respond directly in plain prose (1–3 sentences). Always append the `## References` table when any data source was used — never omit it. Skip all other sections.
-
----
-
-#### Full Report Mode
-Cross-correlate all findings into a unified narrative before writing. Follow this exact section order. If genuinely no data exists for a section, write `No information found` under that heading — do not skip it. **Exception: the `## Upcoming Meetings` and `## Previous Meetings` sections** — omit both entirely if no calendar search was executed or if calendar searches returned no events relevant to the topic. Do not render these sections with placeholder text in that case.
-
-**Summary** *(always present)*
-1–2 paragraphs. Brief context of what was found, the topic, and its relevance. No bullet points.
-
----
-
-## Key Points
-Bullet list of the most important facts, decisions, dates, and findings extracted from the sources.
-
----
+## Key Findings
+- [Bullet list of the most important facts, decisions, ticket updates, page entries, and dates extracted from the sources.]
 
 ## Stakeholders
-Bullet list of people involved: name, role or relationship to the topic, and contact email when available.
-
----
+- [Name (Role) - Email]
 
 ## Upcoming Meetings
-*(omit this section entirely if no calendar search was run)*
-List ONLY meetings after the current date related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
-If no relevant meetings are found: `No upcoming meetings found for this topic.`
-
----
+[List meetings occurring after the current server time. Separate with `---`]
 
 ## Previous Meetings
-*(omit this section entirely if no calendar search was run)*
-List past meetings related to the topic. Render each using the CALENDAR EVENT DISPLAY FORMAT from the system prompt. Separate with `---`.
-If no relevant meetings are found: `No previous meetings found for this topic.`
-
----
-
-## Extend Search?
-*(ONLY when Final Escalation is reached)*
-Include the escalation message verbatim from the **Final Escalation** section above.
-
----
+[List meetings that occurred before the current server time. Separate with `---`]
 
 ## References
-*(mandatory in both modes whenever any data source was used — omit only if the response is based solely on the user's own input with no tool results)*
-Include ONLY files, documents, and events from which data was explicitly extracted to produce this response. Never include broad discovery results or unused tool outputs.
+| Source | Project Name | Filename / Item Name | Owner / Assignee | Created at / Last Update |
+|:---:|:---:|:---:|:---:|:---:|
+| [EKB/Drive/OneDrive/SharePoint/etc] | [Project] | [Filename] | [Email] | [YYYY-MM-DD] |
 
-| Source | Project Name | Filename | Owner | Created at / Last Update |
-|:---:|:---:|:---:|:---:|
-| EKB / Drive / Cloud Storage / BigQuery | Human-readable file or event name | Author email or display name | `YYYY-MM-DD` |
-
-- **Source**: exactly one of `EKB`, `Drive`, `Cloud Storage`, or `BigQuery`.
-  - **`EKB`**: use for ANY data that originates from the Enterprise Knowledge Base — this includes results from `ekb_semantic_search`, data retrieved from the `documents_chunks` or `documents_metadata` tables, and GCS URIs returned by those results (domain-specific buckets). Never expose the dataset name, table name, or GCS URI in the Source column.
-  - **`Drive`**: Google Drive files retrieved via the Drive MCP tools.
-  - **`Cloud Storage`**: GCS files read directly from personal or non-EKB buckets (e.g., user-provided buckets in Final Escalation).
-  - **`BigQuery`**: results from non-EKB BigQuery tables queried via `execute_query` against user-provided datasets.
-- **Project Name**: project name only. NEVER show raw IDs, hashes, or URIs. Example: `Alpha`, `Beta`
-- **Filename**: human-readable name only. NEVER show raw IDs, hashes, GCS URIs, dataset names, or table names.
-- **Drive entries**: only cite actual files — never include folders (`mime_type = "application/vnd.google-apps.folder"`) as references, even if a folder was used during discovery.
-- **Owner**: uploader email, document owner, or event organizer. `Unknown` if unavailable.
-- **Created at / Last Update**: `YYYY-MM-DD`. `Unknown` if unavailable.
+```
