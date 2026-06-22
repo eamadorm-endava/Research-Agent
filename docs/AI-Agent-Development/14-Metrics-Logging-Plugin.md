@@ -20,7 +20,7 @@ The `ResponseTimeMetricsPlugin` utilizes the Model Context Protocol / ADK plugin
 
 ## 2. BigQuery Table Schema
 
-The tracking data is written to the table `ag-core-ops-auj0.agent_metrics.response_times` with the following schema:
+The tracking data is written to a dynamic BigQuery table configured via environment variables (`METRICS_PROJECT_ID.METRICS_DATASET_ID.METRICS_TABLE_ID`). By default, it uses the `agent_metrics.response_times` dataset and table with the following schema:
 
 | Field Name | Type | Mode | Description |
 | :--- | :--- | :--- | :--- |
@@ -51,15 +51,9 @@ The tracking data is written to the table `ag-core-ops-auj0.agent_metrics.respon
 
 ---
 
-## 4. Verification and Manual Resource Operations
+## 4. Infrastructure & Configuration
 
-Manual scripting is provided inside `agent/core_agent/plugins/metrics/` to provision and clean up prototyping tables:
-
-- **Create resources manually**:
-  ```bash
-  bash agent/core_agent/plugins/metrics/create_resources.sh
-  ```
-- **Delete manual resources**:
-  ```bash
-  bash agent/core_agent/plugins/metrics/delete_resources.sh
-  ```
+The underlying BigQuery resources (dataset and table) are managed automatically via Terraform. 
+- **Terraform Module**: Located at `terraform/ai_agent_resources/main.tf` (`metrics_dataset` module).
+- **Environment Variables**: The deployment pipeline injects `METRICS_PROJECT_ID`, `METRICS_DATASET_ID`, and `METRICS_TABLE_ID` natively during the CD process.
+- **Service Account Permissions**: The Terraform configuration automatically grants the `roles/bigquery.dataEditor` role to the agent's Service Account over the dataset.
