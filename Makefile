@@ -180,7 +180,7 @@ verify-metrics-ci:
 	$(MAKE) test-metrics-terraform
 
 test-metrics-terraform:
-	cd terraform/metrics_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+	cd terraform/ai_agent_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### OneDrive MCP Commands ###
 
