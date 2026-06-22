@@ -9,6 +9,7 @@ from loguru import logger
 from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
+from .plugins.metrics.plugin import ResponseTimeMetricsPlugin
 from .config import (
     GCP_CONFIG,
     COORDINATOR_CONFIG,
@@ -121,9 +122,17 @@ app = (
         (
             # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
             # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
-            [GeminiEnterpriseFileIngestionPlugin(), MultimodalFileInjectionPlugin()]
+            [
+                GeminiEnterpriseFileIngestionPlugin(),
+                MultimodalFileInjectionPlugin(),
+                ResponseTimeMetricsPlugin(),
+            ]
             if GCP_CONFIG.PROD_EXECUTION
-            else [SaveFilesAsArtifactsPlugin(), MultimodalFileInjectionPlugin()]
+            else [
+                SaveFilesAsArtifactsPlugin(),
+                MultimodalFileInjectionPlugin(),
+                ResponseTimeMetricsPlugin(),
+            ]
         )
     )
     .build()
