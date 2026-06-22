@@ -11,6 +11,8 @@ substitutions:
   _ATLASSIAN_URL: "https://atlassian-mcp-server-1057005221381.us-central1.run.app"
   _SHAREPOINT_URL: "https://sharepoint-mcp-server-1057005221381.us-central1.run.app"
   _EKB_PIPELINE_URL: "https://ekb-pipeline-1057005221381.us-central1.run.app"
+  _METRICS_DATASET_ID: "agent_metrics"
+  _METRICS_TABLE_ID: "response_times"
   _GE_APP_ID: "gemini-enterprise-17816266_1781626607357"
   _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "OSIRIS - Organizational Search, Information Retrieval, and Intelligence System: A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar, and managing EKB document ingestion."
@@ -138,7 +140,7 @@ steps:
           --min-instances=1 \
           --memory=16Gi \
           --num-workers=4 \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone,MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GCS_URL=${_GCS_URL},CALENDAR_URL=${_CALENDAR_URL},GEMINI_GOOGLE_AUTH_ID=$$GEMINI_GOOGLE_AUTH_ID,GEMINI_MICROSOFT_AUTH_ID=$$GEMINI_MICROSOFT_AUTH_ID,ONEDRIVE_URL=${_ONEDRIVE_URL},ATLASSIAN_URL=${_ATLASSIAN_URL},SHAREPOINT_URL=${_SHAREPOINT_URL},EKB_PIPELINE_URL=${_EKB_PIPELINE_URL}" 2>&1 | tee deploy_output.txt
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone,MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GCS_URL=${_GCS_URL},CALENDAR_URL=${_CALENDAR_URL},GEMINI_GOOGLE_AUTH_ID=$$GEMINI_GOOGLE_AUTH_ID,GEMINI_MICROSOFT_AUTH_ID=$$GEMINI_MICROSOFT_AUTH_ID,ONEDRIVE_URL=${_ONEDRIVE_URL},ATLASSIAN_URL=${_ATLASSIAN_URL},SHAREPOINT_URL=${_SHAREPOINT_URL},EKB_PIPELINE_URL=${_EKB_PIPELINE_URL},METRICS_PROJECT_ID=${PROJECT_ID},METRICS_DATASET_ID=${_METRICS_DATASET_ID},METRICS_TABLE_ID=${_METRICS_TABLE_ID}" 2>&1 | tee deploy_output.txt
         
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
