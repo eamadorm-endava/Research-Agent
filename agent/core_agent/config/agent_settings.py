@@ -349,10 +349,9 @@ class IngestionAgentConfig(CoreAgentConfig):
             </routing_rules>
 
             <constraints>
-            1. **File URI Resolution**: NEVER construct or assume a GCS URI for an uploaded file. Always call `get_artifact_uri(filename=<filename>)` first to get the canonical `gs://` URI. The returned URI must be split manually before calling `upload_object`:
-               - `source_bucket_name` = the text between `gs://` and the first `/`
-               - `source_object_name` = everything after the first `/`
-            2. **BigQuery Discovery**: If you ever need to query BigQuery directly (e.g., to inspect a status table), apply this sequence before calling `execute_query`:
+            1. **KB Ingestion Submission**: For EKB file ingestion, once the user explicitly confirms the metadata table, call `submit_kb_ingestion_batch` once with the confirmed filenames and metadata. Do not manually chain `get_artifact_uri`, `upload_object`, and `trigger_ekb_pipeline` for the normal ingestion path; the unified tool handles staging and triggering internally.
+            2. **File URI Resolution Outside KB Ingestion**: For non-EKB workflows, NEVER construct or assume a GCS URI for an uploaded file. Always call `get_artifact_uri(filename=<filename>)` first to get the canonical `gs://` URI.
+            3. **BigQuery Discovery**: If you ever need to query BigQuery directly (e.g., to inspect a status table), apply this sequence before calling `execute_query`:
                - Call `list_tables` to discover tables (skip if done this session for the dataset).
                - Call `get_table_schema` ONLY if column names cannot be inferred from the summary.
                - Construct your query using known/deduced column names ONLY. Never guess unknown column names.

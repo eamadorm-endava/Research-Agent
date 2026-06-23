@@ -1,5 +1,7 @@
 import asyncio
 import httpx
+import google.auth
+from google.cloud import storage
 from typing import Optional
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types
@@ -11,6 +13,10 @@ from .schemas import (
     TriggerEKBPipelineBatchRequest,
     TriggerBatchEKBPipelineResponse,
     SingleTriggerResponse,
+    SubmitKBIngestionBatchRequest,
+    SubmitKBIngestionFile,
+    SubmitKBIngestionBatchResponse,
+    SingleSubmitKBIngestionResponse,
     CheckIngestionStatusRequest,
     CheckIngestionStatusResponse,
 )
@@ -286,6 +292,407 @@ class TriggerEKBPipelineTool(BaseTool):
                 successful_jobs=0,
                 failed_jobs=len(errors),
                 job_responses=errors,
+            ).model_dump()
+
+
+class SubmitKBIngestionBatchTool(BaseTool):
+    """Stages confirmed artifacts and starts EKB ingestion with one tool call."""
+
+    def __init__(self) -> None:
+        """Registers the unified EKB submission tool."""
+        super().__init__(
+            name="submit_kb_ingestion_batch",
+            description=(
+                "Stages user-uploaded PDF artifacts into the KB landing-zone bucket "
+                "and triggers the EKB pipeline for the confirmed batch in one call. "
+                "Use only after the user has explicitly confirmed the metadata table. "
+                "Returns initial job IDs immediately; do not use it for status polling."
+            ),
+        )
+
+    def _get_declaration(self) -> Optional[types.FunctionDeclaration]:
+        """
+        Builds the Gemini function declaration schema for this tool.
+
+        Returns:
+            Optional[types.FunctionDeclaration] -> Schema describing the tool's parameters.
+        """
+        return types.FunctionDeclaration(
+            name=self.name,
+            description=self.description,
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "files": types.Schema(
+                        type=types.Type.ARRAY,
+                        description="Confirmed files and metadata to submit to the EKB.",
+                        items=types.Schema(
+                            type=types.Type.OBJECT,
+                            properties={
+                                "filename": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="Uploaded PDF artifact filename.",
+                                ),
+                                "project": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="User-confirmed EKB project name.",
+                                ),
+                                "domain": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="One of IT, Finance, HR, Sales, Executives, Legal, Operations.",
+                                ),
+                                "trust_level": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="One of Published, WIP, Archived.",
+                                ),
+                                "pii_status": types.Schema(
+                                    type=types.Type.STRING,
+                                    description="User-confirmed PII value: Yes or No.",
+                                ),
+                                "version": types.Schema(
+                                    type=types.Type.INTEGER,
+                                    description="Optional artifact version.",
+                                ),
+                            },
+                            required=[
+                                "filename",
+                                "project",
+                                "domain",
+                                "trust_level",
+                                "pii_status",
+                            ],
+                        ),
+                    ),
+                    "destination_bucket": types.Schema(
+                        type=types.Type.STRING,
+                        description=(
+                            "Optional KB landing-zone bucket override. Defaults to "
+                            "'<PROJECT_ID>-kb-landing-zone'."
+                        ),
+                    ),
+                },
+                required=["files"],
+            ),
+        )
+
+    @staticmethod
+    def _parse_gcs_uri(gcs_uri: str) -> tuple[str, str]:
+        """
+        Splits a canonical GCS URI into bucket and object path.
+
+        Args:
+            gcs_uri: str -> Canonical URI using the gs://bucket/object format.
+
+        Returns:
+            tuple[str, str] -> Bucket name and object name.
+        """
+        if not gcs_uri.startswith("gs://") or "/" not in gcs_uri[5:]:
+            raise ValueError(f"Invalid GCS URI: {gcs_uri}")
+        bucket, object_name = gcs_uri[5:].split("/", 1)
+        if not bucket or not object_name:
+            raise ValueError(f"Invalid GCS URI: {gcs_uri}")
+        return bucket, object_name
+
+    @staticmethod
+    def _metadata_for_file(file: SubmitKBIngestionFile) -> dict[str, str]:
+        """
+        Converts confirmed metadata into the object metadata contract.
+
+        Args:
+            file: SubmitKBIngestionFile -> Confirmed file metadata.
+
+        Returns:
+            dict[str, str] -> Metadata keys consumed by the EKB pipeline.
+        """
+        return {
+            "project": file.project,
+            "domain": file.domain,
+            "trust-level": file.trust_level,
+            "pii_status": file.pii_status,
+        }
+
+    def _make_storage_client(self) -> storage.Client:
+        """
+        Builds a GCS client from ambient ADC or Cloud Run service account credentials.
+
+        Returns:
+            storage.Client -> Authenticated Cloud Storage client.
+        """
+        credentials, detected_project = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        return storage.Client(
+            credentials=credentials,
+            project=detected_project or EKB_TOOLS_CONFIG.PROJECT_ID,
+        )
+
+    def _copy_to_kb_landing_zone(
+        self,
+        client: storage.Client,
+        source_bucket_name: str,
+        source_object_name: str,
+        destination_bucket_name: str,
+        destination_object_name: str,
+        metadata: dict[str, str],
+    ) -> None:
+        """
+        Copies one artifact to the KB landing-zone bucket and patches metadata.
+
+        Args:
+            client: storage.Client -> Authenticated GCS client.
+            source_bucket_name: str -> Source bucket name.
+            source_object_name: str -> Source object path.
+            destination_bucket_name: str -> Destination bucket name.
+            destination_object_name: str -> Destination object path.
+            metadata: dict[str, str] -> Metadata to attach to the copied object.
+
+        Returns:
+            None: The destination object is created and updated in GCS.
+        """
+        source_bucket = client.bucket(source_bucket_name)
+        source_blob = source_bucket.blob(source_object_name)
+        destination_bucket = client.bucket(destination_bucket_name)
+        copied_blob = source_bucket.copy_blob(
+            source_blob, destination_bucket, destination_object_name
+        )
+        copied_blob.metadata = {**(copied_blob.metadata or {}), **metadata}
+        copied_blob.patch()
+
+    async def _stage_file(
+        self,
+        file: SubmitKBIngestionFile,
+        destination_bucket: str,
+        storage_client: storage.Client,
+        tool_context: ToolContext,
+    ) -> SingleSubmitKBIngestionResponse:
+        """
+        Resolves one session artifact and copies it to the KB landing zone.
+
+        Args:
+            file: SubmitKBIngestionFile -> Confirmed file and metadata.
+            destination_bucket: str -> KB landing-zone bucket.
+            storage_client: storage.Client -> Shared GCS client.
+            tool_context: ToolContext -> ADK context for artifact resolution.
+
+        Returns:
+            SingleSubmitKBIngestionResponse -> Per-file staging result.
+        """
+        try:
+            artifact_version = await tool_context.get_artifact_version(
+                filename=file.filename, version=file.version
+            )
+            if not artifact_version:
+                return SingleSubmitKBIngestionResponse(
+                    filename=file.filename,
+                    project=file.project,
+                    source_uri=None,
+                    destination_uri=None,
+                    job_id=None,
+                    job_status=None,
+                    execution_status="error",
+                    execution_message=(
+                        f"Artifact '{file.filename}' was not found in the current session."
+                    ),
+                )
+
+            source_uri = artifact_version.canonical_uri
+            source_bucket, source_object = self._parse_gcs_uri(source_uri)
+            destination_path = f"{file.project.strip('/')}/{file.filename}"
+            destination_uri = f"gs://{destination_bucket}/{destination_path}"
+
+            await asyncio.to_thread(
+                self._copy_to_kb_landing_zone,
+                storage_client,
+                source_bucket,
+                source_object,
+                destination_bucket,
+                destination_path,
+                self._metadata_for_file(file),
+            )
+
+            return SingleSubmitKBIngestionResponse(
+                filename=file.filename,
+                project=file.project,
+                source_uri=source_uri,
+                destination_uri=destination_uri,
+                job_id=None,
+                job_status="STAGED",
+                execution_status="success",
+                execution_message=f"Successfully staged '{file.filename}'.",
+            )
+        except Exception as exc:
+            logger.error(
+                f"Failed to stage '{file.filename}' for EKB ingestion: {type(exc).__name__}: {exc}"
+            )
+            return SingleSubmitKBIngestionResponse(
+                filename=file.filename,
+                project=file.project,
+                source_uri=None,
+                destination_uri=None,
+                job_id=None,
+                job_status=None,
+                execution_status="error",
+                execution_message=f"Staging Error: {type(exc).__name__}: {exc}",
+            )
+
+    async def _stage_batch(
+        self,
+        request: SubmitKBIngestionBatchRequest,
+        storage_client: storage.Client,
+        tool_context: ToolContext,
+    ) -> list[SingleSubmitKBIngestionResponse]:
+        """
+        Stages all confirmed files with bounded concurrency.
+
+        Args:
+            request: SubmitKBIngestionBatchRequest -> Batch submission request.
+            storage_client: storage.Client -> Shared GCS client.
+            tool_context: ToolContext -> ADK context for artifact resolution.
+
+        Returns:
+            list[SingleSubmitKBIngestionResponse] -> Per-file staging results.
+        """
+        destination_bucket = (
+            request.destination_bucket
+            or EKB_TOOLS_CONFIG.effective_kb_landing_zone_bucket
+        )
+        semaphore = asyncio.Semaphore(EKB_TOOLS_CONFIG.MAX_SUBMIT_BATCH_CONCURRENCY)
+
+        async def stage_with_limit(
+            file: SubmitKBIngestionFile,
+        ) -> SingleSubmitKBIngestionResponse:
+            async with semaphore:
+                return await self._stage_file(
+                    file, destination_bucket, storage_client, tool_context
+                )
+
+        return await asyncio.gather(*[stage_with_limit(file) for file in request.files])
+
+    @staticmethod
+    def _merge_trigger_results(
+        staged_results: list[SingleSubmitKBIngestionResponse],
+        trigger_result: dict,
+    ) -> list[SingleSubmitKBIngestionResponse]:
+        """
+        Combines staging results with pipeline trigger results by destination URI.
+
+        Args:
+            staged_results: list[SingleSubmitKBIngestionResponse] -> Staging results.
+            trigger_result: dict -> Output from trigger_ekb_pipeline.
+
+        Returns:
+            list[SingleSubmitKBIngestionResponse] -> Final per-file submission results.
+        """
+        trigger_by_uri = {
+            item.get("gcs_uri"): item
+            for item in trigger_result.get("job_responses", [])
+        }
+        merged: list[SingleSubmitKBIngestionResponse] = []
+        for staged in staged_results:
+            if staged.execution_status != "success" or not staged.destination_uri:
+                merged.append(staged)
+                continue
+
+            trigger_item = trigger_by_uri.get(staged.destination_uri)
+            if not trigger_item:
+                merged.append(
+                    staged.model_copy(
+                        update={
+                            "execution_status": "error",
+                            "execution_message": "Pipeline Error: no trigger result returned.",
+                            "job_status": None,
+                        }
+                    )
+                )
+                continue
+
+            merged.append(
+                staged.model_copy(
+                    update={
+                        "job_id": trigger_item.get("job_id"),
+                        "job_status": trigger_item.get("job_status"),
+                        "execution_status": trigger_item.get(
+                            "execution_status", "error"
+                        ),
+                        "execution_message": trigger_item.get(
+                            "execution_message", "Pipeline trigger completed."
+                        ),
+                    }
+                )
+            )
+        return merged
+
+    @override
+    async def run_async(self, *, args: dict, tool_context: ToolContext) -> dict:
+        """
+        Stages confirmed files and triggers EKB ingestion jobs in a single tool call.
+
+        Args:
+            args: dict -> Must contain confirmed files and metadata.
+            tool_context: ToolContext -> ADK context for artifact and session state access.
+
+        Returns:
+            dict -> Serialised SubmitKBIngestionBatchResponse.
+        """
+        logger.info("Unified KB ingestion submission invoked")
+        try:
+            request = SubmitKBIngestionBatchRequest(**args)
+            storage_client = self._make_storage_client()
+            staged_results = await self._stage_batch(
+                request, storage_client, tool_context
+            )
+
+            staged_successes = [
+                result.destination_uri
+                for result in staged_results
+                if result.execution_status == "success" and result.destination_uri
+            ]
+
+            if staged_successes:
+                trigger_result = await TriggerEKBPipelineTool().run_async(
+                    args={"gcs_uris": staged_successes}, tool_context=tool_context
+                )
+                final_results = self._merge_trigger_results(
+                    staged_results, trigger_result
+                )
+            else:
+                final_results = staged_results
+
+            successful_jobs = len(
+                [
+                    result
+                    for result in final_results
+                    if result.execution_status == "success"
+                ]
+            )
+            failed_jobs = len(final_results) - successful_jobs
+
+            return SubmitKBIngestionBatchResponse(
+                successful_jobs=successful_jobs,
+                failed_jobs=failed_jobs,
+                file_responses=final_results,
+            ).model_dump()
+        except Exception as exc:
+            logger.error(
+                f"Unified KB ingestion submission failed: {type(exc).__name__}: {exc}"
+            )
+            return SubmitKBIngestionBatchResponse(
+                successful_jobs=0,
+                failed_jobs=1,
+                file_responses=[
+                    SingleSubmitKBIngestionResponse(
+                        filename="N/A",
+                        project="N/A",
+                        source_uri=None,
+                        destination_uri=None,
+                        job_id=None,
+                        job_status=None,
+                        execution_status="error",
+                        execution_message=(
+                            f"Internal Error: {type(exc).__name__}: {exc}"
+                        ),
+                    )
+                ],
             ).model_dump()
 
 
