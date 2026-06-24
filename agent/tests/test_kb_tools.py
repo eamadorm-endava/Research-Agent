@@ -56,13 +56,16 @@ class TestSubmitKBIngestionBatchTool:
         self, mock_make_storage_client, mock_copy_to_kb, mock_trigger_run
     ):
         """Happy path: one unified call stages the artifact and starts ingestion."""
+        expected_destination_uri = (
+            "gs://mock-project-id-kb-landing-zone/Project Alpha/doc.pdf"
+        )
         mock_make_storage_client.return_value = MagicMock()
         mock_trigger_run.return_value = {
             "successful_jobs": 1,
             "failed_jobs": 0,
             "job_responses": [
                 {
-                    "gcs_uri": "gs://mock-project-id-kb-landing-zone/Project Alpha/doc.pdf",
+                    "gcs_uri": expected_destination_uri,
                     "job_id": "job-123",
                     "job_status": "PROCESSING",
                     "execution_status": "success",
@@ -82,6 +85,7 @@ class TestSubmitKBIngestionBatchTool:
         tool = SubmitKBIngestionBatchTool()
         result = await tool.run_async(
             args={
+                "destination_bucket": "mock-project-id-kb-landing-zone",
                 "files": [
                     {
                         "filename": "doc.pdf",
@@ -90,7 +94,7 @@ class TestSubmitKBIngestionBatchTool:
                         "trust_level": "Published",
                         "pii_status": "No",
                     }
-                ]
+                ],
             },
             tool_context=ctx,
         )
@@ -101,11 +105,7 @@ class TestSubmitKBIngestionBatchTool:
         assert result["file_responses"][0]["job_status"] == "PROCESSING"
         mock_copy_to_kb.assert_called_once()
         mock_trigger_run.assert_awaited_once_with(
-            args={
-                "gcs_uris": [
-                    "gs://mock-project-id-kb-landing-zone/Project Alpha/doc.pdf"
-                ]
-            },
+            args={"gcs_uris": [expected_destination_uri]},
             tool_context=ctx,
         )
 
