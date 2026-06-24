@@ -15,12 +15,12 @@ substitutions:
   _METRICS_TABLE_ID: "response_times"
   _GE_APP_ID: "gemini-enterprise-17816266_1781626607357"
   _GE_REGION: "global"
-  _GE_AGENT_DESCRIPTION: "OSIRIS - Organizational Search, Information Retrieval, and Intelligence System: A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar, and managing EKB document ingestion."
+  _GE_AGENT_DESCRIPTION: "OSIRIS: A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
   _MICROSOFT_OAUTH_SCOPES: "offline_access Files.Read.All Sites.Read.All User.Read"
   _MICROSOFT_TENANT_ID: "93f8f3d2-54f6-417d-9a37-10ff2952f228"
   _GEMINI_GOOGLE_AUTH_ID: "google-workspace-authentication-test"
-  _GEMINI_MICROSOFT_AUTH_ID: "microsoft-work-authentication-test"
+  _GEMINI_MICROSOFT_AUTH_ID: "microsoft-entra-authentication-test"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
@@ -35,7 +35,42 @@ steps:
           -backend-config="prefix=terraform/state/ai-agent-resources"
     dir: 'terraform/ai_agent_resources'
 
-  # Step 2: Run Terraform Apply
+  # Step 2: Ensure code is formatted correctly
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-fmt'
+    args: ['fmt', '-check']
+    dir: 'terraform/ai_agent_resources'
+
+  # Step 3: Format Check & Tests (Python)
+  - name: 'python:3.12'
+    id: 'python-lint-and-tests'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y make
+        pip install uv
+        uv sync --group ai-agent --group dev
+        make run-agent-precommit
+        make test-agent
+
+  # Step 4: Validate the configuration syntax
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/ai_agent_resources'
+
+  # Step 5: Run Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args:
+      - 'plan'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_REGION}'
+      - '-out=tfplan'
+    dir: 'terraform/ai_agent_resources'
+
+  # Step 6: Run Terraform Apply
   # Creates the required permissions and service accounts to run the agent
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
@@ -46,7 +81,7 @@ steps:
       - '-auto-approve'
     dir: 'terraform/ai_agent_resources'
   
-  # Step 3: Unregister the agent from GE
+  # Step 7: Unregister the agent from GE
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-unregister-agent'
     entrypoint: 'bash'
@@ -63,7 +98,7 @@ steps:
           --app-id ${_GE_APP_ID} \
           --agent-display-name "${_AGENT_DISPLAY_NAME}"
 
-  # Step 4: Delete all auth resources
+  # Step 8: Delete all auth resources
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-delete-auth-resources'
     entrypoint: 'bash'
@@ -79,11 +114,11 @@ steps:
           --ge-location ${_GE_REGION} \
           --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID}"
 
-  # Step 5: Create new auth resources
+  # Step 9: Create new auth resources
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-create-auth-resources'
     entrypoint: 'bash'
-    secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID_TEST', 'MICROSOFT_OAUTH_CLIENT_SECRET_TEST']
+    secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET']
     args:
       - '-c'
       - |
@@ -107,15 +142,15 @@ steps:
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
           --auth-ids "${_GEMINI_MICROSOFT_AUTH_ID}" \
-          --client-id "$$MICROSOFT_OAUTH_CLIENT_ID_TEST" \
-          --client-secret "$$MICROSOFT_OAUTH_CLIENT_SECRET_TEST" \
+          --client-id "$$MICROSOFT_OAUTH_CLIENT_ID" \
+          --client-secret "$$MICROSOFT_OAUTH_CLIENT_SECRET" \
           --scopes "${_MICROSOFT_OAUTH_SCOPES}" \
           --auth-uri-base "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize" \
           --token-uri "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/token" \
           --prompt "select_account"
 
   
-  # Step 6: Deploy the AI-Agent to Agent Engine
+  # Step 10: Deploy the AI-Agent to Agent Engine
   - name: 'python:3.12'
     id: 'deploy-agent-engine'
     entrypoint: 'sh'
@@ -146,7 +181,7 @@ steps:
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
 
 
-  # Step 7: Register the Agent in GE
+  # Step 11: Register the Agent in GE
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-register-agent'
     entrypoint: 'bash'
@@ -178,10 +213,10 @@ availableSecrets:
       env: 'GOOGLE_OAUTH_CLIENT_ID'
     - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_OAUTH_CLIENT_SECRET/versions/latest
       env: 'GOOGLE_OAUTH_CLIENT_SECRET'
-    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_ID_TEST/versions/latest
-      env: 'MICROSOFT_OAUTH_CLIENT_ID_TEST'
-    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_SECRET_TEST/versions/latest
-      env: 'MICROSOFT_OAUTH_CLIENT_SECRET_TEST'
+    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_ID/versions/latest
+      env: 'MICROSOFT_OAUTH_CLIENT_ID'
+    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_SECRET/versions/latest
+      env: 'MICROSOFT_OAUTH_CLIENT_SECRET'
 
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
