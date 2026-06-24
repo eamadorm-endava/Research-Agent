@@ -48,7 +48,7 @@ steps:
     args:
       - '-c'
       - |
-        apt-get update && apt-get install -y make
+        apt-get update && apt-get install -y make git
         pip install uv
         uv sync --group ai-agent --group dev
         make run-agent-precommit
