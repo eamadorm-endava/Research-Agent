@@ -17,7 +17,7 @@ substitutions:
   _GE_REGION: "global"
   _GE_AGENT_DESCRIPTION: "OSIRIS - Organizational Search, Information Retrieval, and Intelligence System: A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar, and managing EKB document ingestion."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
-  _MICROSOFT_OAUTH_SCOPES: "offline_access Files.Read.All Sites.Read.All"
+  _MICROSOFT_OAUTH_SCOPES: "offline_access Files.Read.All Sites.Read.All User.Read"
   _MICROSOFT_TENANT_ID: "93f8f3d2-54f6-417d-9a37-10ff2952f228"
   _GEMINI_GOOGLE_AUTH_ID: "google-workspace-authentication-test"
   _GEMINI_MICROSOFT_AUTH_ID: "microsoft-work-authentication-test"
