@@ -8,6 +8,7 @@ shift
 GE_LOCATION="global"
 GE_AGENT_DESCRIPTION="Agent capable of searching and retrieving information from Google Drive, GCP and GCS using user's credentials"
 ICON_URI="https://yt3.googleusercontent.com/lufyX7Ule20Ss0fpVdiFbRn8LfdUlKK2SpG2vHbRw2xQRlpG0egcgnepZvmD26wwdETKad4VcaA=s900-c-k-c0x00ffffff-no-rj"
+PROMPT_TYPE="consent"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
@@ -27,6 +28,7 @@ while [[ "$#" -gt 0 ]]; do
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
         --agent-description) GE_AGENT_DESCRIPTION="$2"; shift ;;
         --icon-uri) ICON_URI="$2"; shift ;;
+        --prompt) PROMPT_TYPE="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -107,9 +109,7 @@ case "$COMMAND" in
         fi
         
         ENCODED_SCOPES="${OAUTH_SCOPES// /%20}"
-        
-        AUTH_URI="${AUTH_URI_BASE}?client_id=${CLIENT_ID}&redirect_uri=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fstatic%2Foauth%2Foauth.html&scope=${ENCODED_SCOPES}&response_type=code&prompt=consent"
-        
+        AUTH_URI="${AUTH_URI_BASE}?client_id=${CLIENT_ID}&redirect_uri=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fstatic%2Foauth%2Foauth.html&scope=${ENCODED_SCOPES}&response_type=code&prompt=${PROMPT_TYPE}"
         if [ -n "$AUTH_URI_EXTRAS" ]; then
             AUTH_URI="${AUTH_URI}&${AUTH_URI_EXTRAS}"
         fi
