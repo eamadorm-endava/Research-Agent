@@ -57,14 +57,7 @@ class MultimodalFileInjectionPlugin(BasePlugin):
                 f"MultimodalFileIngestionPlugin - Injecting Landing Zone dependencies into {tool.name}"
             )
             session = tool_context._invocation_context.session
-            _user_id = getattr(session, "user_id", None)
-            # If session.user_id is None, 'unknown-user', or 'user', fallback to the email.
-            user_id = (
-                _user_id
-                if _user_id
-                and _user_id not in ["unkwnown-user", "unknown-user", "user"]
-                else "emmanuel.amador@endava.com"
-            )
+            user_id = getattr(session, "user_id", "unknown-user")
             session_id = getattr(session, "id", "unknown-session")
             app_name = "core_agent"
 
