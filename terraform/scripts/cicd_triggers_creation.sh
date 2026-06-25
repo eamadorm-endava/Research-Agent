@@ -59,6 +59,9 @@ DRIVE_URL=""
 CALENDAR_URL=""
 ONEDRIVE_URL=""
 EKB_URL=""
+ATLASSIAN_URL=""
+SHAREPOINT_URL=""
+OUTLOOK_URL=""
 
 # --- Optional / Overridable Variables ---
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
@@ -83,6 +86,9 @@ while [[ "$#" -gt 0 ]]; do
         --drive-url) DRIVE_URL="$2"; shift ;;
         --calendar-url) CALENDAR_URL="$2"; shift ;;
         --onedrive-url) ONEDRIVE_URL="$2"; shift ;;
+        --atlassian-url) ATLASSIAN_URL="$2"; shift ;;
+        --sharepoint-url) SHAREPOINT_URL="$2"; shift ;;
+        --outlook-url) OUTLOOK_URL="$2"; shift ;;
         --ekb-pipeline-url) EKB_URL="$2"; shift ;;
         *) ;; # Ignore unknown params
     esac
@@ -102,9 +108,9 @@ if [[ -z "${GITHUB_CONNECTION_NAME:-}" ]]; then echo "Error: GITHUB_CONNECTION_N
 if [[ -z "${REPOSITORY_SLUG:-}" ]]; then echo "Error: REPOSITORY_SLUG environment variable is missing."; exit 1; fi
 
 if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
-    if [[ -z "$GE_APP_LOCATION" ]] || [[ -z "$GE_APP_NAME_SUFFIX" ]] || [[ -z "$BQ_URL" ]] || [[ -z "$GCS_URL" ]] || [[ -z "$DRIVE_URL" ]] || [[ -z "$CALENDAR_URL" ]] || [[ -z "$ONEDRIVE_URL" ]] || [[ -z "$EKB_URL" ]]; then
+    if [[ -z "$GE_APP_LOCATION" ]] || [[ -z "$GE_APP_NAME_SUFFIX" ]] || [[ -z "$BQ_URL" ]] || [[ -z "$GCS_URL" ]] || [[ -z "$DRIVE_URL" ]] || [[ -z "$CALENDAR_URL" ]] || [[ -z "$ONEDRIVE_URL" ]] || [[ -z "$ATLASSIAN_URL" ]] || [[ -z "$SHAREPOINT_URL" ]] || [[ -z "$OUTLOOK_URL" ]] || [[ -z "$EKB_URL" ]]; then
         echo "Error: --deploy-ai-agent is true, but missing required AI Agent parameters."
-        echo "Required: --ge-app-location, --ge-app-name-suffix, --bq-url, --gcs-url, --drive-url, --calendar-url, --onedrive-url, --ekb-pipeline-url"
+        echo "Required: --ge-app-location, --ge-app-name-suffix, --bq-url, --gcs-url, --drive-url, --calendar-url, --onedrive-url, --atlassian-url, --sharepoint-url, --outlook-url, --ekb-pipeline-url"
         exit 1
     fi
 fi
@@ -189,7 +195,7 @@ create_trigger() {
 
 # --- AI Agent Triggers ---
 if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
-    AI_AGENT_SUBS="_GE_REGION=$GE_APP_LOCATION,_GE_APP_NAME_SUFFIX=$GE_APP_NAME_SUFFIX,_BIGQUERY_URL=$BQ_URL,_GCS_URL=$GCS_URL,_DRIVE_URL=$DRIVE_URL,_CALENDAR_URL=$CALENDAR_URL,_ONEDRIVE_URL=$ONEDRIVE_URL,_EKB_PIPELINE_URL=$EKB_URL"
+    AI_AGENT_SUBS="_GE_REGION=$GE_APP_LOCATION,_GE_APP_NAME_SUFFIX=$GE_APP_NAME_SUFFIX,_BIGQUERY_URL=$BQ_URL,_GCS_URL=$GCS_URL,_DRIVE_URL=$DRIVE_URL,_CALENDAR_URL=$CALENDAR_URL,_ONEDRIVE_URL=$ONEDRIVE_URL,_ATLASSIAN_URL=$ATLASSIAN_URL,_SHAREPOINT_URL=$SHAREPOINT_URL,_OUTLOOK_URL=$OUTLOOK_URL,_EKB_PIPELINE_URL=$EKB_URL"
 
     # CI (Plan) on Pull Request
     create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**" "$AI_AGENT_SUBS"

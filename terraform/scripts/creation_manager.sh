@@ -262,6 +262,9 @@ GCS_REGION="$REGION"
 DRIVE_REGION="$REGION"
 CALENDAR_REGION="$REGION"
 ONEDRIVE_REGION="$REGION"
+ATLASSIAN_REGION="$REGION"
+SHAREPOINT_REGION="$REGION"
+OUTLOOK_REGION="$REGION"
 
 if [[ "$MCP_SERVERS_TO_DEPLOY" != "all" ]]; then
     IFS=',' read -ra SERVER_LIST <<< "$MCP_SERVERS_TO_DEPLOY"
@@ -275,6 +278,9 @@ if [[ "$MCP_SERVERS_TO_DEPLOY" != "all" ]]; then
                 drive) DRIVE_REGION="$SERVER_REGION" ;;
                 calendar) CALENDAR_REGION="$SERVER_REGION" ;;
                 onedrive) ONEDRIVE_REGION="$SERVER_REGION" ;;
+                atlassian) ATLASSIAN_REGION="$SERVER_REGION" ;;
+                sharepoint) SHAREPOINT_REGION="$SERVER_REGION" ;;
+                outlook) OUTLOOK_REGION="$SERVER_REGION" ;;
             esac
         fi
     done
@@ -286,6 +292,9 @@ GCS_URL="https://gcs-mcp-server-${PROJECT_NUMBER}.${GCS_REGION}.run.app"
 DRIVE_URL="https://drive-mcp-server-${PROJECT_NUMBER}.${DRIVE_REGION}.run.app"
 CALENDAR_URL="https://calendar-mcp-server-${PROJECT_NUMBER}.${CALENDAR_REGION}.run.app"
 ONEDRIVE_URL="https://onedrive-mcp-server-${PROJECT_NUMBER}.${ONEDRIVE_REGION}.run.app"
+ATLASSIAN_URL="https://atlassian-mcp-server-${PROJECT_NUMBER}.${ATLASSIAN_REGION}.run.app"
+SHAREPOINT_URL="https://sharepoint-mcp-server-${PROJECT_NUMBER}.${SHAREPOINT_REGION}.run.app"
+OUTLOOK_URL="https://outlook-mcp-server-${PROJECT_NUMBER}.${OUTLOOK_REGION}.run.app"
 EKB_URL="https://ekb-pipeline-${PROJECT_NUMBER}.${REGION}.run.app"
 
 bash "$SCRIPT_DIR/cicd_triggers_creation.sh" \
@@ -301,6 +310,9 @@ bash "$SCRIPT_DIR/cicd_triggers_creation.sh" \
     --drive-url "$DRIVE_URL" \
     --calendar-url "$CALENDAR_URL" \
     --onedrive-url "$ONEDRIVE_URL" \
+    --atlassian-url "$ATLASSIAN_URL" \
+    --sharepoint-url "$SHAREPOINT_URL" \
+    --outlook-url "$OUTLOOK_URL" \
     --ekb-pipeline-url "$EKB_URL" \
     --force-recreate "$FORCE_RECREATE"
 
