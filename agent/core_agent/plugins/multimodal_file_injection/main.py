@@ -111,7 +111,7 @@ class MultimodalFileInjectionPlugin(BasePlugin):
                 f"and has been injected into the multimodal context!"
             )
 
-        return result
+        return None
 
     async def before_model_callback(
         self, *, callback_context: CallbackContext, llm_request: LlmRequest

@@ -118,7 +118,12 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         Returns:
             Optional[dict] -> Always returns None
         """
-        self._active_tools[tool_context.function_call_id] = ToolUsageRecord(
+        # We use the unique memory address (id) of the tool_context object as the tracking key instead of
+        # tool_context.function_call_id. In Gemini, function_call_id is often just the function name (e.g., 'read_file').
+        # If the LLM generates multiple concurrent calls to the SAME tool in a single turn, they would all
+        # share the same function_call_id and overwrite each other's start times in this dictionary.
+        # Since tool_context is a unique object per execution, its id() guarantees safe concurrent tracking.
+        self._active_tools[str(id(tool_context))] = ToolUsageRecord(
             tool_name=tool.name, initial_time=datetime.now(timezone.utc)
         )
         return None
@@ -173,7 +178,7 @@ class ResponseTimeMetricsPlugin(BasePlugin):
         """
         Utility to calculate duration and append tool metric records.
         """
-        tool_record = self._active_tools.pop(tool_context.function_call_id, None)
+        tool_record = self._active_tools.pop(str(id(tool_context)), None)
         if tool_record:
             final_time = datetime.now(timezone.utc)
             tool_record.final_time = final_time
