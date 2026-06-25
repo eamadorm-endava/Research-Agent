@@ -3,6 +3,7 @@ from typing import Optional
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_response import LlmResponse
 from google.adk.plugins.base_plugin import BasePlugin
+from google.genai import types
 from loguru import logger
 
 
@@ -27,9 +28,16 @@ class ContinuationPlugin(BasePlugin):
         Returns:
             Optional[LlmResponse] -> The modified response, or None if no modification is needed.
         """
-        # If the response has text content or tool calls, it's a valid response (including OAuth requests).
-        # We only want to intercept when BOTH are missing (the silent failure mode).
-        if llm_response.content or llm_response.tool_calls:
+        has_tool_calls = bool(llm_response.get_function_calls())
+
+        has_text = False
+        if llm_response.content and llm_response.content.parts:
+            for part in llm_response.content.parts:
+                if getattr(part, "text", None):
+                    has_text = True
+                    break
+
+        if has_text or has_tool_calls:
             return None
 
         logger.warning(
@@ -39,6 +47,12 @@ class ContinuationPlugin(BasePlugin):
 
         # The model failed to process the request (likely due to payload size limits).
         # We inject a user-friendly message asking them to write "continue".
-        llm_response.content = "I was unable to complete the request in a single pass. Please write **'continue'** to complete the tasks."
+        message = "I was unable to complete the request in a single pass. Please write **'continue'** to complete the tasks."
+        if llm_response.content is None:
+            llm_response.content = types.Content(
+                role="model", parts=[types.Part.from_text(text=message)]
+            )
+        else:
+            llm_response.content.parts = [types.Part.from_text(text=message)]
 
         return llm_response
