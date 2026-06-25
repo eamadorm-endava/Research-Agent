@@ -180,6 +180,7 @@ The script destroys these stacks using the same backend prefixes as the Cloud Bu
 - `terraform/drive_mcp_server_resources`
 - `terraform/calendar_mcp_server_resources`
 - `terraform/onedrive_mcp_server_resources`
+- `terraform/sharepoint_mcp_server_resources`
 
 To also remove the MCP Cloud Build triggers after the Terraform destroy completes, run:
 

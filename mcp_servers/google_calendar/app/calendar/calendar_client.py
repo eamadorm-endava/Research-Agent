@@ -2,6 +2,7 @@ from loguru import logger
 from typing import Optional, Union
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from datetime import datetime, timezone, timedelta
 
 from .config import CALENDAR_CONFIG
 from .schemas import (
@@ -286,6 +287,18 @@ class CalendarClient:
         logger.debug(f"Date min: {date_min}, Time min: {time_min}")
         logger.debug(f"Date max: {date_max}, Time max: {time_max}")
         logger.debug(f"Query: {query}, Sort order: {sort_order}")
+
+        if not date_min and not date_max:
+            now = datetime.now(timezone.utc)
+            date_min = (now - timedelta(days=180)).strftime(
+                "%Y-%m-%d"
+            )  # - 6 months window
+            date_max = (now + timedelta(days=180)).strftime(
+                "%Y-%m-%d"
+            )  # + 6 months window
+            logger.debug(
+                f"Defaulting dates to: date_min={date_min}, date_max={date_max}"
+            )
 
         raw_items = self._fetch_calendar_events(
             max_events=max_events,

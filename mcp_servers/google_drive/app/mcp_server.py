@@ -45,7 +45,7 @@ class GoogleDriveTokenVerifier(TokenVerifier):
             request and validates it against Google's token information endpoint.
 
     Returns:
-        None: This class provides token-verification behavior for the MCP server
+        None -> This class provides token-verification behavior for the MCP server
             and does not return a value when instantiated.
     """
 
@@ -54,11 +54,11 @@ class GoogleDriveTokenVerifier(TokenVerifier):
         Verifies a Google OAuth bearer token and converts it into an MCP access token.
 
         Args:
-            token (str): The Google OAuth access token provided by the client for
+            token: str -> The Google OAuth access token provided by the client for
                 the current authenticated request.
 
         Returns:
-            Optional[AccessToken]: A validated MCP access token containing the
+            Optional[AccessToken] -> A validated MCP access token containing the
                 client identifier and granted scopes, or None when validation fails.
         """
         try:
@@ -101,11 +101,11 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
     Retrieves file and folder metadata from Google Drive that matches specific filter criteria.
 
     Args:
-        request (ListFilesRequest): Search filters including folder names, file names,
+        request: ListFilesRequest -> Search filters including folder names, file names,
             MIME types, date ranges, and sorting instructions.
 
     Returns:
-        ListFilesResponse: A structured collection of matched item metadata,
+        ListFilesResponse -> A structured collection of matched item metadata,
             aggregate counts, and execution status.
     """
     logger.info(
@@ -161,11 +161,11 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
     Extracts readable text content from a Google Drive file identified by its file ID.
 
     Args:
-        request (GetFileTextRequest): The target file identifier and the maximum
+        request: GetFileTextRequest -> The target file identifier and the maximum
             number of characters to return in the extracted text payload.
 
     Returns:
-        GetFileTextResponse: The retrieved document content, related metadata,
+        GetFileTextResponse -> The retrieved document content, related metadata,
             and execution status for the text extraction request.
     """
     logger.info("Tool call: get_file_text(file_id=%s)", request.file_id)
@@ -209,11 +209,11 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
     Creates a Google Docs document in Drive using the provided title, content, and folder.
 
     Args:
-        request (CreateGoogleDocRequest): The document title, body text, and
+        request: CreateGoogleDocRequest -> The document title, body text, and
             optional destination folder for the new Google Doc.
 
     Returns:
-        CreateGoogleDocResponse: The created document metadata and the execution
+        CreateGoogleDocResponse -> The created document metadata and the execution
             result for the document creation operation.
     """
     logger.info("Tool call: create_google_doc(title=%s)", request.title)
@@ -259,11 +259,11 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
     Generates a PDF from text content and uploads the resulting file to Google Drive.
 
     Args:
-        request (UploadPdfRequest): The PDF title, source text to render, and
+        request: UploadPdfRequest -> The PDF title, source text to render, and
             optional destination folder for the uploaded file.
 
     Returns:
-        UploadPdfResponse: The uploaded PDF metadata and the execution result
+        UploadPdfResponse -> The uploaded PDF metadata and the execution result
             for the upload request.
     """
     logger.info("Tool call: upload_pdf(title=%s)", request.title)
@@ -309,11 +309,11 @@ async def create_file(request: CreateFileRequest) -> CreateFileResponse:
     Creates a standard file in Google Drive with the supplied content and MIME type.
 
     Args:
-        request (CreateFileRequest): The file name, file content, MIME type,
+        request: CreateFileRequest -> The file name, file content, MIME type,
             and optional parent folder where the file should be created.
 
     Returns:
-        CreateFileResponse: The created file metadata and the execution result
+        CreateFileResponse -> The created file metadata and the execution result
             for the file creation request.
     """
     logger.info(
@@ -365,11 +365,11 @@ async def create_folder(request: CreateFolderRequest) -> CreateFolderResponse:
     Creates a new folder in Google Drive, optionally inside an existing parent folder.
 
     Args:
-        request (CreateFolderRequest): The folder name and optional parent
+        request: CreateFolderRequest -> The folder name and optional parent
             folder identifier for the folder creation request.
 
     Returns:
-        CreateFolderResponse: The created folder metadata and the execution
+        CreateFolderResponse -> The created folder metadata and the execution
             result for the folder creation operation.
     """
     logger.info("Tool call: create_folder(name=%s)", request.name)
@@ -411,11 +411,11 @@ async def move_file(request: MoveFileRequest) -> MoveFileResponse:
     Moves an existing Google Drive item into a different destination folder.
 
     Args:
-        request (MoveFileRequest): The file or folder identifier to move and
+        request: MoveFileRequest -> The file or folder identifier to move and
             the destination folder identifier that will become its new parent.
 
     Returns:
-        MoveFileResponse: The updated item metadata and the execution result
+        MoveFileResponse -> The updated item metadata and the execution result
             for the move operation.
     """
     logger.info(
@@ -461,11 +461,11 @@ async def rename_file(request: RenameFileRequest) -> RenameFileResponse:
     Renames an existing file or folder in Google Drive without changing its location.
 
     Args:
-        request (RenameFileRequest): The target item identifier and the new
+        request: RenameFileRequest -> The target item identifier and the new
             display name that should be assigned to the Drive item.
 
     Returns:
-        RenameFileResponse: The renamed item metadata and the execution result
+        RenameFileResponse -> The renamed item metadata and the execution result
             for the rename operation.
     """
     logger.info(
@@ -510,11 +510,11 @@ def _make_drive_manager(*, scopes: Sequence[str]) -> DriveManager:
     Builds a Drive manager instance using credentials derived from the current MCP token.
 
     Args:
-        scopes (Sequence[str]): The Google OAuth scopes required for the
+        scopes: Sequence[str] -> The Google OAuth scopes required for the
             upcoming Drive API operation.
 
     Returns:
-        DriveManager: A Drive manager configured with authenticated credentials
+        DriveManager -> A Drive manager configured with authenticated credentials
             for the requested scope set.
     """
     access_token = _get_current_token()
@@ -531,7 +531,7 @@ def _get_current_token() -> Optional[str]:
             context and does not accept explicit parameters.
 
     Returns:
-        Optional[str]: The bearer access token for the current request, or None
+        Optional[str] -> The bearer access token for the current request, or None
             when no authenticated token is available.
     """
     token_obj = get_access_token()

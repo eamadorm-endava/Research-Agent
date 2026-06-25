@@ -14,7 +14,7 @@ This MCP server provides a unified integration wrapper for the **Atlassian Jira 
 ---
 
 ## Core Capabilities
-
+ 
 The server exposes the following tools to the calling agent:
 
 ### 1. Jira Tools

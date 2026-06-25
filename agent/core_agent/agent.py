@@ -9,6 +9,8 @@ from loguru import logger
 from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
+from .plugins.continuation import ContinuationPlugin
+from .plugins.metrics.plugin import ResponseTimeMetricsPlugin
 from .config import (
     GCP_CONFIG,
     COORDINATOR_CONFIG,
@@ -19,6 +21,8 @@ from .config import (
     DriveMCPConfig,
     GCSMCPConfig,
     OneDriveMCPConfig,
+    SharePointMCPConfig,
+    AtlassianMCPConfig,
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
 )
@@ -31,6 +35,8 @@ DRIVE_MCP_CONFIG = DriveMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
 CALENDAR_MCP_CONFIG = CalendarMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
 GCS_MCP_CONFIG = GCSMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
 ONEDRIVE_MCP_CONFIG = OneDriveMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
+SHAREPOINT_MCP_CONFIG = SharePointMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
+ATLASSIAN_MCP_CONFIG = AtlassianMCPConfig()
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +54,9 @@ research_agent = (
             DRIVE_MCP_CONFIG,
             CALENDAR_MCP_CONFIG,
             GCS_MCP_CONFIG,
-            # ONEDRIVE_MCP_CONFIG,
+            ATLASSIAN_MCP_CONFIG,
+            ONEDRIVE_MCP_CONFIG,
+            SHAREPOINT_MCP_CONFIG,
         ]
     )
     .with_native_tools(
@@ -115,9 +123,19 @@ app = (
         (
             # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
             # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
-            [GeminiEnterpriseFileIngestionPlugin(), MultimodalFileInjectionPlugin()]
+            [
+                GeminiEnterpriseFileIngestionPlugin(),
+                MultimodalFileInjectionPlugin(),
+                ContinuationPlugin(),
+                ResponseTimeMetricsPlugin(),
+            ]
             if GCP_CONFIG.PROD_EXECUTION
-            else [SaveFilesAsArtifactsPlugin(), MultimodalFileInjectionPlugin()]
+            else [
+                SaveFilesAsArtifactsPlugin(),
+                MultimodalFileInjectionPlugin(),
+                ContinuationPlugin(),
+                ResponseTimeMetricsPlugin(),
+            ]
         )
     )
     .build()

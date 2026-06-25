@@ -12,6 +12,7 @@ from agent.core_agent.config import (
     GCPConfig,
     GCSMCPConfig,
     GoogleAuthConfig,
+    AtlassianMCPConfig,
 )
 
 
@@ -46,15 +47,17 @@ def test_gcp_config_prod_execution_alias():
 def test_mcp_servers_config_defaults_to_localhost_urls():
     """Test that MCP server URLs default to local localhost endpoints."""
     with patch.dict(os.environ, clear=True):
-        bq_config = BigQueryMCPConfig()
-        drive_config = DriveMCPConfig()
-        gcs_config = GCSMCPConfig()
-        cal_config = CalendarMCPConfig()
+        bq_config = BigQueryMCPConfig(_env_file=None)
+        drive_config = DriveMCPConfig(_env_file=None)
+        gcs_config = GCSMCPConfig(_env_file=None)
+        cal_config = CalendarMCPConfig(_env_file=None)
+        atlassian_config = AtlassianMCPConfig(_env_file=None)
 
     assert bq_config.URL == "http://localhost:8080"
     assert drive_config.URL == "http://localhost:8081"
     assert gcs_config.URL == "http://localhost:8082"
     assert cal_config.URL == "http://localhost:8083"
+    assert atlassian_config.URL == "http://localhost:8085"
 
 
 def test_gcs_mcp_config_default_scopes_include_identity():
@@ -71,7 +74,7 @@ def test_gcs_mcp_config_default_scopes_include_identity():
 
 
 def test_agent_config_validation():
-    """Test that CoordinatorConfig enforces data types and constraints inherited from BaseAgentConfig."""
+    """Test that CoordinatorConfig enforces data types and constraints inherited from CoreAgentConfig."""
     with patch.dict(os.environ, clear=True):
         config = CoordinatorConfig()
         assert config.TEMPERATURE == 0.3
@@ -95,6 +98,7 @@ def test_mcp_servers_config():
         "BIGQUERY_GENERAL_TIMEOUT": "120",
         "DRIVE_GENERAL_TIMEOUT": "120",
         "GCS_GENERAL_TIMEOUT": "120",
+        "ATLASSIAN_GENERAL_TIMEOUT": "120",
         "BIGQUERY_ENDPOINT": "/custom-mcp",
         "DRIVE_URL": "http://localhost:9090",
         "DRIVE_OAUTH_SCOPES": '["https://www.googleapis.com/auth/drive"]',
@@ -105,10 +109,12 @@ def test_mcp_servers_config():
         bq_config = BigQueryMCPConfig()
         drive_config = DriveMCPConfig()
         gcs_config = GCSMCPConfig()
+        atlassian_config = AtlassianMCPConfig()
 
         assert bq_config.GENERAL_TIMEOUT == 120
         assert drive_config.GENERAL_TIMEOUT == 120
         assert gcs_config.GENERAL_TIMEOUT == 120
+        assert atlassian_config.GENERAL_TIMEOUT == 120
 
         assert bq_config.ENDPOINT == "/custom-mcp"
         assert drive_config.URL == "http://localhost:9090"

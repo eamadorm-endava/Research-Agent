@@ -166,6 +166,17 @@ class GCSMCPConfig(BaseMCPConfig):
     ]
 
 
+class AtlassianMCPConfig(BaseMCPConfig):
+    """Configuration for the Atlassian (Jira/Confluence) MCP server."""
+
+    model_config = SettingsConfigDict(env_prefix="ATLASSIAN_")
+
+    URL: str = "http://localhost:8085"
+    OAUTH_CONFIG: Optional[BaseOAuthConfig] = None
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = []
+    GEMINI_AUTH_ID: Optional[str] = None
+
+
 class OneDriveMCPConfig(BaseMCPConfig):
     """Configuration for the Microsoft OneDrive MCP server."""
 
@@ -184,6 +195,31 @@ class OneDriveMCPConfig(BaseMCPConfig):
             description="Auth Resource ID for Microsoft OneDrive.",
             validation_alias=AliasChoices(
                 "ONEDRIVE_AUTH_ID",
+                "GEMINI_MICROSOFT_AUTH_ID",
+            ),
+        ),
+    ]
+
+
+class SharePointMCPConfig(BaseMCPConfig):
+    """Configuration for the Microsoft SharePoint MCP server."""
+
+    model_config = SettingsConfigDict(env_prefix="SHAREPOINT_")
+
+    URL: str = "http://localhost:8086"
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
+        "User.Read",
+        "Files.Read.All",
+        "Sites.Read.All",
+        "offline_access",
+    ]
+    GEMINI_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ms-auth-id",
+            description="Auth Resource ID for Microsoft SharePoint.",
+            validation_alias=AliasChoices(
+                "SHAREPOINT_AUTH_ID",
                 "GEMINI_MICROSOFT_AUTH_ID",
             ),
         ),

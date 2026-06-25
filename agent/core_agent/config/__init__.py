@@ -3,18 +3,18 @@ from .agent_settings import (
     COORDINATOR_CONFIG,
     RESEARCH_AGENT_CONFIG,
     INGESTION_AGENT_CONFIG,
-    BaseAgentConfig,
+    GCPConfig,
+    CoreAgentConfig,
     CoordinatorConfig,
     ResearchAgentConfig,
     IngestionAgentConfig,
-    GCPConfig,
 )
 from .oauth_settings import (
+    GOOGLE_AUTH_CONFIG,
+    MICROSOFT_AUTH_CONFIG,
     BaseOAuthConfig,
     GoogleAuthConfig,
     MicrosoftAuthConfig,
-    GOOGLE_AUTH_CONFIG,
-    MICROSOFT_AUTH_CONFIG,
 )
 from .mcp_settings import (
     BaseMCPConfig,
@@ -23,14 +23,24 @@ from .mcp_settings import (
     DriveMCPConfig,
     GCSMCPConfig,
     OneDriveMCPConfig,
+    SharePointMCPConfig,
+    AtlassianMCPConfig,
 )
 
 __all__ = [
-    "BaseAgentConfig",
+    # Singleton config instances (primary external API)
+    "GCP_CONFIG",
+    "COORDINATOR_CONFIG",
+    "RESEARCH_AGENT_CONFIG",
+    "INGESTION_AGENT_CONFIG",
+    "GOOGLE_AUTH_CONFIG",
+    "MICROSOFT_AUTH_CONFIG",
+    # Config classes (needed for type hints and MCP instantiation)
+    "GCPConfig",
+    "CoreAgentConfig",
     "CoordinatorConfig",
     "ResearchAgentConfig",
     "IngestionAgentConfig",
-    "GCPConfig",
     "BaseOAuthConfig",
     "GoogleAuthConfig",
     "MicrosoftAuthConfig",
@@ -40,10 +50,6 @@ __all__ = [
     "DriveMCPConfig",
     "GCSMCPConfig",
     "OneDriveMCPConfig",
-    "GCP_CONFIG",
-    "COORDINATOR_CONFIG",
-    "RESEARCH_AGENT_CONFIG",
-    "INGESTION_AGENT_CONFIG",
-    "GOOGLE_AUTH_CONFIG",
-    "MICROSOFT_AUTH_CONFIG",
+    "SharePointMCPConfig",
+    "AtlassianMCPConfig",
 ]

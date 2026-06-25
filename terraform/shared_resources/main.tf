@@ -19,6 +19,8 @@ module "artifact_registry" {
   name       = var.artifact_registry_name
   location   = local.artifact_registry_region
 
+  enable_vulnerability_scanning = true
+
   format = {
     docker = {
       standard = {}

@@ -7,6 +7,8 @@ CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
 EKB_PIPELINE_URL?=https://ekb-pipeline-server-753988132239.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
 LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
+METRICS_DATASET_ID?=agent_metrics
+METRICS_TABLE_ID?=response_times
 ### General Commands ###
 
 gcloud-auth:
@@ -30,7 +32,9 @@ verify-all-ci:
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
+	$(MAKE) verify-metrics-ci
 	$(MAKE) verify-onedrive-ci
+	$(MAKE) verify-sharepoint-ci
 	$(MAKE) verify-ekb-ci
 	$(MAKE) verify-atlassian-ci
 
@@ -70,7 +74,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET},METRICS_PROJECT_ID=${PROJECT_ID},METRICS_DATASET_ID=${METRICS_DATASET_ID},METRICS_TABLE_ID=${METRICS_TABLE_ID}"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
@@ -141,7 +145,7 @@ verify-gcs-ci:
 	$(MAKE) test-gcs-terraform
 
 test-gcs-terraform:
-	cd terraform/gcs_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform test
+	cd terraform/gcs_mcp_server_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### Google Calendar & Meet MCP Commands ###
 
@@ -161,6 +165,22 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-precommit
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
+
+### Metrics Plugin Commands ###
+
+run-metrics-precommit:
+	uvx pre-commit run --files agent/plugins/metrics/**/*
+
+run-metrics-tests:
+	cd agent && uv run --group ai-agent --group dev pytest tests/plugins/test_metrics_plugin.py
+
+verify-metrics-ci:
+	$(MAKE) run-metrics-precommit
+	$(MAKE) run-metrics-tests
+	$(MAKE) test-metrics-terraform
+
+test-metrics-terraform:
+	cd terraform/ai_agent_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### OneDrive MCP Commands ###
 
@@ -183,7 +203,30 @@ verify-onedrive-ci:
 	$(MAKE) test-onedrive-terraform
 
 test-onedrive-terraform:
-	cd terraform/onedrive_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+	cd terraform/onedrive_mcp_server_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### SharePoint MCP Commands ###
+
+run-sharepoint-precommit:
+	uvx pre-commit run --files mcp_servers/sharepoint/**/*
+
+run-sharepoint-tests:
+	uv run --group mcp_sharepoint pytest mcp_servers/sharepoint/tests/
+
+run-sharepoint-mcp-locally:
+	uv run --group mcp_sharepoint python -m mcp_servers.sharepoint.app.main --host localhost --port 8086
+
+build-sharepoint-mcp-image:
+	docker build -t test-sharepoint-mcp-server -f mcp_servers/sharepoint/Dockerfile .
+
+verify-sharepoint-ci:
+	$(MAKE) run-sharepoint-precommit
+	$(MAKE) run-sharepoint-tests
+	$(MAKE) build-sharepoint-mcp-image
+	$(MAKE) test-sharepoint-terraform
+
+test-sharepoint-terraform:
+	cd terraform/sharepoint_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### EKB Pipeline Commands ###
 
@@ -204,7 +247,7 @@ verify-ekb-ci:
 	$(MAKE) test-ekb-terraform
 
 test-ekb-terraform:
-	cd terraform/ekb_pipeline_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+	cd terraform/ekb_pipeline_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### Atlassian MCP Commands ###
 
@@ -230,11 +273,8 @@ verify-atlassian-ci:
 	$(MAKE) run-atlassian-precommit
 	$(MAKE) run-atlassian-tests
 	$(MAKE) run-atlassian-mcp-test-client
-	$(MAKE) test-agent-atlassian
 	$(MAKE) build-atlassian-mcp-image
+	$(MAKE) test-atlassian-terraform
 
-test-agent-atlassian:
-	uv run pytest agent/tests/test_agent_atlassian_mcp.py -v
-
-verify-agent-atlassian-tools:
-	uv run --group mcp_atlassian --group dev python agent/tests/verify_agent_atlassian_tools.py
+test-atlassian-terraform:
+	cd terraform/atlassian_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate

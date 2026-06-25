@@ -6,7 +6,7 @@ from google.adk.plugins.base_plugin import BasePlugin
 from loguru import logger
 from vertexai.agent_engines import AdkApp
 
-from ..config import BaseAgentConfig, GCPConfig
+from ..config import CoreAgentConfig, GCPConfig
 from ..artifact_service.gcs_service import StorageService
 
 
@@ -17,14 +17,14 @@ class AppBuilder:
         self,
         agent: BaseAgent,
         gcp_config: GCPConfig,
-        agent_config: BaseAgentConfig,
+        agent_config: CoreAgentConfig,
     ) -> None:
         """Initializes the AppBuilder with required configurations and the root agent.
 
         Args:
             agent: BaseAgent -> The root ADK agent instance.
             gcp_config: GCPConfig -> Google Cloud Platform project settings.
-            agent_config: BaseAgentConfig -> Core agent and application settings.
+            agent_config: CoreAgentConfig -> Core agent and application settings.
         """
         self.agent = agent
         self.gcp_config = gcp_config

@@ -20,7 +20,7 @@ from ..schemas import (
 
 
 class JiraClient:
-    """Wrapper client for the Atlassian Jira Cloud REST API (v3)."""
+    """Wrapper client for the Atlassian Jira REST API (Cloud v3 and Server/DC v2)."""
 
     def __init__(self, email: str, token: str, instance_url: str, cloud_id: str):
         self.email = email
@@ -28,24 +28,40 @@ class JiraClient:
         self.instance_url = instance_url.rstrip("/")
         self.cloud_id = cloud_id
 
-        # Build basic auth header
-        auth_str = f"{self.email}:{self.token}"
-        encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+        self.is_cloud = ".atlassian.net" in self.instance_url.lower()
+        self.api_prefix = "/rest/api/3" if self.is_cloud else "/rest/api/2"
+
+        if self.is_cloud:
+            auth_str = f"{self.email}:{self.token}"
+            encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+            auth_header = f"Basic {encoded_auth}"
+        else:
+            auth_header = f"Bearer {self.token}"
+
         self.headers = {
-            "Authorization": f"Basic {encoded_auth}",
+            "Authorization": auth_header,
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        logger.info(f"JiraClient initialized for instance {self.instance_url}")
+        logger.info(
+            f"JiraClient initialized for instance {self.instance_url} (is_cloud={self.is_cloud})"
+        )
 
     async def list_projects(
         self, request: ListJiraProjectsRequest
     ) -> ListJiraProjectsResponse:
         """Fetch all Jira projects."""
-        url = f"{self.instance_url}/rest/api/3/project"
+        url = f"{self.instance_url}{self.api_prefix}/project"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
+                if resp.status_code == 404:
+                    logger.warning(f"List projects returned 404: {resp.text}")
+                    return ListJiraProjectsResponse(
+                        execution_status="success",
+                        execution_message="No projects found or the endpoint is unavailable.",
+                        projects=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list projects: {resp.status_code} {resp.text}"
@@ -72,10 +88,19 @@ class JiraClient:
         self, request: GetJiraProjectDetailsRequest
     ) -> GetJiraProjectDetailsResponse:
         """Fetch detailed information of a single Jira project."""
-        url = f"{self.instance_url}/rest/api/3/project/{request.project_id_or_key}"
+        url = (
+            f"{self.instance_url}{self.api_prefix}/project/{request.project_id_or_key}"
+        )
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
+                if resp.status_code == 404:
+                    logger.warning(f"Project not found: {resp.text}")
+                    return GetJiraProjectDetailsResponse(
+                        execution_status="success",
+                        execution_message=f"Project '{request.project_id_or_key}' was not found. Verify the project key or ID.",
+                        project=None,
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to get project details: {resp.status_code} {resp.text}"
@@ -102,10 +127,17 @@ class JiraClient:
         self, request: ListJiraProjectComponentsRequest
     ) -> ListJiraProjectComponentsResponse:
         """Fetch all components (representing technologies) for a project."""
-        url = f"{self.instance_url}/rest/api/3/project/{request.project_id_or_key}/components"
+        url = f"{self.instance_url}{self.api_prefix}/project/{request.project_id_or_key}/components"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
+                if resp.status_code == 404:
+                    logger.warning(f"Project components not found: {resp.text}")
+                    return ListJiraProjectComponentsResponse(
+                        execution_status="success",
+                        execution_message=f"No components found for project '{request.project_id_or_key}'. Verify the project key or ID.",
+                        components=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list components: {resp.status_code} {resp.text}"
@@ -132,10 +164,17 @@ class JiraClient:
         self, request: ListJiraProjectCategoriesRequest
     ) -> ListJiraProjectCategoriesResponse:
         """Fetch all project categories (representing clients/domains)."""
-        url = f"{self.instance_url}/rest/api/3/projectCategory"
+        url = f"{self.instance_url}{self.api_prefix}/projectCategory"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
+                if resp.status_code == 404:
+                    logger.warning(f"Project categories not found: {resp.text}")
+                    return ListJiraProjectCategoriesResponse(
+                        execution_status="success",
+                        execution_message="No project categories found or the endpoint is unavailable.",
+                        categories=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list categories: {resp.status_code} {resp.text}"
@@ -161,21 +200,52 @@ class JiraClient:
     async def search_issues(
         self, request: SearchJiraIssuesRequest
     ) -> SearchJiraIssuesResponse:
-        """Search Jira issues using JQL."""
-        url = f"{self.instance_url}/rest/api/3/search/jql"
+        """Search Jira issues using JQL.
+
+        Uses the enhanced /search/jql endpoint for Cloud instances (the legacy
+        /search was removed by Atlassian on 2025-08-01) and falls back to the
+        classic /search endpoint for Server/DC.
+
+        Args:
+            request: SearchJiraIssuesRequest -> JQL search parameters
+
+        Returns:
+            SearchJiraIssuesResponse -> Matching issues and pagination token
+        """
+        if self.is_cloud:
+            url = f"{self.instance_url}{self.api_prefix}/search/jql"
+        else:
+            url = f"{self.instance_url}{self.api_prefix}/search"
+
         params: dict[str, Any] = {
             "jql": request.jql,
             "maxResults": request.max_results or 50,
             "fields": "key,summary,status,project,priority,assignee,updated",
         }
         if request.next_page_token:
-            params["nextPageToken"] = request.next_page_token
+            if self.is_cloud:
+                params["nextPageToken"] = request.next_page_token
+            else:
+                params["startAt"] = int(request.next_page_token)
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(
+                        f"Search returned 404 (no matching resource): {resp.text}"
+                    )
+                    return SearchJiraIssuesResponse(
+                        execution_status="success",
+                        execution_message=(
+                            "The search query returned no results or the "
+                            "requested resource was not found. Try broadening "
+                            "your JQL query or verifying project/issue keys."
+                        ),
+                        issues=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to search issues: {resp.status_code} {resp.text}"
@@ -186,10 +256,22 @@ class JiraClient:
                         issues=[],
                     )
                 data = resp.json()
+                issues = data.get("issues", [])
+
+                next_page_token = None
+                if not self.is_cloud:
+                    start_at = data.get("startAt", 0)
+                    max_results = data.get("maxResults", 50)
+                    total = data.get("total", 0)
+                    if start_at + max_results < total:
+                        next_page_token = str(start_at + max_results)
+                else:
+                    next_page_token = data.get("nextPageToken")
+
                 return SearchJiraIssuesResponse(
                     execution_status="success",
-                    issues=data.get("issues", []),
-                    next_page_token=data.get("nextPageToken"),
+                    issues=issues,
+                    next_page_token=next_page_token,
                 )
         except Exception as e:
             logger.exception("Exception in search_issues")
@@ -203,13 +285,20 @@ class JiraClient:
         self, request: GetJiraIssueDetailsRequest
     ) -> GetJiraIssueDetailsResponse:
         """Fetch detailed information for a single Jira issue."""
-        url = f"{self.instance_url}/rest/api/3/issue/{request.issue_id_or_key}"
+        url = f"{self.instance_url}{self.api_prefix}/issue/{request.issue_id_or_key}"
         params = {"expand": "names,renderedFields,comments"}
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Issue not found: {resp.text}")
+                    return GetJiraIssueDetailsResponse(
+                        execution_status="success",
+                        execution_message=f"Issue '{request.issue_id_or_key}' was not found. Verify the issue key or ID.",
+                        issue=None,
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to get issue details: {resp.status_code} {resp.text}"

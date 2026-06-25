@@ -3,6 +3,7 @@ from loguru import logger
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
+from datetime import datetime, timezone
 
 from .config import CALENDAR_API_CONFIG, CALENDAR_SERVER_CONFIG
 from .security import GoogleCalendarTokenVerifier, create_events_client
@@ -46,10 +47,10 @@ async def list_calendar_events(
     Retrieves events based on optional filters for date, time, and query terms.
 
     Args:
-        request (ListCalendarEventsRequest): The request parameters.
+        request: ListCalendarEventsRequest -> The request parameters.
 
     Returns:
-        ListCalendarEventsResponse: A response containing the list of calendar events and execution status.
+        ListCalendarEventsResponse -> A response containing the list of calendar events and execution status.
     """
     logger.info(
         "Tool call: list_calendar_events(max_events=%s, query=%s, sort_order=%s)",
@@ -71,6 +72,7 @@ async def list_calendar_events(
         )
         return ListCalendarEventsResponse(
             execution_status="success",
+            server_current_time_utc=datetime.now(timezone.utc).isoformat(),
             events=events,
         )
     except Exception as exc:
@@ -90,10 +92,10 @@ async def list_meet_sessions(
     Identifies historical records for the specified 10-letter meeting ID.
 
     Args:
-        request (ListMeetSessionsRequest): The request parameters containing the meeting code.
+        request: ListMeetSessionsRequest -> The request parameters containing the meeting code.
 
     Returns:
-        ListMeetSessionsResponse: A response containing the Meet sessions and execution status.
+        ListMeetSessionsResponse -> A response containing the Meet sessions and execution status.
     """
     logger.info("Tool call: list_meet_sessions(meeting_code=%s)", request.meeting_code)
     try:
@@ -124,10 +126,10 @@ async def list_meet_participants(
     Lists join/leave times and identity metadata for everyone in the session.
 
     Args:
-        request (ListMeetParticipantsRequest): The request parameters containing the session ID.
+        request: ListMeetParticipantsRequest -> The request parameters containing the session ID.
 
     Returns:
-        ListMeetParticipantsResponse: A response containing the participants and execution status.
+        ListMeetParticipantsResponse -> A response containing the participants and execution status.
     """
     logger.info(
         "Tool call: list_meet_participants(meet_session_id=%s)", request.meet_session_id
@@ -160,10 +162,10 @@ async def get_meet_recording(
     Includes state, start/end times, and the associated Google Drive identifier.
 
     Args:
-        request (GetMeetRecordingRequest): The request parameters containing the recording ID.
+        request: GetMeetRecordingRequest -> The request parameters containing the recording ID.
 
     Returns:
-        GetMeetRecordingResponse: A response containing the recording metadata and execution status.
+        GetMeetRecordingResponse -> A response containing the recording metadata and execution status.
     """
     logger.info("Tool call: get_meet_recording(recording_id=%s)", request.recording_id)
     try:
@@ -194,10 +196,10 @@ async def get_meet_transcript(
     Includes state and the associated Google Docs document identifier.
 
     Args:
-        request (GetMeetTranscriptRequest): The request parameters containing the transcript ID.
+        request: GetMeetTranscriptRequest -> The request parameters containing the transcript ID.
 
     Returns:
-        GetMeetTranscriptResponse: A response containing the transcript metadata and execution status.
+        GetMeetTranscriptResponse -> A response containing the transcript metadata and execution status.
     """
     logger.info(
         "Tool call: get_meet_transcript(transcript_id=%s)", request.transcript_id

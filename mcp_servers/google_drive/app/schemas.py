@@ -13,7 +13,7 @@ class AuthenticationError(Exception):
 class DriveSchemaModel(BaseModel):
     """Shared schema base for the Google Drive MCP server."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
 
 class AgentDependencies(BaseModel):
@@ -50,6 +50,24 @@ class BaseRequest(DriveSchemaModel):
             ),
         ),
     ]
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        """
+        Removes the dependencies field from the generated JSON Schema to prevent LLM hallucinations.
+
+        Args:
+            core_schema: Any -> The core Pydantic schema being processed.
+            handler: Any -> The schema generation handler.
+
+        Returns:
+            dict -> The modified JSON Schema dictionary.
+        """
+        json_schema = super().__get_pydantic_json_schema__(core_schema, handler)
+        json_schema = handler.resolve_ref_schema(json_schema)
+        if "properties" in json_schema and "dependencies" in json_schema["properties"]:
+            json_schema["properties"].pop("dependencies")
+        return json_schema
 
 
 class DriveMimeType(StrEnum):
