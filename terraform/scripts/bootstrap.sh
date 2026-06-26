@@ -12,8 +12,10 @@ set -e
 #   and sets up the Terraform state bucket in Google Cloud Storage (GCS).
 #
 # Usage:
-#   This script should NOT be executed directly. It is designed to be called by
-#   creation_manager.sh, which injects all required configuration variables.
+#   Ideally, this script should be executed automatically via creation_manager.sh,
+#   which handles injecting all necessary parameters.
+#   However, it can also be executed manually for isolated bootstrapping by 
+#   providing the required CLI flags directly.
 #
 # Required Parameters (CLI Flags):
 #   --project                 - The GCP Project ID where resources will be deployed.
