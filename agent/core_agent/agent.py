@@ -13,6 +13,7 @@ from loguru import logger
 from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
 from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
+from .plugins.continuation import ContinuationPlugin
 from .plugins.metrics.plugin import ResponseTimeMetricsPlugin
 from .config import (
     GCP_CONFIG,
@@ -130,12 +131,14 @@ app = (
             [
                 GeminiEnterpriseFileIngestionPlugin(),
                 MultimodalFileInjectionPlugin(),
+                ContinuationPlugin(),
                 ResponseTimeMetricsPlugin(),
             ]
             if GCP_CONFIG.PROD_EXECUTION
             else [
                 SaveFilesAsArtifactsPlugin(),
                 MultimodalFileInjectionPlugin(),
+                ContinuationPlugin(),
                 ResponseTimeMetricsPlugin(),
             ]
         )

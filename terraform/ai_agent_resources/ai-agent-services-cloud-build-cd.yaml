@@ -15,7 +15,7 @@ substitutions:
   _METRICS_TABLE_ID: "response_times"
   _GE_APP_ID: "gemini-enterprise-17816266_1781626607357"
   _GE_REGION: "global"
-  _GE_AGENT_DESCRIPTION: "OSIRIS: A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
+  _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
   _MICROSOFT_OAUTH_SCOPES: "offline_access Files.Read.All Sites.Read.All"
   _MICROSOFT_TENANT_ID: "93f8f3d2-54f6-417d-9a37-10ff2952f228"
