@@ -21,7 +21,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # ## Bootstrap Parameters
 #   --deploy-bootstrap           Set to "true" to run bootstrap.sh.
 #   --sa-name                    Terraform Service Account Name (Required for Bootstrap).
-#   --user-email                 User Email for impersonation (Required for Bootstrap).
+#   --admin-user-email           Admin Email for local impersonation (Required for Bootstrap).
 #   --developer-group-email      Developer Group Email for impersonation (Required for Bootstrap).
 #   --github-connection-name     GitHub Connection Name in Cloud Build (Required for Bootstrap).
 #   --repository-slug            GitHub Repository Slug (e.g. owner-repo) (Required for Bootstrap).
@@ -32,6 +32,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # ## Gemini Enterprise Parameters
 #   --deploy-ge-app              Set to "true" to deploy a Gemini Enterprise App.
 #   --ge-app-location            Location for the Gemini Enterprise App ("global", "us", or "eu").
+#   --ge-app-name-suffix         Unique suffix for the GE App ID (Optional, defaults to "osiris-app").
 #
 # ## AI Agent Parameters
 #   --deploy-ai-agent            Set to "true" to deploy AI Agent resources.
@@ -39,7 +40,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 #
 # ## MCP Servers Parameters
 #   --deploy-mcp-servers         Set to "true" to deploy MCP servers.
-#   --mcp-servers-to-deploy      Comma-separated list of MCP servers (e.g., "gcs=us-east1,bq").
+#   --mcp-servers-to-deploy      Comma-separated list of MCP servers (e.g., "gcs=us-east1,bq") or "all" to deploy all MCP servers.
 #
 # ## Pipelines Parameters
 #   --deploy-ekb-pipeline        Set to "true" to deploy the EKB pipeline.
@@ -56,7 +57,7 @@ REGION=""
 # --- Bootstrap Parameters ---
 DEPLOY_BOOTSTRAP="false"
 SA_NAME="terraform-sa-gemini-project"
-USER_EMAIL="emmanuel.amador@endava.com"
+ADMIN_USER_EMAIL="emmanuel.amador@endava.com"
 DEVELOPER_GROUP_EMAIL="gcu_latam_team_devs@endava.com"
 GITHUB_CONNECTION_NAME="eamadorm-github-connection"
 REPOSITORY_SLUG="eamadorm-endava-Research-Agent"
@@ -94,7 +95,7 @@ while [[ "$#" -gt 0 ]]; do
         # Bootstrap
         --deploy-bootstrap) DEPLOY_BOOTSTRAP="$2"; shift ;;
         --sa-name) SA_NAME="$2"; shift ;;
-        --user-email) USER_EMAIL="$2"; shift ;;
+        --admin-user-email) ADMIN_USER_EMAIL="$2"; shift ;;
         --developer-group-email) DEVELOPER_GROUP_EMAIL="$2"; shift ;;
         --github-connection-name) GITHUB_CONNECTION_NAME="$2"; shift ;;
         --repository-slug) REPOSITORY_SLUG="$2"; shift ;;
@@ -133,9 +134,9 @@ if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]]; then
 fi
 
 if [[ "$DEPLOY_BOOTSTRAP" == "true" ]]; then
-    if [[ -z "$SA_NAME" ]] || [[ -z "$USER_EMAIL" ]] || [[ -z "$DEVELOPER_GROUP_EMAIL" ]] || [[ -z "$GITHUB_CONNECTION_NAME" ]] || [[ -z "$REPOSITORY_SLUG" ]]; then
+    if [[ -z "$SA_NAME" ]] || [[ -z "$ADMIN_USER_EMAIL" ]] || [[ -z "$DEVELOPER_GROUP_EMAIL" ]] || [[ -z "$GITHUB_CONNECTION_NAME" ]] || [[ -z "$REPOSITORY_SLUG" ]]; then
         echo "Error: --deploy-bootstrap is true, but missing required parameters."
-        echo "Required: --sa-name, --user-email, --developer-group-email, --github-connection-name, --repository-slug"
+        echo "Required: --sa-name, --admin-user-email, --developer-group-email, --github-connection-name, --repository-slug"
         exit 1
     fi
 fi
@@ -219,13 +220,12 @@ echo "-----------------------------------------------------------------"
 if [[ "$DEPLOY_BOOTSTRAP" == "true" ]]; then
     echo "STEP 1: Run Bootstrap"
     echo "-----------------------------------------------------------------"
-    export PROJECT_ID="$PROJECT_ID"
-    export LOCATION="$REGION"
-    export SA_NAME="$SA_NAME"
-    export USER_EMAIL="$USER_EMAIL"
-    export DEVELOPER_GROUP_EMAIL="$DEVELOPER_GROUP_EMAIL"
-
-    bash "$SCRIPT_DIR/bootstrap.sh"
+    bash "$SCRIPT_DIR/bootstrap.sh" \
+        --project "$PROJECT_ID" \
+        --location "$REGION" \
+        --sa-name "$SA_NAME" \
+        --admin-user-email "$ADMIN_USER_EMAIL" \
+        --developer-group-email "$DEVELOPER_GROUP_EMAIL"
     echo "Bootstrap complete."
 else
     echo "Skipping Bootstrap."

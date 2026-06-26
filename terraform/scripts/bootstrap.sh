@@ -15,23 +15,41 @@ set -e
 #   This script should NOT be executed directly. It is designed to be called by
 #   creation_manager.sh, which injects all required configuration variables.
 #
-# Required Environment Variables:
-#   PROJECT_ID            - The GCP Project ID where resources will be deployed.
-#   LOCATION              - The default GCP region for the state bucket.
-#   SA_NAME               - The name of the Service Account to create for Terraform.
-#   USER_EMAIL            - The email of the individual user who will be granted impersonation rights.
-#   DEVELOPER_GROUP_EMAIL - The email of the Google Group whose members get impersonation rights.
+# Required Parameters (CLI Flags):
+#   --project                 - The GCP Project ID where resources will be deployed.
+#   --location                - The default GCP region for the state bucket.
+#   --sa-name                 - The name of the Service Account to create for Terraform.
+#   --admin-user-email        - The email of the primary administrator who needs local impersonation rights to run Terraform directly.
+#   --developer-group-email   - The email of the Google Group whose members get impersonation rights.
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # --- Required Configuration Variables ---
-if [[ -z "${PROJECT_ID:-}" ]]; then echo "Error: PROJECT_ID is not set."; exit 1; fi
-if [[ -z "${LOCATION:-}" ]]; then echo "Error: LOCATION is not set."; exit 1; fi
-if [[ -z "${SA_NAME:-}" ]]; then echo "Error: SA_NAME is not set."; exit 1; fi
-if [[ -z "${USER_EMAIL:-}" ]]; then echo "Error: USER_EMAIL is not set."; exit 1; fi
-if [[ -z "${DEVELOPER_GROUP_EMAIL:-}" ]]; then echo "Error: DEVELOPER_GROUP_EMAIL is not set."; exit 1; fi
+PROJECT_ID=""
+LOCATION=""
+SA_NAME=""
+ADMIN_USER_EMAIL=""
+DEVELOPER_GROUP_EMAIL=""
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --project) PROJECT_ID="$2"; shift ;;
+        --location) LOCATION="$2"; shift ;;
+        --sa-name) SA_NAME="$2"; shift ;;
+        --admin-user-email) ADMIN_USER_EMAIL="$2"; shift ;;
+        --developer-group-email) DEVELOPER_GROUP_EMAIL="$2"; shift ;;
+        *) echo "Unknown parameter: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+if [[ -z "${PROJECT_ID:-}" ]]; then echo "Error: PROJECT_ID is not set. Use --project"; exit 1; fi
+if [[ -z "${LOCATION:-}" ]]; then echo "Error: LOCATION is not set. Use --location"; exit 1; fi
+if [[ -z "${SA_NAME:-}" ]]; then echo "Error: SA_NAME is not set. Use --sa-name"; exit 1; fi
+if [[ -z "${ADMIN_USER_EMAIL:-}" ]]; then echo "Error: ADMIN_USER_EMAIL is not set. Use --admin-user-email"; exit 1; fi
+if [[ -z "${DEVELOPER_GROUP_EMAIL:-}" ]]; then echo "Error: DEVELOPER_GROUP_EMAIL is not set. Use --developer-group-email"; exit 1; fi
 
 export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 BUCKET_NAME="${PROJECT_ID}-terraform-state"
@@ -174,7 +192,7 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET_NAME \
 # 7. Grant individual user impersonation
 # Reason: Allows the developer running this script to act as the Terraform SA locally.
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
-  --member="user:$USER_EMAIL" \
+  --member="user:$ADMIN_USER_EMAIL" \
   --role="roles/iam.serviceAccountUser" \
   --project="$PROJECT_ID"
 
