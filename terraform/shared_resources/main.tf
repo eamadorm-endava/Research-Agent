@@ -67,23 +67,24 @@ resource "time_sleep" "wait_for_iam_propagation" {
   create_duration = "45s"
 }
 
-resource "google_bigquery_job" "create_multimodal_model" {
-  # Deterministic job_id: stable within a project so re-applies don't re-run the job,
-  # but changes when project_id or connection_id change (e.g. after a project migration),
-  # which forces Terraform to destroy the stale state entry and create a fresh job.
-  job_id   = "create-multimodal-model-${substr(md5("${var.project_id}-${var.bq_vertex_connection_id}-v2"), 0, 8)}"
-  project  = var.project_id
-  location = var.main_region
+resource "null_resource" "create_multimodal_model" {
+  # This tells Terraform to run this check on EVERY terraform apply
+  triggers = {
+    always_run = timestamp()
+  }
 
-  query {
-    query              = <<EOF
-      CREATE OR REPLACE MODEL `${var.bq_dataset_id}.multimodal_embedding_model`
-      REMOTE WITH CONNECTION `${var.project_id}.${var.main_region}.${google_bigquery_connection.vertex_ai_connection.connection_id}`
-      OPTIONS (ENDPOINT = 'multimodalembedding@001');
-EOF
-    use_legacy_sql     = false
-    create_disposition = ""
-    write_disposition  = ""
+  provisioner "local-exec" {
+    command = <<EOT
+      # Check if model exists natively in BigQuery
+      if bq show --model "${var.project_id}:${var.bq_dataset_id}.multimodal_embedding_model" > /dev/null 2>&1; then
+        echo "Model already exists in BigQuery. Skipping creation."
+      else
+        echo "Embedding model does not exist. Creating..."
+        bq query --use_legacy_sql=false \
+          "CREATE MODEL IF NOT EXISTS \`${var.project_id}.${var.bq_dataset_id}.multimodal_embedding_model\` REMOTE WITH CONNECTION \`${var.project_id}.${var.main_region}.${google_bigquery_connection.vertex_ai_connection.connection_id}\` OPTIONS (ENDPOINT = 'multimodalembedding@001');"
+        echo "Embedding model created successfully."
+      fi
+    EOT
   }
 
   depends_on = [
