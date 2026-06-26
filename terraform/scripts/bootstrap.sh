@@ -59,10 +59,11 @@ BUCKET_NAME="${PROJECT_ID}-terraform-state"
 echo "Starting bootstrap for project: $PROJECT_ID"
 
 # 0. Enable fundamental APIs
-echo "Enabling fundamental APIs (Service Usage, Resource Manager)..."
+echo "Enabling fundamental APIs (Service Usage, Resource Manager, Cloud Build)..."
 gcloud services enable \
     serviceusage.googleapis.com \
     cloudresourcemanager.googleapis.com \
+    cloudbuild.googleapis.com \
     --project=$PROJECT_ID
 
 # 1. Create the Service Account
@@ -125,11 +126,25 @@ echo "Applying Cloud Build 2nd Gen 'System-to-SA' bridge permissions..."
 # 4.1. Grant the Cloud Build System Agent the ability to impersonate the custom SA
 # Reason: The internal GCP Cloud Build system runs the triggers, and it must
 # have permission to "act as" ($SA_EMAIL) to execute the pipeline steps.
-gcloud iam service-accounts add-iam-policy-binding $SA_EMAIL \
+# Note: Google-managed Service Agents can be lazy-provisioned, so we retry the binding.
+echo "Waiting for Cloud Build System Agent to be ready (this may take a moment)..."
+MAX_RETRIES=12
+RETRY_COUNT=0
+while ! gcloud iam service-accounts add-iam-policy-binding $SA_EMAIL \
     --member="serviceAccount:$CB_SERVICE_AGENT" \
     --role="roles/iam.serviceAccountUser" \
     --project=$PROJECT_ID \
-    --condition=None
+    --condition=None > /dev/null 2>&1; do
+    
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo "Error: Cloud Build Service Agent failed to provision in time."
+        exit 1
+    fi
+    echo "Service Agent not ready yet, retrying in 10s... ($((RETRY_COUNT+1))/$MAX_RETRIES)"
+    sleep 10
+    RETRY_COUNT=$((RETRY_COUNT+1))
+done
+echo "Cloud Build System Agent is ready and bound!"
 
 # 4.2. Grant the Cloud Build System Agent its core role
 # Reason: Re-asserts that the system agent has the foundational Cloud Build permissions.
@@ -138,15 +153,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
     --role="roles/cloudbuild.serviceAgent" \
     --condition=None
 
-# 4.3. Grant the custom SA the Cloud Build Service Agent role
-# Reason: The custom SA ($SA_EMAIL) needs this role to interact with Cloud Build
-# infrastructure correctly during trigger executions.
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:$SA_EMAIL" \
-    --role="roles/cloudbuild.serviceAgent" \
-    --condition=None
-
-# 4.4. Grant the custom SA the explicit 'Builder' role
+# 4.3. Grant the custom SA the explicit 'Builder' role
 # Reason: This role (roles/cloudbuild.builds.builder) permits the custom SA 
 # to actually execute 'build' resources within the project.
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
@@ -154,7 +161,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --role="roles/cloudbuild.builds.builder" \
     --condition=None
 
-# 4.5. Ensure the custom SA can write logs
+# 4.4. Ensure the custom SA can write logs
 # Reason: The custom SA must be able to stream execution logs back to Cloud Logging.
 gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:$SA_EMAIL" \
@@ -164,12 +171,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 echo "Waiting for identity propagation (15s)..."
 sleep 15
 
-# 5. Enable Cloud Build API
-# Reason: Required to manage and execute CI/CD triggers.
-echo "Ensuring Cloud Build API is enabled..."
-gcloud services enable cloudbuild.googleapis.com --project=$PROJECT_ID
-
-# 6. Create GCS Bucket for Terraform State
+# 5. Create GCS Bucket for Terraform State
 # Reason: Terraform requires a remote backend to store infrastructure state securely.
 if ! gcloud storage buckets describe gs://$BUCKET_NAME > /dev/null 2>&1; then
     echo "Creating GCS bucket for Terraform state: $BUCKET_NAME..."
@@ -184,14 +186,7 @@ else
     echo "Bucket $BUCKET_NAME already exists."
 fi
 
-# 6.1 Grant the Service Account permissions on the bucket
-# Reason: The Terraform SA must be able to read/write the state files.
-echo "Granting $SA_NAME Storage Object Admin on the state bucket..."
-gcloud storage buckets add-iam-policy-binding gs://$BUCKET_NAME \
-    --member="serviceAccount:$SA_EMAIL" \
-    --role="roles/storage.objectAdmin"
-
-# 7. Grant individual user impersonation
+# 6. Grant individual user impersonation
 # Reason: Allows the developer running this script to act as the Terraform SA locally.
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --member="user:$ADMIN_USER_EMAIL" \
