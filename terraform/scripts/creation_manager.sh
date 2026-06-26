@@ -252,9 +252,7 @@ fi
 echo "-----------------------------------------------------------------"
 echo "STEP 3: Create CI/CD Triggers"
 echo "-----------------------------------------------------------------"
-export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-export GITHUB_CONNECTION_NAME="$GITHUB_CONNECTION_NAME"
-export REPOSITORY_SLUG="$REPOSITORY_SLUG"
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Compute AI Agent URLs to explicitly inject into triggers
 BQ_REGION="$REGION"
@@ -298,7 +296,13 @@ OUTLOOK_URL="https://outlook-mcp-server-${PROJECT_NUMBER}.${OUTLOOK_REGION}.run.
 EKB_URL="https://ekb-pipeline-${PROJECT_NUMBER}.${REGION}.run.app"
 
 bash "$SCRIPT_DIR/cicd_triggers_creation.sh" \
+    --project "$PROJECT_ID" \
+    --sa-name "$SA_NAME" \
+    --sa-email "$SA_EMAIL" \
+    --github-connection "$GITHUB_CONNECTION_NAME" \
+    --repo-slug "$REPOSITORY_SLUG" \
     --region "$REGION" \
+    --deploy-shared-resources "$DEPLOY_SHARED_RESOURCES" \
     --deploy-mcp-servers "$DEPLOY_MCP_SERVERS" \
     --mcp-servers-to-deploy "$MCP_SERVERS_TO_DEPLOY" \
     --deploy-ekb-pipeline "$DEPLOY_EKB_PIPELINE" \

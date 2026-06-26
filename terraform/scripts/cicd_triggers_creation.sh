@@ -15,17 +15,14 @@ set -euo pipefail
 #   creation_manager.sh, which parses user intentions and injects all required
 #   environment variables and parameters.
 #
-# Required Environment Variables:
-#   PROJECT_ID             - The GCP Project ID where triggers will be created.
-#   SA_NAME                - The name of the Service Account (used for trigger auth).
-#   SA_EMAIL               - The full email of the Service Account.
-#   GITHUB_CONNECTION_NAME - The Cloud Build GitHub Connection name.
-#   REPOSITORY_SLUG        - The GitHub Repository Slug.
-#                            This is the exact identifier format required by Cloud Build when linking
-#                            a 2nd Gen repository connection, strictly formatted as "owner-repo".
-#
 # Parameters:
+#   --project                - The GCP Project ID where triggers will be created.
+#   --sa-name                - The name of the Service Account (used for trigger auth).
+#   --sa-email               - The full email of the Service Account.
+#   --github-connection      - The Cloud Build GitHub Connection name.
+#   --repo-slug              - The GitHub Repository Slug (e.g. owner-repo).
 #   --region                 - The default GCP region for the project.
+#   --deploy-shared-resources- "true" to create triggers for shared resources.
 #   --deploy-mcp-servers     - "true" to create triggers for the MCP Servers.
 #   --mcp-servers-to-deploy  - Comma-separated list of MCP servers to create triggers for.
 #   --deploy-ekb-pipeline    - "true" to create the trigger for the EKB pipeline.
@@ -43,8 +40,16 @@ set -euo pipefail
 #   --ekb-pipeline-url       - The EKB Pipeline Cloud Run URL.
 # ==============================================================================
 
-# --- Parameters ---
+# --- Core Parameters ---
+PROJECT_ID=""
+SA_NAME=""
+SA_EMAIL=""
+GITHUB_CONNECTION_NAME=""
+REPOSITORY_SLUG=""
 REGION=""
+
+# --- Deployment Flags ---
+DEPLOY_SHARED_RESOURCES="false"
 DEPLOY_MCP_SERVERS="false"
 MCP_SERVERS_TO_DEPLOY="all"
 DEPLOY_EKB_PIPELINE="false"
@@ -71,7 +76,13 @@ FORCE_RECREATE="${FORCE_RECREATE:-false}"
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
+        --project) PROJECT_ID="$2"; shift ;;
+        --sa-name) SA_NAME="$2"; shift ;;
+        --sa-email) SA_EMAIL="$2"; shift ;;
+        --github-connection) GITHUB_CONNECTION_NAME="$2"; shift ;;
+        --repo-slug) REPOSITORY_SLUG="$2"; shift ;;
         --region) REGION="$2"; shift ;;
+        --deploy-shared-resources) DEPLOY_SHARED_RESOURCES="$2"; shift ;;
         --deploy-mcp-servers) DEPLOY_MCP_SERVERS="$2"; shift ;;
         --mcp-servers-to-deploy) MCP_SERVERS_TO_DEPLOY="$2"; shift ;;
         --deploy-ekb-pipeline) DEPLOY_EKB_PIPELINE="$2"; shift ;;
@@ -95,17 +106,12 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-if [[ -z "$REGION" ]]; then
-    echo "Error: --region is required."
-    exit 1
-fi
-
-# Require essential variables from the environment (e.g. from bootstrap.sh)
-if [[ -z "${PROJECT_ID:-}" ]]; then echo "Error: PROJECT_ID environment variable is missing."; exit 1; fi
-if [[ -z "${SA_NAME:-}" ]]; then echo "Error: SA_NAME environment variable is missing."; exit 1; fi
-if [[ -z "${SA_EMAIL:-}" ]]; then echo "Error: SA_EMAIL environment variable is missing."; exit 1; fi
-if [[ -z "${GITHUB_CONNECTION_NAME:-}" ]]; then echo "Error: GITHUB_CONNECTION_NAME environment variable is missing."; exit 1; fi
-if [[ -z "${REPOSITORY_SLUG:-}" ]]; then echo "Error: REPOSITORY_SLUG environment variable is missing."; exit 1; fi
+if [[ -z "$PROJECT_ID" ]]; then echo "Error: --project is required."; exit 1; fi
+if [[ -z "$SA_NAME" ]]; then echo "Error: --sa-name is required."; exit 1; fi
+if [[ -z "$SA_EMAIL" ]]; then echo "Error: --sa-email is required."; exit 1; fi
+if [[ -z "$GITHUB_CONNECTION_NAME" ]]; then echo "Error: --github-connection is required."; exit 1; fi
+if [[ -z "$REPOSITORY_SLUG" ]]; then echo "Error: --repo-slug is required."; exit 1; fi
+if [[ -z "$REGION" ]]; then echo "Error: --region is required."; exit 1; fi
 
 if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     if [[ -z "$GE_APP_LOCATION" ]] || [[ -z "$GE_APP_NAME_SUFFIX" ]] || [[ -z "$BQ_URL" ]] || [[ -z "$GCS_URL" ]] || [[ -z "$DRIVE_URL" ]] || [[ -z "$CALENDAR_URL" ]] || [[ -z "$ONEDRIVE_URL" ]] || [[ -z "$ATLASSIAN_URL" ]] || [[ -z "$SHAREPOINT_URL" ]] || [[ -z "$OUTLOOK_URL" ]] || [[ -z "$EKB_URL" ]]; then
@@ -264,6 +270,12 @@ fi
 if [[ "$DEPLOY_EKB_PIPELINE" == "true" ]]; then
     create_trigger "ekb-pipeline-services-plan" "pr" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-ci.yaml" "pipelines/enterprise_knowledge_base/**"
     create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"
+fi
+
+# --- Shared Resources Triggers ---
+if [[ "$DEPLOY_SHARED_RESOURCES" == "true" ]]; then
+    create_trigger "shared-resources-services-plan" "pr" "terraform/shared_resources" "terraform/shared_resources/shared-resources-cloud-build-ci.yaml" ""
+    create_trigger "shared-resources-services-apply" "push" "terraform/shared_resources" "terraform/shared_resources/shared-resources-cloud-build-cd.yaml" ""
 fi
 
 echo "Done. Requested triggers processed."
