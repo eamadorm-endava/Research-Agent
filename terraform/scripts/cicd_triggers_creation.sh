@@ -16,57 +16,36 @@ set -euo pipefail
 #   environment variables and parameters.
 #
 # Parameters:
-#   --project                - The GCP Project ID where triggers will be created.
-#   --sa-name                - The name of the Service Account (used for trigger auth).
-#   --sa-email               - The full email of the Service Account.
-#   --github-connection      - The Cloud Build GitHub Connection name.
-#   --repo-slug              - The GitHub Repository Slug (e.g. owner-repo).
-#   --region                 - The default GCP region for the project.
-#   --deploy-shared-resources- "true" to create triggers for shared resources.
-#   --deploy-mcp-servers     - "true" to create triggers for the MCP Servers.
-#   --mcp-servers-to-deploy  - Comma-separated list of MCP servers to create triggers for.
-#   --deploy-ekb-pipeline    - "true" to create the trigger for the EKB pipeline.
-#   --deploy-ai-agent        - "true" to create the trigger for the AI Agent.
-#   --force-recreate         - "true" to delete and recreate triggers if they exist.
-#
-#   [AI Agent Parameters - Required if --deploy-ai-agent is true]
-#   --ge-app-location        - The location of the Gemini Enterprise App.
-#   --ge-app-name-suffix     - The name suffix of the Gemini Enterprise App.
-#   --bq-url                 - The BigQuery MCP server Cloud Run URL.
-#   --gcs-url                - The GCS MCP server Cloud Run URL.
-#   --drive-url              - The Google Drive MCP server Cloud Run URL.
-#   --calendar-url           - The Google Calendar MCP server Cloud Run URL.
-#   --onedrive-url           - The OneDrive MCP server Cloud Run URL.
-#   --ekb-pipeline-url       - The EKB Pipeline Cloud Run URL.
+#   --project                            - The GCP Project ID where triggers will be created.
+#   --sa-name                            - The name of the Service Account (used for trigger auth).
+#   --sa-email                           - The full email of the Service Account.
+#   --github-connection-name             - The Cloud Build GitHub Connection name.
+#   --repository-slug                    - The GitHub Repository Slug (e.g. owner-repo).
+#   --region                             - The default GCP region for the project.
+#   --create-shared-resources-triggers   - "true" to create triggers for shared resources.
+#   --create-mcp-server-triggers         - "true" to create triggers for the MCP Servers.
+#   --mcp-server-triggers-to-create      - Comma-separated list of MCP servers to create triggers for.
+#   --create-ekb-pipeline-triggers       - "true" to create the trigger for the EKB pipeline.
+#   --create-ai-agent-triggers           - "true" to create the trigger for the AI Agent.
+#   --force-recreate                     - "true" to delete and recreate triggers if they exist.
 # ==============================================================================
 
 # --- Core Parameters ---
 PROJECT_ID=""
 SA_NAME=""
-SA_EMAIL=""
+
 GITHUB_CONNECTION_NAME=""
 REPOSITORY_SLUG=""
 REGION=""
 
-# --- Deployment Flags ---
-DEPLOY_SHARED_RESOURCES="false"
-DEPLOY_MCP_SERVERS="false"
-MCP_SERVERS_TO_DEPLOY="all"
-DEPLOY_EKB_PIPELINE="false"
+# --- Trigger Creation Flags ---
+CREATE_SHARED_RESOURCES_TRIGGERS="false"
+CREATE_MCP_SERVER_TRIGGERS="false"
+MCP_SERVER_TRIGGERS_TO_CREATE="all"
+CREATE_EKB_PIPELINE_TRIGGERS="false"
 
 # --- AI Agent Parameters ---
-DEPLOY_AI_AGENT="false"
-GE_APP_LOCATION=""
-GE_APP_NAME_SUFFIX=""
-BQ_URL=""
-GCS_URL=""
-DRIVE_URL=""
-CALENDAR_URL=""
-ONEDRIVE_URL=""
-EKB_URL=""
-ATLASSIAN_URL=""
-SHAREPOINT_URL=""
-OUTLOOK_URL=""
+CREATE_AI_AGENT_TRIGGERS="false"
 
 # --- Optional / Overridable Variables ---
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
@@ -78,29 +57,16 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --project) PROJECT_ID="$2"; shift ;;
         --sa-name) SA_NAME="$2"; shift ;;
-        --sa-email) SA_EMAIL="$2"; shift ;;
-        --github-connection) GITHUB_CONNECTION_NAME="$2"; shift ;;
-        --repo-slug) REPOSITORY_SLUG="$2"; shift ;;
+
+        --github-connection-name) GITHUB_CONNECTION_NAME="$2"; shift ;;
+        --repository-slug) REPOSITORY_SLUG="$2"; shift ;;
         --region) REGION="$2"; shift ;;
-        --deploy-shared-resources) DEPLOY_SHARED_RESOURCES="$2"; shift ;;
-        --deploy-mcp-servers) DEPLOY_MCP_SERVERS="$2"; shift ;;
-        --mcp-servers-to-deploy) MCP_SERVERS_TO_DEPLOY="$2"; shift ;;
-        --deploy-ekb-pipeline) DEPLOY_EKB_PIPELINE="$2"; shift ;;
+        --create-shared-resources-triggers) CREATE_SHARED_RESOURCES_TRIGGERS="$2"; shift ;;
+        --create-mcp-server-triggers) CREATE_MCP_SERVER_TRIGGERS="$2"; shift ;;
+        --mcp-server-triggers-to-create) MCP_SERVER_TRIGGERS_TO_CREATE="$2"; shift ;;
+        --create-ekb-pipeline-triggers) CREATE_EKB_PIPELINE_TRIGGERS="$2"; shift ;;
+        --create-ai-agent-triggers) CREATE_AI_AGENT_TRIGGERS="$2"; shift ;;
         --force-recreate) FORCE_RECREATE="$2"; shift ;;
-        
-        # AI Agent Specific
-        --deploy-ai-agent) DEPLOY_AI_AGENT="$2"; shift ;;
-        --ge-app-location) GE_APP_LOCATION="$2"; shift ;;
-        --ge-app-name-suffix) GE_APP_NAME_SUFFIX="$2"; shift ;;
-        --bq-url) BQ_URL="$2"; shift ;;
-        --gcs-url) GCS_URL="$2"; shift ;;
-        --drive-url) DRIVE_URL="$2"; shift ;;
-        --calendar-url) CALENDAR_URL="$2"; shift ;;
-        --onedrive-url) ONEDRIVE_URL="$2"; shift ;;
-        --atlassian-url) ATLASSIAN_URL="$2"; shift ;;
-        --sharepoint-url) SHAREPOINT_URL="$2"; shift ;;
-        --outlook-url) OUTLOOK_URL="$2"; shift ;;
-        --ekb-pipeline-url) EKB_URL="$2"; shift ;;
         *) ;; # Ignore unknown params
     esac
     shift
@@ -108,18 +74,12 @@ done
 
 if [[ -z "$PROJECT_ID" ]]; then echo "Error: --project is required."; exit 1; fi
 if [[ -z "$SA_NAME" ]]; then echo "Error: --sa-name is required."; exit 1; fi
-if [[ -z "$SA_EMAIL" ]]; then echo "Error: --sa-email is required."; exit 1; fi
-if [[ -z "$GITHUB_CONNECTION_NAME" ]]; then echo "Error: --github-connection is required."; exit 1; fi
-if [[ -z "$REPOSITORY_SLUG" ]]; then echo "Error: --repo-slug is required."; exit 1; fi
+
+if [[ -z "$GITHUB_CONNECTION_NAME" ]]; then echo "Error: --github-connection-name is required."; exit 1; fi
+if [[ -z "$REPOSITORY_SLUG" ]]; then echo "Error: --repository-slug is required."; exit 1; fi
 if [[ -z "$REGION" ]]; then echo "Error: --region is required."; exit 1; fi
 
-if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
-    if [[ -z "$GE_APP_LOCATION" ]] || [[ -z "$GE_APP_NAME_SUFFIX" ]] || [[ -z "$BQ_URL" ]] || [[ -z "$GCS_URL" ]] || [[ -z "$DRIVE_URL" ]] || [[ -z "$CALENDAR_URL" ]] || [[ -z "$ONEDRIVE_URL" ]] || [[ -z "$ATLASSIAN_URL" ]] || [[ -z "$SHAREPOINT_URL" ]] || [[ -z "$OUTLOOK_URL" ]] || [[ -z "$EKB_URL" ]]; then
-        echo "Error: --deploy-ai-agent is true, but missing required AI Agent parameters."
-        echo "Required: --ge-app-location, --ge-app-name-suffix, --bq-url, --gcs-url, --drive-url, --calendar-url, --onedrive-url, --atlassian-url, --sharepoint-url, --outlook-url, --ekb-pipeline-url"
-        exit 1
-    fi
-fi
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 PROJECT_NUMBER="${PROJECT_NUMBER:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')}"
 REPO_PATH="projects/${PROJECT_NUMBER}/locations/${REGION}/connections/${GITHUB_CONNECTION_NAME}/repositories/${REPOSITORY_SLUG}"
@@ -200,19 +160,16 @@ create_trigger() {
 }
 
 # --- AI Agent Triggers ---
-if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
-    AI_AGENT_SUBS="_GE_REGION=$GE_APP_LOCATION,_GE_APP_NAME_SUFFIX=$GE_APP_NAME_SUFFIX,_BIGQUERY_URL=$BQ_URL,_GCS_URL=$GCS_URL,_DRIVE_URL=$DRIVE_URL,_CALENDAR_URL=$CALENDAR_URL,_ONEDRIVE_URL=$ONEDRIVE_URL,_ATLASSIAN_URL=$ATLASSIAN_URL,_SHAREPOINT_URL=$SHAREPOINT_URL,_OUTLOOK_URL=$OUTLOOK_URL,_EKB_PIPELINE_URL=$EKB_URL"
-
+if [[ "$CREATE_AI_AGENT_TRIGGERS" == "true" ]]; then
     # CI (Plan) on Pull Request
-    create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**" "$AI_AGENT_SUBS"
-    # CD (Apply) on Push/Merge
-    create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**" "$AI_AGENT_SUBS"
+    create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**"
+    create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
 fi
 
 # --- MCP Server Triggers ---
-if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
+if [[ "$CREATE_MCP_SERVER_TRIGGERS" == "true" ]]; then
     SERVER_LIST=()
-    if [[ "$MCP_SERVERS_TO_DEPLOY" == "all" ]]; then
+    if [[ "$MCP_SERVER_TRIGGERS_TO_CREATE" == "all" ]]; then
         # Find all directories matching *_mcp_server_resources
         for dir in "terraform/"*_mcp_server_resources; do
             if [ -d "$dir" ]; then
@@ -222,7 +179,7 @@ if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
             fi
         done
     else
-        IFS=',' read -ra SERVER_LIST <<< "$MCP_SERVERS_TO_DEPLOY"
+        IFS=',' read -ra SERVER_LIST <<< "$MCP_SERVER_TRIGGERS_TO_CREATE"
     fi
 
     for SERVER_ENTRY in "${SERVER_LIST[@]}"; do
@@ -267,13 +224,13 @@ if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
 fi
 
 # --- EKB Pipeline Triggers ---
-if [[ "$DEPLOY_EKB_PIPELINE" == "true" ]]; then
+if [[ "$CREATE_EKB_PIPELINE_TRIGGERS" == "true" ]]; then
     create_trigger "ekb-pipeline-services-plan" "pr" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-ci.yaml" "pipelines/enterprise_knowledge_base/**"
     create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"
 fi
 
 # --- Shared Resources Triggers ---
-if [[ "$DEPLOY_SHARED_RESOURCES" == "true" ]]; then
+if [[ "$CREATE_SHARED_RESOURCES_TRIGGERS" == "true" ]]; then
     create_trigger "shared-resources-services-plan" "pr" "terraform/shared_resources" "terraform/shared_resources/shared-resources-cloud-build-ci.yaml" ""
     create_trigger "shared-resources-services-apply" "push" "terraform/shared_resources" "terraform/shared_resources/shared-resources-cloud-build-cd.yaml" ""
 fi

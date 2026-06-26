@@ -252,72 +252,18 @@ fi
 echo "-----------------------------------------------------------------"
 echo "STEP 3: Create CI/CD Triggers"
 echo "-----------------------------------------------------------------"
-SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# Compute AI Agent URLs to explicitly inject into triggers
-BQ_REGION="$REGION"
-GCS_REGION="$REGION"
-DRIVE_REGION="$REGION"
-CALENDAR_REGION="$REGION"
-ONEDRIVE_REGION="$REGION"
-ATLASSIAN_REGION="$REGION"
-SHAREPOINT_REGION="$REGION"
-OUTLOOK_REGION="$REGION"
-
-if [[ "$MCP_SERVERS_TO_DEPLOY" != "all" ]]; then
-    IFS=',' read -ra SERVER_LIST <<< "$MCP_SERVERS_TO_DEPLOY"
-    for SERVER_ENTRY in "${SERVER_LIST[@]}"; do
-        if [[ "$SERVER_ENTRY" =~ ^([^=]+)=([^=]+)$ ]]; then
-            SERVER_BASE="${BASH_REMATCH[1]}"
-            SERVER_REGION="${BASH_REMATCH[2]}"
-            case "$SERVER_BASE" in
-                bq) BQ_REGION="$SERVER_REGION" ;;
-                gcs) GCS_REGION="$SERVER_REGION" ;;
-                drive) DRIVE_REGION="$SERVER_REGION" ;;
-                calendar) CALENDAR_REGION="$SERVER_REGION" ;;
-                onedrive) ONEDRIVE_REGION="$SERVER_REGION" ;;
-                atlassian) ATLASSIAN_REGION="$SERVER_REGION" ;;
-                sharepoint) SHAREPOINT_REGION="$SERVER_REGION" ;;
-                outlook) OUTLOOK_REGION="$SERVER_REGION" ;;
-            esac
-        fi
-    done
-fi
-
-PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
-BQ_URL="https://bigquery-mcp-server-${PROJECT_NUMBER}.${BQ_REGION}.run.app"
-GCS_URL="https://gcs-mcp-server-${PROJECT_NUMBER}.${GCS_REGION}.run.app"
-DRIVE_URL="https://drive-mcp-server-${PROJECT_NUMBER}.${DRIVE_REGION}.run.app"
-CALENDAR_URL="https://calendar-mcp-server-${PROJECT_NUMBER}.${CALENDAR_REGION}.run.app"
-ONEDRIVE_URL="https://onedrive-mcp-server-${PROJECT_NUMBER}.${ONEDRIVE_REGION}.run.app"
-ATLASSIAN_URL="https://atlassian-mcp-server-${PROJECT_NUMBER}.${ATLASSIAN_REGION}.run.app"
-SHAREPOINT_URL="https://sharepoint-mcp-server-${PROJECT_NUMBER}.${SHAREPOINT_REGION}.run.app"
-OUTLOOK_URL="https://outlook-mcp-server-${PROJECT_NUMBER}.${OUTLOOK_REGION}.run.app"
-EKB_URL="https://ekb-pipeline-${PROJECT_NUMBER}.${REGION}.run.app"
 
 bash "$SCRIPT_DIR/cicd_triggers_creation.sh" \
     --project "$PROJECT_ID" \
     --sa-name "$SA_NAME" \
-    --sa-email "$SA_EMAIL" \
-    --github-connection "$GITHUB_CONNECTION_NAME" \
-    --repo-slug "$REPOSITORY_SLUG" \
+    --github-connection-name "$GITHUB_CONNECTION_NAME" \
+    --repository-slug "$REPOSITORY_SLUG" \
     --region "$REGION" \
-    --deploy-shared-resources "$DEPLOY_SHARED_RESOURCES" \
-    --deploy-mcp-servers "$DEPLOY_MCP_SERVERS" \
-    --mcp-servers-to-deploy "$MCP_SERVERS_TO_DEPLOY" \
-    --deploy-ekb-pipeline "$DEPLOY_EKB_PIPELINE" \
-    --deploy-ai-agent "$DEPLOY_AI_AGENT" \
-    --ge-app-location "$GE_APP_LOCATION" \
-    --ge-app-name-suffix "$GE_APP_NAME_SUFFIX" \
-    --bq-url "$BQ_URL" \
-    --gcs-url "$GCS_URL" \
-    --drive-url "$DRIVE_URL" \
-    --calendar-url "$CALENDAR_URL" \
-    --onedrive-url "$ONEDRIVE_URL" \
-    --atlassian-url "$ATLASSIAN_URL" \
-    --sharepoint-url "$SHAREPOINT_URL" \
-    --outlook-url "$OUTLOOK_URL" \
-    --ekb-pipeline-url "$EKB_URL" \
+    --create-shared-resources-triggers "$DEPLOY_SHARED_RESOURCES" \
+    --create-mcp-server-triggers "$DEPLOY_MCP_SERVERS" \
+    --mcp-server-triggers-to-create "$MCP_SERVERS_TO_DEPLOY" \
+    --create-ekb-pipeline-triggers "$DEPLOY_EKB_PIPELINE" \
+    --create-ai-agent-triggers "$DEPLOY_AI_AGENT" \
     --force-recreate "$FORCE_RECREATE"
 
 # 4. MCP Servers
@@ -328,7 +274,13 @@ if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
     
     SERVER_LIST=()
     if [[ "$MCP_SERVERS_TO_DEPLOY" == "all" ]]; then
-        SERVER_LIST=("bq" "gcs" "drive" "calendar" "onedrive")
+        for dir in "$REPO_ROOT/terraform/"*_mcp_server_resources; do
+            if [ -d "$dir" ]; then
+                base=$(basename "$dir")
+                prefix="${base%_mcp_server_resources}"
+                SERVER_LIST+=("$prefix")
+            fi
+        done
     else
         IFS=',' read -ra SERVER_LIST <<< "$MCP_SERVERS_TO_DEPLOY"
     fi
@@ -403,9 +355,14 @@ if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     TRIGGER_NAME="ai-agent-services-apply"
     if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
         echo "Triggering Cloud Build for AI Agent: ${TRIGGER_NAME}"
+        
+        # Build the substitutions string for the GE App
+        SUBS_STR="_GE_REGION=${GE_APP_LOCATION},_GE_APP_NAME_SUFFIX=${GE_APP_NAME_SUFFIX}"
+
         gcloud builds triggers run "${TRIGGER_NAME}" \
             --region="${REGION}" \
-            --branch="main" || echo "Warning: Failed to run AI Agent trigger."
+            --branch="main" \
+            --substitutions="${SUBS_STR}" || echo "Warning: Failed to run AI Agent trigger."
     else
         echo "Warning: Trigger ${TRIGGER_NAME} not found. Ensure CI/CD triggers are created."
     fi
