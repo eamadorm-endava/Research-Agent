@@ -193,5 +193,23 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
   --role="roles/iam.serviceAccountUser" \
   --project="$PROJECT_ID"
 
+gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
+  --member="user:$ADMIN_USER_EMAIL" \
+  --role="roles/iam.serviceAccountTokenCreator" \
+  --project="$PROJECT_ID"
+
+echo "Waiting for IAM impersonation roles to propagate..."
+MAX_RETRIES=12
+RETRY_COUNT=0
+while ! gcloud auth print-access-token --impersonate-service-account="$SA_EMAIL" > /dev/null 2>&1; do
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo "Error: IAM impersonation failed to propagate in time."
+        exit 1
+    fi
+    echo "Impersonation not ready yet, retrying in 10s... ($((RETRY_COUNT+1))/$MAX_RETRIES)"
+    sleep 10
+    RETRY_COUNT=$((RETRY_COUNT+1))
+done
+
 echo "Bootstrap complete! IAM, Service Accounts, and State Bucket are ready."
 echo "To use this locally, run: gcloud auth application-default login --impersonate-service-account=$SA_EMAIL"
