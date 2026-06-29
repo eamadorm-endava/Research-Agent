@@ -226,10 +226,21 @@ if [[ "$DEPLOY_BOOTSTRAP" == "true" ]]; then
         --sa-name "$SA_NAME" \
         --admin-user-email "$ADMIN_USER_EMAIL" \
         --developer-group-email "$DEVELOPER_GROUP_EMAIL"
-    echo "Bootstrap complete."
+    echo "Bootstrap completed successfully."
 else
     echo "Skipping Bootstrap."
 fi
+
+# -----------------------------------------------------------------
+# IMPERSONATION HANDOFF
+# -----------------------------------------------------------------
+# From this point forward, we intentionally shed the Owner's identity.
+# All subsequent Terraform, Cloud Build, and Gemini operations will run
+# as the terraform-sa to mathematically prove that the Service Account
+# has the exact least-privilege IAM roles required to deploy the system.
+export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+echo "Switched active identity to: $GOOGLE_IMPERSONATE_SERVICE_ACCOUNT"
+echo "================================================================="
 
 # 2. Shared Resources
 if [[ "$DEPLOY_SHARED_RESOURCES" == "true" ]]; then
@@ -330,9 +341,9 @@ if [[ "$DEPLOY_GE_APP" == "true" ]]; then
     echo "STEP 6: Deploy Gemini Enterprise App"
     echo "-----------------------------------------------------------------"
     
-    # Enable dialogflow API which is required to create engines
-    echo "Ensuring dialogflow API is enabled..."
-    gcloud services enable dialogflow.googleapis.com
+    # Enable dialogflow and discoveryengine APIs which are required to create engines
+    echo "Ensuring Dialogflow and Discovery Engine APIs are enabled..."
+    gcloud services enable dialogflow.googleapis.com discoveryengine.googleapis.com
     
     echo "Creating Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
     bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" create-ge-app \
