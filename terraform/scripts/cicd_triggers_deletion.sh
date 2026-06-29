@@ -77,6 +77,12 @@ delete_trigger() {
   fi
 }
 
+# --- Shared Resources Triggers ---
+if [[ "$DELETE_SHARED_RESOURCES_TRIGGERS" == "true" ]]; then
+    delete_trigger "shared-resources-services-plan"
+    delete_trigger "shared-resources-services-apply"
+fi
+
 # --- AI Agent Triggers ---
 if [[ "$DELETE_AI_AGENT_TRIGGERS" == "true" ]]; then
     delete_trigger "ai-agent-services-plan"

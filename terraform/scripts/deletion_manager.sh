@@ -242,7 +242,7 @@ if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "  - Secrets to Delete: $SHARED_SECRETS_TO_DELETE"
 fi
 
-if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]]; then
+if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "Step 7: CI/CD Triggers: true (Modular Cleanup)"
     if [[ "$DELETE_CICD_TRIGGERS" == "true" ]]; then
         echo "  - Wiping ALL CI/CD Triggers"
@@ -250,6 +250,7 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         [[ "$DEL_AI_TRIGGERS" == "true" ]] && echo "  - AI Agent Triggers"
         [[ "$DEL_MCP_TRIGGERS" == "true" ]] && echo "  - MCP Server Triggers ($MCP_DEL_TARGET)"
         [[ "$DEL_EKB_TRIGGERS" == "true" ]] && echo "  - EKB Pipeline Triggers"
+        [[ "$DELETE_SHARED_RESOURCES" == "true" ]] && echo "  - Shared Resources Triggers"
     fi
 else
     echo "Step 7: CI/CD Triggers: false"
@@ -460,7 +461,7 @@ fi
 # -----------------------------------------------------------------
 # 7. Delete CI/CD Triggers
 # -----------------------------------------------------------------
-if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]]; then
+if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     echo "STEP 7: Delete CI/CD Triggers"
     echo "-----------------------------------------------------------------"
