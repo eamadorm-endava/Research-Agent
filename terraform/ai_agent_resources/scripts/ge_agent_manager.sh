@@ -242,9 +242,31 @@ case "$COMMAND" in
         fi
         ;;
     
+    delete-ge-app)
+        if [ -z "$APP_ID" ]; then
+            echo "Error: --ge-app-id is required for delete-ge-app."
+            exit 1
+        fi
+        
+        echo "Deleting Gemini Enterprise App (Engine: ${APP_ID})..."
+        DEL_RES=$(curl -s -w "\n%{http_code}" -X DELETE \
+          -H "$AUTH_HEADER" \
+          -H "X-Goog-User-Project: $PROJECT_ID" \
+          "https://${API_ENDPOINT}/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines/$APP_ID")
+        DEL_RES_CODE=$(echo "$DEL_RES" | tail -n 1)
+        
+        # 200, 202, 204 are typical success codes for DELETE. 404 if it's already deleted.
+        if [ "$DEL_RES_CODE" -ne 200 ] && [ "$DEL_RES_CODE" -ne 202 ] && [ "$DEL_RES_CODE" -ne 204 ] && [ "$DEL_RES_CODE" -ne 404 ]; then
+            echo "Failed to delete Engine. HTTP Status: $DEL_RES_CODE. Response: $(echo "$DEL_RES" | sed '$d')"
+            exit 1
+        fi
+        echo -e "\nGemini Enterprise App with ID: $APP_ID deleted successfully."
+        ;;
+    
     *)
-        echo "Usage: $0 {create-ge-app|delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
+        echo "Usage: $0 {create-ge-app|delete-ge-app|delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
         echo "  create-ge-app flags: --project --ge-app-id [--ge-location]"
+        echo "  delete-ge-app flags: --project --ge-app-id [--ge-location]"
         echo "  register-agent flags: --project --app-id --agent-display-name --agent-engine-agent-id --auth-ids --agent-engine-location [--agent-description] [--icon-uri] [--ge-location]"
         exit 1
         ;;
