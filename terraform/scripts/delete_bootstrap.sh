@@ -7,76 +7,49 @@ set -euo pipefail
 # -----------------------------------------------------------------------------
 # Bootstrap Deletion Script
 # -----------------------------------------------------------------------------
-# This script deletes all Cloud Build triggers created during bootstrap and
-# the Terraform service account.
+# This script deletes the Terraform state bucket and the Terraform service account.
+# Note: CI/CD triggers are handled by cicd_triggers_deletion.sh.
 #
 # Run this script from the repository root:
-#   ./terraform/scripts/delete_bootstrap.sh --project <PROJECT_ID> --region <REGION> --sa-name <SA_NAME> --trigger-bases <BASES>
+#   ./terraform/scripts/delete_bootstrap.sh --project <PROJECT_ID> --sa-name <SA_NAME>
 #
 # Required parameters:
 #   --project            GCP Project ID.
-#   --region             GCP Region where the triggers exist.
 #   --sa-name            The base name of the Terraform service account.
-#   --trigger-bases      Comma-separated list of the base names for the triggers (e.g. "ai-agent,bq-mcp-server").
 # -----------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # --- Configuration ---
-PROJECT_ID="prd-ge-prod-endava-01-yd8e-1"
-REGION="us-central1"
+PROJECT_ID=""
 SA_NAME="terraform-sa-gemini-project"
-TRIGGER_BASES_STR="ai-agent,bq-mcp-server,gcs-mcp-server,drive-mcp-server,calendar-mcp-server,ekb-pipeline,onedrive-mcp-server,sharepoint-mcp-server,atlassian-mcp-server,outlook-mcp-server"
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --project) PROJECT_ID="$2"; shift ;;
-        --region) REGION="$2"; shift ;;
         --sa-name) SA_NAME="$2"; shift ;;
-        --trigger-bases) TRIGGER_BASES_STR="$2"; shift ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
     shift
 done
 
-if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]] || [[ -z "$SA_NAME" ]] || [[ -z "$TRIGGER_BASES_STR" ]]; then
-    echo "Error: --project, --region, --sa-name, and --trigger-bases parameters are all required."
+if [[ -z "$PROJECT_ID" ]] || [[ -z "$SA_NAME" ]]; then
+    echo "Error: --project and --sa-name parameters are required."
     exit 1
 fi
 
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
-echo "This will delete all Cloud Build triggers and the Terraform Service Account in project: $PROJECT_ID"
+echo "This will delete the Terraform State Bucket and the Terraform Service Account in project: $PROJECT_ID"
 echo "Parameters:"
-echo "  - Region: $REGION"
 echo "  - SA Name: $SA_NAME"
-echo "  - Trigger Bases: $TRIGGER_BASES_STR"
 read -p "Are you sure you want to proceed? (y/N): " confirm
 
 if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then
     echo "Cleanup cancelled."
     exit 0
 fi
-
-# Convert the comma-separated string into an array
-IFS=',' read -ra TRIGGER_BASES <<< "$TRIGGER_BASES_STR"
-
-echo "---------------------------------------"
-echo "Deleting specific Cloud Build Triggers..."
-
-for BASE in "${TRIGGER_BASES[@]}"; do
-    for SUFFIX in "services-plan" "services-apply"; do
-        TRIGGER="${BASE}-${SUFFIX}"
-        if gcloud builds triggers describe "$TRIGGER" --region="$REGION" --project="$PROJECT_ID" > /dev/null 2>&1; then
-            echo "Deleting trigger: $TRIGGER..."
-            gcloud builds triggers delete "$TRIGGER" --region="$REGION" --project="$PROJECT_ID" --quiet
-        else
-            echo "Trigger $TRIGGER not found, skipping."
-        fi
-    done
-done
-echo "Trigger cleanup complete."
 
 echo "---------------------------------------"
 echo "Deleting Terraform State Bucket..."
@@ -105,6 +78,14 @@ if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" > /d
             --role="$ROLE" \
             --quiet > /dev/null 2>&1 || echo "Warning: Failed to remove role $ROLE"
     done
+
+    echo "Removing Cloud Build System Agent role from project..."
+    PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+    CB_SERVICE_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+    gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
+        --member="serviceAccount:$CB_SERVICE_AGENT" \
+        --role="roles/cloudbuild.serviceAgent" \
+        --quiet > /dev/null 2>&1 || echo "Warning: Failed to remove Cloud Build System Agent role."
 
     gcloud iam service-accounts delete "$SA_EMAIL" --project="$PROJECT_ID" --quiet
     echo "Service Account $SA_EMAIL deleted."
