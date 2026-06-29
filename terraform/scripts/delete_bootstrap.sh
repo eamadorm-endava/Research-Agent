@@ -90,8 +90,22 @@ else
 fi
 
 echo "---------------------------------------"
-echo "Deleting Service Account..."
+echo "Cleaning up IAM Bindings and Deleting Service Account..."
 if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" > /dev/null 2>&1; then
+    echo "Removing IAM bindings for $SA_EMAIL..."
+    ROLES=$(gcloud projects get-iam-policy "$PROJECT_ID" \
+        --flatten="bindings[].members" \
+        --format="value(bindings.role)" \
+        --filter="bindings.members:serviceAccount:$SA_EMAIL")
+    
+    for ROLE in $ROLES; do
+        echo "Removing role: $ROLE"
+        gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
+            --member="serviceAccount:$SA_EMAIL" \
+            --role="$ROLE" \
+            --quiet > /dev/null 2>&1 || echo "Warning: Failed to remove role $ROLE"
+    done
+
     gcloud iam service-accounts delete "$SA_EMAIL" --project="$PROJECT_ID" --quiet
     echo "Service Account $SA_EMAIL deleted."
 else
