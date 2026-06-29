@@ -127,6 +127,32 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+wait_for_builds() {
+    local region=$1
+    shift
+    local build_ids=("$@")
+
+    for build_id in "${build_ids[@]}"; do
+        if [ -z "$build_id" ]; then continue; fi
+        echo "Waiting for build $build_id to complete..."
+        while true; do
+            status=$(gcloud builds describe "$build_id" --region="$region" --project="$PROJECT_ID" --format="value(status)")
+            if [[ "$status" == "SUCCESS" ]]; then
+                echo "✅ Build $build_id completed successfully."
+                break
+            elif [[ "$status" == "FAILURE" ]] || [[ "$status" == "INTERNAL_ERROR" ]] || [[ "$status" == "TIMEOUT" ]]; then
+                echo "❌ Error: Build $build_id failed with status: $status"
+                echo "Check Cloud Build logs in the GCP Console."
+                exit 1
+            elif [[ "$status" == "CANCELLED" ]]; then
+                echo "⚠️ Warning: Build $build_id was cancelled."
+                exit 1
+            fi
+            sleep 10
+        done
+    done
+}
+
 # Validation
 if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]]; then
     echo "Error: Global parameters are required (--project, --region)."
@@ -283,6 +309,8 @@ if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
     echo "STEP 4: Deploy MCP Servers via Cloud Build Triggers"
     echo "-----------------------------------------------------------------"
     
+    MCP_BUILD_IDS=()
+    echo "Triggering MCP Server builds..."
     SERVER_LIST=()
     if [[ "$MCP_SERVERS_TO_DEPLOY" == "all" ]]; then
         for dir in "$REPO_ROOT/terraform/"*_mcp_server_resources; do
@@ -309,11 +337,22 @@ if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
         echo "Triggering Cloud Build for ${SERVER_BASE} MCP server in ${SERVER_REGION}: ${TRIGGER_NAME}"
         
         if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
-            gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="main" || echo "Warning: Failed to run trigger ${TRIGGER_NAME}."
+            BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="main" --format="value(metadata.build.id)" || echo "")
+            if [ -n "$BUILD_ID" ]; then
+                MCP_BUILD_IDS+=("$BUILD_ID")
+                echo "Successfully triggered build: $BUILD_ID"
+            else
+                echo "Warning: Failed to run trigger ${TRIGGER_NAME}."
+            fi
         else
             echo "Warning: Trigger ${TRIGGER_NAME} not found. Skipping."
         fi
     done
+
+    if [ ${#MCP_BUILD_IDS[@]} -gt 0 ]; then
+        echo "Waiting for all MCP Server builds to complete before continuing..."
+        wait_for_builds "$REGION" "${MCP_BUILD_IDS[@]}"
+    fi
 else
     echo "Skipping MCP Servers deployment."
 fi
@@ -326,7 +365,14 @@ if [[ "$DEPLOY_EKB_PIPELINE" == "true" ]]; then
     TRIGGER_NAME="ekb-pipeline-services-apply"
     if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
         echo "Triggering Cloud Build for EKB Pipeline: ${TRIGGER_NAME}"
-        gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="main" || echo "Warning: Failed to run EKB Pipeline trigger."
+        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="main" --format="value(metadata.build.id)" || echo "")
+        if [ -n "$BUILD_ID" ]; then
+            echo "Successfully triggered build: $BUILD_ID"
+            echo "Waiting for EKB Pipeline build to complete..."
+            wait_for_builds "$REGION" "$BUILD_ID"
+        else
+            echo "Warning: Failed to run EKB Pipeline trigger."
+        fi
     else
         echo "Warning: Trigger ${TRIGGER_NAME} not found. Skipping."
     fi
@@ -370,10 +416,19 @@ if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
         # Build the substitutions string for the GE App
         SUBS_STR="_GE_REGION=${GE_APP_LOCATION},_GE_APP_NAME_SUFFIX=${GE_APP_NAME_SUFFIX}"
 
-        gcloud builds triggers run "${TRIGGER_NAME}" \
+        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" \
             --region="${REGION}" \
             --branch="main" \
-            --substitutions="${SUBS_STR}" || echo "Warning: Failed to run AI Agent trigger."
+            --substitutions="${SUBS_STR}" \
+            --format="value(metadata.build.id)" || echo "")
+        
+        if [ -n "$BUILD_ID" ]; then
+            echo "Successfully triggered AI Agent build: $BUILD_ID"
+            echo "Waiting for AI Agent build to complete..."
+            wait_for_builds "$REGION" "$BUILD_ID"
+        else
+            echo "Warning: Failed to run AI Agent trigger."
+        fi
     else
         echo "Warning: Trigger ${TRIGGER_NAME} not found. Ensure CI/CD triggers are created."
     fi
