@@ -64,33 +64,43 @@ fi
 
 echo "---------------------------------------"
 echo "Cleaning up IAM Bindings and Deleting Service Account..."
+echo "Cleaning up IAM Bindings for $SA_EMAIL (including deleted tombstones)..."
+# Get all exact member strings matching this service account (active or deleted)
+MEMBERS=$(gcloud projects get-iam-policy "$PROJECT_ID" \
+    --flatten="bindings[].members" \
+    --format="value(bindings.members)" \
+    --filter="bindings.members:$SA_EMAIL" | sort -u)
+
+for MEMBER in $MEMBERS; do
+    if [[ -n "$MEMBER" ]]; then
+        ROLES=$(gcloud projects get-iam-policy "$PROJECT_ID" \
+            --flatten="bindings[].members" \
+            --format="value(bindings.role)" \
+            --filter="bindings.members:$MEMBER")
+        
+        for ROLE in $ROLES; do
+            echo "Removing role: $ROLE for $MEMBER"
+            gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
+                --member="$MEMBER" \
+                --role="$ROLE" \
+                --quiet > /dev/null 2>&1 || echo "Warning: Failed to remove role $ROLE for $MEMBER"
+        done
+    fi
+done
+
+echo "Removing Cloud Build System Agent role from project..."
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+CB_SERVICE_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$CB_SERVICE_AGENT" \
+    --role="roles/cloudbuild.serviceAgent" \
+    --quiet > /dev/null 2>&1 || echo "Warning: Failed to remove Cloud Build System Agent role."
+
 if gcloud iam service-accounts describe "$SA_EMAIL" --project="$PROJECT_ID" > /dev/null 2>&1; then
-    echo "Removing IAM bindings for $SA_EMAIL..."
-    ROLES=$(gcloud projects get-iam-policy "$PROJECT_ID" \
-        --flatten="bindings[].members" \
-        --format="value(bindings.role)" \
-        --filter="bindings.members:serviceAccount:$SA_EMAIL")
-    
-    for ROLE in $ROLES; do
-        echo "Removing role: $ROLE"
-        gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
-            --member="serviceAccount:$SA_EMAIL" \
-            --role="$ROLE" \
-            --quiet > /dev/null 2>&1 || echo "Warning: Failed to remove role $ROLE"
-    done
-
-    echo "Removing Cloud Build System Agent role from project..."
-    PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
-    CB_SERVICE_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
-    gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
-        --member="serviceAccount:$CB_SERVICE_AGENT" \
-        --role="roles/cloudbuild.serviceAgent" \
-        --quiet > /dev/null 2>&1 || echo "Warning: Failed to remove Cloud Build System Agent role."
-
     gcloud iam service-accounts delete "$SA_EMAIL" --project="$PROJECT_ID" --quiet
     echo "Service Account $SA_EMAIL deleted."
 else
-    echo "Service Account $SA_EMAIL does not exist."
+    echo "Service Account $SA_EMAIL is already physically deleted."
 fi
 
 echo "---------------------------------------"
