@@ -20,15 +20,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 #
 # ## Gemini Enterprise Parameters
 #   --delete-ge-app              Set to "true" to delete a Gemini Enterprise App.
-#   (Note: GE_LOCATION and GE_APP_NAME_SUFFIX are shared between GE App and AI Agent)
+#   --ge-app-location            Location for the Gemini Enterprise App.
+#   --ge-app-name-suffix         The name suffix of the Gemini Enterprise App.
 #
 # ## AI Agent Parameters
 #   --delete-ai-agent            Set to "true" to delete AI Agent resources.
-#   --ge-location                Location for the Vertex AI Agent Engine.
 #   --agent-engine-location      Location for the Agent Engine Data Store.
-#   --agent-display-name         The display name of the Agent.
-#   --ge-app-name-suffix         The name suffix of the Gemini Enterprise App.
-#   --ge-auth-id-secret-names    Comma-separated list of Auth Secret Names to delete.
 #
 # ## MCP Servers Parameters
 #   --delete-mcp-servers         Set to "true" to delete MCP servers.
@@ -51,8 +48,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT_ID=""
 REGION=""
 SA_NAME="terraform-sa-gemini-project"
+
 # --- Shared GE App & AI Agent Parameters ---
-GE_LOCATION=""
+GE_APP_LOCATION=""
 GE_APP_NAME_SUFFIX="osiris-app"
 
 # --- Gemini Enterprise Parameters ---
@@ -61,8 +59,6 @@ DELETE_GE_APP="false"
 # --- AI Agent Parameters ---
 DELETE_AI_AGENT="false"
 AGENT_ENGINE_LOCATION=""
-AGENT_DISPLAY_NAME=""
-GE_AUTH_ID_SECRET_NAMES="GEMINI_GOOGLE_AUTH_ID,GEMINI_MICROSOFT_AUTH_ID"
 
 # --- MCP Servers Parameters ---
 DELETE_MCP_SERVERS="false"
@@ -86,7 +82,7 @@ while [[ "$#" -gt 0 ]]; do
         --project) PROJECT_ID="$2"; shift ;;
         --region) REGION="$2"; shift ;;
         # Shared GE App & AI Agent
-        --ge-location) GE_LOCATION="$2"; shift ;;
+        --ge-app-location) GE_APP_LOCATION="$2"; shift ;;
         --ge-app-name-suffix) GE_APP_NAME_SUFFIX="$2"; shift ;;
         
         # Gemini Enterprise
@@ -95,8 +91,6 @@ while [[ "$#" -gt 0 ]]; do
         # AI Agent
         --delete-ai-agent) DELETE_AI_AGENT="$2"; shift ;;
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
-        --agent-display-name) AGENT_DISPLAY_NAME="$2"; shift ;;
-        --ge-auth-id-secret-names) GE_AUTH_ID_SECRET_NAMES="$2"; shift ;;
         
         # MCP Servers
         --delete-mcp-servers) DELETE_MCP_SERVERS="$2"; shift ;;
@@ -124,18 +118,19 @@ if [[ -z "$PROJECT_ID" ]] || [[ -z "$REGION" ]]; then
     echo "Error: --project and --region are required globally."
     exit 1
 fi
+
 if [[ "$DELETE_GE_APP" == "true" ]] || [[ "$DELETE_AI_AGENT" == "true" ]]; then
-    if [ -z "$GE_LOCATION" ] || [ -z "$GE_APP_NAME_SUFFIX" ]; then
+    if [ -z "$GE_APP_LOCATION" ] || [ -z "$GE_APP_NAME_SUFFIX" ]; then
         echo "Error: Missing shared parameters for Gemini Enterprise / AI Agent deletion."
-        echo "Both operations require: --ge-location, --ge-app-name-suffix"
+        echo "Both operations require: --ge-app-location, --ge-app-name-suffix"
         exit 1
     fi
 fi
 
 if [[ "$DELETE_AI_AGENT" == "true" ]]; then
-    if [ -z "$AGENT_ENGINE_LOCATION" ] || [ -z "$AGENT_DISPLAY_NAME" ] || [ -z "$GE_AUTH_ID_SECRET_NAMES" ]; then
+    if [ -z "$AGENT_ENGINE_LOCATION" ]; then
         echo "Error: --delete-ai-agent is true, but missing required parameters."
-        echo "Required: --agent-engine-location, --agent-display-name, --ge-auth-id-secret-names"
+        echo "Required: --agent-engine-location"
         exit 1
     fi
 fi
@@ -160,9 +155,18 @@ if [[ "$DELETE_BOOTSTRAP" == "true" ]]; then
         exit 1
     fi
 fi
+
 # Pre-compute variables for summary and execution
 if [[ "$DELETE_GE_APP" == "true" ]] || [[ "$DELETE_AI_AGENT" == "true" ]]; then
-    GE_APP_ID="${PROJECT_ID}-${GE_LOCATION}-${GE_APP_NAME_SUFFIX}"
+    GE_APP_ID="${PROJECT_ID}-${GE_APP_LOCATION}-${GE_APP_NAME_SUFFIX}"
+fi
+
+if [[ "$DELETE_AI_AGENT" == "true" ]]; then
+    YAML_FILE="$REPO_ROOT/terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml"
+    AGENT_DISPLAY_NAME=$(grep -E '^[[:space:]]+_AGENT_DISPLAY_NAME:' "$YAML_FILE" | sed -E 's/.*_AGENT_DISPLAY_NAME:[[:space:]]*"([^"]+)".*/\1/')
+    GEMINI_GOOGLE_AUTH_ID=$(grep -E '^[[:space:]]+_GEMINI_GOOGLE_AUTH_ID:' "$YAML_FILE" | sed -E 's/.*_GEMINI_GOOGLE_AUTH_ID:[[:space:]]*"([^"]+)".*/\1/')
+    GEMINI_MICROSOFT_AUTH_ID=$(grep -E '^[[:space:]]+_GEMINI_MICROSOFT_AUTH_ID:' "$YAML_FILE" | sed -E 's/.*_GEMINI_MICROSOFT_AUTH_ID:[[:space:]]*"([^"]+)".*/\1/')
+    GE_AUTH_IDS="${GEMINI_GOOGLE_AUTH_ID},${GEMINI_MICROSOFT_AUTH_ID}"
 fi
 
 # Summary
@@ -170,37 +174,41 @@ echo "================================================================="
 echo "MASTER DELETION ORCHESTRATOR"
 echo "================================================================="
 echo "Target Project: $PROJECT_ID"
+echo "Default Region: $REGION"
 echo ""
 echo "You have requested the following deletions:"
-echo "GE App: $DELETE_GE_APP"
-echo "AI Agent Resources: $DELETE_AI_AGENT"
 
-if [[ "$DELETE_GE_APP" == "true" ]] || [[ "$DELETE_AI_AGENT" == "true" ]]; then
-    echo "  [Shared Parameters]"
-    echo "  - GE Location: $GE_LOCATION"
+echo "AI Agent Resources: $DELETE_AI_AGENT"
+if [[ "$DELETE_AI_AGENT" == "true" ]]; then
+    echo "  - Agent Engine Location: $AGENT_ENGINE_LOCATION"
+    echo "  - Agent Display Name: $AGENT_DISPLAY_NAME"
+    echo "  - Auth IDs to Delete: $GE_AUTH_IDS"
+fi
+
+echo "Gemini Enterprise App: $DELETE_GE_APP"
+if [[ "$DELETE_GE_APP" == "true" ]]; then
+    echo "  - GE App Location: $GE_APP_LOCATION"
     echo "  - GE App ID: $GE_APP_ID"
 fi
 
-if [[ "$DELETE_AI_AGENT" == "true" ]]; then
-    echo "  [AI Agent Parameters]"
-    echo "  - Agent Engine Location: $AGENT_ENGINE_LOCATION"
-    echo "  - Agent Display Name: $AGENT_DISPLAY_NAME"
-    echo "  - Auth Secrets to Auto-Delete: $GE_AUTH_ID_SECRET_NAMES"
-fi
+echo "EKB Pipeline: $DELETE_EKB_PIPELINE"
+
 echo "MCP Servers: $DELETE_MCP_SERVERS"
 if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
     echo "  - Servers to Delete: $MCP_SERVERS_TO_DELETE"
 fi
-echo "EKB Pipeline: $DELETE_EKB_PIPELINE"
+
 echo "Shared Resources: $DELETE_SHARED_RESOURCES"
 if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "  - Secrets to Delete: $SHARED_SECRETS_TO_DELETE"
 fi
+
 echo "Bootstrap Cleanup: $DELETE_BOOTSTRAP"
 if [[ "$DELETE_BOOTSTRAP" == "true" ]]; then
     echo "  - SA Name: $SA_NAME"
     echo "  - Trigger Bases: $TRIGGER_BASES_STR"
 fi
+
 echo "================================================================="
 read -p "Are you absolutely sure you want to proceed with these deletions? (y/N): " confirm
 
@@ -212,33 +220,35 @@ fi
 # Global setup
 STATE_BUCKET="${PROJECT_ID}-terraform-state"
 
-# 1. AI Agent and GE App
-if [[ "$DELETE_AI_AGENT" == "true" ]] || [[ "$DELETE_GE_APP" == "true" ]]; then
+# 1. AI Agent Resources
+if [[ "$DELETE_AI_AGENT" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 1: Delete AI Agent & GE App Resources"
+    echo "STEP 1: Delete AI Agent Resources"
     echo "-----------------------------------------------------------------"
 
     echo 'y' | bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/delete_resources.sh" \
-        --delete-ai-agent "$DELETE_AI_AGENT" \
-        --delete-ge-app "$DELETE_GE_APP" \
         --project "$PROJECT_ID" \
-        --ge-location "$GE_LOCATION" \
+        --ge-location "$GE_APP_LOCATION" \
         --agent-engine-location "$AGENT_ENGINE_LOCATION" \
         --ge-app-id "$GE_APP_ID" \
         --agent-display-name "$AGENT_DISPLAY_NAME" \
-        --ge-auth-id-secret-names "$GE_AUTH_ID_SECRET_NAMES"
+        --ge-auth-ids "$GE_AUTH_IDS"
 else
-    echo "Skipping AI Agent and GE App Resources deletion."
+    echo "Skipping AI Agent Resources deletion."
 fi
 
-# 2. MCP Servers
-if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
+# 2. Gemini Enterprise App
+if [[ "$DELETE_GE_APP" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 2: Delete MCP Servers"
+    echo "STEP 2: Delete Gemini Enterprise App"
     echo "-----------------------------------------------------------------"
-    echo 'y' | bash "$SCRIPT_DIR/delete_mcp_servers.sh" --project "$PROJECT_ID" --servers "$MCP_SERVERS_TO_DELETE" --region "$REGION"
+    
+    bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" delete-ge-app \
+        --project "$PROJECT_ID" \
+        --ge-location "$GE_APP_LOCATION" \
+        --ge-app-id "$GE_APP_ID"
 else
-    echo "Skipping MCP Servers deletion."
+    echo "Skipping Gemini Enterprise App deletion."
 fi
 
 # 3. EKB Pipeline
@@ -264,10 +274,20 @@ else
     echo "Skipping EKB Pipeline Resources deletion."
 fi
 
-# 4. Shared Resources
+# 4. MCP Servers
+if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 4: Delete MCP Servers"
+    echo "-----------------------------------------------------------------"
+    echo 'y' | bash "$SCRIPT_DIR/delete_mcp_servers.sh" --project "$PROJECT_ID" --servers "$MCP_SERVERS_TO_DELETE" --region "$REGION"
+else
+    echo "Skipping MCP Servers deletion."
+fi
+
+# 5. Shared Resources
 if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 4: Delete Shared Resources"
+    echo "STEP 5: Delete Shared Resources"
     echo "-----------------------------------------------------------------"
     SHARED_DIR="$REPO_ROOT/terraform/shared_resources"
     if [ -d "$SHARED_DIR" ]; then
@@ -296,10 +316,10 @@ else
     echo "Skipping Shared Resources deletion."
 fi
 
-# 5. Bootstrap Cleanup
+# 6. Bootstrap Cleanup
 if [[ "$DELETE_BOOTSTRAP" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 5: Bootstrap Cleanup (Triggers & Service Account)"
+    echo "STEP 6: Bootstrap Cleanup (Triggers & Service Account)"
     echo "-----------------------------------------------------------------"
     echo 'y' | bash "$SCRIPT_DIR/delete_bootstrap.sh" \
         --project "$PROJECT_ID" \

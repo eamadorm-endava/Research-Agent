@@ -53,9 +53,9 @@ fi
 BASE_URL="https://${API_ENDPOINT}/v1alpha/projects/${PROJECT_ID}/locations/${GE_LOCATION}"
 
 case "$COMMAND" in
-    delete-agent)
+    unregister-agent)
         if [ -z "$APP_ID" ] || [ -z "$AGENT_DISPLAY_NAME" ]; then
-            echo "Error: --app-id and --agent-display-name are required for delete-agent."
+            echo "Error: --app-id and --agent-display-name are required for unregister-agent."
             exit 1
         fi
         echo "Looking for agent with display name: $AGENT_DISPLAY_NAME..."
@@ -264,9 +264,10 @@ case "$COMMAND" in
         ;;
     
     *)
-        echo "Usage: $0 {create-ge-app|delete-ge-app|delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
+        echo "Usage: $0 {create-ge-app|delete-ge-app|unregister-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
         echo "  create-ge-app flags: --project --ge-app-id [--ge-location]"
         echo "  delete-ge-app flags: --project --ge-app-id [--ge-location]"
+        echo "  unregister-agent flags: --project --app-id --agent-display-name [--ge-location]"
         echo "  register-agent flags: --project --app-id --agent-display-name --agent-engine-agent-id --auth-ids --agent-engine-location [--agent-description] [--icon-uri] [--ge-location]"
         exit 1
         ;;

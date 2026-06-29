@@ -57,7 +57,7 @@ steps:
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
         
         echo "Deleting test agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
           --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
@@ -104,7 +104,7 @@ steps:
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
         
         echo "Checking and deleting existing agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
           --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
