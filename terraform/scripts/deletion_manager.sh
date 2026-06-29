@@ -45,7 +45,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # ## Bootstrap Parameters
 #   --delete-bootstrap           Set to "true" to delete Bootstrap SA and IAM roles.
 #   --sa-name                    The base name of the Terraform service account.
-#   --trigger-bases              Comma-separated list of the trigger bases.
 # -----------------------------------------------------------------------------
 
 # --- Global Configuration ---
@@ -81,7 +80,6 @@ DELETE_CICD_TRIGGERS="false"
 
 # --- Bootstrap Parameters ---
 DELETE_BOOTSTRAP="false"
-TRIGGER_BASES_STR="ai-agent,bq-mcp-server,gcs-mcp-server,drive-mcp-server,calendar-mcp-server,ekb-pipeline,onedrive-mcp-server,sharepoint-mcp-server,atlassian-mcp-server,outlook-mcp-server"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
@@ -119,7 +117,6 @@ while [[ "$#" -gt 0 ]]; do
         # Bootstrap
         --delete-bootstrap) DELETE_BOOTSTRAP="$2"; shift ;;
         --sa-name) SA_NAME="$2"; shift ;;
-        --trigger-bases) TRIGGER_BASES_STR="$2"; shift ;;
         
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -182,9 +179,9 @@ if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     fi
 fi
 
-if [[ "$DELETE_BOOTSTRAP" == "true" ]] || [[ "$DELETE_CICD_TRIGGERS" == "true" ]]; then
-    if [[ -z "$SA_NAME" ]] || [[ -z "$TRIGGER_BASES_STR" ]]; then
-        echo "Error: --delete-bootstrap or --delete-cicd-triggers is true, but --sa-name or --trigger-bases is missing."
+if [[ "$DELETE_BOOTSTRAP" == "true" ]]; then
+    if [[ -z "$SA_NAME" ]]; then
+        echo "Error: --delete-bootstrap is true, but --sa-name is missing."
         exit 1
     fi
 fi
@@ -465,14 +462,28 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
     echo "-----------------------------------------------------------------"
     echo "STEP 7: Delete CI/CD Triggers"
     echo "-----------------------------------------------------------------"
+    # If global wipe is requested, force all modular flags to true
+    if [[ "$DELETE_CICD_TRIGGERS" == "true" ]]; then
+        DEL_SHARED_TRIGGERS="true"
+        DEL_MCP_TRIGGERS_FLAG="true"
+        MCP_DEL_TARGET="all"
+        DEL_EKB_TRIGGERS_FLAG="true"
+        DEL_AI_TRIGGERS_FLAG="true"
+    else
+        DEL_SHARED_TRIGGERS="$DELETE_SHARED_RESOURCES"
+        DEL_MCP_TRIGGERS_FLAG="$DEL_MCP_TRIGGERS"
+        DEL_EKB_TRIGGERS_FLAG="$DEL_EKB_TRIGGERS"
+        DEL_AI_TRIGGERS_FLAG="$DEL_AI_TRIGGERS"
+    fi
+
     bash "$SCRIPT_DIR/cicd_triggers_deletion.sh" \
         --project "$PROJECT_ID" \
         --region "$REGION" \
-        --delete-shared-resources-triggers "$DELETE_SHARED_RESOURCES" \
-        --delete-mcp-server-triggers "$DEL_MCP_TRIGGERS" \
+        --delete-shared-resources-triggers "$DEL_SHARED_TRIGGERS" \
+        --delete-mcp-server-triggers "$DEL_MCP_TRIGGERS_FLAG" \
         --mcp-server-triggers-to-delete "$MCP_DEL_TARGET" \
-        --delete-ekb-pipeline-triggers "$DEL_EKB_TRIGGERS" \
-        --delete-ai-agent-triggers "$DEL_AI_TRIGGERS"
+        --delete-ekb-pipeline-triggers "$DEL_EKB_TRIGGERS_FLAG" \
+        --delete-ai-agent-triggers "$DEL_AI_TRIGGERS_FLAG"
 else
     echo "Skipping Step 7: CI/CD Triggers cleanup."
 fi
