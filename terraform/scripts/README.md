@@ -91,4 +91,4 @@ bash terraform/scripts/creation_manager.sh \
 ---
 
 ## Appendix: Legacy Scripts
-Note: This orchestrator replaces legacy manual scripts such as `run_once.sh` and individual `bootstrap.sh` executions, consolidating them into a single, unified pipeline.
+Note: This orchestrator replaces legacy manual scripts such as `run_once.sh` and individual `bootstrap.sh` executions, consolidating them into a single, unified pipeline. 
