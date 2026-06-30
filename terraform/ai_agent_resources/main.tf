@@ -78,6 +78,56 @@ resource "google_storage_bucket_iam_member" "ai_agent_landing_zone_bucket_admin"
   member = "serviceAccount:${module.ai-agent-service-account.email}"
 }
 
+################ Model Armor Template ################
+resource "google_model_armor_template" "security_template" {
+  provider    = google-beta
+  project     = var.project_id
+  location    = var.main_region
+  template_id = var.model_armor_template_id
+
+  template_metadata {
+    log_template_operations = false
+    log_sanitize_operations = false
+
+    multi_language_detection {
+      enable_multi_language_detection = true
+    }
+  }
+
+  filter_config {
+    malicious_uri_filter_settings {
+      filter_enforcement = "ENABLED"
+    }
+
+    pi_and_jailbreak_filter_settings {
+      filter_enforcement = "ENABLED"
+    }
+
+    rai_settings {
+      rai_filters {
+        filter_type      = "HATE_SPEECH"
+        confidence_level = "HIGH"
+      }
+      rai_filters {
+        filter_type      = "DANGEROUS"
+        confidence_level = "HIGH"
+      }
+      rai_filters {
+        filter_type      = "SEXUALLY_EXPLICIT"
+        confidence_level = "HIGH"
+      }
+      rai_filters {
+        filter_type      = "HARASSMENT"
+        confidence_level = "HIGH"
+      }
+    }
+  }
+
+  depends_on = [
+    module.enable_apis
+  ]
+}
+
 ################ Metrics ################
 module "metrics_dataset" {
   source      = "../base_modules/bigquery-dataset"
