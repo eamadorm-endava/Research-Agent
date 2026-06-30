@@ -1,5 +1,5 @@
 substitutions:
-  _LOCATION: us-central1
+  _LOCATION: europe-west2
   _REPO_NAME: mcp-servers
   _SERVICE_NAME: gcs-mcp-server
 

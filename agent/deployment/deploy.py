@@ -65,8 +65,8 @@ def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
 )
 @click.option(
     "--location",
-    default="us-central1",
-    help="GCP region (defaults to us-central1)",
+    default="europe-west2",
+    help="GCP region (defaults to europe-west2)",
 )
 @click.option(
     "--display-name",
