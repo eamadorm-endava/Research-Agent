@@ -55,9 +55,9 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 - **Agent landing zone**: always `gs://<project_id>-ai-agent-landing-zone/`.
 - **KB Landing Zone**: use `<project_id>-kb-landing-zone` as `destination_bucket`. Note: The orchestrator should provide `<project_id>`.
 - **BigQuery project**: query `knowledge_base.documents_metadata` directly. Do not use a project prefix.
-- **Job IDs**: always return the `job_id` from **each entry** in `job_responses` in the pipeline response to the user.
-- **URI splitting**: `get_artifact_uri` returns a full `gs://<bucket>/<object_path>` URI. You must split it: `source_bucket_name` = the bucket name (between `gs://` and the first `/`), `source_object_name` = everything after that first `/`.
-- **`path_inside_bucket`**: when calling `upload_object`, set `path_inside_bucket` to the confirmed `ekb_project_name` (e.g., `"Project Alpha"`). Do not include leading or trailing slashes. The tool will construct the final path as `<path_inside_bucket>/<filename>` automatically.
+- **Perceived-speed rule**: once the user confirms the metadata table, use the unified `submit_kb_ingestion_batch` tool. Do not orchestrate separate `get_artifact_uri`, `upload_object`, and `trigger_ekb_pipeline` calls unless the unified tool fails and a retry requires a lower-level fallback.
+- **Job IDs**: always return the `job_id` from **each entry** in `file_responses` from `submit_kb_ingestion_batch`. If a file response has no `job_id`, show its `execution_message` instead.
+- **Status checks**: do not call `check_ingestion_status` immediately after submission. Return the initial job IDs/statuses as soon as `submit_kb_ingestion_batch` completes. Only check status if the user explicitly asks for a status update.
 
 ---
 
@@ -89,6 +89,8 @@ Do not read file contents. Leave any field that cannot be obtained as `—`.
 
 ### Step 3 — Present Metadata Table and Confirm
 
+Always assemble and present the metadata table, even if the user already provided every required metadata field in the same message. The confirmation step is mandatory for every ingestion attempt. Do not proceed to upload or submission until the user explicitly confirms the table.
+
 Assemble the metadata table and — if the project validation result is already available — present both in a single message:
 
 > | File | Project | Domain | Trust-level | PII |
@@ -108,51 +110,47 @@ Handle the pre-flight verification result:
     - **Duplicate found** → ask: *"A file named `<filename>` already exists in project `<ekb_project_name>` (Domain: `<domain>`, Trust-level: `<trust_level>`). Would you like to Replace it (inheriting its metadata) or Upload as new (provide a new filename)?"*
       - User chooses **Replace** → override this file's `domain` and `trust_level` with the values from the existing BigQuery record. Do not use inferred or user-typed values for those fields.
       - User chooses **Upload as new** → update the filename to what the user provides.
-    - **No duplicate** → proceed to **Step 4**.
-  - User creates a new project → skip Step 4, proceed to **Step 4**.
-- **No matches found** → show the table normally; project proceeds as new, skip Step 4.
+    - **No duplicate** → keep the selected project in the table and wait for explicit confirmation before Step 4.
+  - User creates a new project → keep the user's project value in the table and wait for explicit confirmation before Step 4.
+- **No matches found** → show the table normally; project proceeds as new after explicit confirmation.
 - **Project was blank** (`—`) → ask the user to fill it. Once provided, immediately run the Pre-flight Verification Query and present the result before proceeding.
 
-**Do not proceed to Step 4 until all required fields are filled, any duplicates resolved, and the user confirms.**
+**Do not proceed to Step 4 until all required fields are filled, any duplicates resolved, and the user explicitly confirms the metadata table. This applies even when all metadata was provided up front.**
 
 ---
 
-### Step 4 — Upload and Trigger
+### Step 4 — Submit Confirmed Batch
 
-**4a — Resolve URIs (parallel)**
-Call `get_artifact_uri(filename=<filename>)` for **all files simultaneously** in a single parallel batch. Collect all `gcs_uri` values from the responses.
+After the user confirms the metadata table, call `submit_kb_ingestion_batch` exactly once for the confirmed batch. This unified tool resolves session artifact URIs, copies files to the KB landing-zone bucket with metadata, triggers the EKB pipeline, and returns initial job IDs.
 
-For each returned `gcs_uri` (format: `gs://<bucket>/<object_path>`), split it:
-- `source_bucket_name` = the bucket name (text between `gs://` and the first `/`)
-- `source_object_name` = everything after that first `/`
+Call arguments:
+- `files`: one object per confirmed PDF.
+  - `filename`: confirmed filename.
+  - `project`: confirmed `ekb_project_name`.
+  - `domain`: confirmed domain.
+  - `trust_level`: confirmed trust-level. Use the underscore key expected by the tool, not `trust-level`.
+  - `pii_status`: confirmed `Yes` or `No`.
+- `destination_bucket`: omit unless the user or environment explicitly requires a non-default KB landing-zone bucket. The tool defaults to `<project_id>-kb-landing-zone`.
 
-**4b — Upload to KB Bucket (parallel)**
-Once all URIs are resolved, call `upload_object` for **all files simultaneously**:
-- `source_bucket_name`: extracted from the `get_artifact_uri` response (see above).
-- `source_object_name`: extracted from the `get_artifact_uri` response (see above).
-- `destination_bucket`: `<project_id>-kb-landing-zone`
-- `filename`: confirmed filename.
-- `path_inside_bucket`: confirmed `ekb_project_name` (no leading/trailing slashes).
-- `metadata`: A JSON object containing `project`, `domain`, `trust-level`, and `pii_status`.
+Do **not** call `get_artifact_uri`, `upload_object`, or `trigger_ekb_pipeline` directly during the normal path. The unified tool performs those operations internally to reduce agent/tool round trips.
 
-Collect all `destination_uri` values from the upload responses.
+Do **not** call `check_ingestion_status` after `submit_kb_ingestion_batch` in the same turn. Treat the returned initial job IDs as the completion of the user-facing submission step; processing continues asynchronously.
 
-**4c — Trigger Pipeline** *(after all uploads complete)*
-Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` **once** with all `destination_uri` values from step 4b. The tool fires all pipelines in parallel internally and returns a `job_responses` list with one entry per file.
-
-**Final Summary** — iterate `job_responses` to build the table:
+**Final Summary** — iterate `file_responses` to build the table:
 ```markdown
 ### Ingestion Started
 | File | Project | Job ID | Status |
 |:---:|:---:|:---:|:---:|
-| <file1.pdf> | <ekb_project_name> | <job_responses[0].job_id> | <job_responses[0].job_status> |
+| <file1.pdf> | <project> | <file_responses[0].job_id> | <file_responses[0].job_status> |
 ```
+
+If a file has `execution_status = "error"`, show its `execution_message` in the status column and do not claim that ingestion started for that file.
 
 ---
 
 ### Retry Protocol
 
-Skip Steps 1–3. Execute Steps 4a → 4b using the previously confirmed URIs, filenames, EKB project names, and metadata. If the retry also fails, report the error and ask how to proceed.
+If the failure happened after the user already confirmed metadata, skip Steps 1–3 and call `submit_kb_ingestion_batch` again using the previously confirmed filenames, EKB project names, and metadata. If the retry also fails, report the error and ask how to proceed.
 
 ---
 

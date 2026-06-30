@@ -2,7 +2,11 @@ from google.adk.tools import load_artifacts
 
 from .builder import AgentBuilder, AppBuilder
 from .tools.artifact_tools import GetArtifactURITool
-from .tools.ekb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
+from .tools.ekb_tools import (
+    TriggerEKBPipelineTool,
+    SubmitKBIngestionBatchTool,
+    CheckIngestionStatusTool,
+)
 from .tools.time_tools import GetCurrentTimeTool
 from .callbacks.before_agent_callbacks import sync_ekb_job_status
 from loguru import logger
@@ -89,6 +93,7 @@ ingestion_agent = (
     .with_native_tools(
         [
             GetArtifactURITool(),
+            SubmitKBIngestionBatchTool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
             load_artifacts,

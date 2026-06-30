@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from agent.core_agent.tools.ekb_tools.tools import (
     TriggerEKBPipelineTool,
+    SubmitKBIngestionBatchTool,
     CheckIngestionStatusTool,
 )
 from agent.core_agent.tools.ekb_tools.config import EKB_TOOLS_CONFIG
@@ -40,6 +41,104 @@ def _build_async_client_mock(response: MagicMock, method: str = "post") -> Magic
     async_ctx_mock.__aenter__ = AsyncMock(return_value=client_mock)
     async_ctx_mock.__aexit__ = AsyncMock(return_value=False)
     return async_ctx_mock
+
+
+# ---------------------------------------------------------------------------
+# SubmitKBIngestionBatchTool
+# ---------------------------------------------------------------------------
+
+
+class TestSubmitKBIngestionBatchTool:
+    @patch.object(TriggerEKBPipelineTool, "run_async", new_callable=AsyncMock)
+    @patch.object(SubmitKBIngestionBatchTool, "_copy_to_kb_landing_zone")
+    @patch.object(SubmitKBIngestionBatchTool, "_make_storage_client")
+    async def test_stages_artifact_and_triggers_pipeline_once(
+        self, mock_make_storage_client, mock_copy_to_kb, mock_trigger_run
+    ):
+        """Happy path: one unified call stages the artifact and starts ingestion."""
+        expected_destination_uri = (
+            "gs://mock-project-id-kb-landing-zone/Project Alpha/doc.pdf"
+        )
+        mock_make_storage_client.return_value = MagicMock()
+        mock_trigger_run.return_value = {
+            "successful_jobs": 1,
+            "failed_jobs": 0,
+            "job_responses": [
+                {
+                    "gcs_uri": expected_destination_uri,
+                    "job_id": "job-123",
+                    "job_status": "PROCESSING",
+                    "execution_status": "success",
+                    "execution_message": "Ingestion started.",
+                }
+            ],
+        }
+
+        ctx = AsyncMock()
+        ctx.state = {}
+        artifact_version = MagicMock()
+        artifact_version.canonical_uri = (
+            "gs://mock-project-id-ai-agent-landing-zone/session/doc.pdf"
+        )
+        ctx.get_artifact_version.return_value = artifact_version
+
+        tool = SubmitKBIngestionBatchTool()
+        result = await tool.run_async(
+            args={
+                "destination_bucket": "mock-project-id-kb-landing-zone",
+                "files": [
+                    {
+                        "filename": "doc.pdf",
+                        "project": "Project Alpha",
+                        "domain": "IT",
+                        "trust_level": "Published",
+                        "pii_status": "No",
+                    }
+                ],
+            },
+            tool_context=ctx,
+        )
+
+        assert result["successful_jobs"] == 1
+        assert result["failed_jobs"] == 0
+        assert result["file_responses"][0]["job_id"] == "job-123"
+        assert result["file_responses"][0]["job_status"] == "PROCESSING"
+        mock_copy_to_kb.assert_called_once()
+        mock_trigger_run.assert_awaited_once_with(
+            args={"gcs_uris": [expected_destination_uri]},
+            tool_context=ctx,
+        )
+
+    @patch.object(SubmitKBIngestionBatchTool, "_make_storage_client")
+    async def test_returns_error_when_artifact_is_missing(
+        self, mock_make_storage_client
+    ):
+        """Failure mode: missing artifacts are reported without triggering ingestion."""
+        mock_make_storage_client.return_value = MagicMock()
+        ctx = AsyncMock()
+        ctx.state = {}
+        ctx.get_artifact_version.return_value = None
+
+        tool = SubmitKBIngestionBatchTool()
+        result = await tool.run_async(
+            args={
+                "files": [
+                    {
+                        "filename": "missing.pdf",
+                        "project": "Project Alpha",
+                        "domain": "IT",
+                        "trust_level": "Published",
+                        "pii_status": "No",
+                    }
+                ]
+            },
+            tool_context=ctx,
+        )
+
+        assert result["successful_jobs"] == 0
+        assert result["failed_jobs"] == 1
+        assert result["file_responses"][0]["execution_status"] == "error"
+        assert "not found" in result["file_responses"][0]["execution_message"]
 
 
 # ---------------------------------------------------------------------------

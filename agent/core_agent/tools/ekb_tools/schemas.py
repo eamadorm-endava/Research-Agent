@@ -75,6 +75,86 @@ class TriggerBatchEKBPipelineResponse(BaseModel):
     ]
 
 
+class SubmitKBIngestionFile(BaseModel):
+    """Confirmed metadata and artifact name for one KB ingestion file."""
+
+    filename: Annotated[
+        str, Field(description="Filename of the uploaded PDF artifact to ingest")
+    ]
+    project: Annotated[
+        str, Field(description="User-confirmed EKB project name for this file")
+    ]
+    domain: Annotated[
+        Literal["IT", "Finance", "HR", "Sales", "Executives", "Legal", "Operations"],
+        Field(description="User-confirmed business domain metadata"),
+    ]
+    trust_level: Annotated[
+        Literal["Published", "WIP", "Archived"],
+        Field(description="User-confirmed trust-level metadata"),
+    ]
+    pii_status: Annotated[
+        Literal["Yes", "No"],
+        Field(description="User-confirmed PII metadata"),
+    ]
+    version: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            description="Optional artifact version to ingest when the session has multiple versions",
+        ),
+    ]
+
+
+class SubmitKBIngestionBatchRequest(BaseModel):
+    """Request schema for staging files and starting EKB ingestion jobs."""
+
+    files: Annotated[
+        list[SubmitKBIngestionFile],
+        Field(description="Confirmed files and metadata to submit", min_length=1),
+    ]
+    destination_bucket: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Optional KB landing-zone bucket override. Defaults to '<PROJECT_ID>-kb-landing-zone'.",
+        ),
+    ]
+
+
+class SingleSubmitKBIngestionResponse(BaseToolResponse):
+    """Result for one file submitted through the unified KB ingestion tool."""
+
+    filename: Annotated[str, Field(description="Submitted filename")]
+    project: Annotated[str, Field(description="Confirmed EKB project name")]
+    source_uri: Annotated[
+        Optional[GcsUri], Field(default=None, description="Original artifact GCS URI")
+    ]
+    destination_uri: Annotated[
+        Optional[GcsUri], Field(default=None, description="KB landing-zone GCS URI")
+    ]
+    job_id: JobId
+    job_status: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="Initial ingestion job status returned by the EKB pipeline",
+        ),
+    ]
+
+
+class SubmitKBIngestionBatchResponse(BaseModel):
+    """Batch result from staging files and triggering EKB ingestion jobs."""
+
+    successful_jobs: Annotated[int, Field(description="Number of jobs started")]
+    failed_jobs: Annotated[
+        int, Field(description="Number of files that failed before or during trigger")
+    ]
+    file_responses: Annotated[
+        list[SingleSubmitKBIngestionResponse],
+        Field(description="Per-file submission, staging, and initial job results"),
+    ]
+
+
 class CheckIngestionStatusRequest(BaseModel):
     """Request schema for polling job status."""
 
