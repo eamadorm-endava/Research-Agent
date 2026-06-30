@@ -1,209 +1,94 @@
-## Infrastructure Bootstrap Script
+# Master Deployment Guide (Creation Manager)
 
-This README is designed to provide a professional overview of your automation script, ensuring that any developer on your team understands the "why" and "how" of the infrastructure setup.
+This directory contains the orchestration scripts required to automatically provision, configure, and deploy the entire Research-Agent ecosystem.
 
-`bootstrap.sh` automates the initial setup of Google Cloud Platform resources required to run Terraform through Cloud Build.
-
-Its goal is to establish a least-privilege setup where a dedicated service account manages infrastructure, while developers and CI/CD pipelines use impersonation instead of static JSON keys.
-
-## Requirements
-Before running the script, ensure the following conditions are met:
-
-1. GCP permissions:
-
-    - You must have Owner or Editor plus Project IAM Admin on the account you are using.
-    - You must be allowed to impersonate the Terraform service account. The script grants this access after you set `USER_EMAIL` correctly.
-
-2. The Google Cloud SDK must be installed and authenticated (gcloud auth login).
-
-3. GitHub connection:
-
-    - The `Research-Agent` repository must already be connected to Cloud Build in GCP.
-    - Check Cloud Build > Triggers > Manage Repositories.
-
-4. Developer group: the developer Google Group must already exist in your organization.
-
-5. Cloud Build Service Agent Permissions (Mandatory for GitHub Connection):
-    - When creating a 2nd Gen GitHub Connection, Cloud Build needs to store tokens in Secret Manager.
-    - You must grant the **Secret Manager Admin** role to the Cloud Build Service Agent (`service-PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com`).
-    - **Command**:
-      ```bash
-      PROJECT_NUMBER=$(gcloud projects describe YOUR_PROJECT_ID --format='value(projectNumber)')
-      gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-          --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
-          --role="roles/secretmanager.admin"
-      ```
-    - Ensure the **Secret Manager API** is enabled before creating the connection.
-
-## Architecture Flow
-The script performs the following steps:
-
-1. Creates the Terraform service account.
-2. Waits briefly for IAM propagation.
-3. Grants the service account the roles required to manage APIs, IAM policies, and project resources.
-4. Grants impersonation access to the developer group and Cloud Build service account.
-5. Enables the Cloud Build API.
-6. Prepares Terraform automation prerequisites.
-
-## Execution Guide
-
-1. Make the script executable:
-
-```
-chmod +x terraform/scripts/bootstrap.sh
-```
-2. Run the script from the repository root:
-
-```
-./terraform/scripts/bootstrap.sh
-```
-
-Or use Make targets from repository root:
-
-```
-make bootstrap
-make bootstrap-no-shared
-```
-3. For local impersonation after setup:
-
-```
-gcloud auth application-default login --impersonate-service-account="SERVICE_ACCOUNT_EMAIL"
-```
-
-## Trigger-Only Setup (Run Once)
-
-Use `run_once.sh` when you only want to create MCP Cloud Build triggers without rerunning the full bootstrap:
-
-```
-chmod +x terraform/scripts/run_once.sh
-./terraform/scripts/run_once.sh
-```
-
-From repository root you can also use:
-
-```
-make run-once-terraform-triggers
-```
-
-By default it creates or verifies:
-- `bq-mcp-server-services-plan`
-- `bq-mcp-server-services-apply`
-- `gcs-mcp-server-services-plan`
-- `gcs-mcp-server-services-apply`
-
-`shared_resources` is intentionally not on a trigger flow. Apply it once during bootstrap/manual setup.
-
-If a trigger already exists but still points to an old build config path, recreate it in place:
-
-```
-FORCE_RECREATE=true ./terraform/scripts/run_once.sh
-```
-
-## One-Time Shared Resources Apply
-
-Apply `shared_resources` once during bootstrap/manual setup (not via trigger flow):
-
-```
-cd terraform/shared_resources
-terraform init -reconfigure \
-    -backend-config="bucket=<PROJECT_ID>-terraform-state" \
-    -backend-config="prefix=terraform/state/shared-resources"
-terraform plan
-terraform apply
-```
-
-`bootstrap.sh` runs this sequence by default. To skip this step when needed:
-
-```
-APPLY_SHARED_RESOURCES=false ./terraform/scripts/bootstrap.sh
-```
-
-## Trigger-Only Setup (Run Once)
-
-Use `run_once.sh` when you only want to create MCP Cloud Build triggers (without running full bootstrap):
-
-```
-chmod +x terraform/scripts/run_once.sh
-./terraform/scripts/run_once.sh
-```
-
-By default it creates/ensures:
-- `bq-mcp-server-services-plan`
-- `bq-mcp-server-services-apply`
-- `gcs-mcp-server-services-plan`
-- `gcs-mcp-server-services-apply`
-
-If a trigger already exists but still points to an old build config path, recreate it in place:
-
-```
-FORCE_RECREATE=true ./terraform/scripts/run_once.sh
-```
-
-## Terraform Infrastructure Access Setup
-
-### Service Account
-- **Name:** `terraform-sa-gemini-project`  
-- **Purpose:** The primary identity for infrastructure management.
+The central entry point is **`creation_manager.sh`**, which orchestrates the complete lifecycle: bootstrapping Terraform, deploying shared infrastructure, generating CI/CD pipelines, deploying MCP Servers, and provisioning the Vertex AI Agent Engine.
 
 ---
 
-### IAM Roles Assigned
+## 1. Prerequisites (Manual Steps)
 
-| Role | Role ID | Why It's Needed |
-|------|---------|----------------|
-| Service Usage Admin | `roles/serviceusage.serviceUsageAdmin` | Required to enable and disable Google Cloud APIs. |
-| Service Account Admin | `roles/iam.serviceAccountAdmin` | Allows Terraform to manage other service accounts. |
-| Project IAM Admin | `roles/resourcemanager.projectIamAdmin` | Required to assign roles at the project level. |
-| Service Account Token Creator | `roles/iam.serviceAccountTokenCreator` | Enables impersonation for developers and Cloud Build. |
+Before executing the orchestrator, you **must** manually set up a few configurations in your Google Cloud Project.
+
+### A. Enable Required APIs
+For a completely new project, you must enable the core APIs before you can configure connections or secrets.
+1. Open the Cloud Shell or your local terminal authenticated to GCP.
+2. Run the following command to enable Cloud Build and Secret Manager:
+   ```bash
+   gcloud services enable cloudbuild.googleapis.com secretmanager.googleapis.com
+   ```
+
+### B. Cloud Build GitHub Connection
+Cloud Build requires explicit permission to read from your repository to generate the CI/CD triggers.
+1. Navigate to **Cloud Build > Repositories** in the Google Cloud Console.
+2. Select the **2nd gen** tab and click **Create Host Connection**.
+3. Follow the OAuth prompts to connect your GitHub account.
+4. Once connected, click **Link Repository** and select the Research-Agent repository.
+5. Note down the **Connection Name** (e.g., `github-conn`) and the **Repository Slug** (e.g., `eamadorm-endava/Research-Agent`). You will pass these to the orchestrator.
+
+### C. Setup OAuth Clients
+The Gemini Enterprise Agent requires OAuth credentials to act on behalf of the user to access external systems securely.
+
+**Google OAuth:**
+1. Go to **APIs & Services > OAuth consent screen**. If it's your first time, you must configure the consent screen (User Type: Internal or External, add basic app details).
+2. Go to **APIs & Services > Credentials**.
+3. Click **Create Credentials > OAuth client ID** (Application type: Web application).
+4. Add the following three **Authorized redirect URIs**:
+   - `http://localhost:8000/dev-ui/`
+   - `https://vertexaisearch.cloud.google.com/oauth-redirect`
+   - `https://vertexaisearch.cloud.google.com/static/oauth/oauth.html`
+5. Note down the **Client ID** and **Client Secret**.
+
+**Microsoft OAuth (For OneDrive/SharePoint/Outlook):**
+1. Go to the Azure Portal > **App registrations** and create a new application.
+2. Add the same three redirect URIs as above (Web platform type).
+3. Note down the **Application (client) ID** and generate a **Client secret**.
+
+### D. Populate Secret Manager
+The CI/CD pipelines expect your sensitive secrets to be available in Google Cloud Secret Manager.
+Create the following secrets manually in your GCP project:
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `MICROSOFT_OAUTH_CLIENT_ID`
+- `MICROSOFT_OAUTH_CLIENT_SECRET`
+- `ATLASSIAN_CREDENTIALS`
 
 ---
 
-### Additional Resources
+## 2. Executing the Orchestrator
 
-| Resource | Name / Scope | Purpose |
-|----------|--------------|----------|
-| Cloud Build Triggers | MCP plan/apply triggers | Automates CI/CD workflows for MCP Terraform folders. |
+Once the prerequisites are complete, you can execute the master orchestration script.
 
+### Command Format
+Run this from the root of the repository:
 
-## MCP Server Deletion
-
-Use `delete_mcp_servers.sh` when you want to destroy only the MCP server Terraform stacks while leaving shared resources, the AI Agent, the EKB pipeline, the Terraform state bucket, and the Terraform service account in place.
-
-```
-chmod +x terraform/scripts/delete_mcp_servers.sh
-./terraform/scripts/delete_mcp_servers.sh
-```
-
-The script destroys these stacks using the same backend prefixes as the Cloud Build pipelines:
-
-- `terraform/bq_mcp_server_resources`
-- `terraform/drive_mcp_server_resources`
-- `terraform/calendar_mcp_server_resources`
-- `terraform/onedrive_mcp_server_resources`
-- `terraform/sharepoint_mcp_server_resources`
-
-To also remove the MCP Cloud Build triggers after the Terraform destroy completes, run:
-
-```
-DELETE_MCP_TRIGGERS=true ./terraform/scripts/delete_mcp_servers.sh
+```bash
+bash terraform/scripts/creation_manager.sh \
+    --project "p-dev-gce-60pf" \
+    --region "us-central1" \
+    --sa-name "terraform-sa" \
+    --admin-user-email "emmanuel.amador@endava.com" \
+    --github-connection-name "eamadorm-github-connection" \
+    --repository-slug " eamadorm-endava-Research-Agent" \
+    --mcp-servers-to-deploy "all" \
+    --ge-app-location "global" \
+    --deploy-bootstrap "true" \
+    --deploy-shared-resources "true" \
+    --deploy-mcp-servers "true" \
+    --deploy-ekb-pipeline "true" \
+    --deploy-ge-app "true" \
+    --deploy-ai-agent "true"
 ```
 
-The MCP Cloud Run modules natively set `deletion_protection = false` in their Terraform definitions, allowing them to be cleanly destroyed without manual intervention.
+### What happens next?
+1. **Pre-flight summary**: The script will print a summary of what it computed and pause for your confirmation (`y/N`).
+2. **Infrastructure Deployment**: It will bootstrap Terraform, create the shared infrastructure (GCS Landing Zone, Secret bindings), and automatically create all Cloud Build Triggers for the entire ecosystem.
+3. **Trigger Execution**: It will programmatically trigger the Cloud Build pipelines to deploy the dynamically discovered array of MCP servers and the EKB pipeline.
+4. **Agent Registration**: Finally, it will create the Gemini Enterprise Data Store, trigger the AI Agent pipeline, and register the agent dynamically.
 
-## Master Deletion Orchestrator
+**No manual CI/CD intervention or hardcoded URLs are required!**
 
-Use `deletion_manager.sh` as the central tool to dismantle your infrastructure. It can gracefully tear down specific components or execute a total "scorched earth" deletion.
+---
 
-```
-./terraform/scripts/deletion_manager.sh \
-    --project <PROJECT_ID> \
-    --region <REGION> \
-    --delete-ai-agent true \
-    --delete-mcp-servers true \
-    --delete-ekb-pipeline true \
-    --delete-shared-resources true \
-    --delete-bootstrap true \
-    [... additional component-specific parameters ...]
-```
-
-The script is heavily parameterized and enforces explicit confirmations and variable injections to prevent accidental deletions. Run it without arguments to see the required parameters for each phase.
+## Appendix: Legacy Scripts
+Note: This orchestrator replaces legacy manual scripts such as `run_once.sh` and individual `bootstrap.sh` executions, consolidating them into a single, unified pipeline.
