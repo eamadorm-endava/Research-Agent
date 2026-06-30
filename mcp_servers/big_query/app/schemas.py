@@ -22,7 +22,7 @@ TABLE_ID = Annotated[
         max_length=1024,
     ),
 ]
-LOCATION = Annotated[str, Field(default="US", description="The geographic location.")]
+LOCATION = Annotated[str, Field(default="EU", description="The geographic location.")]
 QUERY = Annotated[
     str, Field(description="The standard SQL query to execute.", min_length=1)
 ]

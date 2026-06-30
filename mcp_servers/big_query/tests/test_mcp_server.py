@@ -45,14 +45,14 @@ async def test_mcp_create_dataset_success(mock_bq_manager):
     mock_bq_manager.create_dataset.return_value = (
         "projects/mock-bq-project-id/datasets/my_ds"
     )
-    req = CreateDatasetRequest(dataset_id="my_ds", location="US")
+    req = CreateDatasetRequest(dataset_id="my_ds", location="EU")
 
     result = await create_dataset(req)
 
     assert result.execution_status == "success"
     assert "Successfully created dataset" in result.execution_message
     mock_bq_manager.create_dataset.assert_called_once_with(
-        BIGQUERY_SERVER_CONFIG.project_id, "my_ds", "US"
+        BIGQUERY_SERVER_CONFIG.project_id, "my_ds", "EU"
     )
 
 
@@ -64,11 +64,11 @@ async def test_mcp_create_dataset_validation_error():
     """
     # Invalid Dataset ID
     with pytest.raises(ValidationError):
-        CreateDatasetRequest(dataset_id="ds@invalid", location="US")
+        CreateDatasetRequest(dataset_id="ds@invalid", location="EU")
 
     # Invalid Dataset ID (Regex violation)
     with pytest.raises(ValidationError):
-        CreateDatasetRequest(dataset_id="ds@invalid", location="US")
+        CreateDatasetRequest(dataset_id="ds@invalid", location="EU")
 
 
 @pytest.mark.asyncio

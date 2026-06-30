@@ -12,7 +12,7 @@ from agent.core_agent.config import (
 def mock_configs():
     return {
         "agent": CoordinatorConfig(),
-        "gcp": GCPConfig(PROJECT_ID="test-project", REGION="us-central1"),
+        "gcp": GCPConfig(PROJECT_ID="test-project", REGION="europe-west2"),
     }
 
 
@@ -25,7 +25,7 @@ def test_agent_builder_initialization(mock_vertex_client, mock_configs):
     )
 
     mock_vertex_client.assert_called_once_with(
-        project="test-project", location="us-central1"
+        project="test-project", location="europe-west2"
     )
     assert builder._registered_tools == []
 

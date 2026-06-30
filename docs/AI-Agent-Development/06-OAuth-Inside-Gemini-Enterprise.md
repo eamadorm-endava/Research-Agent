@@ -122,7 +122,7 @@ curl -X POST \
 | `[DISPLAY_NAME]` | Human-readable name for the agent. | Any string | `mock-agent-display-name` |
 | `[DESCRIPTION]` | Brief summary of capabilities. | Any string | `mock-agent-description` |
 | `[ICON_URI]` | URI for the display icon. | Valid URL or placeholder | `https://example.com/mock-icon.png` |
-| `[REASONING_ENGINE_LOCATION]` | Region of agent deployment. | Any valid GCP region | `us-central1` |
+| `[REASONING_ENGINE_LOCATION]` | Region of agent deployment. | Any valid GCP region | `europe-west2` |
 | `[ADK_RESOURCE_ID]` | Numeric ID of the Agent Engine resource. | Numeric ID from deployment | `1234567890123456789` |
 | `[AUTH_ID]` | The stable ID defined in Step 2. | Alphanumeric, must exist | `my-defined-auth-id` |
 
