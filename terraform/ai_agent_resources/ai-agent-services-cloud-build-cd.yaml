@@ -1,26 +1,21 @@
 substitutions:
+  # Note: Variables such as _GE_REGION, _GE_APP_NAME_SUFFIX, and various MCP Server URLs 
+  # are deliberately omitted here. They are dynamically injected at runtime by the 
+  # Cloud Build Trigger created via creation_manager.sh to prevent configuration mismatches.
   _REGION: "us-central1"
   _AGENT_DISPLAY_NAME: "OSIRIS"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
-  _BIGQUERY_URL: "https://bigquery-mcp-server-1057005221381.us-central1.run.app"
-  _DRIVE_URL: "https://drive-mcp-server-1057005221381.us-central1.run.app"
-  _GCS_URL: "https://gcs-mcp-server-1057005221381.us-central1.run.app"
-  _CALENDAR_URL: "https://calendar-mcp-server-1057005221381.us-central1.run.app"
-  _ONEDRIVE_URL: "https://onedrive-mcp-server-1057005221381.us-central1.run.app"
-  _ATLASSIAN_URL: "https://atlassian-mcp-server-1057005221381.us-central1.run.app"
-  _SHAREPOINT_URL: "https://sharepoint-mcp-server-1057005221381.us-central1.run.app"
-  _EKB_PIPELINE_URL: "https://ekb-pipeline-1057005221381.us-central1.run.app"
   _METRICS_DATASET_ID: "agent_metrics"
   _METRICS_TABLE_ID: "response_times"
-  _GE_APP_ID: "gemini-enterprise-17816266_1781626607357"
   _GE_REGION: "global"
+  _GE_APP_NAME_SUFFIX: "osiris-app"
   _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
   _MICROSOFT_OAUTH_SCOPES: "offline_access Files.Read.All Sites.Read.All"
   _MICROSOFT_TENANT_ID: "93f8f3d2-54f6-417d-9a37-10ff2952f228"
-  _GEMINI_GOOGLE_AUTH_ID: "ge-google-prod" #  - This auth ID will be renamed to "google-workspace-authentication" after the submit happens
-  _GEMINI_MICROSOFT_AUTH_ID: "ge-microsoft-prod" # - This auth ID will be renamed to "microsoft-entra-authentication" after the submit happens
+  _GEMINI_GOOGLE_AUTH_ID: "google-workspace-authentication"
+  _GEMINI_MICROSOFT_AUTH_ID: "microsoft-entra-authentication"
 
   # Test Agent Variables
   _TEST_AGENT_DISPLAY_NAME: "OSIRIS - Test"
@@ -62,10 +57,10 @@ steps:
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
         
         echo "Deleting test agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
           --agent-display-name "${_TEST_AGENT_DISPLAY_NAME}" || true
 
   # Step 4: Delete test auth IDs
@@ -109,10 +104,10 @@ steps:
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
         
         echo "Checking and deleting existing agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
           --agent-display-name "${_AGENT_DISPLAY_NAME}"
 
   # Step 7: Delete all auth resources
@@ -180,6 +175,28 @@ steps:
           --no-hashes \
           --no-annotate \
           -o agent/core_agent/requirements.txt
+        
+        ENV_VARS="PROJECT_ID=${PROJECT_ID}"
+        ENV_VARS="$${ENV_VARS},REGION=${_REGION}"
+        ENV_VARS="$${ENV_VARS},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone"
+        ENV_VARS="$${ENV_VARS},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
+        ENV_VARS="$${ENV_VARS},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID}"
+        ENV_VARS="$${ENV_VARS},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID}"
+        
+        ENV_VARS="$${ENV_VARS},BIGQUERY_URL=https://bigquery-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},DRIVE_URL=https://drive-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},GCS_URL=https://gcs-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},CALENDAR_URL=https://calendar-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},ONEDRIVE_URL=https://onedrive-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},ATLASSIAN_URL=https://atlassian-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},SHAREPOINT_URL=https://sharepoint-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},OUTLOOK_URL=https://outlook-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        
+        ENV_VARS="$${ENV_VARS},EKB_PIPELINE_URL=https://ekb-pipeline-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},METRICS_PROJECT_ID=${PROJECT_ID}"
+        ENV_VARS="$${ENV_VARS},METRICS_DATASET_ID=${_METRICS_DATASET_ID}"
+        ENV_VARS="$${ENV_VARS},METRICS_TABLE_ID=${_METRICS_TABLE_ID}"
+
         uv run --group ai-agent --group dev python -m agent.deployment.deploy \
           --project ${PROJECT_ID} \
           --location ${_REGION} \
@@ -192,7 +209,7 @@ steps:
           --min-instances=1 \
           --memory=16Gi \
           --num-workers=4 \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone,MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GCS_URL=${_GCS_URL},CALENDAR_URL=${_CALENDAR_URL},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID},ONEDRIVE_URL=${_ONEDRIVE_URL},ATLASSIAN_URL=${_ATLASSIAN_URL},SHAREPOINT_URL=${_SHAREPOINT_URL},EKB_PIPELINE_URL=${_EKB_PIPELINE_URL},METRICS_PROJECT_ID=${PROJECT_ID},METRICS_DATASET_ID=${_METRICS_DATASET_ID},METRICS_TABLE_ID=${_METRICS_TABLE_ID}" 2>&1 | tee deploy_output.txt
+          --set-env-vars="$${ENV_VARS}" 2>&1 | tee deploy_output.txt
         
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
@@ -217,7 +234,7 @@ steps:
         ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh register-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
           --agent-display-name "${_AGENT_DISPLAY_NAME}" \
           --agent-description "${_GE_AGENT_DESCRIPTION}" \
           --agent-engine-location ${_REGION} \

@@ -2,26 +2,89 @@
 
 set -euo pipefail
 
-# One-time Cloud Build trigger setup for AI Agent and MCP servers (BQ + GCS + Drive).
-# It is safe to re-run: existing triggers are detected and skipped.
+# ==============================================================================
+# Script: cicd_triggers_creation.sh
+# Purpose:
+#   This script is responsible for creating all the necessary Cloud Build triggers
+#   (CI/CD pipelines) for the AI Agent, MCP Servers, and the EKB pipeline.
+#   It dynamically creates only the triggers requested via parameters, and prevents
+#   duplication if they already exist.
+#
+# Usage:
+#   This script should NOT be executed directly. It is designed to be called by
+#   creation_manager.sh, which parses user intentions and injects all required
+#   environment variables and parameters.
+#
+# Parameters:
+#   --project                            - The GCP Project ID where triggers will be created.
+#   --sa-name                            - The name of the Service Account (used for trigger auth).
+#   --sa-email                           - The full email of the Service Account.
+#   --github-connection-name             - The Cloud Build GitHub Connection name.
+#   --repository-slug                    - The GitHub Repository Slug (e.g. owner-repo).
+#   --region                             - The default GCP region for the project.
+#   --create-shared-resources-triggers   - "true" to create triggers for shared resources.
+#   --create-mcp-server-triggers         - "true" to create triggers for the MCP Servers.
+#   --mcp-server-triggers-to-create      - Comma-separated list of MCP servers to create triggers for.
+#   --create-ekb-pipeline-triggers       - "true" to create the trigger for the EKB pipeline.
+#   --create-ai-agent-triggers           - "true" to create the trigger for the AI Agent.
+#   --force-recreate                     - "true" to delete and recreate triggers if they exist.
+# ==============================================================================
 
-# Require essential variables from the environment (e.g. from bootstrap.sh)
-if [[ -z "${PROJECT_ID:-}" ]]; then echo "Error: PROJECT_ID environment variable is missing."; exit 1; fi
-if [[ -z "${SA_NAME:-}" ]]; then echo "Error: SA_NAME environment variable is missing."; exit 1; fi
-if [[ -z "${SA_EMAIL:-}" ]]; then echo "Error: SA_EMAIL environment variable is missing."; exit 1; fi
-if [[ -z "${GITHUB_REGION:-}" ]]; then echo "Error: GITHUB_REGION environment variable is missing."; exit 1; fi
-if [[ -z "${GITHUB_CONNECTION_NAME:-}" ]]; then echo "Error: GITHUB_CONNECTION_NAME environment variable is missing."; exit 1; fi
-if [[ -z "${REPOSITORY_SLUG:-}" ]]; then echo "Error: REPOSITORY_SLUG environment variable is missing."; exit 1; fi
+# --- Core Parameters ---
+PROJECT_ID=""
+SA_NAME=""
 
-PROJECT_NUMBER="${PROJECT_NUMBER:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')}"
+GITHUB_CONNECTION_NAME=""
+REPOSITORY_SLUG=""
+REGION=""
 
+# --- Trigger Creation Flags ---
+CREATE_SHARED_RESOURCES_TRIGGERS="false"
+CREATE_MCP_SERVER_TRIGGERS="false"
+MCP_SERVER_TRIGGERS_TO_CREATE="all"
+CREATE_EKB_PIPELINE_TRIGGERS="false"
+
+# --- AI Agent Parameters ---
+CREATE_AI_AGENT_TRIGGERS="false"
+
+# --- Optional / Overridable Variables ---
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
 PUSH_BRANCH_REGEX="${PUSH_BRANCH_REGEX:-^main$}"
 FORCE_RECREATE="${FORCE_RECREATE:-false}"
 
-REPO_PATH="projects/${PROJECT_NUMBER}/locations/${GITHUB_REGION}/connections/${GITHUB_CONNECTION_NAME}/repositories/${REPOSITORY_SLUG}"
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --project) PROJECT_ID="$2"; shift ;;
+        --sa-name) SA_NAME="$2"; shift ;;
 
-echo "Creating MCP Cloud Build triggers in project: ${PROJECT_ID}"
+        --github-connection-name) GITHUB_CONNECTION_NAME="$2"; shift ;;
+        --repository-slug) REPOSITORY_SLUG="$2"; shift ;;
+        --region) REGION="$2"; shift ;;
+        --create-shared-resources-triggers) CREATE_SHARED_RESOURCES_TRIGGERS="$2"; shift ;;
+        --create-mcp-server-triggers) CREATE_MCP_SERVER_TRIGGERS="$2"; shift ;;
+        --mcp-server-triggers-to-create) MCP_SERVER_TRIGGERS_TO_CREATE="$2"; shift ;;
+        --create-ekb-pipeline-triggers) CREATE_EKB_PIPELINE_TRIGGERS="$2"; shift ;;
+        --create-ai-agent-triggers) CREATE_AI_AGENT_TRIGGERS="$2"; shift ;;
+        --force-recreate) FORCE_RECREATE="$2"; shift ;;
+        *) ;; # Ignore unknown params
+    esac
+    shift
+done
+
+if [[ -z "$PROJECT_ID" ]]; then echo "Error: --project is required."; exit 1; fi
+if [[ -z "$SA_NAME" ]]; then echo "Error: --sa-name is required."; exit 1; fi
+
+if [[ -z "$GITHUB_CONNECTION_NAME" ]]; then echo "Error: --github-connection-name is required."; exit 1; fi
+if [[ -z "$REPOSITORY_SLUG" ]]; then echo "Error: --repository-slug is required."; exit 1; fi
+if [[ -z "$REGION" ]]; then echo "Error: --region is required."; exit 1; fi
+
+SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+
+PROJECT_NUMBER="${PROJECT_NUMBER:-$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')}"
+REPO_PATH="projects/${PROJECT_NUMBER}/locations/${REGION}/connections/${GITHUB_CONNECTION_NAME}/repositories/${REPOSITORY_SLUG}"
+
+echo "Creating Cloud Build triggers in project: ${PROJECT_ID}"
 echo "Using repository connection path: ${REPO_PATH}"
 echo "Force recreate existing triggers: ${FORCE_RECREATE}"
 
@@ -29,7 +92,7 @@ trigger_exists() {
   local name="$1"
   gcloud builds triggers describe "$name" \
     --project="$PROJECT_ID" \
-    --region="$GITHUB_REGION" \
+    --region="$REGION" \
     --quiet >/dev/null 2>&1
 }
 
@@ -37,7 +100,7 @@ delete_trigger() {
   local name="$1"
   gcloud builds triggers delete "$name" \
     --project="$PROJECT_ID" \
-    --region="$GITHUB_REGION" \
+    --region="$REGION" \
     --quiet
 }
 
@@ -47,10 +110,16 @@ create_trigger() {
   local dir="$3"
   local config="$4"
   local extra_dir="$5"
+  local extra_substitutions="${6:-}"
 
   local included_files="${dir}/**"
   if [[ -n "$extra_dir" ]]; then
     included_files="${included_files},${extra_dir}"
+  fi
+  
+  local subs="_SA_NAME=$SA_NAME"
+  if [[ -n "$extra_substitutions" ]]; then
+    subs="${subs},${extra_substitutions}"
   fi
 
   if trigger_exists "$name"; then
@@ -68,65 +137,102 @@ create_trigger() {
     gcloud alpha builds triggers create github \
       --name="$name" \
       --project="$PROJECT_ID" \
-      --region="$GITHUB_REGION" \
+      --region="$REGION" \
       --repository="$REPO_PATH" \
       --pull-request-pattern="$PR_TARGET_BRANCH_REGEX" \
       --build-config="$config" \
       --included-files="$included_files" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
-      --substitutions="_SA_NAME=$SA_NAME"
+      --substitutions="$subs"
   else
     echo "Creating push trigger: ${name}"
     gcloud alpha builds triggers create github \
       --name="$name" \
       --project="$PROJECT_ID" \
-      --region="$GITHUB_REGION" \
+      --region="$REGION" \
       --repository="$REPO_PATH" \
       --branch-pattern="$PUSH_BRANCH_REGEX" \
       --build-config="$config" \
       --included-files="$included_files" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
-      --substitutions="_SA_NAME=$SA_NAME"
+      --substitutions="$subs"
   fi
 }
 
 # --- AI Agent Triggers ---
-# CI (Plan) on Pull Request
-create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**"
-# CD (Apply) on Push/Merge
-create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
+if [[ "$CREATE_AI_AGENT_TRIGGERS" == "true" ]]; then
+    # CI (Plan) on Pull Request
+    create_trigger "ai-agent-services-plan" "pr" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-ci.yaml" "agent/**"
+    create_trigger "ai-agent-services-apply" "push" "terraform/ai_agent_resources" "terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml" "agent/**"
+fi
 
 # --- MCP Server Triggers ---
-# BigQuery MCP triggers
-create_trigger "bq-mcp-server-services-plan" "pr" "terraform/bq_mcp_server_resources" "terraform/bq_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/big_query/**"
-create_trigger "bq-mcp-server-services-apply" "push" "terraform/bq_mcp_server_resources" "terraform/bq_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/big_query/**"
+if [[ "$CREATE_MCP_SERVER_TRIGGERS" == "true" ]]; then
+    SERVER_LIST=()
+    if [[ "$MCP_SERVER_TRIGGERS_TO_CREATE" == "all" ]]; then
+        # Find all directories matching *_mcp_server_resources
+        for dir in "terraform/"*_mcp_server_resources; do
+            if [ -d "$dir" ]; then
+                base=$(basename "$dir")
+                prefix="${base%_mcp_server_resources}"
+                SERVER_LIST+=("$prefix")
+            fi
+        done
+    else
+        IFS=',' read -ra SERVER_LIST <<< "$MCP_SERVER_TRIGGERS_TO_CREATE"
+    fi
 
-# GCS MCP triggers
-create_trigger "gcs-mcp-server-services-plan" "pr" "terraform/gcs_mcp_server_resources" "terraform/gcs_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/gcs/**"
-create_trigger "gcs-mcp-server-services-apply" "push" "terraform/gcs_mcp_server_resources" "terraform/gcs_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/gcs/**"
+    for SERVER_ENTRY in "${SERVER_LIST[@]}"; do
+        if [[ "$SERVER_ENTRY" =~ ^([^=]+)=([^=]+)$ ]]; then
+            SERVER_BASE="${BASH_REMATCH[1]}"
+        else
+            SERVER_BASE="$SERVER_ENTRY"
+        fi
+        
+        STACK_NAME="${SERVER_BASE}_mcp_server_resources"
+        STACK_DIR="terraform/$STACK_NAME"
+        
+        if [ ! -d "$STACK_DIR" ]; then
+            echo "Warning: Directory $STACK_DIR not found. Skipping trigger creation for '$SERVER_BASE'."
+            continue
+        fi
 
-# Drive MCP triggers
-create_trigger "drive-mcp-server-services-plan" "pr" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_drive/**"
-create_trigger "drive-mcp-server-services-apply" "push" "terraform/drive_mcp_server_resources" "terraform/drive_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_drive/**"
+        # Dynamically determine the source directory for included_files by parsing the CI yaml.
+        # Reason: This intelligently bridges the naming gap between the Terraform module folder 
+        # (e.g., "bq") and the underlying Python package folder (e.g., "mcp_servers/big_query")
+        # without needing to hardcode the mapping.
+        CI_YAML="${STACK_DIR}/mcp-server-services-cloud-build-ci.yaml"
+        CD_YAML="${STACK_DIR}/mcp-server-services-cloud-build-cd.yaml"
+        
+        if [ -f "$CI_YAML" ]; then
+            MCP_SOURCE_DIR=$(grep -oE "mcp_servers/[^/]+" "$CI_YAML" | head -n 1)
+            if [ -n "$MCP_SOURCE_DIR" ]; then
+                INCLUDED_PATH="${MCP_SOURCE_DIR}/**"
+                
+                # Replace underscores with hyphens for the trigger name (e.g. google_drive -> google-drive)
+                SERVER_BASE_HYPHEN="${SERVER_BASE//_/-}"
+                
+                create_trigger "${SERVER_BASE_HYPHEN}-mcp-server-services-plan" "pr" "$STACK_DIR" "$CI_YAML" "$INCLUDED_PATH"
+                create_trigger "${SERVER_BASE_HYPHEN}-mcp-server-services-apply" "push" "$STACK_DIR" "$CD_YAML" "$INCLUDED_PATH"
+            else
+                echo "Warning: Could not parse source directory from $CI_YAML. Skipping $SERVER_BASE."
+            fi
+        else
+             echo "Warning: $CI_YAML not found. Skipping $SERVER_BASE."
+        fi
+    done
+fi
 
-# Calendar MCP Server
-create_trigger "calendar-mcp-server-services-plan" "pr" "terraform/calendar_mcp_server_resources" "terraform/calendar_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/google_calendar/**"
-create_trigger "calendar-mcp-server-services-apply" "push" "terraform/calendar_mcp_server_resources" "terraform/calendar_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/google_calendar/**"
+# --- EKB Pipeline Triggers ---
+if [[ "$CREATE_EKB_PIPELINE_TRIGGERS" == "true" ]]; then
+    create_trigger "ekb-pipeline-services-plan" "pr" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-ci.yaml" "pipelines/enterprise_knowledge_base/**"
+    create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"
+fi
 
-# OneDrive MCP triggers
-create_trigger "onedrive-mcp-server-services-plan" "pr" "terraform/onedrive_mcp_server_resources" "terraform/onedrive_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/onedrive/**"
-create_trigger "onedrive-mcp-server-services-apply" "push" "terraform/onedrive_mcp_server_resources" "terraform/onedrive_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/onedrive/**"
+# --- Shared Resources Triggers ---
+if [[ "$CREATE_SHARED_RESOURCES_TRIGGERS" == "true" ]]; then
+    create_trigger "shared-resources-services-plan" "pr" "terraform/shared_resources" "terraform/shared_resources/shared-resources-cloud-build-ci.yaml" ""
+    create_trigger "shared-resources-services-apply" "push" "terraform/shared_resources" "terraform/shared_resources/shared-resources-cloud-build-cd.yaml" ""
+fi
 
-# Sharepoint MCP triggers
-create_trigger "sharepoint-mcp-server-services-plan" "pr" "terraform/sharepoint_mcp_server_resources" "terraform/sharepoint_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/sharepoint/**"
-create_trigger "sharepoint-mcp-server-services-apply" "push" "terraform/sharepoint_mcp_server_resources" "terraform/sharepoint_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/sharepoint/**"
-
-# Atlassian MCP triggers
-create_trigger "atlassian-mcp-server-services-plan" "pr" "terraform/atlassian_mcp_server_resources" "terraform/atlassian_mcp_server_resources/mcp-server-services-cloud-build-ci.yaml" "mcp_servers/atlassian/**"
-create_trigger "atlassian-mcp-server-services-apply" "push" "terraform/atlassian_mcp_server_resources" "terraform/atlassian_mcp_server_resources/mcp-server-services-cloud-build-cd.yaml" "mcp_servers/atlassian/**"
-
-# EKB Pipeline triggers
-create_trigger "ekb-pipeline-services-plan" "pr" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-ci.yaml" "pipelines/enterprise_knowledge_base/**"
-create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"
-
-echo "Done. All AI Agent, MCP and EKB triggers are created (or already existed)."
+echo "Done. Requested triggers processed."

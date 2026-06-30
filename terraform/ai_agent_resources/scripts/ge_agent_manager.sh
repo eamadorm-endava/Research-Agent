@@ -28,6 +28,8 @@ while [[ "$#" -gt 0 ]]; do
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
         --agent-description) GE_AGENT_DESCRIPTION="$2"; shift ;;
         --icon-uri) ICON_URI="$2"; shift ;;
+        --agent-description) AGENT_DESCRIPTION="$2"; shift ;;
+        --ge-app-id) APP_ID="$2"; shift ;;
         --prompt) PROMPT_TYPE="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
@@ -42,14 +44,18 @@ fi
 
 AUTH_HEADER="Authorization: Bearer $(gcloud auth print-access-token)"
 
-API_ENDPOINT="${GE_LOCATION}-discoveryengine.googleapis.com"
+if [ "$GE_LOCATION" == "global" ]; then
+    API_ENDPOINT="discoveryengine.googleapis.com"
+else
+    API_ENDPOINT="${GE_LOCATION}-discoveryengine.googleapis.com"
+fi
 
 BASE_URL="https://${API_ENDPOINT}/v1alpha/projects/${PROJECT_ID}/locations/${GE_LOCATION}"
 
 case "$COMMAND" in
-    delete-agent)
+    unregister-agent)
         if [ -z "$APP_ID" ] || [ -z "$AGENT_DISPLAY_NAME" ]; then
-            echo "Error: --app-id and --agent-display-name are required for delete-agent."
+            echo "Error: --app-id and --agent-display-name are required for unregister-agent."
             exit 1
         fi
         echo "Looking for agent with display name: $AGENT_DISPLAY_NAME..."
@@ -189,8 +195,79 @@ case "$COMMAND" in
         echo "Agent Registration requested successfully."
         ;;
     
+    create-ge-app)
+        if [ -z "$APP_ID" ]; then
+            echo "Error: --ge-app-id is required for create-ge-app."
+            exit 1
+        fi
+        
+        # Determine the description
+        DESCRIPTION="${AGENT_DESCRIPTION:-$GE_AGENT_DESCRIPTION}"
+        
+        # Code adapted from https://docs.cloud.google.com/gemini/enterprise/docs/create-app?hl=en
+        echo "Checking if Gemini Enterprise App (Engine: ${APP_ID}) already exists..."
+        
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "$AUTH_HEADER" \
+          -H "X-Goog-User-Project: $PROJECT_ID" \
+          "https://${API_ENDPOINT}/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines/$APP_ID")
+          
+        if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "App (Engine) '$APP_ID' already exists. Skipping creation."
+        elif [ "$HTTP_STATUS" -eq 404 ]; then
+            echo "App (Engine) '$APP_ID' not found. Creating..."
+            # Make the REST API call to create the engine
+            ENG_RES=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "$AUTH_HEADER" \
+              -H "Content-Type: application/json" \
+              -H "X-Goog-User-Project: $PROJECT_ID" \
+              "https://${API_ENDPOINT}/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines?engineId=$APP_ID" \
+              -d "{
+                \"displayName\": \"$APP_ID\",
+                \"dataStoreIds\": [],
+                \"solutionType\": \"SOLUTION_TYPE_SEARCH\",
+                \"industryVertical\": \"GENERIC\",
+                \"appType\": \"APP_TYPE_INTRANET\"
+              }")
+            ENG_RES_CODE=$(echo "$ENG_RES" | tail -n 1)
+            
+            if [ "$ENG_RES_CODE" -ne 200 ] && [ "$ENG_RES_CODE" -ne 201 ] && [ "$ENG_RES_CODE" -ne 202 ]; then
+                echo "Failed to create Engine. HTTP Status: $ENG_RES_CODE. Response: $(echo "$ENG_RES" | sed '$d')"
+                exit 1
+            fi
+            echo -e "\nGemini Enterprise App with ID: $APP_ID created successfully."
+        else
+            echo "Failed to check app status. HTTP Status Code: $HTTP_STATUS"
+            exit 1
+        fi
+        ;;
+    
+    delete-ge-app)
+        if [ -z "$APP_ID" ]; then
+            echo "Error: --ge-app-id is required for delete-ge-app."
+            exit 1
+        fi
+        
+        echo "Deleting Gemini Enterprise App (Engine: ${APP_ID})..."
+        DEL_RES=$(curl -s -w "\n%{http_code}" -X DELETE \
+          -H "$AUTH_HEADER" \
+          -H "X-Goog-User-Project: $PROJECT_ID" \
+          "https://${API_ENDPOINT}/v1/projects/$PROJECT_ID/locations/$GE_LOCATION/collections/default_collection/engines/$APP_ID")
+        DEL_RES_CODE=$(echo "$DEL_RES" | tail -n 1)
+        
+        # 200, 202, 204 are typical success codes for DELETE. 404 if it's already deleted.
+        if [ "$DEL_RES_CODE" -ne 200 ] && [ "$DEL_RES_CODE" -ne 202 ] && [ "$DEL_RES_CODE" -ne 204 ] && [ "$DEL_RES_CODE" -ne 404 ]; then
+            echo "Failed to delete Engine. HTTP Status: $DEL_RES_CODE. Response: $(echo "$DEL_RES" | sed '$d')"
+            exit 1
+        fi
+        echo -e "\nGemini Enterprise App with ID: $APP_ID deleted successfully."
+        ;;
+    
     *)
-        echo "Usage: $0 {delete-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
+        echo "Usage: $0 {create-ge-app|delete-ge-app|unregister-agent|delete-auth-ids|create-auth-ids|register-agent} [flags]"
+        echo "  create-ge-app flags: --project --ge-app-id [--ge-location]"
+        echo "  delete-ge-app flags: --project --ge-app-id [--ge-location]"
+        echo "  unregister-agent flags: --project --app-id --agent-display-name [--ge-location]"
         echo "  register-agent flags: --project --app-id --agent-display-name --agent-engine-agent-id --auth-ids --agent-engine-location [--agent-description] [--icon-uri] [--ge-location]"
         exit 1
         ;;
