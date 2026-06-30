@@ -2,13 +2,13 @@ substitutions:
   # Note: Variables such as _GE_REGION, _GE_APP_NAME_SUFFIX, and various MCP Server URLs 
   # are deliberately omitted here. They are dynamically injected at runtime by the 
   # Cloud Build Trigger created via creation_manager.sh to prevent configuration mismatches.
-  _REGION: "us-central1"
+  _REGION: "europe-west2"
   _AGENT_DISPLAY_NAME: "OSIRIS"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
   _METRICS_DATASET_ID: "agent_metrics"
   _METRICS_TABLE_ID: "response_times"
-  _GE_REGION: "global"
+  _GE_REGION: "eu"
   _GE_APP_NAME_SUFFIX: "osiris-app"
   _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
