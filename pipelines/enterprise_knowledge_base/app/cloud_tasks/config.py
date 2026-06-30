@@ -15,7 +15,7 @@ class CloudTasksConfig(BaseSettings):
     TASKS_QUEUE_ID: Annotated[
         str,
         Field(
-            default="ekb-ingestion-queue",
+            default="ekb-ingestion-queue-v1",
             description="The Cloud Tasks queue ID for decoupling background ingestion.",
         ),
     ]
@@ -23,7 +23,7 @@ class CloudTasksConfig(BaseSettings):
     TASKS_LOCATION: Annotated[
         str,
         Field(
-            default="us-central1",
+            default="europe-west2",
             description="The GCP location for the Cloud Tasks queue.",
         ),
     ]

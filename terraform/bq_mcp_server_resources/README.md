@@ -146,7 +146,7 @@ mcp_server_iam_project_roles = [
 
 artifact_registry_name         = "mcp-servers"
 mcp_server_cloud_run_name      = "bigquery-mcp-server"
-mcp_server_cloud_run_region    = "us-central1"
+mcp_server_cloud_run_region    = "europe-west2"
 mcp_server_cloud_run_image_tag = "latest"
 ```
 

@@ -62,7 +62,7 @@ class GCSManager:
     def create_bucket(
         self,
         bucket_name: str,
-        location: str = "US",
+        location: str = "EU",
         project_id: Optional[str] = None,
     ) -> str:
         """
@@ -70,7 +70,7 @@ class GCSManager:
 
         Args:
             bucket_name: The name of the bucket to create.
-            location: The GCS location for the bucket (default: "US").
+            location: The GCS location for the bucket (default: "EU").
 
         Returns:
             str: The name of the created bucket.
