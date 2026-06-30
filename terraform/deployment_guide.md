@@ -123,7 +123,7 @@ If you need to tear down the environment, you can use the `deletion_manager.sh` 
     --delete-ai-agent true \
     --agent-engine-location europe-west2 \
     --delete-ge-app true \
-    --ge-location global \
+    --ge-location eu \
     --ge-app-name-suffix osiris-app \
     --delete-mcp-servers true \
     --delete-ekb-pipeline true \

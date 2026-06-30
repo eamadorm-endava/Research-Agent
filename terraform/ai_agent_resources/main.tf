@@ -26,6 +26,7 @@ resource "google_project_service_identity" "discovery_engine_sa" {
 locals {
   vertex_ai_agent_email          = "serviceAccount:${google_project_service_identity.vertex_ai_sa.email}"
   discovery_engine_service_agent = "serviceAccount:${google_project_service_identity.discovery_engine_sa.email}"
+  model_armor_location           = coalesce(var.model_armor_location, var.main_region)
 }
 
 module "ai-agent-service-account" {
@@ -82,7 +83,7 @@ resource "google_storage_bucket_iam_member" "ai_agent_landing_zone_bucket_admin"
 resource "google_model_armor_template" "security_template" {
   provider    = google-beta
   project     = var.project_id
-  location    = var.main_region
+  location    = local.model_armor_location
   template_id = var.model_armor_template_id
 
   template_metadata {

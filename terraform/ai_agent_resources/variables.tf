@@ -20,6 +20,12 @@ variable "main_region" {
   type        = string
 }
 
+variable "model_armor_location" {
+  description = "The location for the Model Armor template. Defaults to main_region; use eu when the selected region does not support all configured Model Armor capabilities."
+  type        = string
+  default     = null
+}
+
 variable "landing_zone_bucket_name" {
   description = "The name of the GCS bucket for session artifacts."
   type        = string
