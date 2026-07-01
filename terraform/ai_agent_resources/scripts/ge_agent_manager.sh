@@ -155,12 +155,11 @@ case "$COMMAND" in
             exit 1
         fi
         
-        PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)")
         AGENTS_URL="${BASE_URL}/collections/default_collection/engines/${APP_ID}/assistants/default_assistant/agents"
         
         REASONING_ENGINE_PATH="projects/${PROJECT_ID}/locations/${AGENT_ENGINE_LOCATION}/reasoningEngines/${AGENT_ENGINE_AGENT_ID}"
         
-        AUTH_ARRAY_JSON=$(echo "$AUTH_IDS" | jq -R -c 'split(",") | map(select(length > 0) | "projects/'"${PROJECT_NUMBER}"'/locations/'"${GE_LOCATION}"'/authorizations/" + .)')
+        AUTH_ARRAY_JSON=$(echo "$AUTH_IDS" | jq -R -c 'split(",") | map(select(length > 0) | "projects/'"${PROJECT_ID}"'/locations/'"${GE_LOCATION}"'/authorizations/" + .)')
         
         echo "Registering Agent ${AGENT_DISPLAY_NAME} in GE..."
         
