@@ -25,7 +25,7 @@ artifact_registry_name = "mcp-servers"
 
 mcp_server_cloud_run_name      = "sharepoint-mcp-server"
 mcp_server_cloud_run_image_tag = "latest"
-# mcp_server_cloud_run_region = "europe-west1" # if not set, it will use the region set in the region variable
+# mcp_server_cloud_run_region = "us-central1" # if not set, it will use the region set in the region variable
 
 mcp_server_cloud_run_env = {
   "LOG_LEVEL" = "INFO"

@@ -16,7 +16,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 #
 # ## Global Parameters
 #   --project                    GCP Project ID (Required).
-#   --region                     GCP Region (Default: europe-west1).
+#   --region                     GCP Region (Default: us-central1).
 #
 # ## Gemini Enterprise Parameters
 #   --delete-ge-app              Set to "true" to delete a Gemini Enterprise App.

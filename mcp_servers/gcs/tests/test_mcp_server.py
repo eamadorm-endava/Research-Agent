@@ -36,7 +36,7 @@ def test_mcp_create_bucket_success(mock_gcs_manager):
     request = CreateBucketRequest(
         project_id="test-project",
         bucket_name="my-gcs-bucket",
-        location="EU",
+        location="US",
     )
     result = asyncio.run(create_bucket(request))
 
@@ -44,7 +44,7 @@ def test_mcp_create_bucket_success(mock_gcs_manager):
     assert "Successfully created bucket" in result.execution_message
     mock_gcs_manager.create_bucket.assert_called_once_with(
         "my-gcs-bucket",
-        "EU",
+        "US",
         "test-project",
     )
 

@@ -23,7 +23,7 @@ OBJECT_NAME = Annotated[
 ]
 LOCATION = Annotated[
     str,
-    Field(default="EU", description="The geographic location for bucket creation."),
+    Field(default="US", description="The geographic location for bucket creation."),
 ]
 PROJECT_ID = Annotated[
     Optional[str],

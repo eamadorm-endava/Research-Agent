@@ -57,7 +57,7 @@ steps:
     dir: 'terraform/drive_mcp_server_resources'
 
 substitutions:
-  _REGION: 'europe-west1'
+  _REGION: 'us-central1'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 

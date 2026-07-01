@@ -36,7 +36,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 #
 # ## AI Agent Parameters
 #   --deploy-ai-agent            Set to "true" to deploy AI Agent resources.
-#   --agent-engine-location      Location for the Vertex AI Agent Engine (e.g., "europe-west1").
+#   --agent-engine-location      Location for the Vertex AI Agent Engine (e.g., "us-central1").
 #
 # ## MCP Servers Parameters
 #   --deploy-mcp-servers         Set to "true" to deploy MCP servers.

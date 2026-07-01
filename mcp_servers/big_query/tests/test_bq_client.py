@@ -35,7 +35,7 @@ def test_create_dataset(mock_client):
     mock_dataset.reference = "test-project.my_dataset"
     manager.client.create_dataset.return_value = mock_dataset
 
-    result = manager.create_dataset("test-project", "my_dataset", "EU")
+    result = manager.create_dataset("test-project", "my_dataset", "US")
     assert result == "test-project.my_dataset"
     manager.client.create_dataset.assert_called_once()
 

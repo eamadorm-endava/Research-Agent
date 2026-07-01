@@ -1,5 +1,5 @@
 substitutions:
-  _REGION: europe-west1
+  _REGION: us-central1
   _REPO_NAME: mcp-servers
   _SERVICE_NAME: drive-mcp-server
 
