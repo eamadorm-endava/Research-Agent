@@ -1,12 +1,11 @@
 substitutions:
-  _REGION: "europe-west1"
+  _REGION: "us-central1"
   _AGENT_DISPLAY_NAME: "OSIRIS - Test"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
-  _MODEL_ARMOR_LOCATION: "eu"
   _AGENT_SA: "adk-agent"
   _METRICS_DATASET_ID: "agent_metrics"
   _METRICS_TABLE_ID: "response_times"
-  _GE_REGION: "eu"
+  _GE_REGION: "global"
   _GE_APP_NAME_SUFFIX: "osiris-app"
   _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
@@ -60,7 +59,6 @@ steps:
       - 'plan'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_REGION}'
-      - '-var=model_armor_location=${_MODEL_ARMOR_LOCATION}'
       - '-out=tfplan'
     dir: 'terraform/ai_agent_resources'
 
@@ -72,7 +70,6 @@ steps:
       - 'apply'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_REGION}'
-      - '-var=model_armor_location=${_MODEL_ARMOR_LOCATION}'
       - '-auto-approve'
     dir: 'terraform/ai_agent_resources'
   

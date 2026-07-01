@@ -1,5 +1,5 @@
 substitutions:
-  _LOCATION: europe-west1
+  _LOCATION: us-central1
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend

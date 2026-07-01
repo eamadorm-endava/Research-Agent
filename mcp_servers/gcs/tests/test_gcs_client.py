@@ -21,7 +21,7 @@ class TestGCSManager(unittest.TestCase):
         result = self.gcs_manager.create_bucket("test-bucket")
         self.assertEqual(result, "test-bucket")
         self.mock_client_instance.create_bucket.assert_called_with(
-            "test-bucket", location="EU", project="test-project"
+            "test-bucket", location="US", project="test-project"
         )
 
     def test_create_bucket_failure(self):

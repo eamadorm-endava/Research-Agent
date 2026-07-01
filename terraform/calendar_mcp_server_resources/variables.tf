@@ -6,7 +6,7 @@ variable "project_id" {
 variable "main_region" {
   description = "The main region to create the resources."
   type        = string
-  default     = "europe-west1"
+  default     = "us-central1"
 }
 
 # ----------------- APIs Variable -----------------
