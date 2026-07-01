@@ -67,7 +67,7 @@ The following variables are required for the Cloud Run deployment (configured vi
 | Variable | Description |
 | :--- | :--- |
 | `PROJECT_ID` | The GCP Project ID. |
-| `GEMINI_LOCATION` | The region for Vertex AI (e.g., `europe-west2`). |
+| `GEMINI_LOCATION` | The region for Vertex AI (e.g., `europe-west1`). |
 | `BQ_DATASET` | Name of the metadata dataset. |
 | `BQ_TABLE` | Main metadata table name. |
 | `BQ_CHUNKS_TABLE` | Table for storing document chunks. |

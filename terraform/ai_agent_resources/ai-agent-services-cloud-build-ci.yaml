@@ -1,7 +1,8 @@
 substitutions:
-  _REGION: "europe-west2"
+  _REGION: "europe-west1"
   _AGENT_DISPLAY_NAME: "OSIRIS - Test"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
+  _MODEL_ARMOR_LOCATION: "eu"
   _AGENT_SA: "adk-agent"
   _METRICS_DATASET_ID: "agent_metrics"
   _METRICS_TABLE_ID: "response_times"
@@ -59,6 +60,7 @@ steps:
       - 'plan'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_REGION}'
+      - '-var=model_armor_location=${_MODEL_ARMOR_LOCATION}'
       - '-out=tfplan'
     dir: 'terraform/ai_agent_resources'
 
@@ -70,6 +72,7 @@ steps:
       - 'apply'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_REGION}'
+      - '-var=model_armor_location=${_MODEL_ARMOR_LOCATION}'
       - '-auto-approve'
     dir: 'terraform/ai_agent_resources'
   

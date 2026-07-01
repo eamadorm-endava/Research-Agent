@@ -65,7 +65,7 @@ Run this from the root of the repository:
 ```bash
 bash terraform/scripts/creation_manager.sh \
     --project "p-dev-gce-60pf" \
-    --region "europe-west2" \
+    --region "europe-west1" \
     --sa-name "terraform-sa" \
     --admin-user-email "emmanuel.amador@endava.com" \
     --github-connection-name "eamadorm-github-connection" \

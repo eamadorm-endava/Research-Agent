@@ -186,7 +186,7 @@ Place the `.env` file directly inside `agent/core_agent/`:
 # ─── Vertex AI ───
 GOOGLE_GENAI_USE_VERTEXAI=TRUE
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
-GOOGLE_CLOUD_LOCATION=europe-west2
+GOOGLE_CLOUD_LOCATION=europe-west1
 PROJECT_ID=${GOOGLE_CLOUD_PROJECT}
 REGION=${GOOGLE_CLOUD_LOCATION}
 

@@ -23,7 +23,7 @@ class CloudTasksConfig(BaseSettings):
     TASKS_LOCATION: Annotated[
         str,
         Field(
-            default="europe-west2",
+            default="europe-west1",
             description="The GCP location for the Cloud Tasks queue.",
         ),
     ]
