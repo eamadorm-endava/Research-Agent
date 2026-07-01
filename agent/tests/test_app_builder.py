@@ -26,7 +26,7 @@ def mock_configs():
         "gcp_prod": GCPConfig(
             PROD_EXECUTION=True,
             LANDING_ZONE_BUCKET="test-bucket",
-            REGION="europe-west2",
+            REGION="europe-west1",
         ),
         "gcp_local": GCPConfig(PROD_EXECUTION=False),
         "agent": CoordinatorConfig(AGENT_NAME="test_agent"),

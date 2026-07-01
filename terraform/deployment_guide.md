@@ -119,9 +119,9 @@ If you need to tear down the environment, you can use the `deletion_manager.sh` 
 ```bash
 ./terraform/scripts/deletion_manager.sh \
     --project YOUR_PROJECT_ID \
-    --region europe-west2 \
+    --region europe-west1 \
     --delete-ai-agent true \
-    --agent-engine-location europe-west2 \
+    --agent-engine-location europe-west1 \
     --delete-ge-app true \
     --ge-location eu \
     --ge-app-name-suffix osiris-app \
