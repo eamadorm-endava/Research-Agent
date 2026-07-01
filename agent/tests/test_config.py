@@ -29,12 +29,12 @@ def test_gcp_config_override():
     """Test that GCPConfig correctly reads from environment variables."""
     mock_env = {
         "PROJECT_ID": "test-project-123",
-        "REGION": "europe-west1",
+        "REGION": "us-central1",
     }
     with patch.dict(os.environ, mock_env, clear=True):
         config = GCPConfig()
         assert config.PROJECT_ID == "test-project-123"
-        assert config.REGION == "europe-west1"
+        assert config.REGION == "us-central1"
 
 
 def test_gcp_config_prod_execution_alias():
