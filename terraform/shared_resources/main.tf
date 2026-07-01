@@ -68,22 +68,65 @@ resource "time_sleep" "wait_for_iam_propagation" {
 }
 
 resource "null_resource" "create_multimodal_model" {
-  # This tells Terraform to run this check on EVERY terraform apply
+  # This tells Terraform to run this check on EVERY terraform apply.
+  # The model creation depends on IAM permissions granted to the BigQuery
+  # connection service account. Those IAM bindings can take a few minutes to
+  # propagate, so this provisioner retries and fails clearly if the model cannot
+  # be created.
   triggers = {
     always_run = timestamp()
   }
 
   provisioner "local-exec" {
     command = <<EOT
-      # Check if model exists natively in BigQuery
-      if bq show --model "${var.project_id}:${var.bq_dataset_id}.multimodal_embedding_model" > /dev/null 2>&1; then
-        echo "Model already exists in BigQuery. Skipping creation."
-      else
-        echo "Embedding model does not exist. Creating..."
-        bq query --use_legacy_sql=false \
-          "CREATE MODEL IF NOT EXISTS \`${var.project_id}.${var.bq_dataset_id}.multimodal_embedding_model\` REMOTE WITH CONNECTION \`${var.project_id}.${var.main_region}.${google_bigquery_connection.vertex_ai_connection.connection_id}\` OPTIONS (ENDPOINT = 'multimodalembedding@001');"
-        echo "Embedding model created successfully."
-      fi
+set -eu
+
+PROJECT_ID="${var.project_id}"
+REGION="${var.main_region}"
+DATASET_ID="${var.bq_dataset_id}"
+CONNECTION_ID="${google_bigquery_connection.vertex_ai_connection.connection_id}"
+MODEL_REF="$PROJECT_ID:$DATASET_ID.multimodal_embedding_model"
+CONNECTION_REF="$PROJECT_ID.$REGION.$CONNECTION_ID"
+
+if bq show \
+  --project_id="$PROJECT_ID" \
+  --location="$REGION" \
+  --model "$MODEL_REF" \
+  > /dev/null 2>&1; then
+  echo "Model already exists in BigQuery. Skipping creation: $MODEL_REF"
+  exit 0
+fi
+
+echo "Embedding model does not exist. Creating: $MODEL_REF"
+echo "Using BigQuery connection: $CONNECTION_REF"
+
+attempt=1
+max_attempts=10
+sleep_seconds=30
+
+while [ "$attempt" -le "$max_attempts" ]; do
+  echo "Attempt $attempt/$max_attempts to create BigQuery remote embedding model..."
+
+  if bq query \
+    --project_id="$PROJECT_ID" \
+    --location="$REGION" \
+    --use_legacy_sql=false \
+    "CREATE MODEL IF NOT EXISTS \`$PROJECT_ID.$DATASET_ID.multimodal_embedding_model\` REMOTE WITH CONNECTION \`$CONNECTION_REF\` OPTIONS (ENDPOINT = 'multimodalembedding@001');"; then
+    echo "Embedding model created successfully: $MODEL_REF"
+    exit 0
+  fi
+
+  if [ "$attempt" -eq "$max_attempts" ]; then
+    echo "ERROR: Failed to create BigQuery remote embedding model after $max_attempts attempts." >&2
+    echo "The BigQuery connection service account may still lack roles/aiplatform.user or IAM may not have propagated yet." >&2
+    echo "Connection service account: ${google_bigquery_connection.vertex_ai_connection.cloud_resource[0].service_account_id}" >&2
+    exit 1
+  fi
+
+  echo "Model creation failed. Waiting $sleep_seconds seconds for IAM propagation before retrying..."
+  sleep "$sleep_seconds"
+  attempt=$((attempt + 1))
+done
     EOT
   }
 

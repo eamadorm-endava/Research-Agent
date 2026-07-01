@@ -58,7 +58,7 @@ chmod +x terraform/scripts/cicd_triggers_creation.sh
 | Name | Description | Type | Default | Required |
 |---|---|---|---|:---:|
 | `project_id` | The ID of the project where resources are managed. | `string` | n/a | yes |
-| `main_region` | The main region to create the resources. | `string` | `"europe-west2"` | no |
+| `main_region` | The main region to create the resources. | `string` | `"europe-west1"` | no |
 | `apis_to_enable` | List of Service APIs to enable in the project. | `list(string)` | `[]` | yes |
 | `mcp_server_service_account_name` | The name of the Service Account created for the Cloud Run instance. | `string` | n/a | yes |
 | `mcp_server_iam_project_roles` | A list of roles to be assigned to the Service Account in the project. | `list(string)` | `[]` | yes |

@@ -1,10 +1,10 @@
 PROJECT_ID?=host-ge-prod-endava-01-yd8e# ?= is used to set a default value if the variable is not set in the .env file
-REGION?=europe-west2
-BIGQUERY_PROD_URL?=https://bigquery-mcp-server-753988132239.us-central1.run.app
-DRIVE_PROD_URL?=https://drive-mcp-server-753988132239.us-central1.run.app
-GCS_PROD_URL?=https://gcs-mcp-server-753988132239.us-central1.run.app
-CALENDAR_PROD_URL?=https://calendar-mcp-server-753988132239.us-central1.run.app
-EKB_PIPELINE_URL?=https://ekb-pipeline-753988132239.us-central1.run.app
+REGION?=europe-west1
+BIGQUERY_PROD_URL?=https://bigquery-mcp-server-1057005221381.europe-west1.run.app
+DRIVE_PROD_URL?=https://drive-mcp-server-1057005221381.europe-west1.run.app
+GCS_PROD_URL?=https://gcs-mcp-server-1057005221381.europe-west1.run.app
+CALENDAR_PROD_URL?=https://calendar-mcp-server-1057005221381.europe-west1.run.app
+EKB_PIPELINE_URL?=https://ekb-pipeline-1057005221381.europe-west1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
 LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 METRICS_DATASET_ID?=agent_metrics

@@ -1,5 +1,5 @@
 substitutions:
-  _LOCATION: europe-west2
+  _LOCATION: europe-west1
   _REPO_NAME: mcp-servers
   _SERVICE_NAME: bigquery-mcp-server
 

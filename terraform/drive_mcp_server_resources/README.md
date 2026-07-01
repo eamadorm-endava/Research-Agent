@@ -46,7 +46,7 @@ gcloud auth application-default login --scopes="https://www.googleapis.com/auth/
 Use the following command to verify the server is responding correctly. It sends an `Identity Token` for Cloud Run infrastructure and an `Access Token` for the application's Drive permissions:
 
 ```bash
-curl -X POST "https://drive-mcp-server-753988132239.europe-west2.run.app/mcp" \
+curl -X POST "https://drive-mcp-server-753988132239.europe-west1.run.app/mcp" \
   -H "X-Serverless-Authorization: Bearer $(gcloud auth print-identity-token)" \
   -H "Authorization: Bearer $(gcloud auth print-access-token)" \
   -H "Content-Type: application/json" \
@@ -154,7 +154,7 @@ mcp_server_iam_project_roles = []
 
 artifact_registry_name         = "mcp-servers"
 mcp_server_cloud_run_name      = "drive-mcp-server"
-mcp_server_cloud_run_region    = "europe-west2"
+mcp_server_cloud_run_region    = "europe-west1"
 mcp_server_cloud_run_image_tag = "latest"
 ```
 ## Variables
