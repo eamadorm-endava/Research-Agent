@@ -98,7 +98,7 @@ module "ekb_pipeline_cloud_run" {
 ################ Cloud Tasks ################
 
 resource "google_cloud_tasks_queue" "ekb_ingestion_queue" {
-  name     = "ekb-ingestion-queue-v1"
+  name     = "ekb-ingestion-queue-v2"
   project  = var.project_id
   location = var.main_region
 
