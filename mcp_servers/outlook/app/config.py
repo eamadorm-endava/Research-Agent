@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -52,8 +51,8 @@ class OutlookAuthConfig(OutlookMCPConfigBase):
                 "offline_access",
                 "Files.Read.All",
                 "Sites.Read.All",
-                "User.Read.All", 
-                "Mail.Read", 
+                "User.Read.All",
+                "Mail.Read",
                 "Mail.Read.Shared",
             ],
             description="The OAuth scopes required for OneDrive and SharePoint access.",
@@ -120,18 +119,10 @@ class OutlookServerConfig(OutlookMCPConfigBase):
         ),
     ]
     timeout_seconds: Annotated[
-        int, 
-        Field(
-            default=30,
-            description="HTTP timeout in seconds"
-        )
+        int, Field(default=30, description="HTTP timeout in seconds")
     ]
     max_page_size: Annotated[
-        int, 
-        Field(
-            default=25,
-            description="Maximum number of messages per request"
-        )
+        int, Field(default=25, description="Maximum number of messages per request")
     ]
 
 
