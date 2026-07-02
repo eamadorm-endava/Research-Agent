@@ -64,26 +64,66 @@ resource "google_bigquery_dataset" "knowledge_base" {
 
 resource "time_sleep" "wait_for_iam_propagation" {
   depends_on      = [google_project_iam_member.connection_ai_user]
-  create_duration = "45s"
+  create_duration = "180s"
 }
 
 resource "null_resource" "create_multimodal_model" {
-  # This tells Terraform to run this check on EVERY terraform apply
+  # This tells Terraform to run this check on EVERY terraform apply.
+  # The script is idempotent: it exits successfully when the model already exists.
   triggers = {
     always_run = timestamp()
   }
 
   provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+
     command = <<EOT
-      # Check if model exists natively in BigQuery
-      if bq show --model "${var.project_id}:${var.bq_dataset_id}.multimodal_embedding_model" > /dev/null 2>&1; then
+      set -euo pipefail
+
+      PROJECT_ID="${var.project_id}"
+      REGION="${var.main_region}"
+      DATASET_ID="${var.bq_dataset_id}"
+      MODEL_ID="multimodal_embedding_model"
+      CONNECTION_ID="${google_bigquery_connection.vertex_ai_connection.connection_id}"
+
+      echo "Checking BigQuery model $${PROJECT_ID}:$${DATASET_ID}.$${MODEL_ID} in $${REGION}..."
+
+      if bq show \
+        --project_id="$${PROJECT_ID}" \
+        --location="$${REGION}" \
+        --model \
+        "$${PROJECT_ID}:$${DATASET_ID}.$${MODEL_ID}" >/dev/null 2>&1; then
         echo "Model already exists in BigQuery. Skipping creation."
-      else
-        echo "Embedding model does not exist. Creating..."
-        bq query --use_legacy_sql=false \
-          "CREATE MODEL IF NOT EXISTS \`${var.project_id}.${var.bq_dataset_id}.multimodal_embedding_model\` REMOTE WITH CONNECTION \`${var.project_id}.${var.main_region}.${google_bigquery_connection.vertex_ai_connection.connection_id}\` OPTIONS (ENDPOINT = 'multimodalembedding@001');"
-        echo "Embedding model created successfully."
+        exit 0
       fi
+
+      echo "Embedding model does not exist. Creating with retries..."
+
+      for attempt in {1..10}; do
+        echo "Attempt $${attempt}/10..."
+
+        if bq query \
+          --project_id="$${PROJECT_ID}" \
+          --location="$${REGION}" \
+          --use_legacy_sql=false \
+          "CREATE MODEL IF NOT EXISTS \`$${PROJECT_ID}.$${DATASET_ID}.$${MODEL_ID}\` REMOTE WITH CONNECTION \`$${PROJECT_ID}.$${REGION}.$${CONNECTION_ID}\` OPTIONS (ENDPOINT = 'multimodalembedding@001');"; then
+
+          if bq show \
+            --project_id="$${PROJECT_ID}" \
+            --location="$${REGION}" \
+            --model \
+            "$${PROJECT_ID}:$${DATASET_ID}.$${MODEL_ID}" >/dev/null 2>&1; then
+            echo "Embedding model created successfully."
+            exit 0
+          fi
+        fi
+
+        echo "Model creation not ready yet. Waiting 30 seconds before retrying..."
+        sleep 30
+      done
+
+      echo "ERROR: Failed to create BigQuery multimodal embedding model after retries."
+      exit 1
     EOT
   }
 
