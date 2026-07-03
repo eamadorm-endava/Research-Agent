@@ -35,4 +35,4 @@ Focus on infrastructure codification and production release.
 
 ---
 
-> **Golden Rule**: Keep it simple. Follow the `@.agents/rules/development-guide.md` lifecycle without exceptions. Phase 3 never begins until Phase 2 is fully merged.
+> **Golden Rule**: Keep it simple. Follow the `@.agents/rules/development-guide.md` lifecycle without exceptions. Phase 3 never begins until Phase 2 is fully merged. 
