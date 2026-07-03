@@ -4,7 +4,7 @@ BIGQUERY_PROD_URL?=https://bigquery-mcp-server-1057005221381.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-1057005221381.us-central1.run.app
 GCS_PROD_URL?=https://gcs-mcp-server-1057005221381.us-central1.run.app
 CALENDAR_PROD_URL?=https://calendar-mcp-server-1057005221381.us-central1.run.app
-EKB_PIPELINE_URL?=https://ekb-pipeline-server-753988132239.us-central1.run.app
+EKB_PIPELINE_URL?=https://ekb-pipeline-server-1057005221381.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
 LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 METRICS_DATASET_ID?=agent_metrics
@@ -37,6 +37,7 @@ verify-all-ci:
 	$(MAKE) verify-sharepoint-ci
 	$(MAKE) verify-ekb-ci
 	$(MAKE) verify-atlassian-ci
+	$(MAKE) verify-outlook-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -228,6 +229,30 @@ verify-sharepoint-ci:
 test-sharepoint-terraform:
 	cd terraform/sharepoint_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
+### Outlook MCP Commands ###
+
+run-outlook-precommit:
+	uvx pre-commit run --files mcp_servers/outlook/**/*
+
+run-outlook-tests:
+	uv run --group mcp_outlook pytest mcp_servers/outlook/tests/
+
+run-outlook-mcp-locally:
+	uv run --group mcp_outlook python -m mcp_servers.outlook.app.main --host localhost --port 8086
+
+build-outlook-mcp-image:
+	docker build -t test-outlook-mcp-server -f mcp_servers/outlook/Dockerfile .
+
+verify-outlook-ci:
+	$(MAKE) run-outlook-precommit
+	$(MAKE) run-outlook-tests
+	$(MAKE) build-outlook-mcp-image
+	$(MAKE) test-outlook-terraform
+
+test-outlook-terraform:
+	cd terraform/outlook_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+
 ### EKB Pipeline Commands ###
 
 run-ekb-precommit:
@@ -278,3 +303,26 @@ verify-atlassian-ci:
 
 test-atlassian-terraform:
 	cd terraform/atlassian_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### Outlook MCP Commands ###
+ 
+run-outlook-precommit:
+	uvx pre-commit run --files mcp_servers/outlook/**/*
+ 
+run-outlook-tests:
+	uv run --group mcp_outlook pytest mcp_servers/outlook/tests/
+ 
+run-outlook-mcp-locally:
+	uv run --group mcp_outlook python -m mcp_servers.outlook.app.main --host localhost --port 8086
+ 
+build-outlook-mcp-image:
+	docker build -t test-outlook-mcp-server -f mcp_servers/outlook/Dockerfile .
+ 
+verify-outlook-ci:
+	$(MAKE) run-outlook-precommit
+	$(MAKE) run-outlook-tests
+	$(MAKE) build-outlook-mcp-image
+	$(MAKE) test-outlook-terraform
+ 
+test-outlook-terraform:
+	cd terraform/outlook_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate

@@ -32,7 +32,7 @@
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "bash .devcontainer/setup-ssh.sh && curl -fsSL https://claude.ai/install.sh | bash",
+	//"postCreateCommand": "bash .devcontainer/setup-ssh.sh && curl -fsSL https://claude.ai/install.sh | bash",
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
