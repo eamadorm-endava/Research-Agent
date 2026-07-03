@@ -46,7 +46,7 @@ module "mcp_server_cloud_run" {
   containers = {
     mcp-server = {
       image = "${local.cloud_run_image}:${var.mcp_server_cloud_run_image_tag}"
-      env   = var.mcp_server_cloud_run_env
+      env   = merge(var.mcp_server_cloud_run_env, { "LANDING_ZONE_BUCKET" = var.landing_zone_bucket })
       resources = {
         limits = {
           cpu    = var.mcp_server_cloud_run_cpu

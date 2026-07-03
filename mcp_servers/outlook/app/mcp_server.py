@@ -3,7 +3,6 @@ from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
-import os
 from google.cloud import storage
 
 # Import unified schemas mapping layouts
@@ -94,12 +93,12 @@ async def upload_to_gcs_landing_zone(
     utilizing credentials from the environment.
     """
     # 🌟 1. Dynamically pull the bucket name from your environment config (.env)
-    bucket_name = os.environ.get("OUTLOOK_LANDING_ZONE_BUCKET")
+    bucket_name = OUTLOOK_SERVER_CONFIG.landing_zone_bucket
 
     if not bucket_name:
         # Fallback safety in case the environment variable didn't load properly
         raise ValueError(
-            "CRITICAL: OUTLOOK_LANDING_ZONE_BUCKET environment variable is not set."
+            "CRITICAL: LANDING_ZONE_BUCKET environment variable is not set."
         )
 
     logger.info(
@@ -421,7 +420,6 @@ async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileRes
             raise ValueError("Retrieved attachment payload contains 0 bytes.")
 
         # 2. Pipeline binary payload directly to Google Cloud Landing Zone
-        # Ensure this helper utilizes os.environ.get("LANDING_ZONE_BUCKET") internally
         gcs_destination_uri = await upload_to_gcs_landing_zone(
             filename=request.filename, data_bytes=file_bytes, context=request.email_id
         )
