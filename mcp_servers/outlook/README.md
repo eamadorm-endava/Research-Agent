@@ -10,3 +10,4 @@ This is the Model Context Protocol (MCP) server for Microsoft Outlook. It connec
 
 ## Setup
 Local testing should be done within a dev-container. Ensure environment variables are loaded if necessary.
+ 
