@@ -17,49 +17,6 @@ class OutlookMCPConfigBase(BaseSettings):
     )
 
 
-class OutlookAuthConfig(OutlookMCPConfigBase):
-    """Configuration for Microsoft Entra authentication settings."""
-
-    TENANT_ID: Annotated[
-        str,
-        Field(
-            default="",
-            validation_alias=AliasChoices("MICROSOFT_TENANT_ID", "TENANT_ID"),
-            description="The Microsoft Entra Tenant ID.",
-        ),
-    ]
-    CLIENT_ID: Annotated[
-        str,
-        Field(
-            default="",
-            validation_alias=AliasChoices("MICROSOFT_CLIENT_ID", "CLIENT_ID"),
-            description="The Microsoft Entra App Registration Client ID.",
-        ),
-    ]
-    CLIENT_SECRET: Annotated[
-        str,
-        Field(
-            default="",
-            validation_alias=AliasChoices("MICROSOFT_CLIENT_SECRET", "CLIENT_SECRET"),
-            description="The Microsoft Entra App Registration Client Secret.",
-        ),
-    ]
-    SCOPES: Annotated[
-        list[str],
-        Field(
-            default=[
-                "offline_access",
-                "Files.Read.All",
-                "Sites.Read.All",
-                "User.Read.All",
-                "Mail.Read",
-                "Mail.Read.Shared",
-            ],
-            description="The OAuth scopes required for OneDrive and SharePoint access.",
-        ),
-    ]
-
-
 class OutlookServerConfig(OutlookMCPConfigBase):
     """Configuration for the MCP server network/runtime settings."""
 
@@ -133,5 +90,4 @@ class OutlookServerConfig(OutlookMCPConfigBase):
     ]
 
 
-OUTLOOK_AUTH_CONFIG = OutlookAuthConfig()
 OUTLOOK_SERVER_CONFIG = OutlookServerConfig()
