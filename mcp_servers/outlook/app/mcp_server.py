@@ -201,6 +201,11 @@ async def outlook_list_emails(request: ListEmailsRequest) -> ListEmailsResponse:
     Supports complex searching via dates, sender details, subject patterns, and read statuses.
     If a user specifies a non-standard folder location, you must call outlook_list_folders
     first to verify its existence and fetch its unique operational context identifier.
+
+    CRITICAL AGENT INSTRUCTION: Always return ONLY the items found on the current requested page.
+    Even if the user asks for 'all' emails, do NOT auto-loop through pages or fetch subsequent pages
+    in a single turn. Present the first page to the user and inform them that more pages are available
+    using the 'has_next' and 'total_pages' metadata.
     """
     try:
         client = create_outlook_client()

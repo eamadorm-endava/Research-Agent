@@ -4,6 +4,7 @@ from typing import Any, Tuple
 import time
 import base64
 
+from .gcs_connector import GCSConnector
 from pydantic import SecretStr
 from .config import OUTLOOK_SERVER_CONFIG
 from .schemas import (
@@ -11,6 +12,7 @@ from .schemas import (
     ListEmailsRequest,
     EmailTypeOption,
     SortByOption,
+    ReadFileResponse,
 )
 
 # =====================================================================
@@ -58,9 +60,11 @@ class OutlookClient:
     _list_emails_cache: dict[tuple, tuple[float, Tuple[list[dict[str, Any]], int]]] = {}
 
     # Cache time-to-live configuration (e.g., set to 300 seconds / 5 mins)
-    _cache_ttl: int = (
-        300  # Or pull from your configuration: OUTLOOK_SERVER_CONFIG.cache_ttl_seconds
-    )
+    _cache_ttl: int = OUTLOOK_SERVER_CONFIG.cache_ttl_seconds
+    # (
+    #     # 300  # Or pull from your configuration: OUTLOOK_SERVER_CONFIG.cache_ttl_seconds
+    # )
+    _file_cache: dict[tuple, tuple[float, ReadFileResponse]] = {}
 
     @classmethod
     def _sweep_cache(cls) -> None:
@@ -71,27 +75,53 @@ class OutlookClient:
         MAX_CACHE_SIZE = 500
         current_time = time.time()
 
-        if len(cls._list_emails_cache) > MAX_CACHE_SIZE:
-            # 1. Purge items where TTL has expired
-            expired_keys = [
-                k
-                for k, (timestamp, _) in cls._list_emails_cache.items()
-                for k, (timestamp, _) in cls._list_emails_cache.items()
-                if current_time - timestamp >= cls._cache_ttl
-            ]
-            for k in expired_keys:
-                cls._list_emails_cache.pop(k, None)
+        # if len(cls._list_emails_cache) > MAX_CACHE_SIZE:
+        #     # 1. Purge items where TTL has expired
+        #     expired_keys = [
+        #         k
+        #         for k, (timestamp, _) in cls._list_emails_cache.items()
+        #         if current_time - timestamp >= cls._cache_ttl
+        #     ]
+        #     for k in expired_keys:
+        #         cls._list_emails_cache.pop(k, None)
 
-            # 2. If still bloated, purge the oldest 20% using Least Recently Used (LRU) order
-            if len(cls._list_emails_cache) > MAX_CACHE_SIZE:
-                sorted_items = sorted(
-                    cls._list_emails_cache.items(), key=lambda x: x[1][0]
-                )
-                num_to_delete = int(len(sorted_items) * 0.2)
-                for k, _ in sorted_items[:num_to_delete]:
-                    cls._list_emails_cache.pop(k, None)
+        #     # 2. If still bloated, purge the oldest 20% using Least Recently Used (LRU) order
+        #     if len(cls._list_emails_cache) > MAX_CACHE_SIZE:
+        #         sorted_items = sorted(
+        #             cls._list_emails_cache.items(), key=lambda x: x[1][0]
+        #         )
+        #         num_to_delete = int(len(sorted_items) * 0.2)
+        #         for k, _ in sorted_items[:num_to_delete]:
+        #             cls._list_emails_cache.pop(k, None)
+
+        for cache_dict in [cls._list_emails_cache, cls._file_cache]:
+            if len(cache_dict) > MAX_CACHE_SIZE:
+                # 1. Purge expired keys
+                expired_keys = [
+                    k
+                    for k, (timestamp, _) in cache_dict.items()
+                    if current_time - timestamp >= cls._cache_ttl
+                ]
+                for k in expired_keys:
+                    cache_dict.pop(k, None)
+
+                # 2. If still too large, purge the oldest 20%
+                if len(cache_dict) > MAX_CACHE_SIZE:
+                    sorted_items = sorted(cache_dict.items(), key=lambda x: x[1][0])
+                    num_to_delete = int(len(sorted_items) * 0.2)
+                    for k, _ in sorted_items[:num_to_delete]:
+                        cache_dict.pop(k, None)
 
     def __init__(self, access_token: SecretStr):
+        """
+        Initializes the OutlookClient with the provided access token.
+
+        Args:
+            access_token: SecretStr -> The Microsoft Graph API access token (secured via pydantic).
+
+        Returns:
+            None -> Initializes the client.
+        """
         if not access_token or not access_token.get_secret_value():
             raise ValueError("No access token provided for OutlookClient.")
 
@@ -100,6 +130,7 @@ class OutlookClient:
             "Authorization": f"Bearer {self.access_token.get_secret_value()}",
             "Accept": "application/json",
         }
+        self.gcs_connector = GCSConnector()
 
     async def _get(
         self,
@@ -422,7 +453,7 @@ class OutlookClient:
 
         # FIX: If local search-filtering modified our array, slice it manually
         # and match the total length to prevent pagination breaks.
-        if is_search:
+        if is_search or total_matched is None or total_matched == 0:
             total_matched = len(processed_list)
 
         # =====================================================================

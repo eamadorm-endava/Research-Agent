@@ -197,6 +197,7 @@ class OutlookMCPConfig(BaseMCPConfig):
 
     URL: str = "http://localhost:8086"
     OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
+        "User.Read",
         "Files.Read.All",
         "Sites.Read.All",
         "offline_access",

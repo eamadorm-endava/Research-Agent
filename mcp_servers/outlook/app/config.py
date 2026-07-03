@@ -124,6 +124,13 @@ class OutlookServerConfig(OutlookMCPConfigBase):
     max_page_size: Annotated[
         int, Field(default=25, description="Maximum number of messages per request")
     ]
+    cache_ttl_seconds: Annotated[
+        int,
+        Field(
+            default=600,
+            description="Time-to-live for cached Graph API responses and read files in seconds.",
+        ),
+    ]
 
 
 OUTLOOK_AUTH_CONFIG = OutlookAuthConfig()
