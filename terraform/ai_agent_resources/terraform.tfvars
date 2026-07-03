@@ -11,6 +11,7 @@ apis_to_enable = [
 
 ai_agent_service_account_name = "adk-agent"
 landing_zone_bucket_name      = "ai-agent-landing-zone"
+model_armor_template_id       = "security-template"
 
 ai_agent_iam_project_roles = [
   "roles/aiplatform.user",
@@ -32,3 +33,8 @@ discovery_engine_service_agent_iam_project_roles = [
   "roles/discoveryengine.user",
   "roles/run.invoker"
 ]
+
+# Metrics Plugin
+bq_metrics_dataset_id          = "agent_metrics"
+bq_metrics_dataset_description = "Dataset to collect agent and tool response time metrics"
+bq_metrics_table_id            = "response_times"

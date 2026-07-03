@@ -10,7 +10,7 @@ class RootConfig(BaseSettings):
     """Shared immutable configuration base for the Calendar MCP server."""
 
     model_config = SettingsConfigDict(
-        extra="forbid",
+        extra="ignore",
         frozen=True,
         env_file_encoding="utf-8",
     )

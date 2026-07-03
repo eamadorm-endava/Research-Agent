@@ -25,6 +25,11 @@ variable "landing_zone_bucket_name" {
   type        = string
 }
 
+variable "model_armor_template_id" {
+  description = "The name of the Model Armor template"
+  type        = string
+}
+
 #AI Agent service account and IAM roles
 
 variable "ai_agent_service_account_name" {
@@ -50,4 +55,22 @@ variable "discovery_engine_service_agent_iam_project_roles" {
   description = "A list of roles to be assigned to the Discovery Engine service agent."
   type        = list(string)
   default     = []
+}
+
+variable "bq_metrics_dataset_id" {
+  type        = string
+  description = "The BigQuery dataset ID for metrics logging"
+  default     = "agent_metrics"
+}
+
+variable "bq_metrics_dataset_description" {
+  type        = string
+  description = "The description for the BigQuery dataset"
+  default     = "Dataset to collect agent and tool response time metrics"
+}
+
+variable "bq_metrics_table_id" {
+  type        = string
+  description = "The BigQuery table ID for response time metrics"
+  default     = "response_times"
 }

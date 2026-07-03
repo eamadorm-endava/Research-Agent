@@ -100,7 +100,7 @@ async def test_read_file_smart_id(base_client, mock_gcs_connector):
 
     with (
         patch.object(base_client, "_get") as mock_get,
-        patch("httpx.AsyncClient.stream") as mock_stream,
+        patch("httpx.Client.stream") as mock_stream,
     ):
         mock_get.return_value = {
             "name": "test.txt",
@@ -143,7 +143,7 @@ async def test_read_file_standard_id(base_client, mock_gcs_connector):
 
     with (
         patch.object(base_client, "_get") as mock_get,
-        patch("httpx.AsyncClient.stream") as mock_stream,
+        patch("httpx.Client.stream") as mock_stream,
     ):
         mock_get.return_value = {
             "name": "test.txt",
@@ -162,6 +162,7 @@ async def test_read_file_standard_id(base_client, mock_gcs_connector):
 
         mock_get.assert_called_once_with("/me/drive/items/fileABC456")
 
+        mock_stream.assert_called_once()
         stream_url = mock_stream.call_args[0][1]
         assert stream_url.endswith("/me/drive/items/fileABC456/content")
         assert response.execution_status == "success"

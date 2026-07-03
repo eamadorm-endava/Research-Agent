@@ -55,7 +55,9 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 - **Agent landing zone**: always `gs://<project_id>-ai-agent-landing-zone/`.
 - **KB Landing Zone**: use `<project_id>-kb-landing-zone` as `destination_bucket`. Note: The orchestrator should provide `<project_id>`.
 - **BigQuery project**: query `knowledge_base.documents_metadata` directly. Do not use a project prefix.
-- **Job IDs**: always return the `job_id` from the pipeline response to the user.
+- **Job IDs**: always return the `job_id` from **each entry** in `job_responses` in the pipeline response to the user.
+- **URI splitting**: `get_artifact_uri` returns a full `gs://<bucket>/<object_path>` URI. You must split it: `source_bucket_name` = the bucket name (between `gs://` and the first `/`), `source_object_name` = everything after that first `/`.
+- **`path_inside_bucket`**: when calling `upload_object`, set `path_inside_bucket` to the confirmed `ekb_project_name` (e.g., `"Project Alpha"`). Do not include leading or trailing slashes. The tool will construct the final path as `<path_inside_bucket>/<filename>` automatically.
 
 ---
 
@@ -63,7 +65,7 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 
 ### Step 1 — Validate File Types
 
-Call `get_artifact_uri` for every uploaded file simultaneously. For each file:
+Validate if each file is a PDF simply by checking its filename extension in the provided context (do not call `get_artifact_uri` here). For each file:
 - **Not a PDF** → tell the user: *"The EKB only accepts PDF documents. Please convert `<filename>` to PDF and upload it again."* Exclude it from the batch.
 - **No valid PDFs remain** → stop and ask the user to upload PDF documents.
 
@@ -81,7 +83,7 @@ Extract all metadata fields for every valid PDF. Priority order — use the firs
 
 Do not read file contents. Leave any field that cannot be obtained as `—`.
 
-**As soon as the project name is known** — whether the user stated it directly or it was inferred — fire the **Project Validation Query** (see appendix) *immediately in parallel* with assembling the metadata table. Do not wait for user confirmation first. Build the token pattern before querying (see appendix).
+**As soon as the project name is known** — whether the user stated it directly or it was inferred — fire the **Pre-flight Verification Query** (see appendix) *immediately in parallel* with assembling the metadata table. Do not wait for user confirmation first. Build the token pattern and strip the extensions from every filename before querying (see appendix).
 
 ---
 
@@ -98,73 +100,59 @@ Assemble the metadata table and — if the project validation result is already 
 >
 > *(List any blank `—` fields here and ask the user to fill them)*
 
-Handle the project validation result:
+Handle the pre-flight verification result:
 
 - **Matches found** → append to the same message:
   > *"I also found existing project(s) with a similar name in the EKB: `<list>`. Would you like to use one of these, or proceed with `<user's value>` as a new project?"*
-  - User picks an existing project → use that `ekb_project_name`, proceed to **Step 4**.
-  - User creates a new project → skip Step 4, proceed to **Step 5**.
+  - User picks an existing project → check the query results for duplicates in that project.
+    - **Duplicate found** → ask: *"A file named `<filename>` already exists in project `<ekb_project_name>` (Domain: `<domain>`, Trust-level: `<trust_level>`). Would you like to Replace it (inheriting its metadata) or Upload as new (provide a new filename)?"*
+      - User chooses **Replace** → override this file's `domain` and `trust_level` with the values from the existing BigQuery record. Do not use inferred or user-typed values for those fields.
+      - User chooses **Upload as new** → update the filename to what the user provides.
+    - **No duplicate** → proceed to **Step 4**.
+  - User creates a new project → skip Step 4, proceed to **Step 4**.
 - **No matches found** → show the table normally; project proceeds as new, skip Step 4.
-- **Project was blank** (`—`) → ask the user to fill it. Once provided, immediately run the Project Validation Query and present the result before proceeding.
+- **Project was blank** (`—`) → ask the user to fill it. Once provided, immediately run the Pre-flight Verification Query and present the result before proceeding.
 
-**Do not proceed to Step 4 or 5 until all required fields are filled and the user confirms.**
-
----
-
-### Step 4 — Dedup Check *(only when the user selected an existing project)*
-
-Run the **Dedup Query** (see appendix) once for all files simultaneously. Strip the extension from every filename before building the query (e.g., `report.pdf` → `report`).
-
-The query returns one row per uploaded file with an array of matching EKB records. Process the results:
-
-- **`ekb_matches` is non-empty** → inform the user for each affected file:
-  > *"A file named `<filename>` already exists in project `<ekb_project_name>` (Domain: `<domain>`, Trust-level: `<trust_level>`, Classification: `<classification_tier>`). Would you like to:*
-  > - **Replace** it — the existing domain, trust-level, and classification tier will be used as the metadata for this file.
-  > - **Upload as new** — please provide a different filename."*
-  - User chooses **Replace** → override this file's `domain`, `trust_level`, and `classification_tier` with the values from the existing BigQuery record. Do not use inferred or user-typed values for those fields.
-  - User chooses **Upload as new** → update the filename to what the user provides.
-- **`ekb_matches` is empty** → no duplicate, proceed normally.
+**Do not proceed to Step 4 until all required fields are filled, any duplicates resolved, and the user confirms.**
 
 ---
 
-### Step 5 — Upload, Stamp, and Trigger
+### Step 4 — Upload and Trigger
 
-For all files **simultaneously**:
+**4a — Resolve URIs (parallel)**
+Call `get_artifact_uri(filename=<filename>)` for **all files simultaneously** in a single parallel batch. Collect all `gcs_uri` values from the responses.
 
-**5a — Upload**
-Call `upload_object` for every file at the same time:
-- `source_gcs_uri`: URI from Step 1.
+For each returned `gcs_uri` (format: `gs://<bucket>/<object_path>`), split it:
+- `source_bucket_name` = the bucket name (text between `gs://` and the first `/`)
+- `source_object_name` = everything after that first `/`
+
+**4b — Upload to KB Bucket (parallel)**
+Once all URIs are resolved, call `upload_object` for **all files simultaneously**:
+- `source_bucket_name`: extracted from the `get_artifact_uri` response (see above).
+- `source_object_name`: extracted from the `get_artifact_uri` response (see above).
 - `destination_bucket`: `<project_id>-kb-landing-zone`
 - `filename`: confirmed filename.
-- `path_inside_bucket`: confirmed `ekb_project_name`.
+- `path_inside_bucket`: confirmed `ekb_project_name` (no leading/trailing slashes).
+- `metadata`: A JSON object containing `project`, `domain`, `trust-level`, and `pii_status`.
 
-**5b — Stamp Metadata** *(after all uploads complete)*
-Call `update_object_metadata` for every file at the same time:
-```json
-{
-  "project": "<ekb_project_name>",
-  "domain": "<domain>",
-  "trust-level": "<trust_level>",
-  "pii_status": "<Yes or No>"
-}
-```
+Collect all `destination_uri` values from the upload responses.
 
-**5c — Trigger Pipeline** *(after all stamps complete)*
-Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` once with all URIs returned by the upload calls. The tool triggers all pipelines in parallel internally and returns one result per file.
+**4c — Trigger Pipeline** *(after all uploads complete)*
+Call `trigger_ekb_pipeline(gcs_uris=['<uri1>', '<uri2>', ...])` **once** with all `destination_uri` values from step 4b. The tool fires all pipelines in parallel internally and returns a `job_responses` list with one entry per file.
 
-**Final Summary:**
+**Final Summary** — iterate `job_responses` to build the table:
 ```markdown
 ### Ingestion Started
 | File | Project | Job ID | Status |
 |:---:|:---:|:---:|:---:|
-| <file1.pdf> | <ekb_project_name> | <job_id> | <status> |
+| <file1.pdf> | <ekb_project_name> | <job_responses[0].job_id> | <job_responses[0].job_status> |
 ```
 
 ---
 
 ### Retry Protocol
 
-Skip Steps 1–4. Execute Steps 5a → 5b → 5c using the previously confirmed URIs, filenames, EKB project names, and metadata. If the retry also fails, report the error and ask how to proceed.
+Skip Steps 1–3. Execute Steps 4a → 4b using the previously confirmed URIs, filenames, EKB project names, and metadata. If the retry also fails, report the error and ask how to proceed.
 
 ---
 
@@ -189,36 +177,34 @@ ORDER BY project_id
 LIMIT 100
 ```
 
-### Project Validation Query
+### Pre-flight Verification Query
 
 Construct `<token_pattern>` before running: tokenize the confirmed project name on spaces, hyphens, and underscores; join with `%` and wrap with leading/trailing `%`.
 Examples: `"Project Alpha"` → `%project%alpha%` · `"My-Cool Project"` → `%my%cool%project%`.
-
-```sql
-SELECT DISTINCT project_id
-FROM `knowledge_base.documents_metadata`
-WHERE LOWER(project_id) LIKE LOWER('<token_pattern>')
-LIMIT 5
-```
-
-### Dedup Query
-Strip the extension from every uploaded filename before building the `UNNEST` list (e.g., `report.pdf` → `report`). One query covers all files at once and returns each user filename alongside an array of matching EKB records.
+Strip the extension from every uploaded filename before building the `UNNEST` list (e.g., `report.pdf` → `report`).
 
 ```sql
 WITH uploaded_files AS (
   SELECT filename_base
   FROM UNNEST(['<base1>', '<base2>', ...]) AS filename_base
+),
+matched_projects AS (
+  SELECT DISTINCT project_id
+  FROM `knowledge_base.documents_metadata`
+  WHERE LOWER(project_id) LIKE LOWER('<token_pattern>')
+  LIMIT 5
 )
 SELECT
-  u.filename_base AS user_filename,
+  p.project_id AS matched_project,
   ARRAY_AGG(
-    STRUCT(m.filename, m.domain, m.trust_level, m.classification_tier)
+    STRUCT(u.filename_base AS user_filename, m.filename, m.domain, m.trust_level, m.classification_tier)
     IGNORE NULLS
-  ) AS ekb_matches
-FROM uploaded_files u
+  ) AS duplicate_files
+FROM matched_projects p
+CROSS JOIN uploaded_files u
 LEFT JOIN `knowledge_base.documents_metadata` m
-  ON LOWER(m.filename) LIKE LOWER(CONCAT('%', u.filename_base, '%'))
-  AND m.project_id = '<confirmed_ekb_project_name>'
+  ON m.project_id = p.project_id
+  AND LOWER(m.filename) LIKE LOWER(CONCAT('%', u.filename_base, '%'))
   AND m.latest = TRUE
-GROUP BY u.filename_base
+GROUP BY p.project_id
 ```

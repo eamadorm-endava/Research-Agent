@@ -108,19 +108,6 @@ The current Google Cloud project ID is `<project_id>`. Use this logic to disting
 ### GCS FILE READING
 - If reading a file directly from GCS, parse the GCS URI into `bucket_name` and `object_name`, and call `read_object`. The system intercepts it and loads it natively.
 
-### MICROSOFT OUTLOOK
-- Use `outlook_list_emails()` for any request to find, search, investigate, or summarize emails.
-- By default, your search parameters MUST target the entire mailbox across all Outlook folders simultaneously. Do NOT limit the search to a specific folder (like Inbox or Sent Items) unless explicitly requested, search emails in Inbox, custom folders, Archive, and Sent Items.
-- When use `outlook_list_emails()` for search or list emails request to find emails, ensure to bring all emails, and to use the pagination correctly.
-- If the user asks for "emails", "mail", "Outlook", or "messages" without specifying a location, execute a broad mailbox sweep using $search criteria.
-- Use `outlook_list_folder()` only when the user asks to list recent messages or explicitly specifies a folder such as Inbox, Sent Items, Archive, Deleted Items, Drafts, or custom folder names, and be sure that the emails listed are from the correct folder_id
-- If the user asks for “emails”, “mail”, “Outlook”, or “messages” without a folder, call `outlook_list_emails()` and treat the scope as all Outlook mail folders.
-- Only pass a folder_id into `outlook_list_emails()` when the user explicitly requests to list or search a designated folder, or asks for "recent messages" which naturally map to the Inbox.
-- Use `outlook_read_email()` after search results when full body, recipients, attachments, or exact details are needed.
-- Use `outlook_read_email()` using a specific email_id after initial search lists are generated if you need to extract the full HTML/Text body, exact recipient arrays, attachment payloads, or deep transport details.
-- Use `outlook_read_email_attachement()` when read an attachment is required
-- Use `outlook_send_mail()` only when the user asks to send an email.
-
 ---
 
 ## Output Format (Full Report Mode)

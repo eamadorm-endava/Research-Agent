@@ -19,7 +19,7 @@ This module simplifies the creation of repositories using Google Cloud Artifact 
 module "docker_artifact_registry" {
   source     = "./fabric/modules/artifact-registry"
   project_id = "myproject"
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "myregistry"
   format     = { docker = { standard = {} } }
   iam = {
@@ -50,7 +50,7 @@ module "docker_artifact_registry_remote" {
 module "registry-local" {
   source     = "./fabric/modules/artifact-registry"
   project_id = var.project_id
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "local"
   format = {
     python = {
@@ -62,7 +62,7 @@ module "registry-local" {
 module "registry-remote" {
   source     = "./fabric/modules/artifact-registry"
   project_id = var.project_id
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "remote"
   format = {
     python = {
@@ -76,7 +76,7 @@ module "registry-remote" {
 module "registry-virtual" {
   source     = "./fabric/modules/artifact-registry"
   project_id = var.project_id
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "virtual"
   format = {
     python = {
@@ -104,7 +104,7 @@ module "registry-virtual" {
 module "registry-docker" {
   source     = "./fabric/modules/artifact-registry"
   project_id = var.project_id
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "docker"
   format = {
     docker = {
@@ -118,7 +118,7 @@ module "registry-docker" {
 module "registry-maven" {
   source     = "./fabric/modules/artifact-registry"
   project_id = var.project_id
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "maven"
   format = {
     maven = {
@@ -201,7 +201,7 @@ module "yum-registry" {
 module "registry-docker" {
   source                 = "./fabric/modules/artifact-registry"
   project_id             = var.project_id
-  location               = "europe-west1"
+  location               = "us-central1"
   name                   = "docker-cleanup-policies"
   format                 = { docker = { standard = {} } }
   cleanup_policy_dry_run = false
@@ -236,7 +236,7 @@ You can choose one (and only one) of the three options below:
 module "authoritative_iam" {
   source     = "./fabric/modules/artifact-registry"
   project_id = "myproject"
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "myregistry"
   format     = { docker = { standard = {} } }
   iam = {
@@ -248,7 +248,7 @@ module "authoritative_iam" {
 module "authoritative_iam_conditions" {
   source     = "./fabric/modules/artifact-registry"
   project_id = "myproject"
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "myregistry"
   format     = { docker = { standard = {} } }
   iam_bindings = {
@@ -268,7 +268,7 @@ module "authoritative_iam_conditions" {
 module "additive_iam" {
   source     = "./fabric/modules/artifact-registry"
   project_id = "myproject"
-  location   = "europe-west1"
+  location   = "us-central1"
   name       = "myregistry"
   format     = { docker = { standard = {} } }
   iam_bindings_additive = {

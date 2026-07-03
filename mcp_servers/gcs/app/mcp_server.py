@@ -198,6 +198,16 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
             request.destination_path,
         )
 
+        # 3. Apply Metadata if provided
+        if request.metadata:
+            logger.info("Applying metadata during upload_object")
+            await asyncio.to_thread(
+                gcs_manager.update_object_metadata,
+                request.destination_bucket,
+                request.destination_path,
+                request.metadata,
+            )
+
         return UploadObjectResponse(
             destination_uri=f"gs://{request.destination_bucket}/{request.destination_path}",
             execution_status="success",

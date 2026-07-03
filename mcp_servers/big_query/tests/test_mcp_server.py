@@ -19,6 +19,7 @@ from mcp_servers.big_query.app.schemas import (
     KeywordSearchRequest,
     ListTablesRequest,
 )
+from mcp_servers.big_query.app.config import BIGQUERY_SERVER_CONFIG
 
 
 @pytest.fixture
@@ -51,7 +52,7 @@ async def test_mcp_create_dataset_success(mock_bq_manager):
     assert result.execution_status == "success"
     assert "Successfully created dataset" in result.execution_message
     mock_bq_manager.create_dataset.assert_called_once_with(
-        "mock-bq-project-id", "my_ds", "US"
+        BIGQUERY_SERVER_CONFIG.project_id, "my_ds", "US"
     )
 
 
@@ -135,7 +136,7 @@ async def test_mcp_add_rows_success(mock_bq_manager):
     assert result.execution_status == "success"
     assert "Successfully inserted 1 rows" in result.execution_message
     mock_bq_manager.insert_rows.assert_called_once_with(
-        "mock-bq-project-id", "ds", "table", [{"id": 1}]
+        BIGQUERY_SERVER_CONFIG.project_id, "ds", "table", [{"id": 1}]
     )
 
 

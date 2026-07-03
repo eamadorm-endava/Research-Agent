@@ -84,9 +84,9 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
     """
     Creates a new Google Cloud BigQuery dataset.
     Args:
-        request (CreateDatasetRequest): Structured request containing project_id, dataset_id, and location.
+        request: CreateDatasetRequest -> Structured request containing project_id, dataset_id, and location.
     Returns:
-        CreateDatasetResponse: Full request details and status.
+        CreateDatasetResponse -> Full request details and status.
     """
     logger.info(f"Tool call: create_dataset(dataset_id={request.dataset_id})")
     try:
@@ -124,9 +124,9 @@ async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
     """
     Lists all datasets in a BigQuery project.
     Args:
-        request (ListDatasetsRequest): Structured request containing the project_id.
+        request: ListDatasetsRequest -> Structured request containing the project_id.
     Returns:
-        ListDatasetsResponse: A List[str] containing dataset IDs.
+        ListDatasetsResponse -> A List[str] containing dataset IDs.
     """
     logger.info("Tool call: list_datasets()")
     try:
@@ -158,9 +158,9 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
     """
     Creates a new table in BigQuery.
     Args:
-        request (CreateTableRequest): Structured request containing project_id, dataset_id, table_id, and schema_fields.
+        request: CreateTableRequest -> Structured request containing project_id, dataset_id, table_id, and schema_fields.
     Returns:
-        CreateTableResponse: Full request details and status.
+        CreateTableResponse -> Full request details and status.
     """
     logger.info(
         f"Tool call: create_table(dataset_id={request.dataset_id}, table_id={request.table_id})"
@@ -204,9 +204,9 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
     """
     Retrieves the schema definition of a specific table.
     Args:
-        request (GetTableSchemaRequest): Structured request containing project_id, dataset_id, and table_id.
+        request: GetTableSchemaRequest -> Structured request containing project_id, dataset_id, and table_id.
     Returns:
-        GetTableSchemaResponse: The schema fields as a List[Dict[str, Any]].
+        GetTableSchemaResponse -> The schema fields as a List[Dict[str, Any]].
     """
     logger.info(
         f"Tool call: get_table_schema(dataset_id={request.dataset_id}, table_id={request.table_id})"
@@ -249,9 +249,9 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
     """
     Retrieves a list of all tables within a given dataset.
     Args:
-        request (ListTablesRequest): Structured request containing project_id and dataset_id.
+        request: ListTablesRequest -> Structured request containing project_id and dataset_id.
     Returns:
-        ListTablesResponse: A List[str] of table IDs.
+        ListTablesResponse -> A List[str] of table IDs.
     """
     logger.info(f"Tool call: list_tables(dataset_id={request.dataset_id})")
     try:
@@ -288,9 +288,9 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
     """
     Inserts one or more rows into an existing table.
     Args:
-        request (AddRowsRequest): Structured request containing project_id, dataset_id, table_id, and rows.
+        request: AddRowsRequest -> Structured request containing project_id, dataset_id, table_id, and rows.
     Returns:
-        AddRowsResponse: Full request details and status.
+        AddRowsResponse -> Full request details and status.
     """
     logger.info(
         f"Tool call: add_rows(dataset_id={request.dataset_id}, table_id={request.table_id})"
@@ -334,9 +334,9 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     """
     Executes a read-only SQL query against BigQuery.
     Args:
-        request (ExecuteQueryRequest): Structured request containing project_id and query.
+        request: ExecuteQueryRequest -> Structured request containing project_id and query.
     Returns:
-        ExecuteQueryResponse: The query results as a List[Dict[str, Any]].
+        ExecuteQueryResponse -> The query results as a List[Dict[str, Any]].
     """
     logger.info("Tool call: execute_query()")
     try:
@@ -371,9 +371,9 @@ async def ekb_semantic_search(request: SemanticSearchRequest) -> SemanticSearchR
     """
     Performs a semantic search against the Enterprise Knowledge Base.
     Args:
-        request (SemanticSearchRequest): Structured request containing the query and optional filters.
+        request: SemanticSearchRequest -> Structured request containing the query and optional filters.
     Returns:
-        SemanticSearchResponse: The search results and execution status.
+        SemanticSearchResponse -> The search results and execution status.
     """
     logger.info(f"Tool call: ekb_semantic_search(query={request.query})")
     try:
@@ -404,9 +404,9 @@ async def ekb_keyword_search(request: KeywordSearchRequest) -> KeywordSearchResp
     Performs a deterministic keyword search against the Enterprise Knowledge Base chunks.
     Returns distinct filenames and project names for all documents containing the keyword.
     Args:
-        request (KeywordSearchRequest): Structured request containing project_id and a single keyword.
+        request: KeywordSearchRequest -> Structured request containing project_id and a single keyword.
     Returns:
-        KeywordSearchResponse: Distinct filenames and project names matching the keyword.
+        KeywordSearchResponse -> Distinct filenames and project names matching the keyword.
     """
     logger.info(f"Tool call: ekb_keyword_search(keyword={request.keyword})")
     try:

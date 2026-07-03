@@ -61,7 +61,7 @@ class GCPConfig(BaseSettings):
     ]
 
 
-class BaseAgentConfig(BaseSettings):
+class CoreAgentConfig(BaseSettings):
     """Holds base configuration values for the ADK agent: model, generation, and retry settings."""
 
     model_config = SettingsConfigDict(
@@ -183,7 +183,7 @@ class BaseAgentConfig(BaseSettings):
     ]
 
 
-class CoordinatorConfig(BaseAgentConfig):
+class CoordinatorConfig(CoreAgentConfig):
     """Configuration for the Coordinator Agent."""
 
     AGENT_NAME: Annotated[
@@ -207,7 +207,7 @@ You are the primary interface for the user. Your objective is to analyze the use
 </core_directive>
 
 <routing_rules>
-- **Deep Research, Meetings & Connected Sources**: Delegate to the `research_specialist` when the user asks for meeting summaries, deep research, document searches, or any SharePoint/Drive/Jira/Calendar/Confluence operation.
+- **Deep Research, Meetings & Connected Sources**: Delegate to the `research_specialist` when the user asks for meeting summaries, deep research, document searches, or any SharePoint/OneDrive/Google Drive/Jira/Calendar/Confluence/BigQuery/Cloud Storage operation.
 - **File Uploads for Analysis**: If the user uploads a file and asks a question about it, use `get_artifact_uri` to retrieve its GCS URI. Pass this URI explicitly when delegating to the `research_specialist`.
 - **Ingestion & Status**: Delegate to the `ingestion_specialist` when the user wants to ingest a file into the EKB or check an ingestion status.
 </routing_rules>
@@ -215,7 +215,7 @@ You are the primary interface for the user. Your objective is to analyze the use
 <capabilities>
 - **Break information silos**: Retrieve and correlate information scattered across multiple organizational data sources.
   - **Corporate Data Sources (5)**: Enterprise Knowledge Base (EKB), Google Calendar, Jira, Confluence, and Microsoft SharePoint.
-  - **Personal Data Sources**: Google Drive, Microsoft OneDrive, Microsoft Outlook, Google Cloud Storage (GCS) buckets, and BigQuery tables.
+  - **Personal Data Sources**: Google Drive, Microsoft OneDrive, Google Cloud Storage (GCS) buckets, and BigQuery tables.
 - **Research & knowledge discovery**: Search for documents, SharePoint sites, lists, projects, companies, technologies, and people across all connected data sources. Cross-reference findings to surface relationships.
 - **Meeting summaries**: Generate structured meeting summary documents from transcripts or meeting notes stored in Drive.
 - **Calendar awareness**: Retrieve upcoming and past calendar events, identify relevant meetings, and surface key context from attachments.
@@ -235,7 +235,7 @@ You are the primary interface for the user. Your objective is to analyze the use
     ]
 
 
-class ResearchAgentConfig(BaseAgentConfig):
+class ResearchAgentConfig(CoreAgentConfig):
     """Configuration for the Research and Meeting Specialist Agent."""
 
     AGENT_NAME: Annotated[
@@ -256,7 +256,7 @@ class ResearchAgentConfig(BaseAgentConfig):
         Field(
             default=(
                 "Retrieves and synthesizes organizational knowledge from the Enterprise "
-                "Knowledge Base (EKB), BigQuery, Google Drive, Microsoft OneDrive, Microsoft Outlook, Jira, Confluence, Google Calendar, GCS, and Microsoft SharePoint. "
+                "Knowledge Base (EKB), BigQuery, Google Drive, Microsoft OneDrive, Jira, Confluence, Google Calendar, GCS, and Microsoft SharePoint. "
                 "Use for meeting summaries, document discovery, company or project research, ticket and page retrieval, "
                 "and any multi-hop data queries that require cross-referencing multiple sources."
             ),
@@ -305,7 +305,7 @@ When the user asks a follow-up question:
     ]
 
 
-class IngestionAgentConfig(BaseAgentConfig):
+class IngestionAgentConfig(CoreAgentConfig):
     """Configuration for the EKB Ingestion Specialist Agent."""
 
     AGENT_NAME: Annotated[

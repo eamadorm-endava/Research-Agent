@@ -1,0 +1,30 @@
+substitutions:
+  _LOCATION: us-central1
+
+steps:
+  # Step 1: Initialize Terraform with Dynamic Backend
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/shared_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/shared-resources"
+
+  # Step 2: Apply (Terraform)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply'
+    args: 
+      - 'apply'
+      - '-auto-approve'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+    dir: 'terraform/shared_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

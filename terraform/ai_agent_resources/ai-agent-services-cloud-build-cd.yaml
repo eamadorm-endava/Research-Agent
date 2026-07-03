@@ -1,20 +1,26 @@
 substitutions:
+  # Note: Variables such as _GE_REGION, _GE_APP_NAME_SUFFIX, and various MCP Server URLs 
+  # are deliberately omitted here. They are dynamically injected at runtime by the 
+  # Cloud Build Trigger created via creation_manager.sh to prevent configuration mismatches.
   _REGION: "us-central1"
   _AGENT_DISPLAY_NAME: "OSIRIS"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
-  _BIGQUERY_URL: "https://bigquery-mcp-server-1057005221381.us-central1.run.app"
-  _DRIVE_URL: "https://drive-mcp-server-1057005221381.us-central1.run.app"
-  _GCS_URL: "https://gcs-mcp-server-1057005221381.us-central1.run.app"
-  _CALENDAR_URL: "https://calendar-mcp-server-1057005221381.us-central1.run.app"
-  # _ONEDRIVE_URL: "https://onedrive-mcp-server-1057005221381.us-central1.run.app"
-  _EKB_PIPELINE_URL: "https://ekb-pipeline-1057005221381.us-central1.run.app"
-  _GE_APP_ID: "gemini-enterprise-17816266_1781626607357"
+  _METRICS_DATASET_ID: "agent_metrics"
+  _METRICS_TABLE_ID: "response_times"
   _GE_REGION: "global"
-  _GE_AGENT_DESCRIPTION: "OSIRIS - Organizational Search, Information Retrieval, and Intelligence System: A hierarchical multi-agent system designed to break information silos by searching across BigQuery, GCS, Google Drive, and Google Calendar, and managing EKB document ingestion."
+  _GE_APP_NAME_SUFFIX: "osiris-app"
+  _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
+  _MICROSOFT_OAUTH_SCOPES: "offline_access Files.Read.All Sites.Read.All User.Read"
+  _MICROSOFT_TENANT_ID: "93f8f3d2-54f6-417d-9a37-10ff2952f228"
+  _GEMINI_GOOGLE_AUTH_ID: "google-workspace-authentication"
+  _GEMINI_MICROSOFT_AUTH_ID: "microsoft-entra-authentication"
 
-  
+  # Test Agent Variables
+  _TEST_AGENT_DISPLAY_NAME: "OSIRIS - Test"
+  _TEST_GOOGLE_AUTH_ID: "google-workspace-authentication-test"
+  _TEST_MICROSOFT_AUTH_ID: "microsoft-entra-authentication-test"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
@@ -40,7 +46,54 @@ steps:
       - '-auto-approve'
     dir: 'terraform/ai_agent_resources'
   
-  # Step 3: Unregister the agent from GE
+  # Step 3: Unregister the test agent from GE
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-unregister-test-agent'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+        
+        echo "Deleting test agent in GE..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
+          --agent-display-name "${_TEST_AGENT_DISPLAY_NAME}" || true
+
+  # Step 4: Delete test auth IDs
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-delete-test-auth-resources'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+
+        echo "Deleting Test GE Auth IDs..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-auth-ids \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --auth-ids "${_TEST_GOOGLE_AUTH_ID},${_TEST_MICROSOFT_AUTH_ID}" || true
+
+  # Step 5: Delete test agent from Agent Engine
+  - name: 'python:3.12'
+    id: 'delete-test-agent-engine'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        pip install google-cloud-aiplatform click loguru
+        echo "Deleting test agent engine..."
+        python terraform/ai_agent_resources/scripts/delete_agent_engine.py \
+          --project ${PROJECT_ID} \
+          --location ${_REGION} \
+          --display-name "${_TEST_AGENT_DISPLAY_NAME}" || true
+
+  # Step 6: Unregister the agent from GE
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-unregister-agent'
     entrypoint: 'bash'
@@ -51,45 +104,44 @@ steps:
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
         
         echo "Checking and deleting existing agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-agent \
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
           --agent-display-name "${_AGENT_DISPLAY_NAME}"
 
-  # Step 4: Delete all auth resources
+  # Step 7: Delete all auth resources
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-delete-auth-resources'
     entrypoint: 'bash'
-    secretEnv: ['GEMINI_GOOGLE_AUTH_ID']
     args:
       - '-c'
       - |
         apt-get update && apt-get install -y jq curl
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
 
-        echo "Deleting GE Auth IDs $$GEMINI_GOOGLE_AUTH_ID..."
+        echo "Deleting GE Auth IDs ${_GEMINI_GOOGLE_AUTH_ID} and ${_GEMINI_MICROSOFT_AUTH_ID}..."
         ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-auth-ids \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --auth-ids "$$GEMINI_GOOGLE_AUTH_ID"
+          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID}"
 
-  # Step 5: Create new auth resources
+  # Step 8: Create new auth resources
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-create-auth-resources'
     entrypoint: 'bash'
-    secretEnv: ['GEMINI_GOOGLE_AUTH_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET']
+    secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET']
     args:
       - '-c'
       - |
         apt-get update && apt-get install -y jq curl
         chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
 
-        echo "Creating GE Auth IDs $$GEMINI_GOOGLE_AUTH_ID..."
+        echo "Creating GE Auth ID for Google: ${_GEMINI_GOOGLE_AUTH_ID}..."
         ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --auth-ids "$$GEMINI_GOOGLE_AUTH_ID" \
+          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID}" \
           --client-id "$$GOOGLE_OAUTH_CLIENT_ID" \
           --client-secret "$$GOOGLE_OAUTH_CLIENT_SECRET" \
           --scopes "${_GOOGLE_OAUTH_SCOPES}" \
@@ -97,12 +149,23 @@ steps:
           --token-uri "https://oauth2.googleapis.com/token" \
           --auth-uri-extras "include_granted_scopes=true&access_type=offline"
 
+        echo "Creating GE Auth ID for Microsoft: ${_GEMINI_MICROSOFT_AUTH_ID}..."
+        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_REGION} \
+          --auth-ids "${_GEMINI_MICROSOFT_AUTH_ID}" \
+          --client-id "$$MICROSOFT_OAUTH_CLIENT_ID" \
+          --client-secret "$$MICROSOFT_OAUTH_CLIENT_SECRET" \
+          --scopes "${_MICROSOFT_OAUTH_SCOPES}" \
+          --auth-uri-base "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize" \
+          --token-uri "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/token" \
+          --prompt "select_account"
+
   
-  # Step 6: Deploy the AI-Agent to Agent Engine
+  # Step 9: Deploy the AI-Agent to Agent Engine
   - name: 'python:3.12'
     id: 'deploy-agent-engine'
     entrypoint: 'sh'
-    secretEnv: ['GEMINI_GOOGLE_AUTH_ID']
     args:
       - '-c'
       - |
@@ -112,6 +175,28 @@ steps:
           --no-hashes \
           --no-annotate \
           -o agent/core_agent/requirements.txt
+        
+        ENV_VARS="PROJECT_ID=${PROJECT_ID}"
+        ENV_VARS="$${ENV_VARS},REGION=${_REGION}"
+        ENV_VARS="$${ENV_VARS},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone"
+        ENV_VARS="$${ENV_VARS},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
+        ENV_VARS="$${ENV_VARS},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID}"
+        ENV_VARS="$${ENV_VARS},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID}"
+        
+        ENV_VARS="$${ENV_VARS},BIGQUERY_URL=https://bigquery-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},DRIVE_URL=https://drive-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},GCS_URL=https://gcs-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},CALENDAR_URL=https://calendar-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},ONEDRIVE_URL=https://onedrive-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},ATLASSIAN_URL=https://atlassian-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},SHAREPOINT_URL=https://sharepoint-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},OUTLOOK_URL=https://outlook-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        
+        ENV_VARS="$${ENV_VARS},EKB_PIPELINE_URL=https://ekb-pipeline-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},METRICS_PROJECT_ID=${PROJECT_ID}"
+        ENV_VARS="$${ENV_VARS},METRICS_DATASET_ID=${_METRICS_DATASET_ID}"
+        ENV_VARS="$${ENV_VARS},METRICS_TABLE_ID=${_METRICS_TABLE_ID}"
+
         uv run --group ai-agent --group dev python -m agent.deployment.deploy \
           --project ${PROJECT_ID} \
           --location ${_REGION} \
@@ -124,17 +209,16 @@ steps:
           --min-instances=1 \
           --memory=16Gi \
           --num-workers=4 \
-          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_REGION},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone,MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID},BIGQUERY_URL=${_BIGQUERY_URL},DRIVE_URL=${_DRIVE_URL},GCS_URL=${_GCS_URL},CALENDAR_URL=${_CALENDAR_URL},GEMINI_GOOGLE_AUTH_ID=$$GEMINI_GOOGLE_AUTH_ID,EKB_PIPELINE_URL=${_EKB_PIPELINE_URL}" 2>&1 | tee deploy_output.txt
+          --set-env-vars="$${ENV_VARS}" 2>&1 | tee deploy_output.txt
         
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
 
 
-  # Step 7: Register the Agent in GE
+  # Step 10: Register the Agent in GE
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-register-agent'
     entrypoint: 'bash'
-    secretEnv: ['GEMINI_GOOGLE_AUTH_ID']
     args:
       - '-c'
       - |
@@ -150,21 +234,23 @@ steps:
         ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh register-agent \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --app-id ${_GE_APP_ID} \
+          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
           --agent-display-name "${_AGENT_DISPLAY_NAME}" \
           --agent-description "${_GE_AGENT_DESCRIPTION}" \
           --agent-engine-location ${_REGION} \
           --agent-engine-agent-id "$${ADK_RESOURCE_ID}" \
-          --auth-ids "$$GEMINI_GOOGLE_AUTH_ID"
+          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID}"
 
 availableSecrets:
   secretManager:
-    - versionName: projects/${PROJECT_ID}/secrets/GEMINI_GOOGLE_AUTH_ID/versions/latest
-      env: 'GEMINI_GOOGLE_AUTH_ID'
     - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_OAUTH_CLIENT_ID/versions/latest
       env: 'GOOGLE_OAUTH_CLIENT_ID'
     - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_OAUTH_CLIENT_SECRET/versions/latest
       env: 'GOOGLE_OAUTH_CLIENT_SECRET'
+    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_ID/versions/latest
+      env: 'MICROSOFT_OAUTH_CLIENT_ID'
+    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_SECRET/versions/latest
+      env: 'MICROSOFT_OAUTH_CLIENT_SECRET'
 
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket

@@ -83,7 +83,7 @@ def html_to_markdown(html_content: str) -> str:
 
 
 class ConfluenceClient:
-    """Wrapper client for the Atlassian Confluence Cloud REST API (v2 and v1 Search)."""
+    """Wrapper client for the Atlassian Confluence REST API (Cloud v2 and Server/DC v1)."""
 
     def __init__(self, email: str, token: str, instance_url: str, cloud_id: str):
         self.email = email
@@ -92,32 +92,54 @@ class ConfluenceClient:
         self.cloud_id = cloud_id
         self.gcs = GCSConnector()
 
-        # Build basic auth header
-        auth_str = f"{self.email}:{self.token}"
-        encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+        self.is_cloud = ".atlassian.net" in self.instance_url.lower()
+
+        if self.is_cloud:
+            auth_str = f"{self.email}:{self.token}"
+            encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+            auth_header = f"Basic {encoded_auth}"
+        else:
+            auth_header = f"Bearer {self.token}"
+
         self.headers = {
-            "Authorization": f"Basic {encoded_auth}",
+            "Authorization": auth_header,
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        logger.info(f"ConfluenceClient initialized for instance {self.instance_url}")
+        logger.info(
+            f"ConfluenceClient initialized for instance {self.instance_url} (is_cloud={self.is_cloud})"
+        )
 
     async def list_spaces(
         self, request: ListConfluenceSpacesRequest
     ) -> ListConfluenceSpacesResponse:
         """Fetch accessible spaces in Confluence."""
-        url = f"{self.instance_url}/wiki/api/v2/spaces"
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/spaces"
+        else:
+            url = f"{self.instance_url}/rest/api/space"
+
         params = {}
         if request.limit:
             params["limit"] = request.limit
         if request.cursor:
-            params["cursor"] = request.cursor
+            if self.is_cloud:
+                params["cursor"] = request.cursor
+            else:
+                params["start"] = request.cursor
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"List spaces returned 404: {resp.text}")
+                    return ListConfluenceSpacesResponse(
+                        execution_status="success",
+                        execution_message="No spaces found or the endpoint is unavailable.",
+                        spaces=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list spaces: {resp.status_code} {resp.text}"
@@ -128,10 +150,22 @@ class ConfluenceClient:
                         spaces=[],
                     )
                 data = resp.json()
+
+                next_cursor = None
+                next_link = data.get("_links", {}).get("next")
+                if next_link:
+                    import urllib.parse
+
+                    parsed = urllib.parse.urlparse(next_link)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    param_name = "cursor" if self.is_cloud else "start"
+                    if param_name in qs:
+                        next_cursor = qs[param_name][0]
+
                 return ListConfluenceSpacesResponse(
                     execution_status="success",
                     spaces=data.get("results", []),
-                    next_cursor=data.get("_links", {}).get("next"),
+                    next_cursor=next_cursor,
                 )
         except Exception as e:
             logger.exception("Exception in list_spaces")
@@ -145,20 +179,37 @@ class ConfluenceClient:
         self, request: ListConfluencePagesRequest
     ) -> ListConfluencePagesResponse:
         """Fetch pages in Confluence with optional space filter."""
-        url = f"{self.instance_url}/wiki/api/v2/pages"
-        params = {}
-        if request.space_id:
-            params["space-id"] = request.space_id
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages"
+            params = {}
+            if request.space_id:
+                params["space-id"] = request.space_id
+        else:
+            url = f"{self.instance_url}/rest/api/content"
+            params = {"type": "page"}
+            if request.space_id:
+                params["spaceKey"] = request.space_id
+
         if request.limit:
             params["limit"] = request.limit
         if request.cursor:
-            params["cursor"] = request.cursor
+            if self.is_cloud:
+                params["cursor"] = request.cursor
+            else:
+                params["start"] = request.cursor
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"List pages returned 404: {resp.text}")
+                    return ListConfluencePagesResponse(
+                        execution_status="success",
+                        execution_message="No pages found or the endpoint is unavailable.",
+                        pages=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list pages: {resp.status_code} {resp.text}"
@@ -169,10 +220,22 @@ class ConfluenceClient:
                         pages=[],
                     )
                 data = resp.json()
+
+                next_cursor = None
+                next_link = data.get("_links", {}).get("next")
+                if next_link:
+                    import urllib.parse
+
+                    parsed = urllib.parse.urlparse(next_link)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    param_name = "cursor" if self.is_cloud else "start"
+                    if param_name in qs:
+                        next_cursor = qs[param_name][0]
+
                 return ListConfluencePagesResponse(
                     execution_status="success",
                     pages=data.get("results", []),
-                    next_cursor=data.get("_links", {}).get("next"),
+                    next_cursor=next_cursor,
                 )
         except Exception as e:
             logger.exception("Exception in list_pages")
@@ -186,18 +249,32 @@ class ConfluenceClient:
         self, request: SearchConfluencePagesRequest
     ) -> SearchConfluencePagesResponse:
         """CQL-based page discovery (v1 search)."""
-        url = f"{self.instance_url}/wiki/rest/api/content/search"
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/rest/api/content/search"
+        else:
+            url = f"{self.instance_url}/rest/api/content/search"
+
         params = {"cql": request.cql}
         if request.limit:
             params["limit"] = request.limit
         if request.next_page_token:
-            params["nextPageToken"] = request.next_page_token
+            if self.is_cloud:
+                params["nextPageToken"] = request.next_page_token
+            else:
+                params["start"] = int(request.next_page_token)
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Search pages returned 404: {resp.text}")
+                    return SearchConfluencePagesResponse(
+                        execution_status="success",
+                        execution_message="The CQL query returned no results or the resource was not found. Try broadening your query.",
+                        pages=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to search pages: {resp.status_code} {resp.text}"
@@ -208,10 +285,22 @@ class ConfluenceClient:
                         pages=[],
                     )
                 data = resp.json()
+                pages = data.get("results", [])
+
+                next_page_token = None
+                if self.is_cloud:
+                    next_page_token = data.get("nextPageToken")
+                else:
+                    start = data.get("start", 0)
+                    limit = data.get("limit", 25)
+                    size = data.get("size", 0)
+                    if size >= limit:
+                        next_page_token = str(start + limit)
+
                 return SearchConfluencePagesResponse(
                     execution_status="success",
-                    pages=data.get("results", []),
-                    next_page_token=data.get("nextPageToken"),
+                    pages=pages,
+                    next_page_token=next_page_token,
                 )
         except Exception as e:
             logger.exception("Exception in search_pages")
@@ -225,10 +314,21 @@ class ConfluenceClient:
         self, request: GetConfluencePageDetailsRequest
     ) -> GetConfluencePageDetailsResponse:
         """Fetch metadata of a single Confluence page."""
-        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
+        else:
+            url = f"{self.instance_url}/rest/api/content/{request.page_id}"
+
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
+                if resp.status_code == 404:
+                    logger.warning(f"Page not found: {resp.text}")
+                    return GetConfluencePageDetailsResponse(
+                        execution_status="success",
+                        execution_message=f"Page '{request.page_id}' was not found. Verify the page ID.",
+                        page=None,
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to get page details: {resp.status_code} {resp.text}"
@@ -255,13 +355,28 @@ class ConfluenceClient:
         self, request: ReadConfluencePageRequest
     ) -> ReadConfluencePageResponse:
         """Fetch page content, translate to Markdown, and stream to GCS Landing Zone."""
-        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
-        params = {"body-format": "storage"}
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
+            params = {"body-format": "storage"}
+        else:
+            url = f"{self.instance_url}/rest/api/content/{request.page_id}"
+            params = {"expand": "body.storage,version,space"}
+
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Page body not found: {resp.text}")
+                    return ReadConfluencePageResponse(
+                        execution_status="success",
+                        execution_message=f"Page '{request.page_id}' was not found. Verify the page ID.",
+                        gcs_uri=None,
+                        mime_type=None,
+                        filename=None,
+                        inject_file_data=False,
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to fetch page body: {resp.status_code} {resp.text}"
@@ -337,21 +452,41 @@ class ConfluenceClient:
         self, request: CreateConfluencePageRequest
     ) -> CreateConfluencePageResponse:
         """Create a new page in Confluence."""
-        url = f"{self.instance_url}/wiki/api/v2/pages"
-        payload = {
-            "spaceId": request.space_id,
-            "status": "current",
-            "title": request.title,
-            "body": {"representation": "storage", "value": request.body_html},
-        }
-        if request.parent_id:
-            payload["parentId"] = request.parent_id
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages"
+            payload = {
+                "spaceId": request.space_id,
+                "status": "current",
+                "title": request.title,
+                "body": {"representation": "storage", "value": request.body_html},
+            }
+            if request.parent_id:
+                payload["parentId"] = request.parent_id
+        else:
+            url = f"{self.instance_url}/rest/api/content"
+            payload = {
+                "type": "page",
+                "title": request.title,
+                "space": {"key": request.space_id},
+                "body": {
+                    "storage": {"value": request.body_html, "representation": "storage"}
+                },
+            }
+            if request.parent_id:
+                payload["ancestors"] = [{"id": request.parent_id}]
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     url, json=payload, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Create page returned 404: {resp.text}")
+                    return CreateConfluencePageResponse(
+                        execution_status="error",
+                        execution_message="The target space or parent page was not found. Verify space ID and parent ID.",
+                        page=None,
+                    )
                 if resp.status_code not in (200, 201):
                     logger.error(
                         f"Failed to create page: {resp.status_code} {resp.text}"
@@ -378,20 +513,39 @@ class ConfluenceClient:
         self, request: UpdateConfluencePageRequest
     ) -> UpdateConfluencePageResponse:
         """Update an existing page in Confluence."""
-        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
-        payload = {
-            "id": request.page_id,
-            "status": "current",
-            "title": request.title,
-            "body": {"representation": "storage", "value": request.body_html},
-            "version": {"number": request.version_number},
-        }
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
+            payload = {
+                "id": request.page_id,
+                "status": "current",
+                "title": request.title,
+                "body": {"representation": "storage", "value": request.body_html},
+                "version": {"number": request.version_number},
+            }
+        else:
+            url = f"{self.instance_url}/rest/api/content/{request.page_id}"
+            payload = {
+                "id": request.page_id,
+                "type": "page",
+                "title": request.title,
+                "body": {
+                    "storage": {"value": request.body_html, "representation": "storage"}
+                },
+                "version": {"number": request.version_number},
+            }
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.put(
                     url, json=payload, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Page to update not found: {resp.text}")
+                    return UpdateConfluencePageResponse(
+                        execution_status="error",
+                        execution_message=f"Page '{request.page_id}' was not found. Verify the page ID.",
+                        page=None,
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to update page: {resp.status_code} {resp.text}"
@@ -418,18 +572,32 @@ class ConfluenceClient:
         self, request: ListConfluencePageAttachmentsRequest
     ) -> ListConfluencePageAttachmentsResponse:
         """List attachments on a specific page."""
-        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/attachments"
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/attachments"
+        else:
+            url = f"{self.instance_url}/rest/api/content/{request.page_id}/child/attachment"
+
         params = {}
         if request.limit:
             params["limit"] = request.limit
         if request.cursor:
-            params["cursor"] = request.cursor
+            if self.is_cloud:
+                params["cursor"] = request.cursor
+            else:
+                params["start"] = request.cursor
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Page attachments not found: {resp.text}")
+                    return ListConfluencePageAttachmentsResponse(
+                        execution_status="success",
+                        execution_message=f"Page '{request.page_id}' was not found or has no attachments.",
+                        attachments=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list page attachments: {resp.status_code} {resp.text}"
@@ -440,10 +608,22 @@ class ConfluenceClient:
                         attachments=[],
                     )
                 data = resp.json()
+
+                next_cursor = None
+                next_link = data.get("_links", {}).get("next")
+                if next_link:
+                    import urllib.parse
+
+                    parsed = urllib.parse.urlparse(next_link)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    param_name = "cursor" if self.is_cloud else "start"
+                    if param_name in qs:
+                        next_cursor = qs[param_name][0]
+
                 return ListConfluencePageAttachmentsResponse(
                     execution_status="success",
                     attachments=data.get("results", []),
-                    next_cursor=data.get("_links", {}).get("next"),
+                    next_cursor=next_cursor,
                 )
         except Exception as e:
             logger.exception("Exception in list_page_attachments")
@@ -457,10 +637,21 @@ class ConfluenceClient:
         self, request: GetConfluenceAttachmentDetailsRequest
     ) -> GetConfluenceAttachmentDetailsResponse:
         """Fetch metadata for a specific attachment."""
-        url = f"{self.instance_url}/wiki/api/v2/attachments/{request.attachment_id}"
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/attachments/{request.attachment_id}"
+        else:
+            url = f"{self.instance_url}/rest/api/content/{request.attachment_id}"
+
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
+                if resp.status_code == 404:
+                    logger.warning(f"Attachment not found: {resp.text}")
+                    return GetConfluenceAttachmentDetailsResponse(
+                        execution_status="success",
+                        execution_message=f"Attachment '{request.attachment_id}' was not found. Verify the attachment ID.",
+                        attachment=None,
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to get attachment details: {resp.status_code} {resp.text}"
@@ -487,18 +678,34 @@ class ConfluenceClient:
         self, request: ListConfluencePageCommentsRequest
     ) -> ListConfluencePageCommentsResponse:
         """List footer comments for a specific page."""
-        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
+        else:
+            url = (
+                f"{self.instance_url}/rest/api/content/{request.page_id}/child/comment"
+            )
+
         params = {}
         if request.limit:
             params["limit"] = request.limit
         if request.cursor:
-            params["cursor"] = request.cursor
+            if self.is_cloud:
+                params["cursor"] = request.cursor
+            else:
+                params["start"] = request.cursor
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Page comments not found: {resp.text}")
+                    return ListConfluencePageCommentsResponse(
+                        execution_status="success",
+                        execution_message=f"Page '{request.page_id}' was not found or has no comments.",
+                        comments=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list page comments: {resp.status_code} {resp.text}"
@@ -509,10 +716,22 @@ class ConfluenceClient:
                         comments=[],
                     )
                 data = resp.json()
+
+                next_cursor = None
+                next_link = data.get("_links", {}).get("next")
+                if next_link:
+                    import urllib.parse
+
+                    parsed = urllib.parse.urlparse(next_link)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    param_name = "cursor" if self.is_cloud else "start"
+                    if param_name in qs:
+                        next_cursor = qs[param_name][0]
+
                 return ListConfluencePageCommentsResponse(
                     execution_status="success",
                     comments=data.get("results", []),
-                    next_cursor=data.get("_links", {}).get("next"),
+                    next_cursor=next_cursor,
                 )
         except Exception as e:
             logger.exception("Exception in list_page_comments")
@@ -526,19 +745,37 @@ class ConfluenceClient:
         self, request: CreateConfluencePageCommentRequest
     ) -> CreateConfluencePageCommentResponse:
         """Create a comment on a Confluence page."""
-        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
-        payload = {
-            "status": "current",
-            "body": {"representation": "storage", "value": request.body_html},
-        }
-        if request.parent_comment_id:
-            payload["parentCommentId"] = request.parent_comment_id
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
+            payload = {
+                "status": "current",
+                "body": {"representation": "storage", "value": request.body_html},
+            }
+            if request.parent_comment_id:
+                payload["parentCommentId"] = request.parent_comment_id
+        else:
+            url = f"{self.instance_url}/rest/api/content"
+            payload = {
+                "type": "comment",
+                "container": {"id": request.page_id, "type": "page"},
+                "body": {
+                    "storage": {"value": request.body_html, "representation": "storage"}
+                },
+            }
+            # Parent comment is not standard in simple Server POST content; omitted for basic compat
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     url, json=payload, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Comment creation target not found: {resp.text}")
+                    return CreateConfluencePageCommentResponse(
+                        execution_status="error",
+                        execution_message=f"Page '{request.page_id}' was not found. Verify the page ID.",
+                        comment=None,
+                    )
                 if resp.status_code not in (200, 201):
                     logger.error(
                         f"Failed to create comment: {resp.status_code} {resp.text}"
@@ -565,18 +802,32 @@ class ConfluenceClient:
         self, request: ListConfluencePageLabelsRequest
     ) -> ListConfluencePageLabelsResponse:
         """List labels associated with a specific page."""
-        url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/labels"
+        if self.is_cloud:
+            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/labels"
+        else:
+            url = f"{self.instance_url}/rest/api/content/{request.page_id}/label"
+
         params = {}
         if request.limit:
             params["limit"] = request.limit
         if request.cursor:
-            params["cursor"] = request.cursor
+            if self.is_cloud:
+                params["cursor"] = request.cursor
+            else:
+                params["start"] = request.cursor
 
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     url, params=params, headers=self.headers, timeout=30
                 )
+                if resp.status_code == 404:
+                    logger.warning(f"Page labels not found: {resp.text}")
+                    return ListConfluencePageLabelsResponse(
+                        execution_status="success",
+                        execution_message=f"Page '{request.page_id}' was not found or has no labels.",
+                        labels=[],
+                    )
                 if resp.status_code != 200:
                     logger.error(
                         f"Failed to list page labels: {resp.status_code} {resp.text}"
@@ -587,10 +838,22 @@ class ConfluenceClient:
                         labels=[],
                     )
                 data = resp.json()
+
+                next_cursor = None
+                next_link = data.get("_links", {}).get("next")
+                if next_link:
+                    import urllib.parse
+
+                    parsed = urllib.parse.urlparse(next_link)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    param_name = "cursor" if self.is_cloud else "start"
+                    if param_name in qs:
+                        next_cursor = qs[param_name][0]
+
                 return ListConfluencePageLabelsResponse(
                     execution_status="success",
                     labels=data.get("results", []),
-                    next_cursor=data.get("_links", {}).get("next"),
+                    next_cursor=next_cursor,
                 )
         except Exception as e:
             logger.exception("Exception in list_page_labels")
