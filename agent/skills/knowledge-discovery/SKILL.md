@@ -97,6 +97,8 @@ The current Google Cloud project ID is `<project_id>`. Use this logic to disting
 ### CALENDAR
 - The response schema includes `server_current_time_utc`. Use this along with the events' timezones to accurately classify events as `Past` or `Future` relative to the server time.
 - Display Format: render each event as a bullet-point block (Title, Time, Attendees, Meet link, Attachments, Description) separated by `---`.
+- **Deep Extraction**: Use `outlook_read_calendar_event(event_id=<id>)` after initial search lists are generated if you need to extract the full HTML/Text body, complete attendee lists, or exact attachment metadata.
+- **Attachments**: Use `outlook_read_calendar_event_attachment()` when reading a specific file attached to an Outlook calendar event.
 
 ### MICROSOFT OUTLOOK
 - **Default Search**: Use `outlook_list_emails()` for any request to find, search, investigate, or summarize emails. Your search parameters MUST target the entire mailbox across all Outlook folders simultaneously. Do NOT limit the search to a specific folder (like Inbox or Sent Items) unless explicitly requested.
