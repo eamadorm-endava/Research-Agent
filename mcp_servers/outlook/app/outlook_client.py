@@ -609,7 +609,7 @@ class OutlookClient:
             "attachments": processed_attachments,
         }
 
-    async def _sync_stream_to_landing_zone(
+    def _sync_stream_to_landing_zone(
         self,
         content_endpoint: str,
         content_type: str,
