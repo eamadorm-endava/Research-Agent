@@ -28,18 +28,12 @@ from .schemas import (
     GetConfluencePageDetailsResponse,
     ReadConfluencePageRequest,
     ReadConfluencePageResponse,
-    CreateConfluencePageRequest,
-    CreateConfluencePageResponse,
-    UpdateConfluencePageRequest,
-    UpdateConfluencePageResponse,
     ListConfluencePageAttachmentsRequest,
     ListConfluencePageAttachmentsResponse,
     GetConfluenceAttachmentDetailsRequest,
     GetConfluenceAttachmentDetailsResponse,
     ListConfluencePageCommentsRequest,
     ListConfluencePageCommentsResponse,
-    CreateConfluencePageCommentRequest,
-    CreateConfluencePageCommentResponse,
     ListConfluencePageLabelsRequest,
     ListConfluencePageLabelsResponse,
 )
@@ -343,56 +337,6 @@ async def read_confluence_page(
 
 
 @mcp.tool()
-async def create_confluence_page(
-    request: CreateConfluencePageRequest,
-) -> CreateConfluencePageResponse:
-    """Create a new page in Confluence.
-
-    Args:
-        request: CreateConfluencePageRequest -> Creation attributes (title, body HTML, space ID)
-
-    Returns:
-        CreateConfluencePageResponse -> Created page metadata
-    """
-    logger.info(f"Tool call: create_confluence_page(title='{request.title}')")
-    try:
-        client = create_atlassian_client()
-        return await client.create_confluence_page(request)
-    except Exception as e:
-        logger.exception("Error creating Confluence page")
-        return CreateConfluencePageResponse(
-            execution_status="error",
-            execution_message=f"Exception: {str(e)}",
-            page=None,
-        )
-
-
-@mcp.tool()
-async def update_confluence_page(
-    request: UpdateConfluencePageRequest,
-) -> UpdateConfluencePageResponse:
-    """Update an existing Confluence page.
-
-    Args:
-        request: UpdateConfluencePageRequest -> Update attributes (page ID, title, version, HTML body)
-
-    Returns:
-        UpdateConfluencePageResponse -> Updated page metadata
-    """
-    logger.info(f"Tool call: update_confluence_page(id='{request.page_id}')")
-    try:
-        client = create_atlassian_client()
-        return await client.update_confluence_page(request)
-    except Exception as e:
-        logger.exception("Error updating Confluence page")
-        return UpdateConfluencePageResponse(
-            execution_status="error",
-            execution_message=f"Exception: {str(e)}",
-            page=None,
-        )
-
-
-@mcp.tool()
 async def list_confluence_page_attachments(
     request: ListConfluencePageAttachmentsRequest,
 ) -> ListConfluencePageAttachmentsResponse:
@@ -466,33 +410,6 @@ async def list_confluence_page_comments(
             execution_status="error",
             execution_message=f"Exception: {str(e)}",
             comments=[],
-        )
-
-
-@mcp.tool()
-async def create_confluence_page_comment(
-    request: CreateConfluencePageCommentRequest,
-) -> CreateConfluencePageCommentResponse:
-    """Create a comment on a Confluence page.
-
-    Args:
-        request: CreateConfluencePageCommentRequest -> Body HTML, page ID, parent comment ID
-
-    Returns:
-        CreateConfluencePageCommentResponse -> Created comment details
-    """
-    logger.info(
-        f"Tool call: create_confluence_page_comment(page_id='{request.page_id}')"
-    )
-    try:
-        client = create_atlassian_client()
-        return await client.create_confluence_page_comment(request)
-    except Exception as e:
-        logger.exception("Error creating Confluence comment")
-        return CreateConfluencePageCommentResponse(
-            execution_status="error",
-            execution_message=f"Exception: {str(e)}",
-            comment=None,
         )
 
 

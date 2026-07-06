@@ -1,6 +1,6 @@
 # Module Documentation - Atlassian (Jira & Confluence) MCP Server
 
-This module provides a unified integration wrapper for the **Atlassian Jira Cloud REST API (v3)** and **Atlassian Confluence Cloud REST API (v2)**. It exposes standard Model Context Protocol (MCP) tools for AI agents to discover, query, create, and update project data, tickets, Confluence spaces, pages, comments, labels, and attachments.
+This module provides a unified integration wrapper for the **Atlassian Jira Cloud REST API (v3)** and **Atlassian Confluence Cloud REST API (v2)**. It exposes standard Model Context Protocol (MCP) tools for AI agents to discover and query project data, tickets, Confluence spaces, pages, comments, labels, and attachments without mutating Atlassian content.
 
 ---
 
@@ -52,7 +52,7 @@ Static credentials are still supported for legacy local runs where no MCP auth c
 
 ## 3. Supported MCP Tools
 
-The Atlassian MCP server exposes the following tools to the reasoning engine:
+The Atlassian MCP server exposes the following read-only tools to the reasoning engine:
 
 ### 3.1 Jira Tools
 1.  **`list_jira_projects`**: Lists all projects available in Jira.
@@ -68,13 +68,10 @@ The Atlassian MCP server exposes the following tools to the reasoning engine:
 9.  **`search_confluence_pages`**: Searches Confluence pages using Confluence Query Language (CQL).
 10. **`get_confluence_page_details`**: Retrieves metadata of a single Confluence page.
 11. **`read_confluence_page`**: Retrieves page content, converts HTML/storage format to Markdown, streams it to the **GCS Landing Zone**, and returns the GCS URI with the `inject_file_data: True` flag.
-12. **`create_confluence_page`**: Creates a new page in Confluence.
-13. **`update_confluence_page`**: Updates an existing Confluence page (requires version number incrementation).
-14. **`list_confluence_page_attachments`**: Lists files attached to a specific page.
-15. **`get_confluence_attachment_details`**: Retrieves metadata of a specific attachment.
-16. **`list_confluence_page_comments`**: Lists footer comments for a specific page.
-17. **`create_confluence_page_comment`**: Creates a footer comment on a specific page.
-18. **`list_confluence_page_labels`**: Lists labels/tags associated with a page.
+12. **`list_confluence_page_attachments`**: Lists files attached to a specific page.
+13. **`get_confluence_attachment_details`**: Retrieves metadata of a specific attachment.
+14. **`list_confluence_page_comments`**: Lists footer comments for a specific page.
+15. **`list_confluence_page_labels`**: Lists labels/tags associated with a page.
 
 ---
 

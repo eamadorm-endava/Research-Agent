@@ -178,7 +178,6 @@ class AtlassianMCPConfig(BaseMCPConfig):
         "read:jira-user",
         "read:confluence-content.all",
         "read:confluence-space.summary",
-        "write:confluence-content",
     ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
