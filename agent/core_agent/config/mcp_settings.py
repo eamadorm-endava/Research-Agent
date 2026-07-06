@@ -235,6 +235,7 @@ class OutlookMCPConfig(BaseMCPConfig):
     OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
         "User.Read",
         "Mail.Read",
+        "Calendars.Read",
         "email",
         "offline_access",
         "openid",
