@@ -18,8 +18,8 @@ class GCSConnector:
             logger.info(
                 f"GCSConnector initialized successfully for bucket {self.bucket_name}."
             )
-        except Exception as e:
-            logger.error(f"Failed to initialize GCSConnector: {e}")
+        except Exception as exception:
+            logger.error(f"Failed to initialize GCSConnector: {exception}")
             raise
 
     def upload_stream(
@@ -80,8 +80,8 @@ class GCSConnector:
 
             return f"gs://{self.bucket_name}/{object_name}"
 
-        except Exception as e:
-            logger.error(f"Error uploading to Landing Zone: {e}")
+        except Exception as exception:
+            logger.error(f"Error uploading to Landing Zone: {exception}")
             raise
 
     def _grant_user_access(self, app_name: str, user_id: str) -> None:
@@ -139,8 +139,8 @@ class GCSConnector:
                 f"Granted roles/storage.objectAdmin to '{member}' for prefix '{resource_prefix}'"
             )
 
-        except Exception as e:
+        except Exception as exception:
             logger.error(
-                f"Error granting folder IAM condition on {self.bucket_name}: {e}"
+                f"Error granting folder IAM condition on {self.bucket_name}: {exception}"
             )
             raise
