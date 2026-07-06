@@ -21,8 +21,6 @@ from .schemas import (
     ReadEmailResponse,
     ReadFileRequest,
     ReadFileResponse,
-
-    DownloadableFiles,
     CalendarEventPreview,
     CalendarEventFull,
     ListCalendarEventsRequest,
@@ -81,9 +79,6 @@ def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
         is_read=msg_dict.get("is_read", True),
         folder_name=msg_dict.get("folder_name", "Unknown Folder"),
     )
-
-
-
 
 
 # =====================================================================
@@ -409,7 +404,7 @@ async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileRes
             email_id=request.email_id,
             attachment_id=request.file_id,
             dependencies=request.dependencies,
-            is_calendar=False
+            is_calendar=False,
         )
 
         if result.get("is_reference"):
@@ -442,21 +437,21 @@ async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileRes
         )
 
 
-
-
-
 # =====================================================================
 # Calendar Operations
 # =====================================================================
 
+
 @mcp.tool()
-async def outlook_list_calendar_events(request: ListCalendarEventsRequest) -> ListCalendarEventsResponse:
+async def outlook_list_calendar_events(
+    request: ListCalendarEventsRequest,
+) -> ListCalendarEventsResponse:
     """
     Lists calendar events using Microsoft Graph API with optional date/time and text filters.
-    
+
     Args:
         request: ListCalendarEventsRequest -> The request payload containing search parameters
-        
+
     Returns:
         ListCalendarEventsResponse -> The response containing matching events
     """
@@ -469,60 +464,60 @@ async def outlook_list_calendar_events(request: ListCalendarEventsRequest) -> Li
             date_max=request.date_max,
             time_max=request.time_max,
             sort_order=request.sort_order,
-            search_term=request.search_term
+            search_term=request.search_term,
         )
-        
+
         parsed_events = [CalendarEventPreview(**event_data) for event_data in events]
-        
+
         from datetime import datetime, timezone
+
         current_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return ListCalendarEventsResponse(
-            server_current_time_utc=current_time,
-            events=parsed_events
+            server_current_time_utc=current_time, events=parsed_events
         )
     except Exception as exception:
         logger.exception("Error during outlook_list_calendar_events execution")
         return ListCalendarEventsResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exception)
+            execution_status=ExecutionStatus.ERROR, error_message=str(exception)
         )
 
 
 @mcp.tool()
-async def outlook_read_calendar_event(request: ReadCalendarEventRequest) -> ReadCalendarEventResponse:
+async def outlook_read_calendar_event(
+    request: ReadCalendarEventRequest,
+) -> ReadCalendarEventResponse:
     """
     Fetches the full details of a specific calendar event including its attachments.
-    
+
     Args:
         request: ReadCalendarEventRequest -> The request payload containing the event ID
-        
+
     Returns:
         ReadCalendarEventResponse -> The response containing complete event details
     """
     try:
         client = create_outlook_client()
         event_dict = await client.read_calendar_event(request.event_id)
-        
-        return ReadCalendarEventResponse(
-            event=CalendarEventFull(**event_dict)
-        )
+
+        return ReadCalendarEventResponse(event=CalendarEventFull(**event_dict))
     except Exception as exception:
         logger.exception("Error during outlook_read_calendar_event execution")
         return ReadCalendarEventResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exception)
+            execution_status=ExecutionStatus.ERROR, error_message=str(exception)
         )
 
 
 @mcp.tool()
-async def outlook_read_calendar_event_attachment(request: ReadCalendarEventAttachmentRequest) -> ReadCalendarEventAttachmentResponse:
+async def outlook_read_calendar_event_attachment(
+    request: ReadCalendarEventAttachmentRequest,
+) -> ReadCalendarEventAttachmentResponse:
     """
     Downloads a file attachment from a calendar event to the GCS Landing Zone.
-    
+
     Args:
         request: ReadCalendarEventAttachmentRequest -> The request payload containing event and attachment IDs
-        
+
     Returns:
         ReadCalendarEventAttachmentResponse -> The response containing the GCS URI of the injected file
     """
@@ -535,7 +530,7 @@ async def outlook_read_calendar_event_attachment(request: ReadCalendarEventAttac
             email_id=request.event_id,
             attachment_id=request.file_id,
             dependencies=request.dependencies,
-            is_calendar=True
+            is_calendar=True,
         )
 
         if result.get("is_reference"):
@@ -556,8 +551,9 @@ async def outlook_read_calendar_event_attachment(request: ReadCalendarEventAttac
         )
 
     except Exception as exc:
-        logger.exception("Error during outlook_read_calendar_event_attachment execution")
+        logger.exception(
+            "Error during outlook_read_calendar_event_attachment execution"
+        )
         return ReadCalendarEventAttachmentResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exc)
+            execution_status=ExecutionStatus.ERROR, error_message=str(exc)
         )

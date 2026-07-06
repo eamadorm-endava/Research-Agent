@@ -1,14 +1,12 @@
 import httpx
 from loguru import logger
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional
 import time
-import base64
 
 from .gcs_connector import GCSConnector
 from pydantic import SecretStr
 from .config import OUTLOOK_SERVER_CONFIG
 from .schemas import (
-    OutlookRecipient,
     ListEmailsRequest,
     EmailTypeOption,
     SortByOption,
@@ -617,7 +615,9 @@ class OutlookClient:
                 "name": att.get("name"),
                 "content_type": att.get("contentType"),
                 "size": att.get("size"),
-                "attachment_type": att.get("@odata.type", "#microsoft.graph.fileAttachment"),
+                "attachment_type": att.get(
+                    "@odata.type", "#microsoft.graph.fileAttachment"
+                ),
             }
             for att in raw_attachments
         ]
@@ -711,7 +711,13 @@ class OutlookClient:
                     size=file_size,
                 )
 
-    async def read_attachment(self, email_id: str, attachment_id: str, dependencies: Any, is_calendar: bool = False) -> dict:
+    async def read_attachment(
+        self,
+        email_id: str,
+        attachment_id: str,
+        dependencies: Any,
+        is_calendar: bool = False,
+    ) -> dict:
         """
         Fetches attachment metadata and streams it to the Landing Zone.
         Returns a dict with gcs_uri, mime_type, filename, and type.
@@ -725,38 +731,50 @@ class OutlookClient:
         Returns:
             dict -> The attachment response payload including GCS URI or reference link.
         """
-        async with httpx.AsyncClient(timeout=OUTLOOK_SERVER_CONFIG.timeout_seconds) as client:
-            base_url = f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}/me/events/{email_id}" if is_calendar else f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}/me/messages/{email_id}"
+        async with httpx.AsyncClient(
+            timeout=OUTLOOK_SERVER_CONFIG.timeout_seconds
+        ) as client:
+            base_url = (
+                f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}/me/events/{email_id}"
+                if is_calendar
+                else f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}/me/messages/{email_id}"
+            )
             url = f"{base_url}/attachments/{attachment_id}"
-            
+
             response = await client.get(url, headers=self.headers)
             response.raise_for_status()
             attachment_data = response.json()
 
             odata_type = attachment_data.get("@odata.type", "")
-            
+
             # If it's a reference attachment (stored in OneDrive/SharePoint)
             if "#microsoft.graph.referenceAttachment" in odata_type:
                 return {
                     "is_reference": True,
                     "provider_link": attachment_data.get("sourceUrl"),
-                    "name": attachment_data.get("name")
+                    "name": attachment_data.get("name"),
                 }
 
             # Otherwise, stream the raw binary from /$value endpoint
-            content_type = attachment_data.get("contentType", "application/octet-stream")
-            
+            content_type = attachment_data.get(
+                "contentType", "application/octet-stream"
+            )
+
             from .schemas import DownloadableFiles
+
             allowed_mimes = [e.value for e in DownloadableFiles]
             if content_type not in allowed_mimes:
-                raise ValueError(f"The file extension or MIME type '{content_type}' is not allowed or is not supported yet.")
+                raise ValueError(
+                    f"The file extension or MIME type '{content_type}' is not allowed or is not supported yet."
+                )
 
             filename = attachment_data.get("name", f"attachment_{attachment_id}")
             file_size = attachment_data.get("size", 0)
 
             content_endpoint = f"{url}/$value"
-            
+
             import asyncio
+
             gcs_uri = await asyncio.to_thread(
                 self._sync_stream_to_landing_zone,
                 content_endpoint,
@@ -772,7 +790,7 @@ class OutlookClient:
                 "is_reference": False,
                 "gcs_uri": gcs_uri,
                 "mime_type": content_type,
-                "filename": filename
+                "filename": filename,
             }
 
     # =====================================================================
@@ -791,7 +809,7 @@ class OutlookClient:
     ) -> tuple[list[dict], int]:
         """
         Lists calendar events from Graph API with optional date/time/text filters.
-        
+
         Args:
             max_events: int -> Maximum number of events to return
             date_min: Optional[str] -> Minimum date boundary
@@ -800,7 +818,7 @@ class OutlookClient:
             time_max: Optional[str] -> Maximum time boundary
             sort_order: str -> Sort direction
             search_term: Optional[str] -> Free text search term
-            
+
         Returns:
             tuple[list[dict], int] -> Tuple containing the list of events and the total count
         """
@@ -815,12 +833,14 @@ class OutlookClient:
         if date_min and date_max:
             minimum_time = time_min if time_min else "00:00:00Z"
             maximum_time = time_max if time_max else "23:59:59Z"
-            if "+" not in minimum_time and "Z" not in minimum_time: minimum_time += "Z"
-            if "+" not in maximum_time and "Z" not in maximum_time: maximum_time += "Z"
-            
+            if "+" not in minimum_time and "Z" not in minimum_time:
+                minimum_time += "Z"
+            if "+" not in maximum_time and "Z" not in maximum_time:
+                maximum_time += "Z"
+
             start_datetime = f"{date_min}T{minimum_time}"
             end_datetime = f"{date_max}T{maximum_time}"
-            
+
             filters.append(f"start/dateTime ge '{start_datetime}'")
             filters.append(f"end/dateTime le '{end_datetime}'")
 
@@ -831,12 +851,14 @@ class OutlookClient:
             params["$filter"] = " and ".join(filters)
 
         headers = self.headers.copy()
-        if query or filters:
+        if search_term or filters:
             headers["ConsistencyLevel"] = "eventual"
 
         url = f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}{endpoint}"
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params, timeout=30.0)
+            response = await client.get(
+                url, headers=headers, params=params, timeout=30.0
+            )
             if response.status_code == 401:
                 raise ValueError("Invalid or expired Microsoft access token.")
             response.raise_for_status()
@@ -851,10 +873,10 @@ class OutlookClient:
     def _parse_calendar_event(self, event_payload: dict) -> dict:
         """
         Parses a Graph API event into our Calendar schema.
-        
+
         Args:
             event_payload: dict -> Raw Graph API event dictionary.
-            
+
         Returns:
             dict -> Formatted event matching Calendar schema.
         """
@@ -863,23 +885,31 @@ class OutlookClient:
         duration = f"{start} to {end}"
 
         attendees = []
-        organizer_email = event_payload.get("organizer", {}).get("emailAddress", {}).get("address")
-        
+        organizer_email = (
+            event_payload.get("organizer", {}).get("emailAddress", {}).get("address")
+        )
+
         if organizer_email:
-            attendees.append({
-                "email": organizer_email,
-                "name": event_payload.get("organizer", {}).get("emailAddress", {}).get("name"),
-                "organizer": True
-            })
+            attendees.append(
+                {
+                    "email": organizer_email,
+                    "name": event_payload.get("organizer", {})
+                    .get("emailAddress", {})
+                    .get("name"),
+                    "organizer": True,
+                }
+            )
 
         for attendee_data in event_payload.get("attendees", []):
             email = attendee_data.get("emailAddress", {}).get("address")
             if email and email != organizer_email:
-                attendees.append({
-                    "email": email,
-                    "name": attendee_data.get("emailAddress", {}).get("name"),
-                    "organizer": False
-                })
+                attendees.append(
+                    {
+                        "email": email,
+                        "name": attendee_data.get("emailAddress", {}).get("name"),
+                        "organizer": False,
+                    }
+                )
 
         join_url = None
         if event_payload.get("isOnlineMeeting"):
@@ -895,40 +925,46 @@ class OutlookClient:
             "join_url": join_url,
             "has_attachments": event_payload.get("hasAttachments", False),
             "event_body": event_payload.get("body", {}).get("content", ""),
-            "attachments": [] 
+            "attachments": [],
         }
 
     async def read_calendar_event(self, event_id: str) -> dict:
         """
         Fetches full details of a specific calendar event including attachments.
-        
+
         Args:
             event_id: str -> The unique identifier of the event
-            
+
         Returns:
             dict -> Complete event details dictionary
         """
         endpoint = f"/me/events/{event_id}"
         params = {"$expand": "attachments($select=id,name,contentType,size)"}
-        
+
         url = f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}{endpoint}"
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=self.headers, params=params, timeout=30.0)
+            response = await client.get(
+                url, headers=self.headers, params=params, timeout=30.0
+            )
             if response.status_code == 401:
                 raise ValueError("Invalid or expired Microsoft access token.")
             response.raise_for_status()
             event_payload = response.json()
 
         parsed_event = self._parse_calendar_event(event_payload)
-        
+
         attachments = []
         for attachment_payload in event_payload.get("attachments", []):
-            attachments.append({
-                "attachment_id": attachment_payload.get("id"),
-                "file_name": attachment_payload.get("name", "Unnamed Attachment"),
-                "mime_type": attachment_payload.get("contentType", "application/octet-stream"),
-                "size": attachment_payload.get("size", 0)
-            })
+            attachments.append(
+                {
+                    "attachment_id": attachment_payload.get("id"),
+                    "file_name": attachment_payload.get("name", "Unnamed Attachment"),
+                    "mime_type": attachment_payload.get(
+                        "contentType", "application/octet-stream"
+                    ),
+                    "size": attachment_payload.get("size", 0),
+                }
+            )
         parsed_event["attachments"] = attachments
-        
+
         return parsed_event

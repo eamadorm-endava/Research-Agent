@@ -138,7 +138,13 @@ class AttachmentInfo(BaseModel):
     mime_type: Annotated[str, Field(description="MIME type of the file")]
     attachment_id: Annotated[str, Field(description="Unique ID of the attachment")]
     size: Annotated[int, Field(description="Size of the attachment in bytes")]
-    attachment_type: Annotated[str, Field(default="#microsoft.graph.fileAttachment", description="The OData type of the attachment (e.g. #microsoft.graph.referenceAttachment or #microsoft.graph.fileAttachment)")]
+    attachment_type: Annotated[
+        str,
+        Field(
+            default="#microsoft.graph.fileAttachment",
+            description="The OData type of the attachment (e.g. #microsoft.graph.referenceAttachment or #microsoft.graph.fileAttachment)",
+        ),
+    ]
 
 
 class FolderInfo(BaseModel):
@@ -214,31 +220,70 @@ class Attendee(BaseModel):
     """
     Data structure representing a calendar event attendee, including their email, name, and organizer status.
     """
+
     email: Annotated[str, Field(description="Email address of the attendee")]
-    name: Annotated[Optional[str], Field(default=None, description="Name of the attendee")]
-    organizer: Annotated[bool, Field(default=False, description="True if this attendee is the meeting organizer")]
+    name: Annotated[
+        Optional[str], Field(default=None, description="Name of the attendee")
+    ]
+    organizer: Annotated[
+        bool,
+        Field(
+            default=False, description="True if this attendee is the meeting organizer"
+        ),
+    ]
 
 
 class CalendarEventPreview(BaseModel):
     """
     Core data structure containing the primary details of a calendar event, suitable for list views.
     """
-    event_id: Annotated[str, Field(description="Unique identifier for the calendar event")]
-    event_name: Annotated[Optional[str], Field(default="", description="Subject or name of the event")]
-    event_description: Annotated[Optional[str], Field(default="", description="A short preview of the event body")]
-    start_time: Annotated[str, Field(description="Start time of the event in ISO format")]
-    duration: Annotated[str, Field(description="Duration of the event (e.g., 'PT1H') or calculated from start/end")]
-    attendees: Annotated[list[Attendee], Field(default_factory=list, description="List of participants")]
-    join_url: Annotated[Optional[str], Field(default=None, description="URL to join the online meeting (e.g. Teams, WebEx)")]
-    has_attachments: Annotated[bool, Field(default=False, description="True if the event has attachments")]
+
+    event_id: Annotated[
+        str, Field(description="Unique identifier for the calendar event")
+    ]
+    event_name: Annotated[
+        Optional[str], Field(default="", description="Subject or name of the event")
+    ]
+    event_description: Annotated[
+        Optional[str],
+        Field(default="", description="A short preview of the event body"),
+    ]
+    start_time: Annotated[
+        str, Field(description="Start time of the event in ISO format")
+    ]
+    duration: Annotated[
+        str,
+        Field(
+            description="Duration of the event (e.g., 'PT1H') or calculated from start/end"
+        ),
+    ]
+    attendees: Annotated[
+        list[Attendee], Field(default_factory=list, description="List of participants")
+    ]
+    join_url: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="URL to join the online meeting (e.g. Teams, WebEx)",
+        ),
+    ]
+    has_attachments: Annotated[
+        bool, Field(default=False, description="True if the event has attachments")
+    ]
 
 
 class CalendarEventFull(CalendarEventPreview):
     """
     Extended data structure containing the full details of a calendar event, including its body and attachments.
     """
-    event_body: Annotated[Optional[str], Field(default="", description="The complete body of the event")]
-    attachments: Annotated[list[AttachmentInfo], Field(default_factory=list, description="List of all attachments")]
+
+    event_body: Annotated[
+        Optional[str], Field(default="", description="The complete body of the event")
+    ]
+    attachments: Annotated[
+        list[AttachmentInfo],
+        Field(default_factory=list, description="List of all attachments"),
+    ]
 
 
 # Reusable Type Aliases for Calendar
@@ -321,9 +366,7 @@ class ListEmailsRequest(BaseRequest):
         ),
     ]
     sort_by: Annotated[SortByOption, Field(default=SortByOption.DATE)]
-    sort_order: Annotated[
-        SortOrderOption, Field(default=SortOrderOption.DESCENDING)
-    ]
+    sort_order: Annotated[SortOrderOption, Field(default=SortOrderOption.DESCENDING)]
 
     # Pagination and Cache
     page: Annotated[
@@ -423,26 +466,38 @@ class ListCalendarEventsRequest(BaseRequest):
     """
     Request model for listing calendar events using date, time, and text search filters.
     """
-    max_events: Annotated[int, Field(default=30, description="The maximum number of events to return.")]
+
+    max_events: Annotated[
+        int, Field(default=30, description="The maximum number of events to return.")
+    ]
     date_min: DateFilterType
     time_min: TimeFilterType
     date_max: DateFilterType
     time_max: TimeFilterType
     sort_order: Annotated[
         Optional[Literal["asc", "desc"]],
-        Field(default="asc", description="The direction of sorting. 'asc' for ascending, 'desc' for descending (newest first).")
+        Field(
+            default="asc",
+            description="The direction of sorting. 'asc' for ascending, 'desc' for descending (newest first).",
+        ),
     ]
     search_term: Annotated[
         Optional[str],
-        Field(default=None, description="Free text search terms to find events.")
+        Field(default=None, description="Free text search terms to find events."),
     ]
 
     @model_validator(mode="after")
     def validate_time_filters(self) -> Self:
-        if (self.time_min or self.time_max) and (not self.date_min or not self.date_max):
-            raise ValueError("Dates (date_min and date_max) are required when using time filters.")
+        if (self.time_min or self.time_max) and (
+            not self.date_min or not self.date_max
+        ):
+            raise ValueError(
+                "Dates (date_min and date_max) are required when using time filters."
+            )
         if bool(self.date_min) != bool(self.date_max):
-            raise ValueError("Both date_min and date_max are required for a valid date-time search range.")
+            raise ValueError(
+                "Both date_min and date_max are required for a valid date-time search range."
+            )
         return self
 
 
@@ -450,14 +505,22 @@ class ListCalendarEventsResponse(BaseResponse):
     """
     Response model returning a list of calendar event previews.
     """
-    server_current_time_utc: Annotated[Optional[str], Field(default=None, description="The current server time in UTC format.")]
-    events: Annotated[list[CalendarEventPreview], Field(default_factory=list, description="List of calendar events found.")]
+
+    server_current_time_utc: Annotated[
+        Optional[str],
+        Field(default=None, description="The current server time in UTC format."),
+    ]
+    events: Annotated[
+        list[CalendarEventPreview],
+        Field(default_factory=list, description="List of calendar events found."),
+    ]
 
 
 class ReadCalendarEventRequest(BaseRequest):
     """
     Request model for fetching the full details of a specific calendar event.
     """
+
     event_id: Annotated[str, Field(description="The unique ID of the event to read")]
 
 
@@ -465,6 +528,7 @@ class ReadCalendarEventResponse(BaseResponse):
     """
     Response model returning the complete details of a calendar event.
     """
+
     event: Annotated[CalendarEventFull, Field(description="The complete event details")]
 
 
@@ -472,16 +536,23 @@ class ReadCalendarEventAttachmentRequest(BaseRequest):
     """
     Request model for downloading a specific file attachment from a calendar event.
     """
+
     filename: Annotated[str, Field(description="The name of the file to read")]
     file_id: Annotated[str, Field(description="The attachment ID")]
-    event_id: Annotated[str, Field(description="The ID of the event containing the attachment")]
-    use_cache: Annotated[bool, Field(default=True, description="Whether to use cached GCS file if available")]
+    event_id: Annotated[
+        str, Field(description="The ID of the event containing the attachment")
+    ]
+    use_cache: Annotated[
+        bool,
+        Field(default=True, description="Whether to use cached GCS file if available"),
+    ]
 
 
 class ReadCalendarEventAttachmentResponse(ReadFileResponse):
     """
     Response model returning the GCS URI of the downloaded calendar event attachment.
     """
+
     pass
 
 

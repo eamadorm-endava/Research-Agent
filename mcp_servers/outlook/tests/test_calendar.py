@@ -24,18 +24,22 @@ def test_list_calendar_events_request_validation():
     assert req2.time_min is None
 
     # Failure Mode: time without dates
-    with pytest.raises(ValidationError, match="Dates \\(date_min and date_max\\) are required"):
+    with pytest.raises(
+        ValidationError, match="Dates \\(date_min and date_max\\) are required"
+    ):
         ListCalendarEventsRequest(time_min="00:00:00Z")
 
     # Failure Mode: only one date
-    with pytest.raises(ValidationError, match="Both date_min and date_max are required"):
+    with pytest.raises(
+        ValidationError, match="Both date_min and date_max are required"
+    ):
         ListCalendarEventsRequest(date_min="2024-01-01")
 
 
 def test_downloadable_files_enum():
     # Happy Path
     assert DownloadableFiles("application/pdf") == DownloadableFiles.PDF
-    
+
     # Failure Mode
     with pytest.raises(ValueError):
         DownloadableFiles("text/plain")
