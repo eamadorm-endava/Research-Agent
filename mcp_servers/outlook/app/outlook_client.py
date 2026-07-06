@@ -651,7 +651,6 @@ class OutlookClient:
                     user_id=user_id,
                     session_id=session_id,
                     filename=filename,
-                    size=file_size,
                 )
 
     async def read_attachment(
