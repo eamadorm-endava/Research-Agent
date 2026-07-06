@@ -19,11 +19,34 @@ class GetProfileRequest(BaseModel):
 class GetProfileResponse(BaseModel):
     """Response payload containing the authenticated Graph account profile metrics."""
 
-    execution_status: ExecutionStatus = ExecutionStatus.SUCCESS
-    error_message: Optional[str] = None
-    display_name: Optional[str] = None
-    email: Optional[str] = None
-    user_id: Optional[str] = None
+    execution_status: Annotated[
+        ExecutionStatus,
+        Field(
+            default=ExecutionStatus.SUCCESS,
+            description="Whether the operation succeeded or failed.",
+        ),
+    ] = ExecutionStatus.SUCCESS
+    error_message: Annotated[
+        Optional[str],
+        Field(
+            default=None, description="Error message when execution_status is error."
+        ),
+    ] = None
+    display_name: Annotated[
+        Optional[str],
+        Field(default=None, description="The display name of the authenticated user."),
+    ] = None
+    email: Annotated[
+        Optional[str],
+        Field(default=None, description="The email address of the authenticated user."),
+    ] = None
+    user_id: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description="The unique identifier of the authenticated user.",
+        ),
+    ] = None
 
 
 class AgentDependencies(BaseModel):
