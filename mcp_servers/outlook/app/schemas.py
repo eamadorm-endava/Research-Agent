@@ -9,46 +9,6 @@ class ExecutionStatus(str, Enum):
     ERROR = "error"
 
 
-class GetProfileRequest(BaseModel):
-    """Request payload for retrieving the authenticated user's profile context. Requires no arguments."""
-
-    # FastMCP uses this empty model to represent a tool parameter-less query
-    pass
-
-
-class GetProfileResponse(BaseModel):
-    """Response payload containing the authenticated Graph account profile metrics."""
-
-    execution_status: Annotated[
-        ExecutionStatus,
-        Field(
-            default=ExecutionStatus.SUCCESS,
-            description="Whether the operation succeeded or failed.",
-        ),
-    ] = ExecutionStatus.SUCCESS
-    error_message: Annotated[
-        Optional[str],
-        Field(
-            default=None, description="Error message when execution_status is error."
-        ),
-    ] = None
-    display_name: Annotated[
-        Optional[str],
-        Field(default=None, description="The display name of the authenticated user."),
-    ] = None
-    email: Annotated[
-        Optional[str],
-        Field(default=None, description="The email address of the authenticated user."),
-    ] = None
-    user_id: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            description="The unique identifier of the authenticated user.",
-        ),
-    ] = None
-
-
 class AgentDependencies(BaseModel):
     app_name: Annotated[
         str,

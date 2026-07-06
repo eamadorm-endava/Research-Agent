@@ -11,8 +11,6 @@ from .schemas import (
     AttachmentInfo,
     EmailInformationPreview,
     EmailInformationFull,
-    GetProfileRequest,
-    GetProfileResponse,
     ListFoldersRequest,
     ListFoldersResponse,
     ListEmailsRequest,
@@ -70,34 +68,6 @@ def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
         is_read=msg_dict.get("is_read", True),
         folder_name=msg_dict.get("folder_name", "Unknown Folder"),
     )
-
-
-@mcp.tool()
-async def outlook_get_profile(request: GetProfileRequest) -> GetProfileResponse:
-    """
-    Retrieves authenticated context metadata for the currently active user profile.
-
-    Args:
-        request: GetProfileRequest -> The request payload for profile retrieval.
-
-    Returns:
-        GetProfileResponse -> The response payload containing profile metadata.
-    """
-    try:
-        client = create_outlook_client()
-        profile = await client.get_profile()
-
-        return GetProfileResponse(
-            display_name=profile.get("displayName"),
-            email=profile.get("mail") or profile.get("userPrincipalName"),
-            user_id=profile.get("id"),
-        )
-    except Exception as exc:
-        logger.exception("Error during outlook_get_profile execution")
-        return GetProfileResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exc),
-        )
 
 
 @mcp.tool()
