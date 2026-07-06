@@ -3,9 +3,7 @@ from typing import Annotated, Optional, Literal
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing_extensions import Self
 
-# =====================================================================
 # Core Infrastructure Primitives & Pagination
-# =====================================================================
 
 
 class ExecutionStatus(str, Enum):
@@ -97,9 +95,7 @@ class BasePaginatedResponse(BaseModel):
     ] = False
 
 
-# =====================================================================
 # Reusable Enums & Sub-Models
-# =====================================================================
 
 
 class EmailTypeOption(str, Enum):
@@ -158,9 +154,7 @@ class FolderInfo(BaseModel):
     unread_item_count: Annotated[int, Field(description="Number of unread items")]
 
 
-# =====================================================================
 # Core Email Payloads
-# =====================================================================
 
 
 class EmailInformationPreview(BaseModel):
@@ -206,9 +200,7 @@ class EmailInformationFull(EmailInformationPreview):
     ]
 
 
-# =====================================================================
 # Calendar Enums & Payloads
-# =====================================================================
 
 
 class DownloadableFiles(str, Enum):
@@ -306,9 +298,7 @@ TimeFilterType = Annotated[
 ]
 
 
-# =====================================================================
 # Tool 1: outlook_list_folders DTOs
-# =====================================================================
 
 
 class ListFoldersRequest(BaseRequest):
@@ -319,9 +309,7 @@ class ListFoldersResponse(BaseResponse):
     folders: Annotated[list[FolderInfo], Field(description="List of mail folders")]
 
 
-# =====================================================================
 # Tool 2: outlook_list_emails DTOs
-# =====================================================================
 
 
 class ListEmailsRequest(BaseRequest):
@@ -408,9 +396,7 @@ class ListEmailsResponse(BaseResponse, BasePaginatedResponse):
     ]
 
 
-# =====================================================================
 # Tool 3: outlook_read_email DTOs
-# =====================================================================
 
 
 class ReadEmailRequest(BaseRequest):
@@ -423,9 +409,7 @@ class ReadEmailResponse(BaseResponse):
     ]
 
 
-# =====================================================================
 # Tool 4: outlook_read_email_attachment DTOs
-# =====================================================================
 
 
 class ReadFileRequest(BaseRequest):
@@ -457,9 +441,7 @@ class ReadFileResponse(BaseResponse):
     ]
 
 
-# =====================================================================
 # Calendar Tools Requests/Responses
-# =====================================================================
 
 
 class ListCalendarEventsRequest(BaseRequest):

@@ -13,9 +13,7 @@ from .schemas import (
     ReadFileResponse,
 )
 
-# =====================================================================
 # Standalone Payload Sanitization & Extraction Helpers
-# =====================================================================
 
 
 def sanitize_x500_address(
@@ -62,9 +60,7 @@ def parse_personal_data(entity: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-# =====================================================================
 # Main Core Outlook Abstraction Client
-# =====================================================================
 
 
 class OutlookClient:
@@ -185,9 +181,7 @@ class OutlookClient:
             logger.warning(f"Failed to fetch user email context profile: {e}")
             return "Unknown"
 
-    # =====================================================================
     # Tool 1 Implementation Layer: Folder Architecture Mapping
-    # =====================================================================
 
     async def list_folders(self) -> list[dict[str, Any]]:
         """
@@ -234,9 +228,7 @@ class OutlookClient:
         await crawl()
         return folder_map
 
-    # =====================================================================
     # Tool 2 Implementation Layer: Consolidated Multi-Context Mail Listings
-    # =====================================================================
 
     async def list_emails(
         self, criteria: ListEmailsRequest
@@ -251,9 +243,7 @@ class OutlookClient:
         Returns:
             Tuple[list[dict[str, Any]], int] -> A tuple containing the list of processed emails and the total matched count.
         """
-        # =====================================================================
         # BLUEPRINT CACHE CHECK ENTRY GATE
-        # =====================================================================
         start_time = time.perf_counter()
 
         cache_key = None
@@ -271,7 +261,7 @@ class OutlookClient:
             criteria_dict["mcp_tenant_user_id"] = user_id
 
             cache_key = tuple(sorted((k, str(v)) for k, v in criteria_dict.items()))
-            print(f"🔑 GENERATED CACHE KEY: {cache_key}")
+            logger.debug(f"GENERATED CACHE KEY: {cache_key}")
             if cache_key in self._list_emails_cache:
                 timestamp, cached_payload = self._list_emails_cache[cache_key]
 
@@ -285,7 +275,7 @@ class OutlookClient:
                     sliced_page_data = all_processed_emails[start_offset:end_offset]
 
                     duration_ms = (time.perf_counter() - start_time) * 1000
-                    print(
+                    logger.debug(
                         f"[CACHE HIT] Page {criteria.page} sliced from memory in: {duration_ms:.4f} ms"
                     )
 
@@ -331,9 +321,7 @@ class OutlookClient:
 
         query_params["$orderby"] = f"{sort_field} {criteria.sort_order.value}"
 
-        # =====================================================================
         # SANITIZER: Detect if the agent populated identical terms across fields
-        # =====================================================================
         raw_search_terms = set()
         if criteria.sender_receiver:
             raw_search_terms.add(criteria.sender_receiver.strip('" '))
@@ -481,9 +469,7 @@ class OutlookClient:
         if is_search or total_matched is None or total_matched == 0:
             total_matched = len(processed_list)
 
-        # =====================================================================
         # BLUEPRINT CACHE SAVE EXIT GATE
-        # =====================================================================
 
         if criteria.use_cache and cache_key is not None:
             self._sweep_cache()
@@ -498,7 +484,7 @@ class OutlookClient:
         final_sliced_list = processed_list[start_offset:end_offset]
 
         duration_ms = (time.perf_counter() - start_time) * 1000
-        print(
+        logger.debug(
             f"[CACHE MISS] Page {criteria.page} bulk-fetched via Graph API in: {duration_ms:.2f} ms"
         )
 
@@ -746,9 +732,7 @@ class OutlookClient:
                 "filename": filename,
             }
 
-    # =====================================================================
     # Calendar Operations
-    # =====================================================================
 
     async def list_calendar_events(
         self,

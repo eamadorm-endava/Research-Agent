@@ -34,9 +34,7 @@ from .config import OUTLOOK_SERVER_CONFIG
 from .security import MicrosoftTokenVerifier, create_outlook_client
 
 
-# =====================================================================
 # Server Instantiation & Authentication Guard-rails
-# =====================================================================
 
 mcp = FastMCP(
     OUTLOOK_SERVER_CONFIG.server_name,
@@ -53,9 +51,7 @@ mcp = FastMCP(
 )
 
 
-# =====================================================================
 # Structural Conversion & Content Sanitization Helpers
-# =====================================================================
 
 
 def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
@@ -81,9 +77,7 @@ def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
     )
 
 
-# =====================================================================
 # Account & Context Profile Lookups
-# =====================================================================
 
 
 @mcp.tool()
@@ -114,9 +108,7 @@ async def outlook_get_profile(request: GetProfileRequest) -> GetProfileResponse:
         )
 
 
-# =====================================================================
 # Tool 1: Mailbox Architecture Folder Crawls
-# =====================================================================
 
 
 @mcp.tool()
@@ -154,9 +146,7 @@ async def outlook_list_folders(request: ListFoldersRequest) -> ListFoldersRespon
         )
 
 
-# =====================================================================
 # Tool 2: Consolidated List, Advanced Filter, & Paginated KQL Search
-# =====================================================================
 
 
 @mcp.tool()
@@ -205,9 +195,7 @@ async def outlook_list_emails(request: ListEmailsRequest) -> ListEmailsResponse:
         )
 
 
-# =====================================================================
 # Tool 3: Exhaustive Message Inspection & Extraction
-# =====================================================================
 
 
 @mcp.tool()
@@ -345,9 +333,7 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
         )
 
 
-# =====================================================================
 # Tool 4: Direct Attachment Streaming & Cloud Storage Landings
-# =====================================================================
 
 
 @mcp.tool()
@@ -404,9 +390,7 @@ async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileRes
         )
 
 
-# =====================================================================
 # Calendar Operations
-# =====================================================================
 
 
 @mcp.tool()
