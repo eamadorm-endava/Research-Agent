@@ -228,7 +228,7 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
                             or a.get("mime_type")
                             or "application/octet-stream",
                             attachment_id=a.get("id") or a.get("attachment_id"),
-                            size=a.get("size", 0),
+                            size_megabytes=a.get("size_megabytes", 0.0),
                         )
                     )
             else:
@@ -243,7 +243,7 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
                             getattr(a, "contentType", "application/octet-stream"),
                         ),
                         attachment_id=getattr(a, "attachment_id", getattr(a, "id", "")),
-                        size=getattr(a, "size", 0),
+                        size_megabytes=getattr(a, "size_megabytes", 0.0),
                     )
                 )
 

@@ -111,7 +111,9 @@ class AttachmentInfo(BaseModel):
     file_name: Annotated[str, Field(description="Name of the attached file")]
     mime_type: Annotated[str, Field(description="MIME type of the file")]
     attachment_id: Annotated[str, Field(description="Unique ID of the attachment")]
-    size: Annotated[int, Field(description="Size of the attachment in bytes")]
+    size_megabytes: Annotated[
+        float, Field(description="Size of the attachment in megabytes")
+    ]
     attachment_type: Annotated[
         str,
         Field(

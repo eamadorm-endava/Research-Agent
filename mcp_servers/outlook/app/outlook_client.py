@@ -544,7 +544,7 @@ class OutlookClient:
                 "attachment_id": att.get("id"),
                 "name": att.get("name"),
                 "content_type": att.get("contentType"),
-                "size": att.get("size"),
+                "size_megabytes": round(att.get("size", 0) / (1024 * 1024), 2),
                 "attachment_type": att.get(
                     "@odata.type", "#microsoft.graph.fileAttachment"
                 ),
@@ -888,7 +888,9 @@ class OutlookClient:
                     "mime_type": attachment_payload.get(
                         "contentType", "application/octet-stream"
                     ),
-                    "size": attachment_payload.get("size", 0),
+                    "size_megabytes": round(
+                        attachment_payload.get("size", 0) / (1024 * 1024), 2
+                    ),
                 }
             )
         parsed_event["attachments"] = attachments
