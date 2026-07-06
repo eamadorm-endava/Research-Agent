@@ -23,6 +23,7 @@ from .config import (
     OneDriveMCPConfig,
     SharePointMCPConfig,
     AtlassianMCPConfig,
+    OutlookMCPConfig,
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
 )
@@ -37,6 +38,7 @@ GCS_MCP_CONFIG = GCSMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
 ONEDRIVE_MCP_CONFIG = OneDriveMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
 SHAREPOINT_MCP_CONFIG = SharePointMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
 ATLASSIAN_MCP_CONFIG = AtlassianMCPConfig()
+OUTLOOK_MCP_CONFIG = OutlookMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +59,7 @@ research_agent = (
             ATLASSIAN_MCP_CONFIG,
             ONEDRIVE_MCP_CONFIG,
             SHAREPOINT_MCP_CONFIG,
+            OUTLOOK_MCP_CONFIG,
         ]
     )
     .with_native_tools(
