@@ -1,6 +1,6 @@
 ---
 name: knowledge-discovery
-description: MANDATORY PROTOCOL for data retrieval. You MUST trigger this skill whenever the user asks to "search", "find", "look up", "summarize", "investigate", or "retrieve" ANY information. If the user asks a question about a project, person, topic, email, calendar event, or ticket, you MUST trigger this skill first before answering. Examples: "find emails about Project Alpha", "what is the status of the migration?", "search SharePoint for Q3 results".
+description: MANDATORY PROTOCOL for data retrieval. You MUST trigger this skill whenever the user asks to "search", "find", "look up", "summarize", "investigate", or "retrieve" ANY information. If the user asks a question about a project, person, topic, email, calendar event, or ticket, you MUST trigger this skill first before answering. Examples "find emails about Project Alpha", "what is the status of the migration?", "search SharePoint for Q3 results".
 ---
 
 ## Pre-Search Validation
