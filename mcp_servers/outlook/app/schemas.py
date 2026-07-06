@@ -3,8 +3,6 @@ from typing import Annotated, Optional, Literal
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing_extensions import Self
 
-# Core Infrastructure Primitives & Pagination
-
 
 class ExecutionStatus(str, Enum):
     SUCCESS = "success"
@@ -95,9 +93,6 @@ class BasePaginatedResponse(BaseModel):
     ] = False
 
 
-# Reusable Enums & Sub-Models
-
-
 class EmailTypeOption(str, Enum):
     SENT = "sent"
     RECEIVED = "received"
@@ -154,9 +149,6 @@ class FolderInfo(BaseModel):
     unread_item_count: Annotated[int, Field(description="Number of unread items")]
 
 
-# Core Email Payloads
-
-
 class EmailInformationPreview(BaseModel):
     email_id: Annotated[
         str, Field(description="Unique identifier for the email message")
@@ -198,9 +190,6 @@ class EmailInformationFull(EmailInformationPreview):
         list[AttachmentInfo],
         Field(default_factory=list, description="List of all attachments"),
     ]
-
-
-# Calendar Enums & Payloads
 
 
 class DownloadableFiles(str, Enum):
@@ -278,7 +267,6 @@ class CalendarEventFull(CalendarEventPreview):
     ]
 
 
-# Reusable Type Aliases for Calendar
 DateFilterType = Annotated[
     Optional[str],
     Field(
@@ -298,18 +286,12 @@ TimeFilterType = Annotated[
 ]
 
 
-# Tool 1: outlook_list_folders DTOs
-
-
 class ListFoldersRequest(BaseRequest):
     pass
 
 
 class ListFoldersResponse(BaseResponse):
     folders: Annotated[list[FolderInfo], Field(description="List of mail folders")]
-
-
-# Tool 2: outlook_list_emails DTOs
 
 
 class ListEmailsRequest(BaseRequest):
@@ -396,9 +378,6 @@ class ListEmailsResponse(BaseResponse, BasePaginatedResponse):
     ]
 
 
-# Tool 3: outlook_read_email DTOs
-
-
 class ReadEmailRequest(BaseRequest):
     email_id: Annotated[str, Field(description="The unique ID of the email to read")]
 
@@ -407,9 +386,6 @@ class ReadEmailResponse(BaseResponse):
     email: Annotated[
         EmailInformationFull, Field(description="The complete email details")
     ]
-
-
-# Tool 4: outlook_read_email_attachment DTOs
 
 
 class ReadFileRequest(BaseRequest):
@@ -439,9 +415,6 @@ class ReadFileResponse(BaseResponse):
         bool,
         Field(default=True, description="Flag to trigger multimodal file injection"),
     ]
-
-
-# Calendar Tools Requests/Responses
 
 
 class ListCalendarEventsRequest(BaseRequest):

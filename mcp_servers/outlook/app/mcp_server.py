@@ -34,8 +34,6 @@ from .config import OUTLOOK_SERVER_CONFIG
 from .security import MicrosoftTokenVerifier, create_outlook_client
 
 
-# Server Instantiation & Authentication Guard-rails
-
 mcp = FastMCP(
     OUTLOOK_SERVER_CONFIG.server_name,
     stateless_http=OUTLOOK_SERVER_CONFIG.stateless_http,
@@ -49,9 +47,6 @@ mcp = FastMCP(
         ),
     ),
 )
-
-
-# Structural Conversion & Content Sanitization Helpers
 
 
 def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
@@ -75,9 +70,6 @@ def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
         is_read=msg_dict.get("is_read", True),
         folder_name=msg_dict.get("folder_name", "Unknown Folder"),
     )
-
-
-# Account & Context Profile Lookups
 
 
 @mcp.tool()
@@ -106,9 +98,6 @@ async def outlook_get_profile(request: GetProfileRequest) -> GetProfileResponse:
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
         )
-
-
-# Tool 1: Mailbox Architecture Folder Crawls
 
 
 @mcp.tool()
@@ -144,9 +133,6 @@ async def outlook_list_folders(request: ListFoldersRequest) -> ListFoldersRespon
             execution_status=ExecutionStatus.ERROR,
             error_message=str(exc),
         )
-
-
-# Tool 2: Consolidated List, Advanced Filter, & Paginated KQL Search
 
 
 @mcp.tool()
@@ -193,9 +179,6 @@ async def outlook_list_emails(request: ListEmailsRequest) -> ListEmailsResponse:
             objects_found=[],
             total_items_matched=0,
         )
-
-
-# Tool 3: Exhaustive Message Inspection & Extraction
 
 
 @mcp.tool()
@@ -333,9 +316,6 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
         )
 
 
-# Tool 4: Direct Attachment Streaming & Cloud Storage Landings
-
-
 @mcp.tool()
 async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileResponse:
     """
@@ -388,9 +368,6 @@ async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileRes
             filename=request.filename,
             inject_file_data=False,
         )
-
-
-# Calendar Operations
 
 
 @mcp.tool()

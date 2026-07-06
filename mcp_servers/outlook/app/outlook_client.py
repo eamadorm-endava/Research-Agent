@@ -13,8 +13,6 @@ from .schemas import (
     ReadFileResponse,
 )
 
-# Standalone Payload Sanitization & Extraction Helpers
-
 
 def sanitize_x500_address(
     address: str, fallback_name: str, dynamic_user_email: str
@@ -58,9 +56,6 @@ def parse_personal_data(entity: dict[str, Any] | None) -> dict[str, Any]:
         "name": email_address.get("name") or None,
         "email": email_address.get("address") or "unknown@domain.com",
     }
-
-
-# Main Core Outlook Abstraction Client
 
 
 class OutlookClient:
@@ -181,8 +176,6 @@ class OutlookClient:
             logger.warning(f"Failed to fetch user email context profile: {e}")
             return "Unknown"
 
-    # Tool 1 Implementation Layer: Folder Architecture Mapping
-
     async def list_folders(self) -> list[dict[str, Any]]:
         """
         Maps directly to outlook_list_folders by fetching top-level mail spaces.
@@ -228,8 +221,6 @@ class OutlookClient:
         await crawl()
         return folder_map
 
-    # Tool 2 Implementation Layer: Consolidated Multi-Context Mail Listings
-
     async def list_emails(
         self, criteria: ListEmailsRequest
     ) -> Tuple[list[dict[str, Any]], int]:
@@ -243,7 +234,7 @@ class OutlookClient:
         Returns:
             Tuple[list[dict[str, Any]], int] -> A tuple containing the list of processed emails and the total matched count.
         """
-        # BLUEPRINT CACHE CHECK ENTRY GATE
+
         start_time = time.perf_counter()
 
         cache_key = None
@@ -388,10 +379,12 @@ class OutlookClient:
                 )
             elif criteria.sort_by == SortByOption.SENDER:
                 raw_messages.sort(
-                    key=lambda x: (x.get("from", {}) or {})
-                    .get("emailAddress", {})
-                    .get("address", "")
-                    .lower(),
+                    key=lambda x: (
+                        (x.get("from", {}) or {})
+                        .get("emailAddress", {})
+                        .get("address", "")
+                        .lower()
+                    ),
                     reverse=is_descending,
                 )
             else:
@@ -468,8 +461,6 @@ class OutlookClient:
         # and match the total length to prevent pagination breaks.
         if is_search or total_matched is None or total_matched == 0:
             total_matched = len(processed_list)
-
-        # BLUEPRINT CACHE SAVE EXIT GATE
 
         if criteria.use_cache and cache_key is not None:
             self._sweep_cache()
@@ -731,8 +722,6 @@ class OutlookClient:
                 "mime_type": content_type,
                 "filename": filename,
             }
-
-    # Calendar Operations
 
     async def list_calendar_events(
         self,
