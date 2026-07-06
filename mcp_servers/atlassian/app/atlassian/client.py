@@ -43,9 +43,41 @@ from ..schemas import (
 class AtlassianClient:
     """Orchestrator client for the Atlassian Jira and Confluence REST APIs."""
 
-    def __init__(self, email: str, token: str, instance_url: str, cloud_id: str):
-        self.jira = JiraClient(email, token, instance_url, cloud_id)
-        self.confluence = ConfluenceClient(email, token, instance_url, cloud_id)
+    def __init__(
+        self,
+        email: str | None,
+        token: str,
+        instance_url: str,
+        cloud_id: str,
+        auth_mode: str = "api_token",
+    ):
+        self.jira = JiraClient(email, token, instance_url, cloud_id, auth_mode)
+        self.confluence = ConfluenceClient(
+            email, token, instance_url, cloud_id, auth_mode
+        )
+
+    @classmethod
+    def from_oauth(
+        cls, access_token: str, instance_url: str, cloud_id: str
+    ) -> "AtlassianClient":
+        """
+        Builds a client from an Atlassian OAuth 2.0 (3LO) access token.
+
+        Args:
+            access_token: str -> Delegated Atlassian access token.
+            instance_url: str -> Atlassian site URL returned by accessible-resources.
+            cloud_id: str -> Atlassian Cloud ID returned by accessible-resources.
+
+        Returns:
+            AtlassianClient -> OAuth-backed Jira and Confluence client.
+        """
+        return cls(
+            email=None,
+            token=access_token,
+            instance_url=instance_url,
+            cloud_id=cloud_id,
+            auth_mode="oauth",
+        )
 
     # --- Jira Delegations ---
 

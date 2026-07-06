@@ -1,8 +1,10 @@
 from loguru import logger
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from pydantic import AnyHttpUrl
 
 from .config import ATLASSIAN_SERVER_CONFIG
-from .security import create_atlassian_client
+from .security import AtlassianTokenVerifier, create_atlassian_client
 from .schemas import (
     SearchJiraIssuesRequest,
     SearchJiraIssuesResponse,
@@ -47,6 +49,14 @@ mcp = FastMCP(
     stateless_http=ATLASSIAN_SERVER_CONFIG.stateless_http,
     host=ATLASSIAN_SERVER_CONFIG.default_host,
     port=ATLASSIAN_SERVER_CONFIG.default_port,
+    token_verifier=AtlassianTokenVerifier(),
+    auth=AuthSettings(
+        issuer_url=AnyHttpUrl("https://auth.atlassian.com"),
+        resource_server_url=AnyHttpUrl(
+            f"http://{ATLASSIAN_SERVER_CONFIG.default_host}:"
+            f"{ATLASSIAN_SERVER_CONFIG.default_port}"
+        ),
+    ),
 )
 
 

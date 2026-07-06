@@ -30,11 +30,20 @@ mcp_servers/atlassian/
 
 ## 2. Authentication Flow
 
-Authentication supports both a single JSON-encoded string secret (`ATLASSIAN_CREDENTIALS`) and individual environment variables.
+The preferred flow is **Atlassian OAuth 2.0 / 3LO**. Gemini Enterprise owns an Atlassian authorization resource, and the agent forwards the request-scoped delegated Atlassian access token to the Atlassian MCP server. If the Atlassian tenant uses Microsoft SSO, the user signs in through Microsoft on the Atlassian authorization screen, but the API token received by the agent is still issued by Atlassian.
 
-### 2.1 Environmental Mapping
-The configuration (`app/config.py`) prioritises individual environment variables over the JSON string to natively integrate with Google Cloud Secret Manager mappings:
-*   `JIRA_USER_EMAIL`: User email (e.g. `javier.romero@estrategia52.com`).
+### 2.1 OAuth Resource Mapping
+The agent uses the following configuration values:
+*   `ATLASSIAN_OAUTH_CLIENT_ID`: Atlassian OAuth 2.0 / 3LO client ID.
+*   `ATLASSIAN_OAUTH_CLIENT_SECRET`: Atlassian OAuth 2.0 / 3LO client secret.
+*   `GEMINI_ATLASSIAN_AUTH_ID` or `ATLASSIAN_AUTH_ID`: Gemini Enterprise authorization resource ID.
+*   `JIRA_CLOUD_ID`: Optional Cloud ID override for multi-site tenants.
+
+The MCP server validates delegated bearer tokens by calling Atlassian's `accessible-resources` endpoint, resolves the Cloud ID, and routes Jira/Confluence API calls through `https://api.atlassian.com/ex/jira/{cloudId}` and `https://api.atlassian.com/ex/confluence/{cloudId}`.
+
+### 2.2 Legacy Static Credential Fallback
+Static credentials are still supported for legacy local runs where no MCP auth context exists. The configuration (`app/config.py`) prioritises individual environment variables over the JSON string to natively integrate with Google Cloud Secret Manager mappings:
+*   `JIRA_USER_EMAIL`: User email.
 *   `JIRA_API_TOKEN`: User API token generated from `id.atlassian.com`.
 *   `JIRA_INSTANCE_URL`: Site URL (e.g. `https://davaflow.atlassian.net`).
 *   `JIRA_CLOUD_ID`: Cloud identifier UUID.

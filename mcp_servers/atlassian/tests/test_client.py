@@ -118,3 +118,29 @@ async def test_search_issues_failure() -> None:
         assert res.execution_status == "error"
         assert "Jira API error" in res.execution_message
         assert res.issues == []
+
+
+@pytest.mark.asyncio
+async def test_oauth_client_uses_atlassian_gateway_for_jira() -> None:
+    """Test OAuth Jira calls use api.atlassian.com with bearer auth."""
+    client = AtlassianClient.from_oauth(
+        access_token="oauth-token",
+        instance_url="https://test.atlassian.net",
+        cloud_id="cloud-123",
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = [{"key": "PROJ", "name": "Project Name"}]
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_response
+
+        res = await client.list_projects(ListJiraProjectsRequest())
+
+        assert res.execution_status == "success"
+        args, kwargs = mock_get.call_args
+        assert args[0] == (
+            "https://api.atlassian.com/ex/jira/cloud-123/rest/api/3/project"
+        )
+        assert kwargs["headers"]["Authorization"] == "Bearer oauth-token"

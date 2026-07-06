@@ -44,6 +44,12 @@ The Gemini Enterprise Agent requires OAuth credentials to act on behalf of the u
 2. Add the same three redirect URIs as above (Web platform type).
 3. Note down the **Application (client) ID** and generate a **Client secret**.
 
+**Atlassian OAuth 2.0 / 3LO (For Jira/Confluence):**
+1. Go to the Atlassian Developer Console and create an OAuth 2.0 integration.
+2. Add the Gemini Enterprise redirect URI: `https://vertexaisearch.cloud.google.com/static/oauth/oauth.html`.
+3. Add Jira and Confluence permissions matching the agent scopes, plus `offline_access`.
+4. Note down the Atlassian **Client ID** and **Client Secret**.
+
 ### D. Populate Secret Manager
 The CI/CD pipelines expect your sensitive secrets to be available in Google Cloud Secret Manager.
 Create the following secrets manually in your GCP project:
@@ -51,7 +57,9 @@ Create the following secrets manually in your GCP project:
 - `GOOGLE_OAUTH_CLIENT_SECRET`
 - `MICROSOFT_OAUTH_CLIENT_ID`
 - `MICROSOFT_OAUTH_CLIENT_SECRET`
-- `ATLASSIAN_CREDENTIALS`
+- `ATLASSIAN_OAUTH_CLIENT_ID`
+- `ATLASSIAN_OAUTH_CLIENT_SECRET`
+- `ATLASSIAN_CREDENTIALS` (legacy static fallback only)
 
 ---
 

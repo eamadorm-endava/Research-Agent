@@ -22,36 +22,72 @@ from ..schemas import (
 class JiraClient:
     """Wrapper client for the Atlassian Jira REST API (Cloud v3 and Server/DC v2)."""
 
-    def __init__(self, email: str, token: str, instance_url: str, cloud_id: str):
+    def __init__(
+        self,
+        email: str | None,
+        token: str,
+        instance_url: str,
+        cloud_id: str,
+        auth_mode: str = "api_token",
+    ):
         self.email = email
         self.token = token
         self.instance_url = instance_url.rstrip("/")
         self.cloud_id = cloud_id
+        self.auth_mode = auth_mode
 
-        self.is_cloud = ".atlassian.net" in self.instance_url.lower()
+        self.is_cloud = (
+            auth_mode == "oauth" or ".atlassian.net" in self.instance_url.lower()
+        )
         self.api_prefix = "/rest/api/3" if self.is_cloud else "/rest/api/2"
-
-        if self.is_cloud:
-            auth_str = f"{self.email}:{self.token}"
-            encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
-            auth_header = f"Basic {encoded_auth}"
-        else:
-            auth_header = f"Bearer {self.token}"
+        self.base_url = self._build_base_url()
 
         self.headers = {
-            "Authorization": auth_header,
+            "Authorization": self._build_auth_header(),
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
         logger.info(
-            f"JiraClient initialized for instance {self.instance_url} (is_cloud={self.is_cloud})"
+            f"JiraClient initialized for instance {self.instance_url} "
+            f"(is_cloud={self.is_cloud}, auth_mode={self.auth_mode})"
         )
+
+    def _build_auth_header(self) -> str:
+        """
+        Builds the authorization header for API-token, Server/DC, or OAuth mode.
+
+        Returns:
+            str -> Authorization header value.
+        """
+        if self.auth_mode == "oauth":
+            return f"Bearer {self.token}"
+
+        if self.is_cloud:
+            auth_str = f"{self.email}:{self.token}"
+            encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+            return f"Basic {encoded_auth}"
+
+        return f"Bearer {self.token}"
+
+    def _build_base_url(self) -> str:
+        """
+        Builds the Jira API base URL for direct-site or api.atlassian.com calls.
+
+        Returns:
+            str -> API base URL without a trailing slash.
+        """
+        if self.auth_mode == "oauth":
+            if not self.cloud_id:
+                raise ValueError("cloud_id is required for Atlassian OAuth mode")
+            return f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/api/3"
+
+        return f"{self.instance_url}{self.api_prefix}"
 
     async def list_projects(
         self, request: ListJiraProjectsRequest
     ) -> ListJiraProjectsResponse:
         """Fetch all Jira projects."""
-        url = f"{self.instance_url}{self.api_prefix}/project"
+        url = f"{self.base_url}/project"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
@@ -88,9 +124,7 @@ class JiraClient:
         self, request: GetJiraProjectDetailsRequest
     ) -> GetJiraProjectDetailsResponse:
         """Fetch detailed information of a single Jira project."""
-        url = (
-            f"{self.instance_url}{self.api_prefix}/project/{request.project_id_or_key}"
-        )
+        url = f"{self.base_url}/project/{request.project_id_or_key}"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
@@ -127,7 +161,7 @@ class JiraClient:
         self, request: ListJiraProjectComponentsRequest
     ) -> ListJiraProjectComponentsResponse:
         """Fetch all components (representing technologies) for a project."""
-        url = f"{self.instance_url}{self.api_prefix}/project/{request.project_id_or_key}/components"
+        url = f"{self.base_url}/project/{request.project_id_or_key}/components"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
@@ -164,7 +198,7 @@ class JiraClient:
         self, request: ListJiraProjectCategoriesRequest
     ) -> ListJiraProjectCategoriesResponse:
         """Fetch all project categories (representing clients/domains)."""
-        url = f"{self.instance_url}{self.api_prefix}/projectCategory"
+        url = f"{self.base_url}/projectCategory"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=self.headers, timeout=30)
@@ -213,9 +247,9 @@ class JiraClient:
             SearchJiraIssuesResponse -> Matching issues and pagination token
         """
         if self.is_cloud:
-            url = f"{self.instance_url}{self.api_prefix}/search/jql"
+            url = f"{self.base_url}/search/jql"
         else:
-            url = f"{self.instance_url}{self.api_prefix}/search"
+            url = f"{self.base_url}/search"
 
         params: dict[str, Any] = {
             "jql": request.jql,
@@ -285,7 +319,7 @@ class JiraClient:
         self, request: GetJiraIssueDetailsRequest
     ) -> GetJiraIssueDetailsResponse:
         """Fetch detailed information for a single Jira issue."""
-        url = f"{self.instance_url}{self.api_prefix}/issue/{request.issue_id_or_key}"
+        url = f"{self.base_url}/issue/{request.issue_id_or_key}"
         params = {"expand": "names,renderedFields,comments"}
         try:
             async with httpx.AsyncClient() as client:

@@ -357,3 +357,36 @@ async def test_list_page_labels_success(mock_storage_client) -> None:
         assert res.execution_status == "success"
         assert len(res.labels) == 1
         assert res.labels[0]["name"] == "label1"
+
+
+@pytest.mark.asyncio
+@patch("google.cloud.storage.Client")
+async def test_oauth_client_uses_atlassian_gateway_for_confluence(
+    mock_storage_client,
+) -> None:
+    """Test OAuth Confluence calls use api.atlassian.com with bearer auth."""
+    client = ConfluenceClient(
+        email=None,
+        token="oauth-token",
+        instance_url="https://test.atlassian.net",
+        cloud_id="cloud-123",
+        auth_mode="oauth",
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "results": [{"key": "SPACE", "name": "Space Name", "id": "123"}]
+    }
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_response
+
+        res = await client.list_spaces(ListConfluenceSpacesRequest())
+
+        assert res.execution_status == "success"
+        args, kwargs = mock_get.call_args
+        assert args[0] == (
+            "https://api.atlassian.com/ex/confluence/cloud-123/wiki/api/v2/spaces"
+        )
+        assert kwargs["headers"]["Authorization"] == "Bearer oauth-token"

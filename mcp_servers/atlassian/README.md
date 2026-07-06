@@ -41,21 +41,34 @@ The server exposes the following tools to the calling agent:
 
 ---
 
-## Credentials Configuration
+## Authentication Configuration
 
-The MCP server connects to Jira and Confluence using static credentials stored in a JSON secret.
-The expected format is:
+The preferred deployment path uses **Atlassian OAuth 2.0 / 3LO**. The user is sent to Atlassian's authorization endpoint; if the Atlassian organization is configured with Microsoft SSO, the visible sign-in step is Microsoft SSO, but the resulting delegated token is still an Atlassian access token.
+
+Required Agent/Gemini Enterprise variables:
+
+```bash
+ATLASSIAN_OAUTH_CLIENT_ID=<oauth-2-3lo-client-id>
+ATLASSIAN_OAUTH_CLIENT_SECRET=<oauth-2-3lo-client-secret>
+GEMINI_ATLASSIAN_AUTH_ID=atlassian-authentication
+```
+
+The OAuth app must use the Atlassian callback URL registered for Gemini Enterprise and include the scopes used by this MCP server, including Jira read scopes, Confluence read/write scopes, and `offline_access` for refresh support.
+
+The MCP server validates incoming bearer tokens through `https://api.atlassian.com/oauth/token/accessible-resources` and then calls Jira and Confluence through the `https://api.atlassian.com/ex/.../{cloudId}` gateway. For multi-site tenants, set `JIRA_CLOUD_ID` to force a specific Atlassian site; otherwise, the first Jira/Confluence-scoped accessible resource is selected.
+
+Legacy static API-token credentials are still supported as a local fallback when no MCP auth context is present. The expected JSON format is:
 
 ```json
 {
-  "JIRA_USER_EMAIL": "javier.romero@estrategia52.com",
+  "JIRA_USER_EMAIL": "user@example.com",
   "JIRA_API_TOKEN": "your-atlassian-api-token",
   "JIRA_INSTANCE_URL": "https://your-instance.atlassian.net",
   "JIRA_CLOUD_ID": "your-cloud-id"
 }
 ```
 
-Locally, this JSON must be provided via the `ATLASSIAN_CREDENTIALS` environment variable in `mcp_servers/atlassian/.env`.
+Locally, this JSON can be provided via the `ATLASSIAN_CREDENTIALS` environment variable in `mcp_servers/atlassian/.env`.
 
 ---
 
