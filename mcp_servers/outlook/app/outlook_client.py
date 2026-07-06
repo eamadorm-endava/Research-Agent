@@ -14,6 +14,32 @@ from .schemas import (
 )
 
 
+class SyncStreamIOWrapper:
+    def __init__(self, resp):
+        self.iterator = resp.iter_bytes()
+        self.buffer = b""
+
+    def read(self, size: int = -1) -> bytes:
+        if size == -1:
+            data = b"".join(self.iterator)
+            result = self.buffer + data
+            self.buffer = b""
+            return result
+        while len(self.buffer) < size:
+            try:
+                self.buffer += next(self.iterator)
+            except StopIteration:
+                break
+        result, self.buffer = self.buffer[:size], self.buffer[size:]
+        return result
+
+    def tell(self) -> int:
+        return 0
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        raise IOError("SyncStreamIOWrapper does not support seeking")
+
+
 def sanitize_x500_address(
     address: str, fallback_name: str, dynamic_user_email: str
 ) -> str:
@@ -64,7 +90,6 @@ class OutlookClient:
     Handles authentication, caching, and data retrieval for Outlook emails and calendar events.
     """
 
-    # 1. Class-level tracking caches matching the OneDrive architectural blueprint
     _list_emails_cache: dict[tuple, tuple[float, Tuple[list[dict[str, Any]], int]]] = {}
 
     # Cache time-to-live configuration (e.g., set to 300 seconds / 5 mins)
@@ -89,7 +114,6 @@ class OutlookClient:
 
         for cache_dict in [cls._list_emails_cache, cls._file_cache]:
             if len(cache_dict) > MAX_CACHE_SIZE:
-                # 1. Purge expired keys
                 expired_keys = [
                     k
                     for k, (timestamp, _) in cache_dict.items()
@@ -98,7 +122,6 @@ class OutlookClient:
                 for k in expired_keys:
                     cache_dict.pop(k, None)
 
-                # 2. If still too large, purge the oldest 20%
                 if len(cache_dict) > MAX_CACHE_SIZE:
                     sorted_items = sorted(cache_dict.items(), key=lambda x: x[1][0])
                     num_to_delete = int(len(sorted_items) * 0.2)
@@ -221,65 +244,9 @@ class OutlookClient:
         await crawl()
         return folder_map
 
-    async def list_emails(
+    def _build_list_emails_query(
         self, criteria: ListEmailsRequest
-    ) -> Tuple[list[dict[str, Any]], int]:
-        """
-        Consolidates global search, folder parsing, date filtering,
-        sorting constraints, and pagination boundaries into a unified data payload contract.
-
-        Args:
-            criteria: ListEmailsRequest -> The request payload for listing emails.
-
-        Returns:
-            Tuple[list[dict[str, Any]], int] -> A tuple containing the list of processed emails and the total matched count.
-        """
-
-        start_time = time.perf_counter()
-
-        cache_key = None
-        if criteria.use_cache:
-            criteria_dict = criteria.model_dump(exclude={"use_cache"})
-
-            criteria_dict.pop("page", None)
-            criteria_dict.pop("limit", None)
-
-            current_time = time.time()
-
-            user_id = "unknown_user"
-            if criteria.dependencies:
-                user_id = criteria.dependencies.user_id
-            criteria_dict["mcp_tenant_user_id"] = user_id
-
-            cache_key = tuple(sorted((k, str(v)) for k, v in criteria_dict.items()))
-            logger.debug(f"GENERATED CACHE KEY: {cache_key}")
-            if cache_key in self._list_emails_cache:
-                timestamp, cached_payload = self._list_emails_cache[cache_key]
-
-                if current_time - timestamp < self._cache_ttl:
-                    # Cache Hit! Extract the FULL bulk-fetched array from memory
-                    all_processed_emails, total_matched = cached_payload
-
-                    # Slice the data exactly for the requested page right now
-                    start_offset = (criteria.page - 1) * criteria.limit
-                    end_offset = start_offset + criteria.limit
-                    sliced_page_data = all_processed_emails[start_offset:end_offset]
-
-                    duration_ms = (time.perf_counter() - start_time) * 1000
-                    logger.debug(
-                        f"[CACHE HIT] Page {criteria.page} sliced from memory in: {duration_ms:.4f} ms"
-                    )
-
-                    return sliced_page_data, total_matched
-                else:
-                    self._list_emails_cache.pop(cache_key, None)
-
-        my_email = await self.get_my_email()
-        folder_map = await self.build_folder_display_map()
-        request_headers: dict[str, str] = {}
-
-        # 1. Routing Endpoint Evaluation Strategy & Smart Folder Fallback
-        # FIX: If looking for SENT emails and no folder is specified, explicitly default to 'sentitems'
+    ) -> Tuple[str, dict[str, Any], dict[str, str], bool]:
         if criteria.folder_id:
             path = f"/me/mailFolders/{criteria.folder_id}/messages"
         elif criteria.email_type == EmailTypeOption.SENT:
@@ -287,23 +254,17 @@ class OutlookClient:
         else:
             path = "/me/messages"
 
-        query_params: dict[str, Any] = {}
+        query_params: dict[str, Any] = {
+            "$top": 50
+            if criteria.sender_receiver or criteria.email_subject or criteria.body
+            else criteria.limit,
+            "$skip": 0
+            if criteria.sender_receiver or criteria.email_subject or criteria.body
+            else (criteria.page - 1) * criteria.limit,
+            "$select": "id,subject,from,toRecipients,receivedDateTime,bodyPreview,hasAttachments,isRead,parentFolderId,webLink",
+            "$count": "true",
+        }
 
-        # 2. Base Query Parameter Foundations
-        query_params.update(
-            {
-                "$top": 50
-                if ("$search" in query_params or criteria.sender_receiver)
-                else criteria.limit,
-                "$skip": 0
-                if ("$search" in query_params or criteria.sender_receiver)
-                else (criteria.page - 1) * criteria.limit,
-                "$select": "id,subject,from,toRecipients,receivedDateTime,bodyPreview,hasAttachments,isRead,parentFolderId,webLink",
-                "$count": "true",
-            }
-        )
-
-        # 3. Handle Advanced Sorting Assignments
         sort_field = "receivedDateTime"
         if criteria.sort_by == SortByOption.SUBJECT:
             sort_field = "subject"
@@ -311,27 +272,18 @@ class OutlookClient:
             sort_field = "from/emailAddress/address"
 
         query_params["$orderby"] = f"{sort_field} {criteria.sort_order.value}"
+        request_headers: dict[str, str] = {}
 
-        # SANITIZER: Detect if the agent populated identical terms across fields
         raw_search_terms = set()
-        if criteria.sender_receiver:
-            raw_search_terms.add(criteria.sender_receiver.strip('" '))
-        if criteria.email_subject:
-            raw_search_terms.add(criteria.email_subject.strip('" '))
-        if criteria.body:
-            raw_search_terms.add(criteria.body.strip('" '))
+        for field in [criteria.sender_receiver, criteria.email_subject, criteria.body]:
+            if field:
+                raw_search_terms.add(field.strip('" '))
 
-        # If all populated parameters are identical, collapse them into a single token
         if len(raw_search_terms) == 1:
-            unified_term = list(raw_search_terms)[0]
-            criteria.sender_receiver = unified_term
-            criteria.email_subject = None
-            criteria.body = None
+            criteria.sender_receiver = list(raw_search_terms)[0]
+            criteria.email_subject, criteria.body = None, None
 
-        # 4. Construct Dynamic Filter arrays versus KQL global search clauses
-        search_tokens: list[str] = []
-        filter_tokens: list[str] = []
-
+        search_tokens, filter_tokens = [], []
         if criteria.sender_receiver:
             search_tokens.append(f'"{criteria.sender_receiver}"')
         if criteria.email_subject:
@@ -346,7 +298,6 @@ class OutlookClient:
         if criteria.max_date:
             filter_tokens.append(f"receivedDateTime le {criteria.max_date}T23:59:59Z")
 
-        # Inject structural values based on explicit constraints configurations
         if search_tokens:
             query_params["$search"] = " AND ".join(search_tokens)
             request_headers["ConsistencyLevel"] = "eventual"
@@ -355,27 +306,27 @@ class OutlookClient:
         if filter_tokens:
             query_params["$filter"] = " and ".join(filter_tokens)
 
-        # 5. Fetch Remote API Payload Data
         is_search = "$search" in query_params and query_params["$search"]
         if is_search:
-            # Graph $search restrictions handle tops, but skips require client-side offsets if popped
             query_params.pop("$skip", None)
             query_params.pop("$count", None)
-            # Fetch a larger batch for local slicing if search-filtering is performed
             query_params["$top"] = 50
 
-        response_data = await self._get(
-            path, params=query_params, headers=request_headers
-        )
-        raw_messages = response_data.get("value", [])
+        return path, query_params, request_headers, is_search
 
-        # Local python fallback sort since Graph API cannot sort $search requests
+    def _process_list_emails_response(
+        self,
+        raw_messages: list,
+        is_search: bool,
+        criteria: ListEmailsRequest,
+        folder_map: dict,
+        my_email: str,
+    ) -> list[dict[str, Any]]:
         if is_search and raw_messages:
-            is_descending = criteria.sort_order.value.lower() == "desc"
+            is_desc = criteria.sort_order.value.lower() == "desc"
             if criteria.sort_by == SortByOption.SUBJECT:
                 raw_messages.sort(
-                    key=lambda x: (x.get("subject") or "").lower(),
-                    reverse=is_descending,
+                    key=lambda x: (x.get("subject") or "").lower(), reverse=is_desc
                 )
             elif criteria.sort_by == SortByOption.SENDER:
                 raw_messages.sort(
@@ -385,18 +336,14 @@ class OutlookClient:
                         .get("address", "")
                         .lower()
                     ),
-                    reverse=is_descending,
+                    reverse=is_desc,
                 )
             else:
                 raw_messages.sort(
-                    key=lambda x: x.get("receivedDateTime", ""), reverse=is_descending
+                    key=lambda x: x.get("receivedDateTime", ""), reverse=is_desc
                 )
 
-        # Pull true server metadata count metrics safely
-        total_matched = response_data.get("@odata.count", len(raw_messages))
-
-        # 6. Sanitize, filter by item type choice options, and normalize data schemas
-        processed_list: list[dict[str, Any]] = []
+        processed_list = []
         standard_fallbacks = {
             "inbox": "Inbox",
             "sentitems": "Sent Items",
@@ -408,8 +355,8 @@ class OutlookClient:
         for msg in raw_messages:
             web_link = msg.get("webLink", "").lower()
             p_id = msg.get("parentFolderId", "")
-
             resolved_folder = folder_map.get(p_id, "Unknown Folder")
+
             if resolved_folder == "Unknown Folder":
                 for token, fallback_label in standard_fallbacks.items():
                     if token in p_id.lower() or token in web_link:
@@ -418,36 +365,34 @@ class OutlookClient:
 
             raw_from = msg.get("from", {}) or {}
             from_obj = raw_from.get("emailAddress", {}) or {}
-            raw_sender_address = from_obj.get("address", "") or "unknown@domain.com"
-            clean_sender_address = sanitize_x500_address(
-                raw_sender_address, from_obj.get("name", ""), my_email
+            clean_sender = sanitize_x500_address(
+                from_obj.get("address", "") or "unknown@domain.com",
+                from_obj.get("name", ""),
+                my_email,
             )
 
-            sender_data_payload = {
-                "name": from_obj.get("name") or None,
-                "email": clean_sender_address,
-            }
-
-            # Type filtering verification checks
             if (
                 criteria.email_type == EmailTypeOption.SENT
-                and clean_sender_address.lower() != my_email.lower()
+                and clean_sender.lower() != my_email.lower()
             ):
                 continue
             if (
                 criteria.email_type == EmailTypeOption.RECEIVED
-                and clean_sender_address.lower() == my_email.lower()
+                and clean_sender.lower() == my_email.lower()
             ):
                 continue
-
-            raw_recipients = msg.get("toRecipients", []) or []
-            processed_recipients = [parse_personal_data(r) for r in raw_recipients]
 
             processed_list.append(
                 {
                     "email_id": msg.get("id"),
-                    "sender_data": sender_data_payload,
-                    "sent_to": processed_recipients,
+                    "sender_data": {
+                        "name": from_obj.get("name") or None,
+                        "email": clean_sender,
+                    },
+                    "sent_to": [
+                        parse_personal_data(r)
+                        for r in (msg.get("toRecipients", []) or [])
+                    ],
                     "subject": msg.get("subject") or "",
                     "email_body_preview": msg.get("bodyPreview") or "",
                     "received_date": msg.get("receivedDateTime"),
@@ -456,30 +401,70 @@ class OutlookClient:
                     "folder_name": resolved_folder,
                 }
             )
+        return processed_list
 
-        # FIX: If local search-filtering modified the array, slice it manually
-        # and match the total length to prevent pagination breaks.
-        if is_search or total_matched is None or total_matched == 0:
+    async def list_emails(
+        self, criteria: ListEmailsRequest
+    ) -> Tuple[list[dict[str, Any]], int]:
+        """
+        Consolidates global search, folder parsing, date filtering,
+        sorting constraints, and pagination boundaries into a unified data payload contract.
+
+        Args:
+            criteria: ListEmailsRequest -> The request payload for listing emails.
+
+        Returns:
+            Tuple[list[dict[str, Any]], int] -> A tuple containing the list of processed emails and the total matched count.
+        """
+        cache_key = None
+
+        if criteria.use_cache:
+            criteria_dict = criteria.model_dump(exclude={"use_cache"})
+            criteria_dict.pop("page", None)
+            criteria_dict.pop("limit", None)
+            criteria_dict["mcp_tenant_user_id"] = (
+                criteria.dependencies.user_id if criteria.dependencies else "unknown"
+            )
+
+            cache_key = tuple(sorted((k, str(v)) for k, v in criteria_dict.items()))
+            if cache_key in self._list_emails_cache:
+                timestamp, cached_payload = self._list_emails_cache[cache_key]
+                if time.time() - timestamp < self._cache_ttl:
+                    all_emails, total_matched = cached_payload
+                    start_off = (criteria.page - 1) * criteria.limit
+                    return all_emails[
+                        start_off : start_off + criteria.limit
+                    ], total_matched
+                self._list_emails_cache.pop(cache_key, None)
+
+        my_email = await self.get_my_email()
+        folder_map = await self.build_folder_display_map()
+
+        path, query_params, request_headers, is_search = self._build_list_emails_query(
+            criteria
+        )
+        response_data = await self._get(
+            path, params=query_params, headers=request_headers
+        )
+        raw_messages = response_data.get("value", [])
+
+        total_matched = response_data.get("@odata.count", len(raw_messages))
+        processed_list = self._process_list_emails_response(
+            raw_messages, is_search, criteria, folder_map, my_email
+        )
+
+        if is_search or total_matched == 0:
             total_matched = len(processed_list)
 
         if criteria.use_cache and cache_key is not None:
             self._sweep_cache()
-            # Save the complete, unsliced list of emails to memory
             self._list_emails_cache[cache_key] = (
                 time.time(),
                 (processed_list, total_matched),
             )
 
-        start_offset = (criteria.page - 1) * criteria.limit
-        end_offset = start_offset + criteria.limit
-        final_sliced_list = processed_list[start_offset:end_offset]
-
-        duration_ms = (time.perf_counter() - start_time) * 1000
-        logger.debug(
-            f"[CACHE MISS] Page {criteria.page} bulk-fetched via Graph API in: {duration_ms:.2f} ms"
-        )
-
-        return final_sliced_list, total_matched
+        start_off = (criteria.page - 1) * criteria.limit
+        return processed_list[start_off : start_off + criteria.limit], total_matched
 
     async def read_email(self, email_id: str) -> dict[str, Any]:
         """
@@ -491,22 +476,16 @@ class OutlookClient:
         Returns:
             dict[str, Any] -> The comprehensive email details payload.
         """
-        # 1. Gather environmental details and folder structures
         my_email = await self.get_my_email()
         folder_map = await self.build_folder_display_map()
-
         params = {
             "$select": "id,subject,from,toRecipients,receivedDateTime,body,bodyPreview,hasAttachments,isRead,parentFolderId,webLink",
             "$expand": "attachments($select=id,name,contentType,size)",
         }
-
-        # 2. Fetch the raw email document payload from Microsoft Graph
         msg = await self._get(f"/me/messages/{email_id}", params=params)
 
-        # 3. Resolve the structural folder name using the mapping ecosystem
         p_id = msg.get("parentFolderId", "")
         web_link = msg.get("webLink", "").lower()
-
         resolved_folder = folder_map.get(p_id, "Unknown Folder")
         if resolved_folder == "Unknown Folder":
             standard_fallbacks = {
@@ -521,7 +500,6 @@ class OutlookClient:
                     resolved_folder = fallback_label
                     break
 
-        # 4. Unpack and sanitize sender payload metrics
         raw_from = msg.get("from", {}) or {}
         from_obj = raw_from.get("emailAddress", {}) or {}
         raw_sender_address = from_obj.get("address", "") or "unknown@domain.com"
@@ -534,7 +512,6 @@ class OutlookClient:
             "email": clean_sender_address,
         }
 
-        # 5. Process recipient arrays and attachment payload records safely
         raw_recipients = msg.get("toRecipients", []) or []
         processed_recipients = [parse_personal_data(r) for r in raw_recipients]
 
@@ -552,7 +529,6 @@ class OutlookClient:
             for att in raw_attachments
         ]
 
-        # 6. CRITICAL SCHEMA ALIGNMENT:
         # Map the clean fields exactly to what EmailInformationFull fields look like at the root.
         # Note the mapping of 'receivedDateTime' from Graph to 'received_date' for Pydantic.
         return {
@@ -561,9 +537,7 @@ class OutlookClient:
             "sent_to": processed_recipients,
             "subject": msg.get("subject") or "",
             "email_body_preview": msg.get("bodyPreview") or "",
-            "received_date": msg.get(
-                "receivedDateTime"
-            ),  # <-- Crucial line that stopped the crash
+            "received_date": msg.get("receivedDateTime"),
             "has_attachments": msg.get("hasAttachments") or False,
             "is_read": msg.get("isRead") or False,
             "folder_name": resolved_folder,
@@ -603,31 +577,6 @@ class OutlookClient:
                 if response.status_code == 401:
                     raise ValueError("Invalid or expired Microsoft access token.")
                 response.raise_for_status()
-
-                class SyncStreamIOWrapper:
-                    def __init__(self, resp):
-                        self.iterator = resp.iter_bytes()
-                        self.buffer = b""
-
-                    def read(self, size: int = -1) -> bytes:
-                        if size == -1:
-                            data = b"".join(self.iterator)
-                            result = self.buffer + data
-                            self.buffer = b""
-                            return result
-                        while len(self.buffer) < size:
-                            try:
-                                self.buffer += next(self.iterator)
-                            except StopIteration:
-                                break
-                        result, self.buffer = self.buffer[:size], self.buffer[size:]
-                        return result
-
-                    def tell(self) -> int:
-                        return 0
-
-                    def seek(self, offset: int, whence: int = 0) -> int:
-                        raise IOError("SyncStreamIOWrapper does not support seeking")
 
                 file_stream = SyncStreamIOWrapper(response)
 
@@ -796,6 +745,20 @@ class OutlookClient:
 
         return events, len(events)
 
+    def _parse_datetime(self, dt_obj: Any) -> str:
+        """
+        Extracts ISO8601 string safely from Graph datetime dictionaries.
+
+        Args:
+            dt_obj: Any -> The raw datetime object or dictionary.
+
+        Returns:
+            str -> The ISO8601 string or empty string.
+        """
+        if isinstance(dt_obj, dict):
+            return dt_obj.get("dateTime", "")
+        return str(dt_obj) if dt_obj else ""
+
     def _parse_calendar_event(self, event_payload: dict) -> dict:
         """
         Parses a Graph API event into the Calendar schema.
@@ -806,8 +769,8 @@ class OutlookClient:
         Returns:
             dict -> Formatted event matching Calendar schema.
         """
-        start = event_payload.get("start", {}).get("dateTime", "")
-        end = event_payload.get("end", {}).get("dateTime", "")
+        start = self._parse_datetime(event_payload.get("start"))
+        end = self._parse_datetime(event_payload.get("end"))
         duration = f"{start} to {end}"
 
         attendees = []

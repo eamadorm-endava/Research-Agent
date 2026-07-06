@@ -70,6 +70,111 @@ def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
     )
 
 
+def to_email_full(msg_dict: dict) -> EmailInformationFull:
+    """
+    Maps cleaned client dictionary objects into strict Pydantic full models.
+
+    Args:
+        msg_dict: dict -> The raw message dictionary from the Graph API.
+
+    Returns:
+        EmailInformationFull -> The Pydantic model representing the full email.
+    """
+    from_obj = msg_dict.get("from") or msg_dict.get("sender_data") or {}
+    if isinstance(from_obj, dict):
+        email_addr = from_obj.get("emailAddress") or {}
+        sender_name = email_addr.get("name") or from_obj.get("name")
+        sender_email = (
+            email_addr.get("address") or from_obj.get("email") or "unknown@domain.com"
+        )
+    else:
+        sender_name = getattr(from_obj, "name", None)
+        sender_email = getattr(from_obj, "email", "unknown@domain.com")
+
+    sender_payload = PersonalData(name=sender_name, email=sender_email)
+
+    to_recipients = []
+    raw_recipients = msg_dict.get("toRecipients") or msg_dict.get("sent_to") or []
+    for r in raw_recipients:
+        if isinstance(r, dict):
+            addr = r.get("emailAddress") or r
+            to_recipients.append(
+                PersonalData(
+                    name=addr.get("name"),
+                    email=addr.get("address")
+                    or addr.get("email")
+                    or "unknown@domain.com",
+                )
+            )
+        else:
+            to_recipients.append(
+                PersonalData(
+                    name=getattr(r, "name", None),
+                    email=getattr(r, "email", "unknown@domain.com"),
+                )
+            )
+
+    attachments_list = []
+    raw_attachments = msg_dict.get("attachments") or []
+    for a in raw_attachments:
+        if isinstance(a, dict):
+            if "id" in a or "attachment_id" in a:
+                attachments_list.append(
+                    AttachmentInfo(
+                        file_name=a.get("name")
+                        or a.get("file_name")
+                        or "Unnamed_Attachment",
+                        mime_type=a.get("contentType")
+                        or a.get("mime_type")
+                        or "application/octet-stream",
+                        attachment_id=a.get("id") or a.get("attachment_id"),
+                        size_megabytes=a.get("size_megabytes", 0.0),
+                    )
+                )
+        else:
+            attachments_list.append(
+                AttachmentInfo(
+                    file_name=getattr(
+                        a, "file_name", getattr(a, "name", "Unnamed_Attachment")
+                    ),
+                    mime_type=getattr(
+                        a,
+                        "mime_type",
+                        getattr(a, "contentType", "application/octet-stream"),
+                    ),
+                    attachment_id=getattr(a, "attachment_id", getattr(a, "id", "")),
+                    size_megabytes=getattr(a, "size_megabytes", 0.0),
+                )
+            )
+
+    body_obj = msg_dict.get("body") or {}
+    body_content = (
+        body_obj.get("content", "")
+        if isinstance(body_obj, dict)
+        else getattr(body_obj, "content", "")
+    )
+    if not body_content and isinstance(msg_dict.get("email_body"), str):
+        body_content = msg_dict.get("email_body")
+
+    return EmailInformationFull(
+        email_id=msg_dict.get("id") or msg_dict.get("email_id"),
+        sender_data=sender_payload,
+        sent_to=to_recipients,
+        subject=msg_dict.get("subject", ""),
+        email_body_preview=msg_dict.get("bodyPreview")
+        or msg_dict.get("email_body_preview")
+        or "",
+        received_date=msg_dict.get("receivedDateTime") or msg_dict.get("received_date"),
+        has_attachments=msg_dict.get("hasAttachments")
+        or msg_dict.get("has_attachments")
+        or False,
+        is_read=msg_dict.get("isRead") or msg_dict.get("is_read") or True,
+        folder_name=msg_dict.get("folder_name", "Unknown Folder"),
+        email_body=body_content,
+        attachments=attachments_list,
+    )
+
+
 @mcp.tool()
 async def outlook_list_folders(request: ListFoldersRequest) -> ListFoldersResponse:
     """
@@ -166,7 +271,6 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
         client = create_outlook_client()
         raw_msg = await client.read_email(request.email_id)
 
-        # Guard rail: If raw_msg is a Pydantic model or object, safely convert it to a dictionary
         if hasattr(raw_msg, "model_dump"):
             msg_dict = raw_msg.model_dump()
         elif hasattr(raw_msg, "__dict__"):
@@ -174,108 +278,7 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
         else:
             msg_dict = raw_msg
 
-        # 1. Safely extract sender data
-        from_obj = msg_dict.get("from") or msg_dict.get("sender_data") or {}
-        if isinstance(from_obj, dict):
-            email_addr = from_obj.get("emailAddress") or {}
-            sender_name = email_addr.get("name") or from_obj.get("name")
-            sender_email = (
-                email_addr.get("address")
-                or from_obj.get("email")
-                or "unknown@domain.com"
-            )
-        else:
-            # If from_obj is an object
-            sender_name = getattr(from_obj, "name", None)
-            sender_email = getattr(from_obj, "email", "unknown@domain.com")
-
-        sender_payload = PersonalData(name=sender_name, email=sender_email)
-
-        # 2. Safely extract recipients list
-        to_recipients = []
-        raw_recipients = msg_dict.get("toRecipients") or msg_dict.get("sent_to") or []
-        for r in raw_recipients:
-            if isinstance(r, dict):
-                addr = r.get("emailAddress") or r
-                to_recipients.append(
-                    PersonalData(
-                        name=addr.get("name"),
-                        email=addr.get("address")
-                        or addr.get("email")
-                        or "unknown@domain.com",
-                    )
-                )
-            else:
-                to_recipients.append(
-                    PersonalData(
-                        name=getattr(r, "name", None),
-                        email=getattr(r, "email", "unknown@domain.com"),
-                    )
-                )
-
-        # 3. Safely map attachments array
-        attachments_list = []
-        raw_attachments = msg_dict.get("attachments") or []
-        for a in raw_attachments:
-            if isinstance(a, dict):
-                if "id" in a or "attachment_id" in a:
-                    attachments_list.append(
-                        AttachmentInfo(
-                            file_name=a.get("name")
-                            or a.get("file_name")
-                            or "Unnamed_Attachment",
-                            mime_type=a.get("contentType")
-                            or a.get("mime_type")
-                            or "application/octet-stream",
-                            attachment_id=a.get("id") or a.get("attachment_id"),
-                            size_megabytes=a.get("size_megabytes", 0.0),
-                        )
-                    )
-            else:
-                attachments_list.append(
-                    AttachmentInfo(
-                        file_name=getattr(
-                            a, "file_name", getattr(a, "name", "Unnamed_Attachment")
-                        ),
-                        mime_type=getattr(
-                            a,
-                            "mime_type",
-                            getattr(a, "contentType", "application/octet-stream"),
-                        ),
-                        attachment_id=getattr(a, "attachment_id", getattr(a, "id", "")),
-                        size_megabytes=getattr(a, "size_megabytes", 0.0),
-                    )
-                )
-
-        # 4. Final assembly with standard key fallbacks
-        body_obj = msg_dict.get("body") or {}
-        body_content = (
-            body_obj.get("content", "")
-            if isinstance(body_obj, dict)
-            else getattr(body_obj, "content", "")
-        )
-        if not body_content and isinstance(msg_dict.get("email_body"), str):
-            body_content = msg_dict.get("email_body")
-
-        full_info = EmailInformationFull(
-            email_id=msg_dict.get("id") or msg_dict.get("email_id"),
-            sender_data=sender_payload,
-            sent_to=to_recipients,
-            subject=msg_dict.get("subject", ""),
-            email_body_preview=msg_dict.get("bodyPreview")
-            or msg_dict.get("email_body_preview")
-            or "",
-            received_date=msg_dict.get("receivedDateTime")
-            or msg_dict.get("received_date"),
-            has_attachments=msg_dict.get("hasAttachments")
-            or msg_dict.get("has_attachments")
-            or False,
-            is_read=msg_dict.get("isRead") or msg_dict.get("is_read") or True,
-            folder_name=msg_dict.get("folder_name", "Unknown Folder"),
-            email_body=body_content,
-            attachments=attachments_list,
-        )
-
+        full_info = to_email_full(msg_dict)
         return ReadEmailResponse(email=full_info)
 
     except Exception as exc:
