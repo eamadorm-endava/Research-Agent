@@ -31,7 +31,7 @@ Execute exactly 8 corporate tools CONCURRENTLY in a single parallel turn:
 4. `search_confluence_pages`: CQL expression mapping to the distilled 1-2 word entities.
 5. `search_sharepoint_sites`: broad business keyword (1-2 words max) from Phase 0.
 6. `list_calendar_events`: call with `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
-7. `outlook_list_calendar_events`: call with `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
+7. `outlook_list_calendar_events`: use the distilled 1-2 word entities in the `search_term` parameter. Leave `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
 8. `outlook_list_emails`: execute a broad mailbox sweep using the distilled 1-2 word entities as `$search` criteria.
 
 ## Phase 2: Strict Relevance Filtering
