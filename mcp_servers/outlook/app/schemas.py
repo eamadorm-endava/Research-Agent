@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Annotated, Optional, Literal
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing_extensions import Self
 
 # =====================================================================
@@ -554,65 +554,3 @@ class ReadCalendarEventAttachmentResponse(ReadFileResponse):
     """
 
     pass
-
-
-# =====================================================================
-# Write, Draft, & Outgoing Operations (Preserved Workflows)
-# =====================================================================
-
-
-class SendMailRequest(BaseRequest):
-    to: Annotated[
-        list[OutlookRecipient],
-        Field(min_length=1, max_length=10, description="Primary recipients."),
-    ]
-    subject: Annotated[
-        str,
-        Field(min_length=1, max_length=200, description="Email subject."),
-    ]
-    body: Annotated[
-        str,
-        Field(
-            min_length=1, max_length=20_000, description="Email body as text or HTML."
-        ),
-    ]
-    cc: Annotated[
-        list[OutlookRecipient],
-        Field(default_factory=list, max_length=10, description="CC recipients."),
-    ]
-    save_to_sent_items: Annotated[
-        bool,
-        Field(
-            default=True,
-            description="Whether Graph should save the message to Sent Items.",
-        ),
-    ] = True
-
-    @field_validator("subject")
-    @classmethod
-    def subject_must_not_be_empty(cls, value: str) -> str:
-        return value.strip()
-
-
-class SendMailResponse(BaseResponse):
-    sent: bool = False
-
-
-class CreateDraftRequest(SendMailRequest):
-    pass
-
-
-class CreateDraftResponse(BaseResponse):
-    draft_id: str | None = None
-    web_link: str | None = None
-
-
-class SendDraftRequest(BaseRequest):
-    draft_id: Annotated[
-        str,
-        Field(min_length=1, max_length=300, description="Draft message ID to send."),
-    ]
-
-
-class SendDraftResponse(BaseResponse):
-    sent: bool = False
