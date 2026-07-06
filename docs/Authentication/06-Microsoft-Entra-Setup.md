@@ -40,6 +40,8 @@ Follow these steps to configure the application, generate credentials, and grant
      - `Sites.Read.All`: Required to search and read SharePoint site pages and lists.
    - **Outlook MCP:**
      - `Mail.Read`: Required to search and read emails in the user's mailbox.
+     - `Calendars.Read`: Required to search and read calendar events.
+     
 
 4. Once all the required permissions are checked, click **Add permissions** at the bottom.
 

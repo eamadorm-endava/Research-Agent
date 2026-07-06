@@ -3,8 +3,6 @@ from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
-from google.cloud import storage
-
 # Import unified schemas mapping layouts
 from .schemas import (
     ExecutionStatus,
@@ -13,8 +11,6 @@ from .schemas import (
     AttachmentInfo,
     EmailInformationPreview,
     EmailInformationFull,
-    GetProfileRequest,
-    GetProfileResponse,
     ListFoldersRequest,
     ListFoldersResponse,
     ListEmailsRequest,
@@ -23,20 +19,18 @@ from .schemas import (
     ReadEmailResponse,
     ReadFileRequest,
     ReadFileResponse,
-    CreateDraftRequest,
-    CreateDraftResponse,
-    SendMailRequest,
-    SendMailResponse,
-    SendDraftRequest,
-    SendDraftResponse,
+    CalendarEventPreview,
+    CalendarEventFull,
+    ListCalendarEventsRequest,
+    ListCalendarEventsResponse,
+    ReadCalendarEventRequest,
+    ReadCalendarEventResponse,
+    ReadCalendarEventAttachmentRequest,
+    ReadCalendarEventAttachmentResponse,
 )
 from .config import OUTLOOK_SERVER_CONFIG
 from .security import MicrosoftTokenVerifier, create_outlook_client
 
-
-# =====================================================================
-# Server Instantiation & Authentication Guard-rails
-# =====================================================================
 
 mcp = FastMCP(
     OUTLOOK_SERVER_CONFIG.server_name,
@@ -53,13 +47,16 @@ mcp = FastMCP(
 )
 
 
-# =====================================================================
-# Structural Conversion & Content Sanitization Helpers
-# =====================================================================
-
-
 def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
-    """Maps cleaned client dictionary objects into strict Pydantic models."""
+    """
+    Maps cleaned client dictionary objects into strict Pydantic models.
+
+    Args:
+        msg_dict: dict -> The raw message dictionary from the Graph API.
+
+    Returns:
+        EmailInformationPreview -> The Pydantic model representing the email preview.
+    """
     return EmailInformationPreview(
         email_id=msg_dict.get("email_id"),
         sender_data=PersonalData(**msg_dict.get("sender_data", {})),
@@ -73,98 +70,123 @@ def to_email_preview(msg_dict: dict) -> EmailInformationPreview:
     )
 
 
-# async def upload_to_gcs_landing_zone(filename: str, data_bytes: bytes, context: str = "default") -> str:
-#     """
-#     Placeholder/Hook for your internal cloud bucket storage ingestion engine.
-#     Replace or import this with your exact cloud utilities module.
-#     """
-#     logger.info(f"Uploading {filename} ({len(data_bytes)} bytes) to GCS storage bucket...")
-#     # Simulate extraction layer execution path uri return
-#     return f"gs://outlook-mcp-landing-zone/{context}/{filename}"
-
-# logger = logging.getLogger(__name__)
-
-
-async def upload_to_gcs_landing_zone(
-    filename: str, data_bytes: bytes, context: str = "default"
-) -> str:
+def to_email_full(msg_dict: dict) -> EmailInformationFull:
     """
-    Streams binary file payloads directly into the centralized GCS Landing Zone bucket,
-    utilizing credentials from the environment.
-    """
-    # 🌟 1. Dynamically pull the bucket name from your environment config (.env)
-    bucket_name = OUTLOOK_SERVER_CONFIG.landing_zone_bucket
+    Maps cleaned client dictionary objects into strict Pydantic full models.
 
-    if not bucket_name:
-        # Fallback safety in case the environment variable didn't load properly
-        raise ValueError(
-            "CRITICAL: LANDING_ZONE_BUCKET environment variable is not set."
+    Args:
+        msg_dict: dict -> The raw message dictionary from the Graph API.
+
+    Returns:
+        EmailInformationFull -> The Pydantic model representing the full email.
+    """
+    from_obj = msg_dict.get("from") or msg_dict.get("sender_data") or {}
+    if isinstance(from_obj, dict):
+        email_addr = from_obj.get("emailAddress") or {}
+        sender_name = email_addr.get("name") or from_obj.get("name")
+        sender_email = (
+            email_addr.get("address") or from_obj.get("email") or "unknown@domain.com"
         )
+    else:
+        sender_name = getattr(from_obj, "name", None)
+        sender_email = getattr(from_obj, "email", "unknown@domain.com")
 
-    logger.info(
-        f"🚀 Initializing GCS upload for {filename} ({len(data_bytes)} bytes) to bucket: {bucket_name}"
+    sender_payload = PersonalData(name=sender_name, email=sender_email)
+
+    to_recipients = []
+    raw_recipients = msg_dict.get("toRecipients") or msg_dict.get("sent_to") or []
+    for r in raw_recipients:
+        if isinstance(r, dict):
+            addr = r.get("emailAddress") or r
+            to_recipients.append(
+                PersonalData(
+                    name=addr.get("name"),
+                    email=addr.get("address")
+                    or addr.get("email")
+                    or "unknown@domain.com",
+                )
+            )
+        else:
+            to_recipients.append(
+                PersonalData(
+                    name=getattr(r, "name", None),
+                    email=getattr(r, "email", "unknown@domain.com"),
+                )
+            )
+
+    attachments_list = []
+    raw_attachments = msg_dict.get("attachments") or []
+    for a in raw_attachments:
+        if isinstance(a, dict):
+            if "id" in a or "attachment_id" in a:
+                attachments_list.append(
+                    AttachmentInfo(
+                        file_name=a.get("name")
+                        or a.get("file_name")
+                        or "Unnamed_Attachment",
+                        mime_type=a.get("contentType")
+                        or a.get("mime_type")
+                        or "application/octet-stream",
+                        attachment_id=a.get("id") or a.get("attachment_id"),
+                        size_megabytes=a.get("size_megabytes", 0.0),
+                    )
+                )
+        else:
+            attachments_list.append(
+                AttachmentInfo(
+                    file_name=getattr(
+                        a, "file_name", getattr(a, "name", "Unnamed_Attachment")
+                    ),
+                    mime_type=getattr(
+                        a,
+                        "mime_type",
+                        getattr(a, "contentType", "application/octet-stream"),
+                    ),
+                    attachment_id=getattr(a, "attachment_id", getattr(a, "id", "")),
+                    size_megabytes=getattr(a, "size_megabytes", 0.0),
+                )
+            )
+
+    body_obj = msg_dict.get("body") or {}
+    body_content = (
+        body_obj.get("content", "")
+        if isinstance(body_obj, dict)
+        else getattr(body_obj, "content", "")
     )
+    if not body_content and isinstance(msg_dict.get("email_body"), str):
+        body_content = msg_dict.get("email_body")
 
-    try:
-        # 2. Initialize the official Google Cloud Storage Client
-        # It automatically locates credentials via GOOGLE_APPLICATION_CREDENTIALS or gcloud auth
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-
-        # 3. Define the destination path (Blob object name) inside the bucket
-        blob_path = f"{context}/{filename}"
-        blob = bucket.blob(blob_path)
-
-        # 4. Stream the raw byte array directly up to the cloud landing zone
-        blob.upload_from_string(data_bytes, content_type="application/octet-stream")
-
-        gcs_uri = f"gs://{bucket_name}/{blob_path}"
-        logger.info(f"✅ Successfully ingested file into landing zone: {gcs_uri}")
-
-        return gcs_uri
-
-    except Exception as e:
-        logger.error(
-            f"❌ Failed to stream file payload to Google Cloud Storage: {str(e)}"
-        )
-        raise e
-
-
-# =====================================================================
-# Account & Context Profile Lookups
-# =====================================================================
-
-
-@mcp.tool()
-async def outlook_get_profile(request: GetProfileRequest) -> GetProfileResponse:
-    """Retrieves authenticated context metadata for the currently active user profile."""
-    try:
-        client = create_outlook_client()
-        profile = await client.get_profile()
-
-        return GetProfileResponse(
-            display_name=profile.get("displayName"),
-            email=profile.get("mail") or profile.get("userPrincipalName"),
-            user_id=profile.get("id"),
-        )
-    except Exception as exc:
-        logger.exception("Error during outlook_get_profile execution")
-        return GetProfileResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exc),
-        )
-
-
-# =====================================================================
-# Tool 1: Mailbox Architecture Folder Crawls
-# =====================================================================
+    return EmailInformationFull(
+        email_id=msg_dict.get("id") or msg_dict.get("email_id"),
+        sender_data=sender_payload,
+        sent_to=to_recipients,
+        subject=msg_dict.get("subject", ""),
+        email_body_preview=msg_dict.get("bodyPreview")
+        or msg_dict.get("email_body_preview")
+        or "",
+        received_date=msg_dict.get("receivedDateTime") or msg_dict.get("received_date"),
+        has_attachments=msg_dict.get("hasAttachments")
+        or msg_dict.get("has_attachments")
+        or False,
+        is_read=msg_dict.get("isRead") or msg_dict.get("is_read") or True,
+        folder_name=msg_dict.get("folder_name", "Unknown Folder"),
+        email_body=body_content,
+        attachments=attachments_list,
+    )
 
 
 @mcp.tool()
 async def outlook_list_folders(request: ListFoldersRequest) -> ListFoldersResponse:
-    """Lists all available root mail folders (Inbox, Sent Items, Junk Email, and custom subfolders).
+    """
+    Lists all available root mail folders (Inbox, Sent Items, Junk Email, and custom subfolders).
     CRITICAL: Always run this tool first if the user mentions a specific folder name or location,
     in order to resolve the correct folder target before searching or reading.
+
+    Args:
+        request: ListFoldersRequest -> The request payload for listing folders.
+
+    Returns:
+        ListFoldersResponse -> The response payload containing the list of folders.
     """
     try:
         client = create_outlook_client()
@@ -188,23 +210,23 @@ async def outlook_list_folders(request: ListFoldersRequest) -> ListFoldersRespon
         )
 
 
-# =====================================================================
-# Tool 2: Consolidated List, Advanced Filter, & Paginated KQL Search
-# =====================================================================
-
-
 @mcp.tool()
 async def outlook_list_emails(request: ListEmailsRequest) -> ListEmailsResponse:
     """
     Searches and lists recent emails across mailbox scopes utilizing advanced token-efficient previews.
     Supports complex searching via dates, sender details, subject patterns, and read statuses.
-    If a user specifies a non-standard folder location, you must call outlook_list_folders
+    If a user specifies a non-standard folder location, the outlook_list_folders tool must be called
     first to verify its existence and fetch its unique operational context identifier.
-
     CRITICAL AGENT INSTRUCTION: Always return ONLY the items found on the current requested page.
     Even if the user asks for 'all' emails, do NOT auto-loop through pages or fetch subsequent pages
     in a single turn. Present the first page to the user and inform them that more pages are available
     using the 'has_next' and 'total_pages' metadata.
+
+    Args:
+        request: ListEmailsRequest -> The request payload with search and filter parameters.
+
+    Returns:
+        ListEmailsResponse -> The response payload with paginated matching emails.
     """
     try:
         client = create_outlook_client()
@@ -234,19 +256,21 @@ async def outlook_list_emails(request: ListEmailsRequest) -> ListEmailsResponse:
         )
 
 
-# =====================================================================
-# Tool 3: Exhaustive Message Inspection & Extraction
-# =====================================================================
-
-
 @mcp.tool()
 async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
-    """Retrieves full body content string matrices and structural metadata for analytical context reading."""
+    """
+    Retrieves full body content string matrices and structural metadata for analytical context reading.
+
+    Args:
+        request: ReadEmailRequest -> The request payload containing the email ID.
+
+    Returns:
+        ReadEmailResponse -> The response payload containing full email details.
+    """
     try:
         client = create_outlook_client()
         raw_msg = await client.read_email(request.email_id)
 
-        # Guard rail: If raw_msg is a Pydantic model or object, safely convert it to a dictionary
         if hasattr(raw_msg, "model_dump"):
             msg_dict = raw_msg.model_dump()
         elif hasattr(raw_msg, "__dict__"):
@@ -254,108 +278,7 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
         else:
             msg_dict = raw_msg
 
-        # 1. Safely extract sender data
-        from_obj = msg_dict.get("from") or msg_dict.get("sender_data") or {}
-        if isinstance(from_obj, dict):
-            email_addr = from_obj.get("emailAddress") or {}
-            sender_name = email_addr.get("name") or from_obj.get("name")
-            sender_email = (
-                email_addr.get("address")
-                or from_obj.get("email")
-                or "unknown@domain.com"
-            )
-        else:
-            # If from_obj is an object
-            sender_name = getattr(from_obj, "name", None)
-            sender_email = getattr(from_obj, "email", "unknown@domain.com")
-
-        sender_payload = PersonalData(name=sender_name, email=sender_email)
-
-        # 2. Safely extract recipients list
-        to_recipients = []
-        raw_recipients = msg_dict.get("toRecipients") or msg_dict.get("sent_to") or []
-        for r in raw_recipients:
-            if isinstance(r, dict):
-                addr = r.get("emailAddress") or r
-                to_recipients.append(
-                    PersonalData(
-                        name=addr.get("name"),
-                        email=addr.get("address")
-                        or addr.get("email")
-                        or "unknown@domain.com",
-                    )
-                )
-            else:
-                to_recipients.append(
-                    PersonalData(
-                        name=getattr(r, "name", None),
-                        email=getattr(r, "email", "unknown@domain.com"),
-                    )
-                )
-
-        # 3. Safely map attachments array
-        attachments_list = []
-        raw_attachments = msg_dict.get("attachments") or []
-        for a in raw_attachments:
-            if isinstance(a, dict):
-                if "id" in a or "attachment_id" in a:
-                    attachments_list.append(
-                        AttachmentInfo(
-                            file_name=a.get("name")
-                            or a.get("file_name")
-                            or "Unnamed_Attachment",
-                            mime_type=a.get("contentType")
-                            or a.get("mime_type")
-                            or "application/octet-stream",
-                            attachment_id=a.get("id") or a.get("attachment_id"),
-                            size=a.get("size", 0),
-                        )
-                    )
-            else:
-                attachments_list.append(
-                    AttachmentInfo(
-                        file_name=getattr(
-                            a, "file_name", getattr(a, "name", "Unnamed_Attachment")
-                        ),
-                        mime_type=getattr(
-                            a,
-                            "mime_type",
-                            getattr(a, "contentType", "application/octet-stream"),
-                        ),
-                        attachment_id=getattr(a, "attachment_id", getattr(a, "id", "")),
-                        size=getattr(a, "size", 0),
-                    )
-                )
-
-        # 4. Final assembly with standard key fallbacks
-        body_obj = msg_dict.get("body") or {}
-        body_content = (
-            body_obj.get("content", "")
-            if isinstance(body_obj, dict)
-            else getattr(body_obj, "content", "")
-        )
-        if not body_content and isinstance(msg_dict.get("email_body"), str):
-            body_content = msg_dict.get("email_body")
-
-        full_info = EmailInformationFull(
-            email_id=msg_dict.get("id") or msg_dict.get("email_id"),
-            sender_data=sender_payload,
-            sent_to=to_recipients,
-            subject=msg_dict.get("subject", ""),
-            email_body_preview=msg_dict.get("bodyPreview")
-            or msg_dict.get("email_body_preview")
-            or "",
-            received_date=msg_dict.get("receivedDateTime")
-            or msg_dict.get("received_date"),
-            has_attachments=msg_dict.get("hasAttachments")
-            or msg_dict.get("has_attachments")
-            or False,
-            is_read=msg_dict.get("isRead") or msg_dict.get("is_read") or True,
-            folder_name=msg_dict.get("folder_name", "Unknown Folder"),
-            email_body=body_content,
-            attachments=attachments_list,
-        )
-
+        full_info = to_email_full(msg_dict)
         return ReadEmailResponse(email=full_info)
 
     except Exception as exc:
@@ -366,70 +289,44 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
         )
 
 
-# =====================================================================
-# Tool 4: Direct Attachment Streaming & Cloud Storage Landings
-# =====================================================================
-
-# @mcp.tool()
-# async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileResponse:
-#     """Streams target binary data directly from Graph into staging buckets."""
-#     try:
-#         client = create_outlook_client()
-
-#         # Extract raw file stream array straight from downstream Graph targets
-#         file_bytes = await client.download_attachment(request.email_id, request.file_id)
-
-#         # Pipeline binary payloads to Cloud Landing Zones
-#         gcs_destination_uri = await upload_to_gcs_landing_zone(
-#             filename=request.filename,
-#             data_bytes=file_bytes,
-#             context=request.email_id
-#         )
-
-#         return ReadFileResponse(
-#             execution_status=ExecutionStatus.SUCCESS,
-#             gcs_uri=gcs_destination_uri,
-#             filename=request.filename,
-#             mime_type=None,  # Available during inline inspection runs
-#             inject_file_data=True
-#         )
-#     except Exception as exc:
-#         logger.exception("Error during outlook_read_email_attachment execution")
-#         return ReadFileResponse(
-#             execution_status=ExecutionStatus.ERROR,
-#             error_message=str(exc),
-#             gcs_uri=None,
-#             filename=request.filename,
-#             inject_file_data=False
-#         )
-
-
 @mcp.tool()
 async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileResponse:
     """
     Streams target binary data directly from Graph into GCS Landing Zone staging buckets,
     setting inject_file_data to True on successful handoffs.
+
+    Args:
+        request: ReadFileRequest -> The request payload with email ID and attachment ID.
+
+    Returns:
+        ReadFileResponse -> The response containing the GCS URI of the injected file.
     """
     try:
+        if not request.dependencies:
+            raise ValueError("Agent dependencies must be provided to ingest files.")
+
         client = create_outlook_client()
-
-        # 1. Extract raw file bytes (auto-handling base64 variations internally)
-        file_bytes = await client.download_attachment(request.email_id, request.file_id)
-
-        if not file_bytes:
-            raise ValueError("Retrieved attachment payload contains 0 bytes.")
-
-        # 2. Pipeline binary payload directly to Google Cloud Landing Zone
-        gcs_destination_uri = await upload_to_gcs_landing_zone(
-            filename=request.filename, data_bytes=file_bytes, context=request.email_id
+        result = await client.read_attachment(
+            email_id=request.email_id,
+            attachment_id=request.file_id,
+            dependencies=request.dependencies,
+            is_calendar=False,
         )
 
-        # 3. Return response with inject_file_data set explicitly to True
+        if result.get("is_reference"):
+            return ReadFileResponse(
+                execution_status=ExecutionStatus.ERROR,
+                error_message=f"This is a cloud reference attachment named '{result.get('name')}'. Please use the OneDrive or SharePoint MCPs to read this file via its link: {result.get('provider_link')}",
+                gcs_uri=None,
+                filename=request.filename,
+                inject_file_data=False,
+            )
+
         return ReadFileResponse(
             execution_status=ExecutionStatus.SUCCESS,
-            gcs_uri=gcs_destination_uri,
-            filename=request.filename,
-            mime_type=None,  # Available during downstream vectorization runs
+            gcs_uri=result["gcs_uri"],
+            filename=result["filename"],
+            mime_type=result["mime_type"],
             inject_file_data=True,
         )
 
@@ -446,68 +343,118 @@ async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileRes
         )
 
 
-# =====================================================================
-# Outbound Transactional Operations (Preserved Systems)
-# =====================================================================
-
-
 @mcp.tool()
-async def outlook_create_draft(request: CreateDraftRequest) -> CreateDraftResponse:
-    """Generates an unsent email message shell matching specified target recipients."""
+async def outlook_list_calendar_events(
+    request: ListCalendarEventsRequest,
+) -> ListCalendarEventsResponse:
+    """
+    Lists calendar events using Microsoft Graph API with optional date/time and text filters.
+
+    Args:
+        request: ListCalendarEventsRequest -> The request payload containing search parameters
+
+    Returns:
+        ListCalendarEventsResponse -> The response containing matching events
+    """
     try:
         client = create_outlook_client()
-        draft = await client.create_draft(
-            to=request.to,
-            cc=request.cc,
-            subject=request.subject,
-            body=request.body,
+        events, _ = await client.list_calendar_events(
+            max_events=request.max_events,
+            date_min=request.date_min,
+            time_min=request.time_min,
+            date_max=request.date_max,
+            time_max=request.time_max,
+            sort_order=request.sort_order,
+            search_term=request.search_term,
         )
 
-        return CreateDraftResponse(
-            draft_id=draft.get("id"),
-            web_link=draft.get("webLink"),
-        )
-    except Exception as exc:
-        logger.exception("Error during outlook_create_draft execution")
-        return CreateDraftResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exc),
-        )
+        parsed_events = [CalendarEventPreview(**event_data) for event_data in events]
 
+        from datetime import datetime, timezone
 
-@mcp.tool()
-async def outlook_send_mail(request: SendMailRequest) -> SendMailResponse:
-    """Dispatches a text/HTML transactional message immediately to target users."""
-    try:
-        client = create_outlook_client()
-        await client.send_mail(
-            to=request.to,
-            cc=request.cc,
-            subject=request.subject,
-            body=request.body,
-            save_to_sent_items=request.save_to_sent_items,
+        current_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        return ListCalendarEventsResponse(
+            server_current_time_utc=current_time, events=parsed_events
         )
-
-        return SendMailResponse(sent=True)
-    except Exception as exc:
-        logger.exception("Error during outlook_send_mail execution")
-        return SendMailResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exc),
+    except Exception as exception:
+        logger.exception("Error during outlook_list_calendar_events execution")
+        return ListCalendarEventsResponse(
+            execution_status=ExecutionStatus.ERROR, error_message=str(exception)
         )
 
 
 @mcp.tool()
-async def outlook_send_draft(request: SendDraftRequest) -> SendDraftResponse:
-    """Triggers the execution delivery run for a pre-staged draft message template."""
+async def outlook_read_calendar_event(
+    request: ReadCalendarEventRequest,
+) -> ReadCalendarEventResponse:
+    """
+    Fetches the full details of a specific calendar event including its attachments.
+
+    Args:
+        request: ReadCalendarEventRequest -> The request payload containing the event ID
+
+    Returns:
+        ReadCalendarEventResponse -> The response containing complete event details
+    """
     try:
         client = create_outlook_client()
-        await client.send_draft(request.draft_id)
+        event_dict = await client.read_calendar_event(request.event_id)
 
-        return SendDraftResponse(sent=True)
+        return ReadCalendarEventResponse(event=CalendarEventFull(**event_dict))
+    except Exception as exception:
+        logger.exception("Error during outlook_read_calendar_event execution")
+        return ReadCalendarEventResponse(
+            execution_status=ExecutionStatus.ERROR, error_message=str(exception)
+        )
+
+
+@mcp.tool()
+async def outlook_read_calendar_event_attachment(
+    request: ReadCalendarEventAttachmentRequest,
+) -> ReadCalendarEventAttachmentResponse:
+    """
+    Downloads a file attachment from a calendar event to the GCS Landing Zone.
+
+    Args:
+        request: ReadCalendarEventAttachmentRequest -> The request payload containing event and attachment IDs
+
+    Returns:
+        ReadCalendarEventAttachmentResponse -> The response containing the GCS URI of the injected file
+    """
+    try:
+        if not request.dependencies:
+            raise ValueError("Agent dependencies must be provided to ingest files.")
+
+        client = create_outlook_client()
+        result = await client.read_attachment(
+            email_id=request.event_id,
+            attachment_id=request.file_id,
+            dependencies=request.dependencies,
+            is_calendar=True,
+        )
+
+        if result.get("is_reference"):
+            return ReadCalendarEventAttachmentResponse(
+                execution_status=ExecutionStatus.ERROR,
+                error_message=f"This is a cloud reference attachment named '{result.get('name')}'. Please use the OneDrive or SharePoint MCPs to read this file via its link: {result.get('provider_link')}",
+                gcs_uri=None,
+                file_name=request.filename,
+                inject_file_data=False,
+            )
+
+        return ReadCalendarEventAttachmentResponse(
+            execution_status=ExecutionStatus.SUCCESS,
+            gcs_uri=result["gcs_uri"],
+            file_name=result["filename"],
+            mime_type=result["mime_type"],
+            inject_file_data=True,
+        )
+
     except Exception as exc:
-        logger.exception("Error during outlook_send_draft execution")
-        return SendDraftResponse(
-            execution_status=ExecutionStatus.ERROR,
-            error_message=str(exc),
+        logger.exception(
+            "Error during outlook_read_calendar_event_attachment execution"
+        )
+        return ReadCalendarEventAttachmentResponse(
+            execution_status=ExecutionStatus.ERROR, error_message=str(exc)
         )
