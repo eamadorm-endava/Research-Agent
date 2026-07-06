@@ -457,7 +457,7 @@ class OutlookClient:
                 }
             )
 
-        # FIX: If local search-filtering modified our array, slice it manually
+        # FIX: If local search-filtering modified the array, slice it manually
         # and match the total length to prevent pagination breaks.
         if is_search or total_matched is None or total_matched == 0:
             total_matched = len(processed_list)
@@ -503,7 +503,7 @@ class OutlookClient:
         # 2. Fetch the raw email document payload from Microsoft Graph
         msg = await self._get(f"/me/messages/{email_id}", params=params)
 
-        # 3. Resolve the structural folder name using your mapping ecosystem
+        # 3. Resolve the structural folder name using the mapping ecosystem
         p_id = msg.get("parentFolderId", "")
         web_link = msg.get("webLink", "").lower()
 
@@ -554,7 +554,7 @@ class OutlookClient:
 
         # 6. CRITICAL SCHEMA ALIGNMENT:
         # Map the clean fields exactly to what EmailInformationFull fields look like at the root.
-        # Notice we map 'receivedDateTime' from Graph to 'received_date' for Pydantic.
+        # Note the mapping of 'receivedDateTime' from Graph to 'received_date' for Pydantic.
         return {
             "email_id": msg.get("id"),
             "sender_data": sender_data_payload,
@@ -798,7 +798,7 @@ class OutlookClient:
 
     def _parse_calendar_event(self, event_payload: dict) -> dict:
         """
-        Parses a Graph API event into our Calendar schema.
+        Parses a Graph API event into the Calendar schema.
 
         Args:
             event_payload: dict -> Raw Graph API event dictionary.

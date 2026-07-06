@@ -140,7 +140,7 @@ async def outlook_list_emails(request: ListEmailsRequest) -> ListEmailsResponse:
     """
     Searches and lists recent emails across mailbox scopes utilizing advanced token-efficient previews.
     Supports complex searching via dates, sender details, subject patterns, and read statuses.
-    If a user specifies a non-standard folder location, you must call outlook_list_folders
+    If a user specifies a non-standard folder location, the outlook_list_folders tool must be called
     first to verify its existence and fetch its unique operational context identifier.
     CRITICAL AGENT INSTRUCTION: Always return ONLY the items found on the current requested page.
     Even if the user asks for 'all' emails, do NOT auto-loop through pages or fetch subsequent pages
