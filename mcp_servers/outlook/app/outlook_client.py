@@ -1,4 +1,5 @@
 import httpx
+import io
 from loguru import logger
 from typing import Any, Tuple, Optional
 import time
@@ -635,7 +636,6 @@ class OutlookClient:
         Returns:
             str -> The resulting GCS URI of the uploaded file.
         """
-        import io
 
         with httpx.Client(timeout=60.0) as client:
             response = client.get(
