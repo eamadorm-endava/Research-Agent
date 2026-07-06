@@ -620,13 +620,14 @@ class OutlookClient:
         session_id: str,
     ) -> str:
         """
-        Synchronously streams a file from Outlook directly into GCS.
+        Synchronously downloads a file from Outlook and uploads it to GCS.
+        Buffers into memory to avoid Graph API size mismatch and GCS resumable stream 400 errors.
 
         Args:
             content_endpoint: str -> The download endpoint URL.
             content_type: str -> The MIME type of the file.
             filename: str -> The filename of the attachment.
-            file_size: int -> The size of the file in bytes.
+            file_size: int -> The size of the file in bytes (metadata, often inaccurate).
             app_name: str -> The name of the calling application.
             user_id: str -> The user identifier.
             session_id: str -> The session identifier.
@@ -634,24 +635,29 @@ class OutlookClient:
         Returns:
             str -> The resulting GCS URI of the uploaded file.
         """
-        with httpx.Client() as client:
-            with client.stream(
-                "GET", content_endpoint, headers=self.headers, follow_redirects=True
-            ) as response:
-                if response.status_code == 401:
-                    raise ValueError("Invalid or expired Microsoft access token.")
-                response.raise_for_status()
+        import io
 
-                file_stream = SyncStreamIOWrapper(response)
+        with httpx.Client(timeout=60.0) as client:
+            response = client.get(
+                content_endpoint, headers=self.headers, follow_redirects=True
+            )
+            if response.status_code == 401:
+                raise ValueError("Invalid or expired Microsoft access token.")
+            response.raise_for_status()
 
-                return self.gcs_connector.upload_stream(
-                    file_obj=file_stream,
-                    content_type=content_type,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename,
-                )
+            data = response.content
+            exact_size = len(data)
+            file_stream = io.BytesIO(data)
+
+            return self.gcs_connector.upload_stream(
+                file_obj=file_stream,
+                content_type=content_type,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                size=exact_size,
+            )
 
     async def read_attachment(
         self,
