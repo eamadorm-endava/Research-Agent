@@ -1,4 +1,5 @@
 import httpx
+import io
 from loguru import logger
 from typing import Any, Tuple, Optional
 import time
@@ -12,74 +13,6 @@ from .schemas import (
     SortByOption,
     ReadFileResponse,
 )
-
-
-class SyncStreamIOWrapper:
-    """
-    Wraps an HTTPX response iterator into a synchronous file-like object.
-    Used for streaming uploads without holding entire files in memory.
-    """
-
-    def __init__(self, resp):
-        """
-        Initializes the IO wrapper with the response object.
-
-        Args:
-            resp: httpx.Response -> The response containing the byte stream.
-
-        Returns:
-            None
-        """
-        self.iterator = resp.iter_bytes()
-        self.buffer = b""
-
-    def read(self, size: int = -1) -> bytes:
-        """
-        Reads up to 'size' bytes from the stream buffer.
-
-        Args:
-            size: int -> The maximum number of bytes to read. Defaults to -1 (all).
-
-        Returns:
-            bytes -> The byte chunks read from the buffer.
-        """
-        if size == -1:
-            data = b"".join(self.iterator)
-            result = self.buffer + data
-            self.buffer = b""
-            return result
-        while len(self.buffer) < size:
-            try:
-                self.buffer += next(self.iterator)
-            except StopIteration:
-                break
-        result, self.buffer = self.buffer[:size], self.buffer[size:]
-        return result
-
-    def tell(self) -> int:
-        """
-        Returns the current stream position (always 0, unseekable).
-
-        Args:
-            None
-
-        Returns:
-            int -> The current position.
-        """
-        return 0
-
-    def seek(self, offset: int, whence: int = 0) -> int:
-        """
-        Raises an IOError as the stream is unseekable.
-
-        Args:
-            offset: int -> The offset to seek to.
-            whence: int -> The reference point.
-
-        Returns:
-            int -> The new position (never returns).
-        """
-        raise IOError("SyncStreamIOWrapper does not support seeking")
 
 
 def sanitize_x500_address(
@@ -609,7 +542,7 @@ class OutlookClient:
             "attachments": processed_attachments,
         }
 
-    async def _sync_stream_to_landing_zone(
+    def _sync_stream_to_landing_zone(
         self,
         content_endpoint: str,
         content_type: str,
@@ -620,13 +553,14 @@ class OutlookClient:
         session_id: str,
     ) -> str:
         """
-        Synchronously streams a file from Outlook directly into GCS.
+        Synchronously downloads a file from Outlook and uploads it to GCS.
+        Buffers into memory to avoid Graph API size mismatch and GCS resumable stream 400 errors.
 
         Args:
             content_endpoint: str -> The download endpoint URL.
             content_type: str -> The MIME type of the file.
             filename: str -> The filename of the attachment.
-            file_size: int -> The size of the file in bytes.
+            file_size: int -> The size of the file in bytes (metadata, often inaccurate).
             app_name: str -> The name of the calling application.
             user_id: str -> The user identifier.
             session_id: str -> The session identifier.
@@ -634,25 +568,28 @@ class OutlookClient:
         Returns:
             str -> The resulting GCS URI of the uploaded file.
         """
-        with httpx.Client() as client:
-            with client.stream(
-                "GET", content_endpoint, headers=self.headers, follow_redirects=True
-            ) as response:
-                if response.status_code == 401:
-                    raise ValueError("Invalid or expired Microsoft access token.")
-                response.raise_for_status()
 
-                file_stream = SyncStreamIOWrapper(response)
+        with httpx.Client(timeout=60.0) as client:
+            response = client.get(
+                content_endpoint, headers=self.headers, follow_redirects=True
+            )
+            if response.status_code == 401:
+                raise ValueError("Invalid or expired Microsoft access token.")
+            response.raise_for_status()
 
-                return self.gcs_connector.upload_stream(
-                    file_obj=file_stream,
-                    content_type=content_type,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename,
-                    size=file_size,
-                )
+            data = response.content
+            exact_size = len(data)
+            file_stream = io.BytesIO(data)
+
+            return self.gcs_connector.upload_stream(
+                file_obj=file_stream,
+                content_type=content_type,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                size=exact_size,
+            )
 
     async def read_attachment(
         self,
@@ -763,7 +700,7 @@ class OutlookClient:
         """
         endpoint = "/me/events"
         params: dict[str, Any] = {
-            "$top": max_events,
+            "$top": max(max_events, 100) if search_term else max_events,
             "$select": "id,subject,bodyPreview,start,end,attendees,organizer,isOnlineMeeting,onlineMeeting,hasAttachments",
             "$orderby": f"start/dateTime {sort_order}",
         }
@@ -783,20 +720,13 @@ class OutlookClient:
             filters.append(f"start/dateTime ge '{start_datetime}'")
             filters.append(f"end/dateTime le '{end_datetime}'")
 
-        if search_term:
-            params["$search"] = f'"{search_term}"'
-
         if filters:
             params["$filter"] = " and ".join(filters)
-
-        headers = self.headers.copy()
-        if search_term or filters:
-            headers["ConsistencyLevel"] = "eventual"
 
         url = f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}{endpoint}"
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                url, headers=headers, params=params, timeout=30.0
+                url, headers=self.headers, params=params, timeout=30.0
             )
             if response.status_code == 401:
                 raise ValueError("Invalid or expired Microsoft access token.")
@@ -805,7 +735,16 @@ class OutlookClient:
 
         events = []
         for event_payload in graph_api_response.get("value", []):
+            if search_term:
+                subject = event_payload.get("subject", "").lower()
+                body = event_payload.get("bodyPreview", "").lower()
+                term = search_term.lower().strip('"')
+                if term not in subject and term not in body:
+                    continue
             events.append(self._parse_calendar_event(event_payload))
+
+        if search_term:
+            events = events[:max_events]
 
         return events, len(events)
 

@@ -238,7 +238,7 @@ run-outlook-tests:
 	uv run --group mcp_outlook pytest mcp_servers/outlook/tests/
 
 run-outlook-mcp-locally:
-	uv run --group mcp_outlook python -m mcp_servers.outlook.app.main --host localhost --port 8086
+	uv run --group mcp_outlook python -m mcp_servers.outlook.app.main --host localhost --port 8087
 
 build-outlook-mcp-image:
 	docker build -t test-outlook-mcp-server -f mcp_servers/outlook/Dockerfile .
@@ -303,26 +303,3 @@ verify-atlassian-ci:
 
 test-atlassian-terraform:
 	cd terraform/atlassian_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
-
-### Outlook MCP Commands ###
- 
-run-outlook-precommit:
-	uvx pre-commit run --files mcp_servers/outlook/**/*
- 
-run-outlook-tests:
-	uv run --group mcp_outlook pytest mcp_servers/outlook/tests/
- 
-run-outlook-mcp-locally:
-	uv run --group mcp_outlook python -m mcp_servers.outlook.app.main --host localhost --port 8086
- 
-build-outlook-mcp-image:
-	docker build -t test-outlook-mcp-server -f mcp_servers/outlook/Dockerfile .
- 
-verify-outlook-ci:
-	$(MAKE) run-outlook-precommit
-	$(MAKE) run-outlook-tests
-	$(MAKE) build-outlook-mcp-image
-	$(MAKE) test-outlook-terraform
- 
-test-outlook-terraform:
-	cd terraform/outlook_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
