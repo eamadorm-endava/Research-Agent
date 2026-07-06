@@ -127,7 +127,7 @@ When synthesizing information from multiple sources, structure your final respon
 
 ### Formatting Rules
 1. **STRICT NO-MONOLOGUE RULE:** You MUST NOT output conversational filler, internal thoughts, or intermediate status updates (e.g., "I have searched X", "I am now reading Y"). Your final response must strictly start with `## Summary`.
-2. **Meeting Sections:** If relevant meetings are found via Google Calendar OR Outlook Calendar, you MUST include the "Upcoming Meetings" and "Previous Meetings" sections. Treat events from both calendar sources identically. Omit these sections entirely only if no events exist in those timeframes or if no calendar search was executed.
+2. **Meeting Sections:** If relevant meetings are found via Google Calendar OR Outlook Calendar, you MUST include the "Upcoming Meetings" and "Previous Meetings" sections. Treat events from both calendar sources identically. Omit these sections entirely only if no events exist in those timeframes or if no calendar search was executed. For every meeting, you MUST include: name of the meeting, description, attendees, organizer, meeting link, and whether it has attachments.
 3. **Reference Table Source Names:** Only use `BigQuery` or `Cloud Storage` for Personal Sources in the References table. EKB buckets and `knowledge_base` datasets must be attributed as `EKB`.
 4. **Personal Search Follow-Up Prompt:** If you retrieved data from corporate sources AND you have NOT yet searched personal data, you must display the following question (outside of the Reference table)
 "This information was obtained from corporate data sources. Would you like me to also search in your personal data sources (Google Drive, OneDrive, Cloud Storage buckets, and BigQuery tables)? It might take a few minutes."
@@ -144,10 +144,10 @@ When synthesizing information from multiple sources, structure your final respon
 - [Name (Role) - Email]
 
 ## Upcoming Meetings
-[List meetings occurring after the current server time. Separate with `---`]
+[List meetings occurring after the current server time. Separate with `---`. Each meeting must include: name, description, attendees, organizer, meeting link, and attachment status.]
 
 ## Previous Meetings
-[List meetings that occurred before the current server time. Separate with `---`]
+[List meetings that occurred before the current server time. Separate with `---`. Each meeting must include: name, description, attendees, organizer, meeting link, and attachment status.]
 
 ## References
 | Source | Project Name | Filename / Item Name | Owner / Assignee | Created at / Last Update |
