@@ -37,6 +37,7 @@ Follow these steps to configure the application, generate credentials, and grant
    - `email`
    - `Mail.Read`
    - `Mail.Read.Shared`
+   - `Calendars.Read`
 4. Once all the required permissions are checked, click **Add permissions** at the bottom.
 
 ## 4. Grant Admin Consent

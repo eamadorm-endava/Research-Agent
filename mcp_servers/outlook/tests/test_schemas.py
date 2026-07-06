@@ -1,4 +1,4 @@
-from app.schemas import ListEmailsRequest, EmailTypeOption
+from mcp_servers.outlook.app.schemas import ListEmailsRequest, EmailTypeOption
 
 
 def test_list_emails_request_schema():
