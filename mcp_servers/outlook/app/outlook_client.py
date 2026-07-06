@@ -78,9 +78,7 @@ class OutlookClient:
 
     # Cache time-to-live configuration (e.g., set to 300 seconds / 5 mins)
     _cache_ttl: int = OUTLOOK_SERVER_CONFIG.cache_ttl_seconds
-    # (
-    #     # 300  # Or pull from your configuration: OUTLOOK_SERVER_CONFIG.cache_ttl_seconds
-    # )
+
     _file_cache: dict[tuple, tuple[float, ReadFileResponse]] = {}
 
     @classmethod
@@ -97,25 +95,6 @@ class OutlookClient:
         """
         MAX_CACHE_SIZE = 500
         current_time = time.time()
-
-        # if len(cls._list_emails_cache) > MAX_CACHE_SIZE:
-        #     # 1. Purge items where TTL has expired
-        #     expired_keys = [
-        #         k
-        #         for k, (timestamp, _) in cls._list_emails_cache.items()
-        #         if current_time - timestamp >= cls._cache_ttl
-        #     ]
-        #     for k in expired_keys:
-        #         cls._list_emails_cache.pop(k, None)
-
-        #     # 2. If still bloated, purge the oldest 20% using Least Recently Used (LRU) order
-        #     if len(cls._list_emails_cache) > MAX_CACHE_SIZE:
-        #         sorted_items = sorted(
-        #             cls._list_emails_cache.items(), key=lambda x: x[1][0]
-        #         )
-        #         num_to_delete = int(len(sorted_items) * 0.2)
-        #         for k, _ in sorted_items[:num_to_delete]:
-        #             cls._list_emails_cache.pop(k, None)
 
         for cache_dict in [cls._list_emails_cache, cls._file_cache]:
             if len(cache_dict) > MAX_CACHE_SIZE:
@@ -186,32 +165,6 @@ class OutlookClient:
             )
             response.raise_for_status()
             return response.json()
-
-    async def _post(
-        self, path: str, json: dict[str, Any] | None = None
-    ) -> dict[str, Any] | None:
-        """
-        Baseline resilient POST handler for outgoing transactional workflows.
-
-        Args:
-            path: str -> The API endpoint path.
-            json: dict[str, Any] | None -> The JSON payload to send.
-
-        Returns:
-            dict[str, Any] | None -> The JSON response payload if present.
-        """
-        async with httpx.AsyncClient(
-            timeout=OUTLOOK_SERVER_CONFIG.timeout_seconds
-        ) as client:
-            response = await client.post(
-                f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}{path}",
-                headers=self.headers,
-                json=json,
-            )
-            response.raise_for_status()
-            if response.content:
-                return response.json()
-            return None
 
     async def get_my_email(self) -> str:
         """

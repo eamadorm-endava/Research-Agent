@@ -349,39 +349,6 @@ async def outlook_read_email(request: ReadEmailRequest) -> ReadEmailResponse:
 # Tool 4: Direct Attachment Streaming & Cloud Storage Landings
 # =====================================================================
 
-# @mcp.tool()
-# async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileResponse:
-#     """Streams target binary data directly from Graph into staging buckets."""
-#     try:
-#         client = create_outlook_client()
-
-#         # Extract raw file stream array straight from downstream Graph targets
-#         file_bytes = await client.download_attachment(request.email_id, request.file_id)
-
-#         # Pipeline binary payloads to Cloud Landing Zones
-#         gcs_destination_uri = await upload_to_gcs_landing_zone(
-#             filename=request.filename,
-#             data_bytes=file_bytes,
-#             context=request.email_id
-#         )
-
-#         return ReadFileResponse(
-#             execution_status=ExecutionStatus.SUCCESS,
-#             gcs_uri=gcs_destination_uri,
-#             filename=request.filename,
-#             mime_type=None,  # Available during inline inspection runs
-#             inject_file_data=True
-#         )
-#     except Exception as exc:
-#         logger.exception("Error during outlook_read_email_attachment execution")
-#         return ReadFileResponse(
-#             execution_status=ExecutionStatus.ERROR,
-#             error_message=str(exc),
-#             gcs_uri=None,
-#             filename=request.filename,
-#             inject_file_data=False
-#         )
-
 
 @mcp.tool()
 async def outlook_read_email_attachment(request: ReadFileRequest) -> ReadFileResponse:
