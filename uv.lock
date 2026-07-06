@@ -3314,6 +3314,7 @@ mcp-onedrive = [
     { name = "pydantic-settings" },
 ]
 mcp-outlook = [
+    { name = "google-auth" },
     { name = "google-cloud-storage" },
     { name = "httpx" },
     { name = "loguru" },
@@ -3441,7 +3442,8 @@ mcp-onedrive = [
     { name = "pydantic-settings", specifier = ">=2.13.1" },
 ]
 mcp-outlook = [
-    { name = "google-cloud-storage", specifier = ">=3.12.0" },
+    { name = "google-auth", specifier = ">=2.0.0" },
+    { name = "google-cloud-storage", specifier = ">=2.14.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mcp", specifier = ">=1.2.0" },

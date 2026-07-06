@@ -119,7 +119,8 @@ mcp_outlook = [
     "pydantic[email]>=2.5.3",
     "httpx>=0.27.0",
     "loguru>=0.7.3",
-    "google-cloud-storage>=3.12.0",
+    "google-cloud-storage>=2.14.0",
+    "google-auth>=2.0.0",
 ]
 mcp_sharepoint = [
     "msgraph-core>=1.0.0",
