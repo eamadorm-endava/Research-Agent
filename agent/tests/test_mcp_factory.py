@@ -5,6 +5,7 @@ from agent.core_agent.config import (
     BigQueryMCPConfig,
     GCSMCPConfig,
     GoogleAuthConfig,
+    AtlassianAuthConfig,
     AtlassianMCPConfig,
 )
 from agent.core_agent.builder.mcp_factory import MCPToolsetBuilder
@@ -123,29 +124,35 @@ def test_mcp_config_alias_precedence():
 
 
 def test_get_mcp_toolset_atlassian_local_and_prod():
-    """Test factory creates Atlassian toolset with correct properties (no local auth, GCS headers)."""
-    with patch.dict(os.environ, clear=True):
+    """Test factory wires Atlassian 3LO locally and GE delegated tokens in prod."""
+    with patch.dict(
+        os.environ, {"GEMINI_ATLASSIAN_AUTH_ID": "atlassian-id"}, clear=True
+    ):
         mcp_config = AtlassianMCPConfig(_env_file=None)
+        mcp_config.OAUTH_CONFIG = AtlassianAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            _env_file=None,
+        )
 
     builder = MCPToolsetBuilder()
 
-    # 1. Local execution mode
     tool_local = builder.build(mcp_config, prod_execution=False)
     assert tool_local._connection_params.url == "http://localhost:8085/mcp"
-    assert tool_local._auth_scheme is None
-    assert tool_local._auth_credential is None
+    assert tool_local._auth_scheme is not None
+    assert tool_local._auth_credential is not None
 
-    # 2. Prod execution mode
     tool_prod = builder.build(mcp_config, prod_execution=True)
     assert tool_prod._connection_params.url == "http://localhost:8085/mcp"
     assert tool_prod._auth_scheme is None
     assert tool_prod._auth_credential is None
 
-    # Verify headers (should contain X-Serverless-Authorization but NO Authorization header)
     ctx = MagicMock()
+    ctx.state = {"atlassian-id": "delegated-atlassian-token"}
     with patch(
         "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
     ):
         headers = tool_prod._header_provider(ctx)
         assert headers["X-Serverless-Authorization"] == "Bearer id-token"
-        assert "Authorization" not in headers
+        assert headers["Authorization"] == "Bearer delegated-atlassian-token"

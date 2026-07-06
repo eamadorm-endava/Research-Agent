@@ -92,6 +92,46 @@ class GoogleAuthConfig(BaseOAuthConfig):
     ]
 
 
+class AtlassianAuthConfig(BaseOAuthConfig):
+    """Configuration for Atlassian OAuth 2.0 (3LO) connection parameters."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="ATLASSIAN_OAUTH_",
+    )
+
+    AUTH_URI: Annotated[
+        str,
+        Field(
+            default=(
+                "https://auth.atlassian.com/authorize"
+                "?audience=api.atlassian.com&prompt=consent"
+            ),
+            description=(
+                "Atlassian 3LO authorization endpoint. The audience query "
+                "parameter is required so Atlassian issues an api.atlassian.com "
+                "access token after the user's SSO-backed consent."
+            ),
+        ),
+    ]
+    TOKEN_URI: Annotated[
+        str,
+        Field(
+            default="https://auth.atlassian.com/oauth/token",
+            description="Atlassian 3LO token exchange endpoint.",
+        ),
+    ]
+    TOKEN_ENDPOINT_AUTH_METHOD: Annotated[
+        str,
+        Field(
+            default="client_secret_post",
+            description=(
+                "Atlassian 3LO expects client credentials in the token request "
+                "body when exchanging an authorization code."
+            ),
+        ),
+    ]
+
+
 class MicrosoftAuthConfig(BaseOAuthConfig):
     """Configuration for Microsoft Entra OAuth 2.0 connection parameters."""
 
@@ -141,3 +181,4 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
 # Global configuration instances
 GOOGLE_AUTH_CONFIG = GoogleAuthConfig()
 MICROSOFT_AUTH_CONFIG = MicrosoftAuthConfig()
+ATLASSIAN_AUTH_CONFIG = AtlassianAuthConfig()

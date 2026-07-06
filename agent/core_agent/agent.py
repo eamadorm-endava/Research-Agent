@@ -25,6 +25,7 @@ from .config import (
     AtlassianMCPConfig,
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
+    ATLASSIAN_AUTH_CONFIG,
 )
 
 # ---------------------------------------------------------------------------
@@ -36,7 +37,7 @@ CALENDAR_MCP_CONFIG = CalendarMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
 GCS_MCP_CONFIG = GCSMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
 ONEDRIVE_MCP_CONFIG = OneDriveMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
 SHAREPOINT_MCP_CONFIG = SharePointMCPConfig(OAUTH_CONFIG=MICROSOFT_AUTH_CONFIG)
-ATLASSIAN_MCP_CONFIG = AtlassianMCPConfig()
+ATLASSIAN_MCP_CONFIG = AtlassianMCPConfig(OAUTH_CONFIG=ATLASSIAN_AUTH_CONFIG)
 
 
 # ---------------------------------------------------------------------------

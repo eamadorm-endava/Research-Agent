@@ -172,9 +172,25 @@ class AtlassianMCPConfig(BaseMCPConfig):
     model_config = SettingsConfigDict(env_prefix="ATLASSIAN_")
 
     URL: str = "http://localhost:8085"
-    OAUTH_CONFIG: Optional[BaseOAuthConfig] = None
-    OAUTH_SCOPES: Union[dict[str, str], list[str]] = []
-    GEMINI_AUTH_ID: Optional[str] = None
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
+        "offline_access",
+        "read:jira-work",
+        "read:jira-user",
+        "read:confluence-content.all",
+        "read:confluence-space.summary",
+        "write:confluence-content",
+    ]
+    GEMINI_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-atlassian-auth-id",
+            description="Auth Resource ID for Atlassian Jira and Confluence.",
+            validation_alias=AliasChoices(
+                "ATLASSIAN_AUTH_ID",
+                "GEMINI_ATLASSIAN_AUTH_ID",
+            ),
+        ),
+    ]
 
 
 class OneDriveMCPConfig(BaseMCPConfig):

@@ -12,9 +12,11 @@ from .agent_settings import (
 from .oauth_settings import (
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
+    ATLASSIAN_AUTH_CONFIG,
     BaseOAuthConfig,
     GoogleAuthConfig,
     MicrosoftAuthConfig,
+    AtlassianAuthConfig,
 )
 from .mcp_settings import (
     BaseMCPConfig,
@@ -35,6 +37,7 @@ __all__ = [
     "INGESTION_AGENT_CONFIG",
     "GOOGLE_AUTH_CONFIG",
     "MICROSOFT_AUTH_CONFIG",
+    "ATLASSIAN_AUTH_CONFIG",
     # Config classes (needed for type hints and MCP instantiation)
     "GCPConfig",
     "CoreAgentConfig",
@@ -44,6 +47,7 @@ __all__ = [
     "BaseOAuthConfig",
     "GoogleAuthConfig",
     "MicrosoftAuthConfig",
+    "AtlassianAuthConfig",
     "BaseMCPConfig",
     "BigQueryMCPConfig",
     "CalendarMCPConfig",
