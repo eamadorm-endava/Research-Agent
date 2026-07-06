@@ -15,11 +15,34 @@ from .schemas import (
 
 
 class SyncStreamIOWrapper:
+    """
+    Wraps an HTTPX response iterator into a synchronous file-like object.
+    Used for streaming uploads without holding entire files in memory.
+    """
+
     def __init__(self, resp):
+        """
+        Initializes the IO wrapper with the response object.
+
+        Args:
+            resp: httpx.Response -> The response containing the byte stream.
+
+        Returns:
+            None
+        """
         self.iterator = resp.iter_bytes()
         self.buffer = b""
 
     def read(self, size: int = -1) -> bytes:
+        """
+        Reads up to 'size' bytes from the stream buffer.
+
+        Args:
+            size: int -> The maximum number of bytes to read. Defaults to -1 (all).
+
+        Returns:
+            bytes -> The byte chunks read from the buffer.
+        """
         if size == -1:
             data = b"".join(self.iterator)
             result = self.buffer + data
@@ -34,9 +57,28 @@ class SyncStreamIOWrapper:
         return result
 
     def tell(self) -> int:
+        """
+        Returns the current stream position (always 0, unseekable).
+
+        Args:
+            None
+
+        Returns:
+            int -> The current position.
+        """
         return 0
 
     def seek(self, offset: int, whence: int = 0) -> int:
+        """
+        Raises an IOError as the stream is unseekable.
+
+        Args:
+            offset: int -> The offset to seek to.
+            whence: int -> The reference point.
+
+        Returns:
+            int -> The new position (never returns).
+        """
         raise IOError("SyncStreamIOWrapper does not support seeking")
 
 
@@ -247,6 +289,15 @@ class OutlookClient:
     def _build_list_emails_query(
         self, criteria: ListEmailsRequest
     ) -> Tuple[str, dict[str, Any], dict[str, str], bool]:
+        """
+        Builds the MS Graph API query parameters and path for listing emails.
+
+        Args:
+            criteria: ListEmailsRequest -> The search and filter criteria.
+
+        Returns:
+            Tuple[str, dict[str, Any], dict[str, str], bool] -> The API path, query parameters, headers, and whether it is a search query.
+        """
         if criteria.folder_id:
             path = f"/me/mailFolders/{criteria.folder_id}/messages"
         elif criteria.email_type == EmailTypeOption.SENT:
@@ -322,6 +373,19 @@ class OutlookClient:
         folder_map: dict,
         my_email: str,
     ) -> list[dict[str, Any]]:
+        """
+        Processes and formats the raw MS Graph API message objects.
+
+        Args:
+            raw_messages: list -> The raw email message list.
+            is_search: bool -> Whether this is a search result.
+            criteria: ListEmailsRequest -> The requested filters.
+            folder_map: dict -> Map of folder IDs to friendly names.
+            my_email: str -> The user's own email.
+
+        Returns:
+            list[dict[str, Any]] -> A list of fully parsed and sanitized emails.
+        """
         if is_search and raw_messages:
             is_desc = criteria.sort_order.value.lower() == "desc"
             if criteria.sort_by == SortByOption.SUBJECT:

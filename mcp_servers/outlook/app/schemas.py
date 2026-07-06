@@ -5,11 +5,15 @@ from typing_extensions import Self
 
 
 class ExecutionStatus(str, Enum):
+    """Represents the execution status of a task."""
+
     SUCCESS = "success"
     ERROR = "error"
 
 
 class AgentDependencies(BaseModel):
+    """Injected framework parameters hidden from the LLM."""
+
     app_name: Annotated[
         str,
         Field(description="The name of the calling application or agent."),
@@ -25,6 +29,8 @@ class AgentDependencies(BaseModel):
 
 
 class BaseRequest(BaseModel):
+    """Base request class for all MCP tools."""
+
     dependencies: Annotated[
         Optional[AgentDependencies],
         Field(
@@ -44,6 +50,16 @@ class BaseRequest(BaseModel):
             handler: Any -> The schema generation handler.
 
         Returns:
+            Any -> The modified JSON Schema.
+        """
+        """
+        Removes the dependencies field from the generated JSON Schema to prevent LLM hallucinations.
+
+        Args:
+            core_schema: Any -> The core Pydantic schema being processed.
+            handler: Any -> The schema generation handler.
+
+        Returns:
             dict -> The modified JSON Schema dictionary.
         """
         json_schema = super().__get_pydantic_json_schema__(core_schema, handler)
@@ -54,6 +70,8 @@ class BaseRequest(BaseModel):
 
 
 class BaseResponse(BaseModel):
+    """Base response class for all MCP tools."""
+
     execution_status: Annotated[
         ExecutionStatus,
         Field(description="Whether the operation succeeded or failed."),
@@ -65,6 +83,8 @@ class BaseResponse(BaseModel):
 
 
 class BasePaginatedResponse(BaseModel):
+    """Base response class for paginated results."""
+
     current_page: Annotated[
         int, Field(default=1, description="The current page number.")
     ] = 1
@@ -77,23 +97,31 @@ class BasePaginatedResponse(BaseModel):
 
 
 class EmailTypeOption(str, Enum):
+    """Enumeration for email type filters."""
+
     SENT = "sent"
     RECEIVED = "received"
     ALL = "all"
 
 
 class SortByOption(str, Enum):
+    """Enumeration for email sorting options."""
+
     DATE = "date"
     SUBJECT = "subject"
     SENDER = "sender"
 
 
 class SortOrderOption(str, Enum):
+    """Enumeration for sort directions."""
+
     ASCENDING = "asc"
     DESCENDING = "desc"
 
 
 class PersonalData(BaseModel):
+    """Represents an individual's contact details."""
+
     name: Annotated[
         Optional[str], Field(default=None, description="Name of the person")
     ] = None
@@ -101,6 +129,8 @@ class PersonalData(BaseModel):
 
 
 class OutlookRecipient(BaseModel):
+    """Represents a recipient in an Outlook email."""
+
     email: Annotated[EmailStr, Field(description="Recipient email address.")]
     name: Annotated[
         str | None, Field(default=None, description="Optional recipient display name.")
@@ -108,6 +138,8 @@ class OutlookRecipient(BaseModel):
 
 
 class AttachmentInfo(BaseModel):
+    """Represents basic attachment metadata."""
+
     file_name: Annotated[str, Field(description="Name of the attached file")]
     mime_type: Annotated[str, Field(description="MIME type of the file")]
     attachment_id: Annotated[str, Field(description="Unique ID of the attachment")]
@@ -124,6 +156,8 @@ class AttachmentInfo(BaseModel):
 
 
 class FolderInfo(BaseModel):
+    """Represents an Outlook mail folder."""
+
     folder_id: Annotated[str, Field(description="Unique identifier for the folder")]
     display_name: Annotated[
         str, Field(description="Name of the folder (e.g., 'Inbox', 'Junk Email')")
@@ -135,6 +169,8 @@ class FolderInfo(BaseModel):
 
 
 class EmailInformationPreview(BaseModel):
+    """Represents a lightweight email preview for lists."""
+
     email_id: Annotated[
         str, Field(description="Unique identifier for the email message")
     ]
@@ -168,6 +204,8 @@ class EmailInformationPreview(BaseModel):
 
 
 class EmailInformationFull(EmailInformationPreview):
+    """Represents a detailed email object with full metadata."""
+
     email_body: Annotated[
         Optional[str], Field(default="", description="The complete body of the email")
     ]
@@ -178,6 +216,8 @@ class EmailInformationFull(EmailInformationPreview):
 
 
 class DownloadableFiles(str, Enum):
+    """Represents the resulting downloaded file from an attachment."""
+
     PDF = "application/pdf"
     CSV = "text/csv"
 
@@ -272,14 +312,20 @@ TimeFilterType = Annotated[
 
 
 class ListFoldersRequest(BaseRequest):
+    """Request schema for listing folders."""
+
     pass
 
 
 class ListFoldersResponse(BaseResponse):
+    """Response schema for listing folders."""
+
     folders: Annotated[list[FolderInfo], Field(description="List of mail folders")]
 
 
 class ListEmailsRequest(BaseRequest):
+    """Request schema for listing emails with filters."""
+
     email_type: Annotated[
         EmailTypeOption,
         Field(
@@ -348,12 +394,23 @@ class ListEmailsRequest(BaseRequest):
 
     @model_validator(mode="after")
     def validate_dates(self) -> Self:
+        """
+        Validates that date inputs match the required format.
+
+        Args:
+            None
+
+        Returns:
+            Self -> The validated object instance.
+        """
         if self.min_date and self.max_date and self.min_date > self.max_date:
             raise ValueError("min_date cannot be greater than max_date")
         return self
 
 
 class ListEmailsResponse(BaseResponse, BasePaginatedResponse):
+    """Response schema for listing emails."""
+
     objects_found: Annotated[
         list[EmailInformationPreview], Field(description="List of found emails")
     ]
@@ -364,16 +421,22 @@ class ListEmailsResponse(BaseResponse, BasePaginatedResponse):
 
 
 class ReadEmailRequest(BaseRequest):
+    """Request schema for reading a specific email."""
+
     email_id: Annotated[str, Field(description="The unique ID of the email to read")]
 
 
 class ReadEmailResponse(BaseResponse):
+    """Response schema for reading a specific email."""
+
     email: Annotated[
         EmailInformationFull, Field(description="The complete email details")
     ]
 
 
 class ReadFileRequest(BaseRequest):
+    """Request schema for downloading attachments."""
+
     filename: Annotated[str, Field(description="The name of the file to read")]
     file_id: Annotated[str, Field(description="The attachment ID")]
     email_id: Annotated[
@@ -386,6 +449,8 @@ class ReadFileRequest(BaseRequest):
 
 
 class ReadFileResponse(BaseResponse):
+    """Response schema for downloading attachments."""
+
     gcs_uri: Annotated[
         Optional[str],
         Field(default=None, description="The GCS URI where the file was ingested"),
@@ -428,6 +493,15 @@ class ListCalendarEventsRequest(BaseRequest):
 
     @model_validator(mode="after")
     def validate_time_filters(self) -> Self:
+        """
+        Validates that time inputs match the required format.
+
+        Args:
+            None
+
+        Returns:
+            Self -> The validated object instance.
+        """
         if (self.time_min or self.time_max) and (
             not self.date_min or not self.date_max
         ):

@@ -10,6 +10,15 @@ class GCSConnector:
     """Handles zero-copy file streaming to the GCS Landing Zone."""
 
     def __init__(self):
+        """
+        Initializes the GCSConnector using default application credentials.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         try:
             # Use Application Default Credentials (the SA of the Cloud Run container)
             self.client = storage.Client()
