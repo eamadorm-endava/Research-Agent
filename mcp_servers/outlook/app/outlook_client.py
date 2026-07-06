@@ -763,7 +763,7 @@ class OutlookClient:
         """
         endpoint = "/me/events"
         params: dict[str, Any] = {
-            "$top": max_events,
+            "$top": max(max_events, 100) if search_term else max_events,
             "$select": "id,subject,bodyPreview,start,end,attendees,organizer,isOnlineMeeting,onlineMeeting,hasAttachments",
             "$orderby": f"start/dateTime {sort_order}",
         }
@@ -783,20 +783,13 @@ class OutlookClient:
             filters.append(f"start/dateTime ge '{start_datetime}'")
             filters.append(f"end/dateTime le '{end_datetime}'")
 
-        if search_term:
-            params["$search"] = f'"{search_term}"'
-
         if filters:
             params["$filter"] = " and ".join(filters)
-
-        headers = self.headers.copy()
-        if search_term or filters:
-            headers["ConsistencyLevel"] = "eventual"
 
         url = f"{OUTLOOK_SERVER_CONFIG.graph_api_base_url}{endpoint}"
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                url, headers=headers, params=params, timeout=30.0
+                url, headers=self.headers, params=params, timeout=30.0
             )
             if response.status_code == 401:
                 raise ValueError("Invalid or expired Microsoft access token.")
@@ -805,7 +798,16 @@ class OutlookClient:
 
         events = []
         for event_payload in graph_api_response.get("value", []):
+            if search_term:
+                subject = event_payload.get("subject", "").lower()
+                body = event_payload.get("bodyPreview", "").lower()
+                term = search_term.lower().strip('"')
+                if term not in subject and term not in body:
+                    continue
             events.append(self._parse_calendar_event(event_payload))
+
+        if search_term:
+            events = events[:max_events]
 
         return events, len(events)
 
