@@ -1,3 +1,11 @@
-from .tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
+from .tools import (
+    TriggerEKBPipelineTool,
+    SubmitKBIngestionBatchTool,
+    CheckIngestionStatusTool,
+)
 
-__all__ = ["TriggerEKBPipelineTool", "CheckIngestionStatusTool"]
+__all__ = [
+    "TriggerEKBPipelineTool",
+    "SubmitKBIngestionBatchTool",
+    "CheckIngestionStatusTool",
+]
