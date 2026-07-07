@@ -1,5 +1,6 @@
 import pytest
 
+from mcp_servers.atlassian.app.atlassian.url_utils import is_atlassian_cloud_url
 from mcp_servers.atlassian.app.security import select_accessible_resource
 
 
@@ -37,3 +38,19 @@ def test_select_accessible_resource_prefers_jira_or_confluence_scopes() -> None:
     selected = select_accessible_resource(resources)
 
     assert selected["id"] == "cloud-2"
+
+
+def test_is_atlassian_cloud_url_accepts_valid_cloud_hosts() -> None:
+    """Test Atlassian Cloud detection checks the parsed hostname."""
+    assert is_atlassian_cloud_url("https://test.atlassian.net")
+    assert is_atlassian_cloud_url("https://team.subdomain.atlassian.net/wiki")
+    assert is_atlassian_cloud_url("test.atlassian.net")
+
+
+def test_is_atlassian_cloud_url_rejects_embedded_or_lookalike_hosts() -> None:
+    """Test Atlassian Cloud detection rejects raw-string substring bypasses."""
+    assert not is_atlassian_cloud_url("https://evil.example.com/test.atlassian.net")
+    assert not is_atlassian_cloud_url("https://test.atlassian.net.evil.example.com")
+    assert not is_atlassian_cloud_url("https://evil-atlassian.net")
+    assert not is_atlassian_cloud_url("https://atlassian.net.evil.example.com")
+    assert not is_atlassian_cloud_url("not a url with test.atlassian.net in it")

@@ -3,6 +3,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from .url_utils import is_atlassian_cloud_url
 from ..schemas import (
     SearchJiraIssuesRequest,
     SearchJiraIssuesResponse,
@@ -36,8 +37,8 @@ class JiraClient:
         self.cloud_id = cloud_id
         self.auth_mode = auth_mode
 
-        self.is_cloud = (
-            auth_mode == "oauth" or ".atlassian.net" in self.instance_url.lower()
+        self.is_cloud = auth_mode == "oauth" or is_atlassian_cloud_url(
+            self.instance_url
         )
         self.api_prefix = "/rest/api/3" if self.is_cloud else "/rest/api/2"
         self.base_url = self._build_base_url()

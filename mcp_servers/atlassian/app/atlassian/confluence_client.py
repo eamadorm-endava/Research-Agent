@@ -4,6 +4,7 @@ import re
 import httpx
 from loguru import logger
 
+from .url_utils import is_atlassian_cloud_url
 from ..gcs_connector import GCSConnector
 from ..schemas import (
     ListConfluenceSpacesRequest,
@@ -100,8 +101,8 @@ class ConfluenceClient:
         self.auth_mode = auth_mode
         self.gcs = GCSConnector()
 
-        self.is_cloud = (
-            auth_mode == "oauth" or ".atlassian.net" in self.instance_url.lower()
+        self.is_cloud = auth_mode == "oauth" or is_atlassian_cloud_url(
+            self.instance_url
         )
         self.cloud_v2_base_url = self._build_cloud_base_url("wiki/api/v2")
         self.cloud_v1_base_url = self._build_cloud_base_url("wiki/rest/api")
