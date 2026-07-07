@@ -214,5 +214,6 @@ def test_atlassian_mcp_config_uses_3lo_scopes_and_auth_id_alias():
     assert config.GEMINI_AUTH_ID == "atlassian-auth-id"
     assert config.OAUTH_SCOPES["offline_access"] == "atlassian access"
     assert config.OAUTH_SCOPES["read:jira-work"] == "atlassian access"
-    assert config.OAUTH_SCOPES["read:confluence-content.all"] == "atlassian access"
+    assert config.OAUTH_SCOPES["read:space:confluence"] == "atlassian access"
+    assert config.OAUTH_SCOPES["read:page:confluence"] == "atlassian access"
     assert "write:confluence-content" not in config.OAUTH_SCOPES

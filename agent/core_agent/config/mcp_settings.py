@@ -176,8 +176,12 @@ class AtlassianMCPConfig(BaseMCPConfig):
         "offline_access",
         "read:jira-work",
         "read:jira-user",
-        "read:confluence-content.all",
-        "read:confluence-space.summary",
+        "read:space:confluence",
+        "read:page:confluence",
+        "read:attachment:confluence",
+        "read:comment:confluence",
+        "read:label:confluence",
+        "search:confluence",
     ]
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
