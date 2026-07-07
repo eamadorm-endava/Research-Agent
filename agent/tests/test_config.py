@@ -12,6 +12,7 @@ from agent.core_agent.config import (
     GCPConfig,
     GCSMCPConfig,
     GoogleAuthConfig,
+    AtlassianAuthConfig,
     AtlassianMCPConfig,
 )
 
@@ -191,3 +192,28 @@ def test_gcs_mcp_config_accepts_service_specific_auth_id():
         config = GCSMCPConfig()
 
     assert config.GEMINI_AUTH_ID == "gcs-auth-id"
+
+
+def test_atlassian_auth_config_defaults():
+    """Test Atlassian 3LO endpoints and token exchange defaults."""
+    with patch.dict(os.environ, clear=True):
+        config = AtlassianAuthConfig(_env_file=None)
+
+    assert config.AUTH_URI.startswith("https://auth.atlassian.com/authorize")
+    assert "audience=api.atlassian.com" in config.AUTH_URI
+    assert config.TOKEN_URI == "https://auth.atlassian.com/oauth/token"
+    assert config.TOKEN_ENDPOINT_AUTH_METHOD == "client_secret_post"
+
+
+def test_atlassian_mcp_config_uses_3lo_scopes_and_auth_id_alias():
+    """Test Atlassian MCP config requests Jira and Confluence OAuth scopes."""
+    mock_env = {"GEMINI_ATLASSIAN_AUTH_ID": "atlassian-auth-id"}
+    with patch.dict(os.environ, mock_env, clear=True):
+        config = AtlassianMCPConfig(_env_file=None)
+
+    assert config.GEMINI_AUTH_ID == "atlassian-auth-id"
+    assert config.OAUTH_SCOPES["offline_access"] == "atlassian access"
+    assert config.OAUTH_SCOPES["read:jira-work"] == "atlassian access"
+    assert config.OAUTH_SCOPES["read:space:confluence"] == "atlassian access"
+    assert config.OAUTH_SCOPES["read:page:confluence"] == "atlassian access"
+    assert "write:confluence-content" not in config.OAUTH_SCOPES

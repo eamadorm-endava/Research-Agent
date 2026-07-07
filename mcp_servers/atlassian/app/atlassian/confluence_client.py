@@ -1,4 +1,3 @@
-import base64
 import io
 import re
 import httpx
@@ -83,41 +82,51 @@ def html_to_markdown(html_content: str) -> str:
 
 
 class ConfluenceClient:
-    """Wrapper client for the Atlassian Confluence REST API (Cloud v2 and Server/DC v1)."""
+    """OAuth-only wrapper client for the Atlassian Confluence Cloud REST API."""
 
-    def __init__(self, email: str, token: str, instance_url: str, cloud_id: str):
-        self.email = email
-        self.token = token
+    def __init__(self, access_token: str, instance_url: str, cloud_id: str):
+        self.access_token = access_token
         self.instance_url = instance_url.rstrip("/")
         self.cloud_id = cloud_id
         self.gcs = GCSConnector()
 
-        self.is_cloud = ".atlassian.net" in self.instance_url.lower()
-
-        if self.is_cloud:
-            auth_str = f"{self.email}:{self.token}"
-            encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
-            auth_header = f"Basic {encoded_auth}"
-        else:
-            auth_header = f"Bearer {self.token}"
+        self.is_cloud = True
+        self.cloud_v2_base_url = self._build_cloud_base_url("wiki/api/v2")
+        self.cloud_v1_base_url = self._build_cloud_base_url("wiki/rest/api")
+        self.server_v1_base_url = f"{self.instance_url}/rest/api"
 
         self.headers = {
-            "Authorization": auth_header,
+            "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
         logger.info(
-            f"ConfluenceClient initialized for instance {self.instance_url} (is_cloud={self.is_cloud})"
+            f"ConfluenceClient initialized for instance {self.instance_url} "
+            "using Atlassian OAuth"
         )
+
+    def _build_cloud_base_url(self, api_path: str) -> str:
+        """
+        Builds the Confluence Cloud API gateway base URL for OAuth calls.
+
+        Args:
+            api_path: str -> Confluence API path under the /wiki namespace.
+
+        Returns:
+            str -> API base URL without a trailing slash.
+        """
+        if not self.cloud_id:
+            raise ValueError("cloud_id is required for Atlassian OAuth mode")
+        return f"https://api.atlassian.com/ex/confluence/{self.cloud_id}/{api_path}"
 
     async def list_spaces(
         self, request: ListConfluenceSpacesRequest
     ) -> ListConfluenceSpacesResponse:
         """Fetch accessible spaces in Confluence."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/spaces"
+            url = f"{self.cloud_v2_base_url}/spaces"
         else:
-            url = f"{self.instance_url}/rest/api/space"
+            url = f"{self.server_v1_base_url}/space"
 
         params = {}
         if request.limit:
@@ -180,12 +189,12 @@ class ConfluenceClient:
     ) -> ListConfluencePagesResponse:
         """Fetch pages in Confluence with optional space filter."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages"
+            url = f"{self.cloud_v2_base_url}/pages"
             params = {}
             if request.space_id:
                 params["space-id"] = request.space_id
         else:
-            url = f"{self.instance_url}/rest/api/content"
+            url = f"{self.server_v1_base_url}/content"
             params = {"type": "page"}
             if request.space_id:
                 params["spaceKey"] = request.space_id
@@ -250,9 +259,9 @@ class ConfluenceClient:
     ) -> SearchConfluencePagesResponse:
         """CQL-based page discovery (v1 search)."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/rest/api/content/search"
+            url = f"{self.cloud_v1_base_url}/content/search"
         else:
-            url = f"{self.instance_url}/rest/api/content/search"
+            url = f"{self.server_v1_base_url}/content/search"
 
         params = {"cql": request.cql}
         if request.limit:
@@ -315,9 +324,9 @@ class ConfluenceClient:
     ) -> GetConfluencePageDetailsResponse:
         """Fetch metadata of a single Confluence page."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
+            url = f"{self.cloud_v2_base_url}/pages/{request.page_id}"
         else:
-            url = f"{self.instance_url}/rest/api/content/{request.page_id}"
+            url = f"{self.server_v1_base_url}/content/{request.page_id}"
 
         try:
             async with httpx.AsyncClient() as client:
@@ -356,10 +365,10 @@ class ConfluenceClient:
     ) -> ReadConfluencePageResponse:
         """Fetch page content, translate to Markdown, and stream to GCS Landing Zone."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
+            url = f"{self.cloud_v2_base_url}/pages/{request.page_id}"
             params = {"body-format": "storage"}
         else:
-            url = f"{self.instance_url}/rest/api/content/{request.page_id}"
+            url = f"{self.server_v1_base_url}/content/{request.page_id}"
             params = {"expand": "body.storage,version,space"}
 
         try:
@@ -453,7 +462,7 @@ class ConfluenceClient:
     ) -> CreateConfluencePageResponse:
         """Create a new page in Confluence."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages"
+            url = f"{self.cloud_v2_base_url}/pages"
             payload = {
                 "spaceId": request.space_id,
                 "status": "current",
@@ -463,7 +472,7 @@ class ConfluenceClient:
             if request.parent_id:
                 payload["parentId"] = request.parent_id
         else:
-            url = f"{self.instance_url}/rest/api/content"
+            url = f"{self.server_v1_base_url}/content"
             payload = {
                 "type": "page",
                 "title": request.title,
@@ -514,7 +523,7 @@ class ConfluenceClient:
     ) -> UpdateConfluencePageResponse:
         """Update an existing page in Confluence."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}"
+            url = f"{self.cloud_v2_base_url}/pages/{request.page_id}"
             payload = {
                 "id": request.page_id,
                 "status": "current",
@@ -523,7 +532,7 @@ class ConfluenceClient:
                 "version": {"number": request.version_number},
             }
         else:
-            url = f"{self.instance_url}/rest/api/content/{request.page_id}"
+            url = f"{self.server_v1_base_url}/content/{request.page_id}"
             payload = {
                 "id": request.page_id,
                 "type": "page",
@@ -573,9 +582,11 @@ class ConfluenceClient:
     ) -> ListConfluencePageAttachmentsResponse:
         """List attachments on a specific page."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/attachments"
+            url = f"{self.cloud_v2_base_url}/pages/{request.page_id}/attachments"
         else:
-            url = f"{self.instance_url}/rest/api/content/{request.page_id}/child/attachment"
+            url = (
+                f"{self.server_v1_base_url}/content/{request.page_id}/child/attachment"
+            )
 
         params = {}
         if request.limit:
@@ -638,9 +649,9 @@ class ConfluenceClient:
     ) -> GetConfluenceAttachmentDetailsResponse:
         """Fetch metadata for a specific attachment."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/attachments/{request.attachment_id}"
+            url = f"{self.cloud_v2_base_url}/attachments/{request.attachment_id}"
         else:
-            url = f"{self.instance_url}/rest/api/content/{request.attachment_id}"
+            url = f"{self.server_v1_base_url}/content/{request.attachment_id}"
 
         try:
             async with httpx.AsyncClient() as client:
@@ -679,11 +690,9 @@ class ConfluenceClient:
     ) -> ListConfluencePageCommentsResponse:
         """List footer comments for a specific page."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
+            url = f"{self.cloud_v2_base_url}/pages/{request.page_id}/footer-comments"
         else:
-            url = (
-                f"{self.instance_url}/rest/api/content/{request.page_id}/child/comment"
-            )
+            url = f"{self.server_v1_base_url}/content/{request.page_id}/child/comment"
 
         params = {}
         if request.limit:
@@ -746,7 +755,7 @@ class ConfluenceClient:
     ) -> CreateConfluencePageCommentResponse:
         """Create a comment on a Confluence page."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/footer-comments"
+            url = f"{self.cloud_v2_base_url}/pages/{request.page_id}/footer-comments"
             payload = {
                 "status": "current",
                 "body": {"representation": "storage", "value": request.body_html},
@@ -754,7 +763,7 @@ class ConfluenceClient:
             if request.parent_comment_id:
                 payload["parentCommentId"] = request.parent_comment_id
         else:
-            url = f"{self.instance_url}/rest/api/content"
+            url = f"{self.server_v1_base_url}/content"
             payload = {
                 "type": "comment",
                 "container": {"id": request.page_id, "type": "page"},
@@ -803,9 +812,9 @@ class ConfluenceClient:
     ) -> ListConfluencePageLabelsResponse:
         """List labels associated with a specific page."""
         if self.is_cloud:
-            url = f"{self.instance_url}/wiki/api/v2/pages/{request.page_id}/labels"
+            url = f"{self.cloud_v2_base_url}/pages/{request.page_id}/labels"
         else:
-            url = f"{self.instance_url}/rest/api/content/{request.page_id}/label"
+            url = f"{self.server_v1_base_url}/content/{request.page_id}/label"
 
         params = {}
         if request.limit:

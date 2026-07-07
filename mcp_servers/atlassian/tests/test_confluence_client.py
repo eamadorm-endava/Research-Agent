@@ -32,8 +32,7 @@ def test_html_to_markdown() -> None:
 async def test_list_spaces_success(mock_storage_client) -> None:
     """Test successful space listing."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -61,8 +60,7 @@ async def test_list_spaces_success(mock_storage_client) -> None:
 async def test_list_pages_success(mock_storage_client) -> None:
     """Test successful page listing."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -92,8 +90,7 @@ async def test_list_pages_success(mock_storage_client) -> None:
 async def test_search_pages_success(mock_storage_client) -> None:
     """Test successful CQL page search."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -126,8 +123,7 @@ async def test_read_page_success(mock_storage_client) -> None:
     mock_bucket.name = "test-bucket"
 
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -167,8 +163,7 @@ async def test_read_page_success(mock_storage_client) -> None:
 async def test_create_page_success(mock_storage_client) -> None:
     """Test creating a new Confluence page."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -195,8 +190,7 @@ async def test_create_page_success(mock_storage_client) -> None:
 async def test_update_page_success(mock_storage_client) -> None:
     """Test updating an existing Confluence page."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -228,8 +222,7 @@ async def test_update_page_success(mock_storage_client) -> None:
 async def test_list_page_attachments_success(mock_storage_client) -> None:
     """Test listing page attachments."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -257,8 +250,7 @@ async def test_list_page_attachments_success(mock_storage_client) -> None:
 async def test_get_attachment_details_success(mock_storage_client) -> None:
     """Test getting details of a specific attachment."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -282,8 +274,7 @@ async def test_get_attachment_details_success(mock_storage_client) -> None:
 async def test_list_page_comments_success(mock_storage_client) -> None:
     """Test listing page comments."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -310,8 +301,7 @@ async def test_list_page_comments_success(mock_storage_client) -> None:
 async def test_create_comment_success(mock_storage_client) -> None:
     """Test creating a footer comment on a page."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -338,8 +328,7 @@ async def test_create_comment_success(mock_storage_client) -> None:
 async def test_list_page_labels_success(mock_storage_client) -> None:
     """Test listing page labels."""
     client = ConfluenceClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -357,3 +346,34 @@ async def test_list_page_labels_success(mock_storage_client) -> None:
         assert res.execution_status == "success"
         assert len(res.labels) == 1
         assert res.labels[0]["name"] == "label1"
+
+
+@pytest.mark.asyncio
+@patch("google.cloud.storage.Client")
+async def test_oauth_client_uses_atlassian_gateway_for_confluence(
+    mock_storage_client,
+) -> None:
+    """Test OAuth Confluence calls use api.atlassian.com with bearer auth."""
+    client = ConfluenceClient(
+        access_token="oauth-token",
+        instance_url="https://test.atlassian.net",
+        cloud_id="cloud-123",
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "results": [{"key": "SPACE", "name": "Space Name", "id": "123"}]
+    }
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_response
+
+        res = await client.list_spaces(ListConfluenceSpacesRequest())
+
+        assert res.execution_status == "success"
+        args, kwargs = mock_get.call_args
+        assert args[0] == (
+            "https://api.atlassian.com/ex/confluence/cloud-123/wiki/api/v2/spaces"
+        )
+        assert kwargs["headers"]["Authorization"] == "Bearer oauth-token"

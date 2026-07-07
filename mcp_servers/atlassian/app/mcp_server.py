@@ -1,8 +1,10 @@
 from loguru import logger
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from pydantic import AnyHttpUrl
 
 from .config import ATLASSIAN_SERVER_CONFIG
-from .security import create_atlassian_client
+from .security import AtlassianTokenVerifier, create_atlassian_client
 from .schemas import (
     SearchJiraIssuesRequest,
     SearchJiraIssuesResponse,
@@ -26,18 +28,12 @@ from .schemas import (
     GetConfluencePageDetailsResponse,
     ReadConfluencePageRequest,
     ReadConfluencePageResponse,
-    CreateConfluencePageRequest,
-    CreateConfluencePageResponse,
-    UpdateConfluencePageRequest,
-    UpdateConfluencePageResponse,
     ListConfluencePageAttachmentsRequest,
     ListConfluencePageAttachmentsResponse,
     GetConfluenceAttachmentDetailsRequest,
     GetConfluenceAttachmentDetailsResponse,
     ListConfluencePageCommentsRequest,
     ListConfluencePageCommentsResponse,
-    CreateConfluencePageCommentRequest,
-    CreateConfluencePageCommentResponse,
     ListConfluencePageLabelsRequest,
     ListConfluencePageLabelsResponse,
 )
@@ -47,6 +43,14 @@ mcp = FastMCP(
     stateless_http=ATLASSIAN_SERVER_CONFIG.stateless_http,
     host=ATLASSIAN_SERVER_CONFIG.default_host,
     port=ATLASSIAN_SERVER_CONFIG.default_port,
+    token_verifier=AtlassianTokenVerifier(),
+    auth=AuthSettings(
+        issuer_url=AnyHttpUrl("https://auth.atlassian.com"),
+        resource_server_url=AnyHttpUrl(
+            f"http://{ATLASSIAN_SERVER_CONFIG.default_host}:"
+            f"{ATLASSIAN_SERVER_CONFIG.default_port}"
+        ),
+    ),
 )
 
 
@@ -333,56 +337,6 @@ async def read_confluence_page(
 
 
 @mcp.tool()
-async def create_confluence_page(
-    request: CreateConfluencePageRequest,
-) -> CreateConfluencePageResponse:
-    """Create a new page in Confluence.
-
-    Args:
-        request: CreateConfluencePageRequest -> Creation attributes (title, body HTML, space ID)
-
-    Returns:
-        CreateConfluencePageResponse -> Created page metadata
-    """
-    logger.info(f"Tool call: create_confluence_page(title='{request.title}')")
-    try:
-        client = create_atlassian_client()
-        return await client.create_confluence_page(request)
-    except Exception as e:
-        logger.exception("Error creating Confluence page")
-        return CreateConfluencePageResponse(
-            execution_status="error",
-            execution_message=f"Exception: {str(e)}",
-            page=None,
-        )
-
-
-@mcp.tool()
-async def update_confluence_page(
-    request: UpdateConfluencePageRequest,
-) -> UpdateConfluencePageResponse:
-    """Update an existing Confluence page.
-
-    Args:
-        request: UpdateConfluencePageRequest -> Update attributes (page ID, title, version, HTML body)
-
-    Returns:
-        UpdateConfluencePageResponse -> Updated page metadata
-    """
-    logger.info(f"Tool call: update_confluence_page(id='{request.page_id}')")
-    try:
-        client = create_atlassian_client()
-        return await client.update_confluence_page(request)
-    except Exception as e:
-        logger.exception("Error updating Confluence page")
-        return UpdateConfluencePageResponse(
-            execution_status="error",
-            execution_message=f"Exception: {str(e)}",
-            page=None,
-        )
-
-
-@mcp.tool()
 async def list_confluence_page_attachments(
     request: ListConfluencePageAttachmentsRequest,
 ) -> ListConfluencePageAttachmentsResponse:
@@ -456,33 +410,6 @@ async def list_confluence_page_comments(
             execution_status="error",
             execution_message=f"Exception: {str(e)}",
             comments=[],
-        )
-
-
-@mcp.tool()
-async def create_confluence_page_comment(
-    request: CreateConfluencePageCommentRequest,
-) -> CreateConfluencePageCommentResponse:
-    """Create a comment on a Confluence page.
-
-    Args:
-        request: CreateConfluencePageCommentRequest -> Body HTML, page ID, parent comment ID
-
-    Returns:
-        CreateConfluencePageCommentResponse -> Created comment details
-    """
-    logger.info(
-        f"Tool call: create_confluence_page_comment(page_id='{request.page_id}')"
-    )
-    try:
-        client = create_atlassian_client()
-        return await client.create_confluence_page_comment(request)
-    except Exception as e:
-        logger.exception("Error creating Confluence comment")
-        return CreateConfluencePageCommentResponse(
-            execution_status="error",
-            execution_message=f"Exception: {str(e)}",
-            comment=None,
         )
 
 

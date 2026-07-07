@@ -1,6 +1,6 @@
 # Module Documentation - Atlassian (Jira & Confluence) MCP Server
 
-This module provides a unified integration wrapper for the **Atlassian Jira Cloud REST API (v3)** and **Atlassian Confluence Cloud REST API (v2)**. It exposes standard Model Context Protocol (MCP) tools for AI agents to discover, query, create, and update project data, tickets, Confluence spaces, pages, comments, labels, and attachments.
+This module provides a unified integration wrapper for the **Atlassian Jira Cloud REST API (v3)** and **Atlassian Confluence Cloud REST API (v2)**. It exposes standard Model Context Protocol (MCP) tools for AI agents to discover and query project data, tickets, Confluence spaces, pages, comments, labels, and attachments without mutating Atlassian content.
 
 ---
 
@@ -30,20 +30,25 @@ mcp_servers/atlassian/
 
 ## 2. Authentication Flow
 
-Authentication supports both a single JSON-encoded string secret (`ATLASSIAN_CREDENTIALS`) and individual environment variables.
+The preferred flow is **Atlassian OAuth 2.0 / 3LO**. Gemini Enterprise owns an Atlassian authorization resource, and the agent forwards the request-scoped delegated Atlassian access token to the Atlassian MCP server. If the Atlassian tenant uses Microsoft SSO, the user signs in through Microsoft on the Atlassian authorization screen, but the API token received by the agent is still issued by Atlassian.
 
-### 2.1 Environmental Mapping
-The configuration (`app/config.py`) prioritises individual environment variables over the JSON string to natively integrate with Google Cloud Secret Manager mappings:
-*   `JIRA_USER_EMAIL`: User email (e.g. `javier.romero@estrategia52.com`).
-*   `JIRA_API_TOKEN`: User API token generated from `id.atlassian.com`.
-*   `JIRA_INSTANCE_URL`: Site URL (e.g. `https://davaflow.atlassian.net`).
-*   `JIRA_CLOUD_ID`: Cloud identifier UUID.
+### 2.1 OAuth Resource Mapping
+The agent uses the following configuration values:
+*   `ATLASSIAN_OAUTH_CLIENT_ID`: Atlassian OAuth 2.0 / 3LO client ID.
+*   `ATLASSIAN_OAUTH_CLIENT_SECRET`: Atlassian OAuth 2.0 / 3LO client secret.
+*   `GEMINI_ATLASSIAN_AUTH_ID` or `ATLASSIAN_AUTH_ID`: Gemini Enterprise authorization resource ID.
+*   `JIRA_CLOUD_ID`: Optional Cloud ID override for multi-site tenants.
+
+The MCP server validates delegated bearer tokens by calling Atlassian's `accessible-resources` endpoint, resolves the Cloud ID, and routes Jira/Confluence API calls through `https://api.atlassian.com/ex/jira/{cloudId}` and `https://api.atlassian.com/ex/confluence/{cloudId}`.
+
+### 2.2 OAuth-Only Enforcement
+The MCP server intentionally rejects requests that do not include a delegated Atlassian OAuth access token from the agent runtime. Static Jira user emails, API tokens, and the legacy `ATLASSIAN_CREDENTIALS` JSON secret are not supported. This ensures Jira and Confluence operations run as the currently authenticated user rather than as a preconfigured service/user credential.
 
 ---
 
 ## 3. Supported MCP Tools
 
-The Atlassian MCP server exposes the following tools to the reasoning engine:
+The Atlassian MCP server exposes the following read-only tools to the reasoning engine:
 
 ### 3.1 Jira Tools
 1.  **`list_jira_projects`**: Lists all projects available in Jira.
@@ -59,13 +64,10 @@ The Atlassian MCP server exposes the following tools to the reasoning engine:
 9.  **`search_confluence_pages`**: Searches Confluence pages using Confluence Query Language (CQL).
 10. **`get_confluence_page_details`**: Retrieves metadata of a single Confluence page.
 11. **`read_confluence_page`**: Retrieves page content, converts HTML/storage format to Markdown, streams it to the **GCS Landing Zone**, and returns the GCS URI with the `inject_file_data: True` flag.
-12. **`create_confluence_page`**: Creates a new page in Confluence.
-13. **`update_confluence_page`**: Updates an existing Confluence page (requires version number incrementation).
-14. **`list_confluence_page_attachments`**: Lists files attached to a specific page.
-15. **`get_confluence_attachment_details`**: Retrieves metadata of a specific attachment.
-16. **`list_confluence_page_comments`**: Lists footer comments for a specific page.
-17. **`create_confluence_page_comment`**: Creates a footer comment on a specific page.
-18. **`list_confluence_page_labels`**: Lists labels/tags associated with a page.
+12. **`list_confluence_page_attachments`**: Lists files attached to a specific page.
+13. **`get_confluence_attachment_details`**: Retrieves metadata of a specific attachment.
+14. **`list_confluence_page_comments`**: Lists footer comments for a specific page.
+15. **`list_confluence_page_labels`**: Lists labels/tags associated with a page.
 
 ---
 

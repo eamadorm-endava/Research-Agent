@@ -49,12 +49,6 @@ module "mcp_server_cloud_run" {
       env = merge(var.mcp_server_cloud_run_env, {
         LANDING_ZONE_BUCKET = var.landing_zone_bucket
       })
-      env_from_key = {
-        ATLASSIAN_CREDENTIALS = {
-          secret  = "ATLASSIAN_CREDENTIALS"
-          version = "latest"
-        }
-      }
       resources = {
         limits = {
           cpu    = var.mcp_server_cloud_run_cpu
@@ -112,12 +106,3 @@ resource "google_storage_bucket_iam_member" "mcp_server_landing_zone_bucket_view
   member = "serviceAccount:${module.mcp-server-service-account.email}"
 }
 
-################ Secret Manager IAM ################
-
-# Grant secret accessor permission to the MCP server service account
-resource "google_secret_manager_secret_iam_member" "atlassian_secret_accessor" {
-  project   = var.project_id
-  secret_id = "ATLASSIAN_CREDENTIALS"
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.mcp-server-service-account.email}"
-}

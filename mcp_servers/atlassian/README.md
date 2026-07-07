@@ -1,6 +1,6 @@
 # Atlassian (Jira & Confluence) MCP Server
 
-This MCP server provides a unified integration wrapper for the **Atlassian Jira Cloud REST API (v3)** and **Atlassian Confluence REST API (v2)**. It is designed to allow AI agents to extract and summarize useful project and ticket information, map technologies used via components, classify clients/domains via categories, and query Confluence spaces, pages, comments, labels, and attachments.
+This MCP server provides a unified integration wrapper for the **Atlassian Jira Cloud REST API (v3)** and **Atlassian Confluence REST API (v2)**. It is designed to allow AI agents to extract and summarize useful project and ticket information, map technologies used via components, classify clients/domains via categories, and query Confluence spaces, pages, comments, labels, and attachments without mutating Atlassian content.
 
 ---
 
@@ -15,7 +15,7 @@ This MCP server provides a unified integration wrapper for the **Atlassian Jira 
 
 ## Core Capabilities
  
-The server exposes the following tools to the calling agent:
+The server exposes read-only tools to the calling agent:
 
 ### 1. Jira Tools
 1. **`list_jira_projects`**: Lists all projects available in Jira. Useful for overall project discovery.
@@ -31,31 +31,30 @@ The server exposes the following tools to the calling agent:
 9. **`search_confluence_pages`**: Searches pages globally using Confluence Query Language (CQL).
 10. **`get_confluence_page_details`**: Retrieves metadata of a single page.
 11. **`read_confluence_page`**: Reads page content, parses HTML body to Markdown, streams it to the GCS Landing Zone, and returns the GCS URI.
-12. **`create_confluence_page`**: Creates a new page.
-13. **`update_confluence_page`**: Modifies an existing page (handles incrementing page version).
-14. **`list_confluence_page_attachments`**: Lists files attached to a page.
-15. **`get_confluence_attachment_details`**: Retrieves metadata for a specific attachment.
-16. **`list_confluence_page_comments`**: Lists footer comments for a page.
-17. **`create_confluence_page_comment`**: Comments on a page or replies to a comment.
-18. **`list_confluence_page_labels`**: Lists labels/tags associated with a page.
+12. **`list_confluence_page_attachments`**: Lists files attached to a page.
+13. **`get_confluence_attachment_details`**: Retrieves metadata for a specific attachment.
+14. **`list_confluence_page_comments`**: Lists footer comments for a page.
+15. **`list_confluence_page_labels`**: Lists labels/tags associated with a page.
 
 ---
 
-## Credentials Configuration
+## Authentication Configuration
 
-The MCP server connects to Jira and Confluence using static credentials stored in a JSON secret.
-The expected format is:
+The preferred deployment path uses **Atlassian OAuth 2.0 / 3LO**. The user is sent to Atlassian's authorization endpoint; if the Atlassian organization is configured with Microsoft SSO, the visible sign-in step is Microsoft SSO, but the resulting delegated token is still an Atlassian access token.
 
-```json
-{
-  "JIRA_USER_EMAIL": "javier.romero@estrategia52.com",
-  "JIRA_API_TOKEN": "your-atlassian-api-token",
-  "JIRA_INSTANCE_URL": "https://your-instance.atlassian.net",
-  "JIRA_CLOUD_ID": "your-cloud-id"
-}
+Required Agent/Gemini Enterprise variables:
+
+```bash
+ATLASSIAN_OAUTH_CLIENT_ID=<oauth-2-3lo-client-id>
+ATLASSIAN_OAUTH_CLIENT_SECRET=<oauth-2-3lo-client-secret>
+GEMINI_ATLASSIAN_AUTH_ID=atlassian-authentication
 ```
 
-Locally, this JSON must be provided via the `ATLASSIAN_CREDENTIALS` environment variable in `mcp_servers/atlassian/.env`.
+The OAuth app must use the Atlassian callback URL registered for Gemini Enterprise and include the scopes used by this MCP server: Jira read scopes, Confluence read scopes, and `offline_access` for refresh support.
+
+The MCP server validates incoming bearer tokens through `https://api.atlassian.com/oauth/token/accessible-resources` and then calls Jira and Confluence through the `https://api.atlassian.com/ex/.../{cloudId}` gateway. For multi-site tenants, set `JIRA_CLOUD_ID` to force a specific Atlassian site; otherwise, the first Jira/Confluence-scoped accessible resource is selected.
+
+The MCP server is OAuth-only. It does not accept static Jira user emails, API tokens, or the legacy `ATLASSIAN_CREDENTIALS` JSON secret. Local testing must run through the agent OAuth flow so each request is authorized with the current user's delegated Atlassian access token.
 
 ---
 
