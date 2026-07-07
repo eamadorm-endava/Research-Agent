@@ -239,3 +239,30 @@ class SharePointMCPConfig(BaseMCPConfig):
             ),
         ),
     ]
+
+
+class OutlookMCPConfig(BaseMCPConfig):
+    """Configuration for the Microsoft Outlook MCP server."""
+
+    model_config = SettingsConfigDict(env_prefix="OUTLOOK_")
+
+    URL: str = "http://localhost:8087"
+    OAUTH_SCOPES: Union[dict[str, str], list[str]] = [
+        "User.Read",
+        "Mail.Read",
+        "Calendars.Read",
+        "email",
+        "offline_access",
+        "openid",
+    ]
+    GEMINI_AUTH_ID: Annotated[
+        Optional[str],
+        Field(
+            default="mock-ms-auth-id",
+            description="Auth Resource ID for Microsoft Outlook.",
+            validation_alias=AliasChoices(
+                "OUTLOOK_AUTH_ID",
+                "GEMINI_MICROSOFT_AUTH_ID",
+            ),
+        ),
+    ]

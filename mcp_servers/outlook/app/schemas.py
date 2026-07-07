@@ -50,16 +50,6 @@ class BaseRequest(BaseModel):
             handler: Any -> The schema generation handler.
 
         Returns:
-            Any -> The modified JSON Schema.
-        """
-        """
-        Removes the dependencies field from the generated JSON Schema to prevent LLM hallucinations.
-
-        Args:
-            core_schema: Any -> The core Pydantic schema being processed.
-            handler: Any -> The schema generation handler.
-
-        Returns:
             dict -> The modified JSON Schema dictionary.
         """
         json_schema = super().__get_pydantic_json_schema__(core_schema, handler)

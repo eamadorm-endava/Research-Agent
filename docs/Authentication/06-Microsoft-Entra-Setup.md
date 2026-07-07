@@ -29,15 +29,20 @@ Follow these steps to configure the application, generate credentials, and grant
 
 1. Under the **Manage** menu, click **API permissions**.
 2. Click **Add a permission** > **Microsoft Graph** > **Delegated permissions**.
-3. Search for and check the following permissions:
-   - `Files.Read.All` (Include the services that will be used, like SharePoint, OneDrive, Outlook)
-   - `Sites.Read.All`
-   - `User.Read` (to correctly authenticate to the MCPs)
-   - `offline_access`
-   - `email`
-   - `Mail.Read`
-   - `Mail.Read.Shared`
-   - `Calendars.Read`
+3. Search for and check the following permissions based on your needs:
+   - **Core Authentication (Mandatory for all MCPs):**
+     - `openid`: **REQUIRED** for OIDC authentication to identify the user and mandatorily needed to use the `email` and `Mail.Read` permissions.
+     - `User.Read`: Required to read the basic user profile.
+     - `offline_access`: Required to obtain refresh tokens for background access.
+     - `email`: Required to retrieve the user's email address.
+   - **OneDrive & SharePoint MCPs:**
+     - `Files.Read.All`: Required to search and read files across OneDrive and SharePoint.
+     - `Sites.Read.All`: Required to search and read SharePoint site pages and lists.
+   - **Outlook MCP:**
+     - `Mail.Read`: Required to search and read emails in the user's mailbox.
+     - `Calendars.Read`: Required to search and read calendar events.
+     
+
 4. Once all the required permissions are checked, click **Add permissions** at the bottom.
 
 ## 4. Grant Admin Consent

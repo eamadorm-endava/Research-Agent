@@ -1,6 +1,6 @@
 ---
 name: knowledge-discovery
-description: Expert protocol for high-fidelity data retrieval across Corporate and Personal data sources. Triggered on ANY request to find, search, investigate, or summarize information, whether broad or narrow.
+description: MANDATORY PROTOCOL for data retrieval. You MUST trigger this skill whenever the user asks to "search", "find", "look up", "summarize", "investigate", or "retrieve" ANY information. If the user asks a question about a project, person, topic, email, calendar event, or ticket, you MUST trigger this skill first before answering. Examples "find emails about Project Alpha", "what is the status of the migration?", "search SharePoint for Q3 results".
 ---
 
 ## Pre-Search Validation
@@ -24,13 +24,15 @@ Before launching any search tools, internally analyze the user's prompt to disti
 **CRITICAL RULE:** Do NOT launch personal data tools in this step unless the user explicitly declared them in their prompt. Corporate data MUST be searched first.
 **OMNI-SEARCH PROTOCOL:** If the user explicitly asks to search "all sources", "everywhere", or "all data" (e.g. "en todas las fuentes posibles"), you MUST bypass the sequential flow. You must launch **both Corporate (Phase 1) and Personal (Phase 4) listing/search tools concurrently** in the very first turn.
 
-Execute exactly 6 corporate tools CONCURRENTLY in a single parallel turn:
+Execute exactly 8 corporate tools CONCURRENTLY in a single parallel turn:
 1. `ekb_semantic_search`: `query` using the specific core request extracted from the user's prompt (e.g., "Alpha project status" rather than "Hello, can you tell me about the Alpha project status?"). Do NOT use the raw conversational prompt.
 2. `ekb_keyword_search`: `keyword` using the distilled 1-2 word entities from Phase 0.
 3. `search_jira_issues`: JQL mapping to the distilled 1-2 word entities.
 4. `search_confluence_pages`: CQL expression mapping to the distilled 1-2 word entities.
 5. `search_sharepoint_sites`: broad business keyword (1-2 words max) from Phase 0.
 6. `list_calendar_events`: call with `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
+7. `outlook_list_calendar_events`: use the distilled 1-2 word entities in the `search_term` parameter. Leave `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
+8. `outlook_list_emails`: execute a broad mailbox sweep using the distilled 1-2 word entities as `$search` criteria.
 
 ## Phase 2: Strict Relevance Filtering
 Evaluate the returned corporate data. If a source returns a keyword match that is semantically irrelevant to the user's prompt, you MUST completely ignore it to avoid distractions. NEVER include irrelevant matches in the final response or the references table.
@@ -95,6 +97,16 @@ The current Google Cloud project ID is `<project_id>`. Use this logic to disting
 ### CALENDAR
 - The response schema includes `server_current_time_utc`. Use this along with the events' timezones to accurately classify events as `Past` or `Future` relative to the server time.
 - Display Format: render each event as a bullet-point block (Title, Time, Attendees, Meet link, Attachments, Description) separated by `---`.
+- **Deep Extraction**: Use `outlook_read_calendar_event(event_id=<id>)` after initial search lists are generated if you need to extract the full HTML/Text body, complete attendee lists, or exact attachment metadata.
+- **Attachments**: Use `outlook_read_calendar_event_attachment()` when reading a specific file attached to an Outlook calendar event.
+
+### MICROSOFT OUTLOOK
+- **Default Search**: Use `outlook_list_emails()` for any request to find, search, investigate, or summarize emails. Your search parameters MUST target the entire mailbox across all Outlook folders simultaneously. Do NOT limit the search to a specific folder (like Inbox or Sent Items) unless explicitly requested.
+- **Broad Queries**: If the user asks for "emails", "mail", "Outlook", or "messages" without specifying a location, execute a broad mailbox sweep using `$search` criteria across all folders.
+- **Folder Specific Requests**: Only use `outlook_list_folder()` or pass a `folder_id` into `outlook_list_emails()` when the user explicitly requests to list or search a designated folder (e.g., Inbox, Sent Items, Archive, custom folder) or asks for "recent messages" (which naturally map to the Inbox).
+- **Pagination**: When using `outlook_list_emails()`, ensure you retrieve all relevant emails and handle pagination correctly.
+- **Deep Extraction**: Use `outlook_read_email(email_id=<id>)` after initial search lists are generated if you need to extract the full HTML/Text body, exact recipient arrays, attachment payloads, or deep transport details.
+- **Attachments**: Use `outlook_read_email_attachment()` when reading a specific email attachment is required.
 
 ### BIGQUERY
 1. `list_tables` to confirm which tables exist.
@@ -115,8 +127,8 @@ When synthesizing information from multiple sources, structure your final respon
 
 ### Formatting Rules
 1. **STRICT NO-MONOLOGUE RULE:** You MUST NOT output conversational filler, internal thoughts, or intermediate status updates (e.g., "I have searched X", "I am now reading Y"). Your final response must strictly start with `## Summary`.
-2. **Meeting Sections:** Omit the "Upcoming Meetings" and "Previous Meetings" sections entirely if no calendar search was executed or if no events exist in those timeframes.
-3. **Reference Table Source Names:** Only use `BigQuery` or `Cloud Storage` for Personal Sources in the References table. EKB buckets and `knowledge_base` datasets must be attributed as `EKB`.
+2. **Meeting Sections:** If relevant meetings are found via Google Calendar OR Outlook Calendar, you MUST include the "Upcoming Meetings" and "Previous Meetings" sections. Treat events from both calendar sources identically. Omit these sections entirely only if no events exist in those timeframes or if no calendar search was executed. For every meeting, you MUST include: name of the meeting, description, attendees, organizer, meeting link, and whether it has attachments.
+3. **Reference Table Source Names:** Only use `BigQuery` or `Cloud Storage` for Personal Sources. EKB buckets must be attributed as `EKB`. For calendar events, specifically use `Google Calendar` or `Outlook Calendar`. For emails, use `Outlook Email`. All found meetings and emails related to the search query must be listed in the references.
 4. **Personal Search Follow-Up Prompt:** If you retrieved data from corporate sources AND you have NOT yet searched personal data, you must display the following question (outside of the Reference table)
 "This information was obtained from corporate data sources. Would you like me to also search in your personal data sources (Google Drive, OneDrive, Cloud Storage buckets, and BigQuery tables)? It might take a few minutes."
 
@@ -132,14 +144,14 @@ When synthesizing information from multiple sources, structure your final respon
 - [Name (Role) - Email]
 
 ## Upcoming Meetings
-[List meetings occurring after the current server time. Separate with `---`]
+[List meetings occurring after the current server time. Separate with `---`. Each meeting must include: name, description, attendees, organizer, meeting link, and attachment status.]
 
 ## Previous Meetings
-[List meetings that occurred before the current server time. Separate with `---`]
+[List meetings that occurred before the current server time. Separate with `---`. Each meeting must include: name, description, attendees, organizer, meeting link, and attachment status.]
 
 ## References
 | Source | Project Name | Filename / Item Name | Owner / Assignee | Created at / Last Update |
 |:---:|:---:|:---:|:---:|:---:|
-| [EKB/Drive/OneDrive/SharePoint/etc] | [Project] | [Filename] | [Email] | [YYYY-MM-DD] |
+| [EKB/Drive/Google Calendar/Outlook Calendar/Outlook Email/etc] | [Project] | [Filename/Meeting Name/Email Subject] | [Email] | [YYYY-MM-DD] |
 
 ```

@@ -27,6 +27,7 @@ from .mcp_settings import (
     OneDriveMCPConfig,
     SharePointMCPConfig,
     AtlassianMCPConfig,
+    OutlookMCPConfig,
 )
 
 __all__ = [
@@ -56,4 +57,5 @@ __all__ = [
     "OneDriveMCPConfig",
     "SharePointMCPConfig",
     "AtlassianMCPConfig",
+    "OutlookMCPConfig",
 ]
