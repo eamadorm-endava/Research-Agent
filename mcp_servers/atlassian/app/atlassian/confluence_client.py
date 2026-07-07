@@ -1,10 +1,8 @@
-import base64
 import io
 import re
 import httpx
 from loguru import logger
 
-from .url_utils import is_atlassian_cloud_url
 from ..gcs_connector import GCSConnector
 from ..schemas import (
     ListConfluenceSpacesRequest,
@@ -84,60 +82,32 @@ def html_to_markdown(html_content: str) -> str:
 
 
 class ConfluenceClient:
-    """Wrapper client for the Atlassian Confluence REST API (Cloud v2 and Server/DC v1)."""
+    """OAuth-only wrapper client for the Atlassian Confluence Cloud REST API."""
 
-    def __init__(
-        self,
-        email: str | None,
-        token: str,
-        instance_url: str,
-        cloud_id: str,
-        auth_mode: str = "api_token",
-    ):
-        self.email = email
-        self.token = token
+    def __init__(self, access_token: str, instance_url: str, cloud_id: str):
+        self.access_token = access_token
         self.instance_url = instance_url.rstrip("/")
         self.cloud_id = cloud_id
-        self.auth_mode = auth_mode
         self.gcs = GCSConnector()
 
-        self.is_cloud = auth_mode == "oauth" or is_atlassian_cloud_url(
-            self.instance_url
-        )
+        self.is_cloud = True
         self.cloud_v2_base_url = self._build_cloud_base_url("wiki/api/v2")
         self.cloud_v1_base_url = self._build_cloud_base_url("wiki/rest/api")
         self.server_v1_base_url = f"{self.instance_url}/rest/api"
 
         self.headers = {
-            "Authorization": self._build_auth_header(),
+            "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
         logger.info(
             f"ConfluenceClient initialized for instance {self.instance_url} "
-            f"(is_cloud={self.is_cloud}, auth_mode={self.auth_mode})"
+            "using Atlassian OAuth"
         )
-
-    def _build_auth_header(self) -> str:
-        """
-        Builds the authorization header for API-token, Server/DC, or OAuth mode.
-
-        Returns:
-            str -> Authorization header value.
-        """
-        if self.auth_mode == "oauth":
-            return f"Bearer {self.token}"
-
-        if self.is_cloud:
-            auth_str = f"{self.email}:{self.token}"
-            encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
-            return f"Basic {encoded_auth}"
-
-        return f"Bearer {self.token}"
 
     def _build_cloud_base_url(self, api_path: str) -> str:
         """
-        Builds the Confluence Cloud API base URL for site or gateway calls.
+        Builds the Confluence Cloud API gateway base URL for OAuth calls.
 
         Args:
             api_path: str -> Confluence API path under the /wiki namespace.
@@ -145,12 +115,9 @@ class ConfluenceClient:
         Returns:
             str -> API base URL without a trailing slash.
         """
-        if self.auth_mode == "oauth":
-            if not self.cloud_id:
-                raise ValueError("cloud_id is required for Atlassian OAuth mode")
-            return f"https://api.atlassian.com/ex/confluence/{self.cloud_id}/{api_path}"
-
-        return f"{self.instance_url}/{api_path}"
+        if not self.cloud_id:
+            raise ValueError("cloud_id is required for Atlassian OAuth mode")
+        return f"https://api.atlassian.com/ex/confluence/{self.cloud_id}/{api_path}"
 
     async def list_spaces(
         self, request: ListConfluenceSpacesRequest

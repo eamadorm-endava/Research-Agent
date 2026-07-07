@@ -12,8 +12,7 @@ from mcp_servers.atlassian.app.schemas import (
 async def test_list_projects_success() -> None:
     """Test successful project list query."""
     client = AtlassianClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -38,8 +37,7 @@ async def test_list_projects_success() -> None:
 async def test_list_projects_failure() -> None:
     """Test project list API failure handling."""
     client = AtlassianClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -63,8 +61,7 @@ async def test_list_projects_failure() -> None:
 async def test_search_issues_success() -> None:
     """Test successful JQL issue search."""
     client = AtlassianClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )
@@ -99,8 +96,7 @@ async def test_search_issues_success() -> None:
 async def test_search_issues_failure() -> None:
     """Test JQL issue search API failure handling."""
     client = AtlassianClient(
-        email="test@example.com",
-        token="token123",
+        access_token="token123",
         instance_url="https://test.atlassian.net",
         cloud_id="cloud-123",
     )

@@ -1,9 +1,7 @@
-import base64
 from typing import Any
 import httpx
 from loguru import logger
 
-from .url_utils import is_atlassian_cloud_url
 from ..schemas import (
     SearchJiraIssuesRequest,
     SearchJiraIssuesResponse,
@@ -21,68 +19,35 @@ from ..schemas import (
 
 
 class JiraClient:
-    """Wrapper client for the Atlassian Jira REST API (Cloud v3 and Server/DC v2)."""
+    """OAuth-only wrapper client for the Atlassian Jira Cloud REST API v3."""
 
-    def __init__(
-        self,
-        email: str | None,
-        token: str,
-        instance_url: str,
-        cloud_id: str,
-        auth_mode: str = "api_token",
-    ):
-        self.email = email
-        self.token = token
+    def __init__(self, access_token: str, instance_url: str, cloud_id: str):
+        self.access_token = access_token
         self.instance_url = instance_url.rstrip("/")
         self.cloud_id = cloud_id
-        self.auth_mode = auth_mode
-
-        self.is_cloud = auth_mode == "oauth" or is_atlassian_cloud_url(
-            self.instance_url
-        )
-        self.api_prefix = "/rest/api/3" if self.is_cloud else "/rest/api/2"
+        self.is_cloud = True
         self.base_url = self._build_base_url()
 
         self.headers = {
-            "Authorization": self._build_auth_header(),
+            "Authorization": f"Bearer {self.access_token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
         logger.info(
             f"JiraClient initialized for instance {self.instance_url} "
-            f"(is_cloud={self.is_cloud}, auth_mode={self.auth_mode})"
+            "using Atlassian OAuth"
         )
-
-    def _build_auth_header(self) -> str:
-        """
-        Builds the authorization header for API-token, Server/DC, or OAuth mode.
-
-        Returns:
-            str -> Authorization header value.
-        """
-        if self.auth_mode == "oauth":
-            return f"Bearer {self.token}"
-
-        if self.is_cloud:
-            auth_str = f"{self.email}:{self.token}"
-            encoded_auth = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
-            return f"Basic {encoded_auth}"
-
-        return f"Bearer {self.token}"
 
     def _build_base_url(self) -> str:
         """
-        Builds the Jira API base URL for direct-site or api.atlassian.com calls.
+        Builds the Jira Cloud API gateway base URL for OAuth calls.
 
         Returns:
             str -> API base URL without a trailing slash.
         """
-        if self.auth_mode == "oauth":
-            if not self.cloud_id:
-                raise ValueError("cloud_id is required for Atlassian OAuth mode")
-            return f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/api/3"
-
-        return f"{self.instance_url}{self.api_prefix}"
+        if not self.cloud_id:
+            raise ValueError("cloud_id is required for Atlassian OAuth mode")
+        return f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/api/3"
 
     async def list_projects(
         self, request: ListJiraProjectsRequest

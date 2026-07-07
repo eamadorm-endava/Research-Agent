@@ -113,31 +113,33 @@ def get_accessible_resources(access_token: str) -> list[dict]:
 
 def create_atlassian_client() -> AtlassianClient:
     """
-    Creates an AtlassianClient using delegated OAuth when present.
+    Creates an AtlassianClient using the current delegated OAuth token.
 
-    Falls back to static API-token credentials only for legacy local runs where no
-    MCP auth context exists.
+    The Atlassian MCP is OAuth-only. Static API-token credentials are intentionally
+    not supported because they bind requests to a configured user instead of the
+    currently authenticated Gemini Enterprise user.
 
     Returns:
         AtlassianClient -> A client ready to call Jira and Confluence APIs.
+
+    Raises:
+        RuntimeError: If the MCP request does not include a delegated Atlassian
+            OAuth access token.
     """
     token_obj = get_access_token()
-    if token_obj and token_obj.token:
-        resources = get_accessible_resources(token_obj.token)
-        resource = select_accessible_resource(
-            resources=resources,
-            configured_cloud_id=ATLASSIAN_API_CONFIG.jira_cloud_id,
-        )
-        return AtlassianClient.from_oauth(
-            access_token=token_obj.token,
-            instance_url=resource.get("url", "https://api.atlassian.com"),
-            cloud_id=resource.get("id", ""),
+    if not token_obj or not token_obj.token:
+        raise RuntimeError(
+            "Missing delegated Atlassian OAuth access token. "
+            "Authenticate through the agent OAuth flow before calling Atlassian tools."
         )
 
-    creds = ATLASSIAN_API_CONFIG.credentials
-    return AtlassianClient(
-        email=creds.jira_user_email,
-        token=creds.jira_api_token.get_secret_value(),
-        instance_url=creds.jira_instance_url,
-        cloud_id=creds.jira_cloud_id,
+    resources = get_accessible_resources(token_obj.token)
+    resource = select_accessible_resource(
+        resources=resources,
+        configured_cloud_id=ATLASSIAN_API_CONFIG.jira_cloud_id,
+    )
+    return AtlassianClient.from_oauth(
+        access_token=token_obj.token,
+        instance_url=resource.get("url", "https://api.atlassian.com"),
+        cloud_id=resource.get("id", ""),
     )

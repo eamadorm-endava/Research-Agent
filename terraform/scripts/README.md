@@ -59,7 +59,6 @@ Create the following secrets manually in your GCP project:
 - `MICROSOFT_OAUTH_CLIENT_SECRET`
 - `ATLASSIAN_OAUTH_CLIENT_ID`
 - `ATLASSIAN_OAUTH_CLIENT_SECRET`
-- `ATLASSIAN_CREDENTIALS` (legacy static fallback only)
 
 ---
 

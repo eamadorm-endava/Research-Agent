@@ -54,18 +54,7 @@ The OAuth app must use the Atlassian callback URL registered for Gemini Enterpri
 
 The MCP server validates incoming bearer tokens through `https://api.atlassian.com/oauth/token/accessible-resources` and then calls Jira and Confluence through the `https://api.atlassian.com/ex/.../{cloudId}` gateway. For multi-site tenants, set `JIRA_CLOUD_ID` to force a specific Atlassian site; otherwise, the first Jira/Confluence-scoped accessible resource is selected.
 
-Legacy static API-token credentials are still supported as a local fallback when no MCP auth context is present. The expected JSON format is:
-
-```json
-{
-  "JIRA_USER_EMAIL": "user@example.com",
-  "JIRA_API_TOKEN": "your-atlassian-api-token",
-  "JIRA_INSTANCE_URL": "https://your-instance.atlassian.net",
-  "JIRA_CLOUD_ID": "your-cloud-id"
-}
-```
-
-Locally, this JSON can be provided via the `ATLASSIAN_CREDENTIALS` environment variable in `mcp_servers/atlassian/.env`.
+The MCP server is OAuth-only. It does not accept static Jira user emails, API tokens, or the legacy `ATLASSIAN_CREDENTIALS` JSON secret. Local testing must run through the agent OAuth flow so each request is authorized with the current user's delegated Atlassian access token.
 
 ---
 

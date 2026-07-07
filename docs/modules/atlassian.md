@@ -41,12 +41,8 @@ The agent uses the following configuration values:
 
 The MCP server validates delegated bearer tokens by calling Atlassian's `accessible-resources` endpoint, resolves the Cloud ID, and routes Jira/Confluence API calls through `https://api.atlassian.com/ex/jira/{cloudId}` and `https://api.atlassian.com/ex/confluence/{cloudId}`.
 
-### 2.2 Legacy Static Credential Fallback
-Static credentials are still supported for legacy local runs where no MCP auth context exists. The configuration (`app/config.py`) prioritises individual environment variables over the JSON string to natively integrate with Google Cloud Secret Manager mappings:
-*   `JIRA_USER_EMAIL`: User email.
-*   `JIRA_API_TOKEN`: User API token generated from `id.atlassian.com`.
-*   `JIRA_INSTANCE_URL`: Site URL (e.g. `https://davaflow.atlassian.net`).
-*   `JIRA_CLOUD_ID`: Cloud identifier UUID.
+### 2.2 OAuth-Only Enforcement
+The MCP server intentionally rejects requests that do not include a delegated Atlassian OAuth access token from the agent runtime. Static Jira user emails, API tokens, and the legacy `ATLASSIAN_CREDENTIALS` JSON secret are not supported. This ensures Jira and Confluence operations run as the currently authenticated user rather than as a preconfigured service/user credential.
 
 ---
 
