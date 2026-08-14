@@ -9,6 +9,9 @@ This repository is planned to be an accelerator for implementing Gemini Enterpri
 - BigQuery
 - Google Calendar
 - Microsoft Outlook
+- Microsoft OneDrive
+- Microsoft SharePoint
+- Atlassian (Jira & Confluence)
 
 leveraging full AI Agent's capabilities to solve different use cases within a company.
 
@@ -55,6 +58,9 @@ graph TD
         Drive_MCP["<b>Drive MCP Server</b>"]
         Calendar_MCP["<b>Calendar MCP Server</b>"]
         Outlook_MCP["<b>Outlook MCP Server</b>"]
+        OneDrive_MCP["<b>OneDrive MCP Server</b>"]
+        SharePoint_MCP["<b>SharePoint MCP Server</b>"]
+        Atlassian_MCP["<b>Atlassian MCP Server</b>"]
     end
 
     subgraph Service ["GCP Resources"]
@@ -62,6 +68,8 @@ graph TD
         GCS_Res[("<b>Cloud Storage</b><br/>Buckets / Blobs")]
         Drive_Res[("<b>Google Drive</b><br/>Docs / Folders")]
         Calendar_Res[("<b>Google Calendar / Meet</b><br/>Events / Transcripts")]
+        Microsoft_Res[("<b>Microsoft</b><br/>Outlook / OneDrive / SharePoint")]
+        Atlassian_Res[("<b>Atlassian</b><br/>Jira / Confluence")]
     end
 
     subgraph EKBPipeline ["Enterprise Knowledge Base Pipeline"]
@@ -77,17 +85,24 @@ graph TD
     ResSpec --> Drive_MCP
     ResSpec --> Calendar_MCP
     ResSpec --> Outlook_MCP
+    ResSpec --> OneDrive_MCP
+    ResSpec --> SharePoint_MCP
+    ResSpec --> Atlassian_MCP
 
     %% Ingestion agent MCP + EKB access
     IngSpec --> BQ_MCP
     IngSpec --> GCS_MCP
     IngSpec -->|HTTP trigger / poll| EKB
 
-    %% MCP ↔ GCP
+    %% MCP ↔ GCP / External
     BQ_MCP <--> BQ_Res
     GCS_MCP <--> GCS_Res
     Drive_MCP <--> Drive_Res
     Calendar_MCP <--> Calendar_Res
+    Outlook_MCP <--> Microsoft_Res
+    OneDrive_MCP <--> Microsoft_Res
+    SharePoint_MCP <--> Microsoft_Res
+    Atlassian_MCP <--> Atlassian_Res
 
     %% EKB writes to storage
     EKB --> GCS_Res
@@ -101,7 +116,7 @@ Detailed view of each agent's skills, native tools, and connectors.
 | Agent | Native Tools | Callbacks | MCP Servers | Skills | Description |
 |---|---|---|---|---|---|
 | **OSIRIS** (Coordinator) | `get_artifact_uri` · `load_artifacts` | `sync_ingestion_status` (before) | — | — | Primary user-facing interface. Analyzes every request and routes it to the appropriate specialist via LLM-transfer delegation. On each turn, proactively polls pending EKB ingestion jobs and injects status updates into session history before responding. |
-| **Research Specialist** `research_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `get_current_time` · `load_artifacts` | — | BigQuery · Google Drive · Google Calendar · GCS · Microsoft Outlook | `meeting-summary` · `knowledge-discovery` | Searches for documents, generates meeting summaries, queries the Enterprise Knowledge Base, and cross-references information across all connected data sources. Saves its final response to session state (`research_context`) so follow-up questions can build on prior results. |
+| **Research Specialist** `research_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `get_current_time` · `load_artifacts` | — | BigQuery · Google Drive · Google Calendar · GCS · Microsoft Outlook · OneDrive · SharePoint · Atlassian | `meeting-summary` · `knowledge-discovery` | Searches for documents, generates meeting summaries, queries the Enterprise Knowledge Base, and cross-references information across all connected data sources. Saves its final response to session state (`research_context`) so follow-up questions can build on prior results. |
 | **Ingestion Specialist** `ingestion_agent` | `get_artifact_uri` · `import_gcs_to_artifact` · `trigger_ekb_pipeline` · `check_ingestion_status` · `load_artifacts` | — | BigQuery · GCS | `kb-file-ingestion` | Orchestrates the full document ingestion lifecycle into the Enterprise Knowledge Base: guides the user through metadata collection, copies the file to the landing GCS bucket, triggers the EKB classification and indexing pipeline, and stores the returned job ID in session state for status tracking. |
 
 ## Project Structure
@@ -161,6 +176,25 @@ We recommend using **VS Code Dev Containers** for an optimal development experie
 To use Dev Containers, the only requirements are to have **Docker** installed and the **Dev Containers extension** (available for both **VS Code** and **Antigravity**).
 
 To start, simply open this project and click **"Reopen in Container"** when prompted.
+
+---
+
+### Provisioning from Zero
+
+If you are setting up this repository in a brand new GCP project, you must first provision all required infrastructure and IAM roles before running any local code.
+
+We have a centralized deployment manager that builds the entire project from zero, including base GCP APIs, Terraform state buckets, Artifact Registries, MCP Servers, and the Agent Engine:
+
+```bash
+# Set your GCP Project ID
+export PROJECT_ID="your-project-id"
+export REGION="us-central1"
+
+# Run the Creation Manager
+./terraform/scripts/creation_manager.sh
+```
+
+For complete instructions and details on all deployment flags, refer to the [**Deployment & Scripts Documentation**](terraform/scripts/README.md).
 
 ---
 
@@ -224,6 +258,9 @@ For more detailed information about each component, refer to the following docum
 - [Google Drive MCP Server](mcp_servers/google_drive/README.md): Google Drive connector implementation.
 - [Google Calendar MCP Server](mcp_servers/google_calendar/README.md): Google Calendar & Meet connector implementation.
 - [Outlook MCP Server](mcp_servers/outlook/README.md): Microsoft Outlook connector implementation.
+- [OneDrive MCP Server](mcp_servers/onedrive/README.md): Microsoft OneDrive connector implementation.
+- [SharePoint MCP Server](mcp_servers/sharepoint/README.md): Microsoft SharePoint connector implementation.
+- [Atlassian MCP Server](mcp_servers/atlassian/README.md): Jira and Confluence connector implementation.
 
 ### Security & Authentication
 - [Authentication Methods](docs/Authentication/README.md): Strategies for identity propagation (DWD vs. OAuth).
