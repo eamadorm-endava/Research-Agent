@@ -265,11 +265,31 @@ def deploy_agent_engine_app(
                     "\nUpdate failed with an INTERNAL error from Vertex AI. Falling back to delete and recreate..."
                 )
                 client.agent_engines.delete(name=matching_agents[0].api_resource.name)
-                remote_agent = client.agent_engines.create(config=config)
+                try:
+                    remote_agent = client.agent_engines.create(config=config)
+                except Exception:
+                    import traceback
+                    import sys
+
+                    logger.error(
+                        "Creation after delete failed:\n" + traceback.format_exc()
+                    )
+                    sys.exit(1)
             else:
-                raise e
+                import traceback
+                import sys
+
+                logger.error("Update failed:\n" + traceback.format_exc())
+                sys.exit(1)
     else:
-        remote_agent = client.agent_engines.create(config=config)
+        try:
+            remote_agent = client.agent_engines.create(config=config)
+        except Exception:
+            import traceback
+            import sys
+
+            logger.error("Creation failed:\n" + traceback.format_exc())
+            sys.exit(1)
 
     metadata = {
         "remote_agent_engine_id": remote_agent.api_resource.name,
