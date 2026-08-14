@@ -1,7 +1,7 @@
 from .gemini_enterprise_ingestion.main import GeminiEnterpriseFileIngestionPlugin
-from .metrics.plugin import ResponseTimeMetricsPlugin
+from .observability_plugin.plugin import ObservabilityPlugin
 
 __all__ = [
     "GeminiEnterpriseFileIngestionPlugin",
-    "ResponseTimeMetricsPlugin",
+    "ObservabilityPlugin",
 ]
