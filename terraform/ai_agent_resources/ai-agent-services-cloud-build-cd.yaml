@@ -265,20 +265,20 @@ steps:
   #         --agent-engine-agent-id "$${ADK_RESOURCE_ID}" \
   #         --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID},${_GEMINI_ATLASSIAN_AUTH_ID}"
 
-availableSecrets:
-  secretManager:
-    - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_OAUTH_CLIENT_ID/versions/latest
-      env: 'GOOGLE_OAUTH_CLIENT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_OAUTH_CLIENT_SECRET/versions/latest
-      env: 'GOOGLE_OAUTH_CLIENT_SECRET'
-    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_ID/versions/latest
-      env: 'MICROSOFT_OAUTH_CLIENT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_SECRET/versions/latest
-      env: 'MICROSOFT_OAUTH_CLIENT_SECRET'
-    - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_ID/versions/latest
-      env: 'ATLASSIAN_OAUTH_CLIENT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_SECRET/versions/latest
-      env: 'ATLASSIAN_OAUTH_CLIENT_SECRET'
+# availableSecrets:
+#   secretManager:
+#     - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_OAUTH_CLIENT_ID/versions/latest
+#       env: 'GOOGLE_OAUTH_CLIENT_ID'
+#     - versionName: projects/${PROJECT_ID}/secrets/GOOGLE_OAUTH_CLIENT_SECRET/versions/latest
+#       env: 'GOOGLE_OAUTH_CLIENT_SECRET'
+#     - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_ID/versions/latest
+#       env: 'MICROSOFT_OAUTH_CLIENT_ID'
+#     - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_SECRET/versions/latest
+#       env: 'MICROSOFT_OAUTH_CLIENT_SECRET'
+#     - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_ID/versions/latest
+#       env: 'ATLASSIAN_OAUTH_CLIENT_ID'
+#     - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_SECRET/versions/latest
+#       env: 'ATLASSIAN_OAUTH_CLIENT_SECRET'
 
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
