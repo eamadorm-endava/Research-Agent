@@ -8,7 +8,8 @@ apis_to_enable = [
   "cloudresourcemanager.googleapis.com",
   "cloudtrace.googleapis.com",
   "telemetry.googleapis.com",
-  "logging.googleapis.com"
+  "logging.googleapis.com",
+  "agentregistry.googleapis.com"
 ]
 
 ai_agent_service_account_name = "adk-agent"
@@ -21,7 +22,8 @@ ai_agent_iam_project_roles = [
   "roles/run.invoker",
   "roles/serviceusage.serviceUsageConsumer",
   "roles/iam.serviceAccountOpenIdTokenCreator",
-  "roles/cloudtrace.agent"
+  "roles/cloudtrace.agent",
+  "roles/agentregistry.admin"
 ]
 
 vertex_ai_agent_iam_project_roles = [
