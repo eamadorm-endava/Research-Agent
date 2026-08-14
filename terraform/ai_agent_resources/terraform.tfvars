@@ -10,7 +10,17 @@ apis_to_enable = [
   "telemetry.googleapis.com",
   "logging.googleapis.com",
   "agentregistry.googleapis.com",
-  "apphub.googleapis.com"
+  "apphub.googleapis.com",
+  "apptopology.googleapis.com",
+  "connectors.googleapis.com",
+  "iap.googleapis.com",
+  "networksecurity.googleapis.com",
+  "networkservices.googleapis.com",
+  "notebooks.googleapis.com",
+  "securitycenter.googleapis.com",
+  "texttospeech.googleapis.com",
+  "cloudapiregistry.googleapis.com",
+  "observability.googleapis.com"
 ]
 
 ai_agent_service_account_name = "adk-agent"
