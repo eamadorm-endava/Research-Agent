@@ -5,16 +5,16 @@ substitutions:
   _AGENT_SA: "adk-agent"
   _METRICS_DATASET_ID: "agent_metrics"
   _METRICS_TABLE_ID: "response_times"
-  _GE_REGION: "global"
-  _GE_APP_NAME_SUFFIX: "osiris-app"
-  _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
+  # _GE_REGION: "global"
+  # _GE_APP_NAME_SUFFIX: "osiris-app"
+  # _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
   _MICROSOFT_OAUTH_SCOPES: "openid offline_access Files.Read.All Sites.Read.All User.Read Mail.Read email Calendars.Read"
   _ATLASSIAN_OAUTH_SCOPES: "offline_access read:jira-work read:jira-user read:space:confluence read:page:confluence read:attachment:confluence read:comment:confluence read:label:confluence search:confluence"
   _MICROSOFT_TENANT_ID: "93f8f3d2-54f6-417d-9a37-10ff2952f228"
-  _GEMINI_GOOGLE_AUTH_ID: "google-workspace-authentication-test-v2"
-  _GEMINI_MICROSOFT_AUTH_ID: "microsoft-entra-authentication-test-v2"
-  _GEMINI_ATLASSIAN_AUTH_ID: "atlassian-authentication-test-v2"
+  # _GEMINI_GOOGLE_AUTH_ID: "google-workspace-authentication-test-v2"
+  # _GEMINI_MICROSOFT_AUTH_ID: "microsoft-entra-authentication-test-v2"
+  # _GEMINI_ATLASSIAN_AUTH_ID: "atlassian-authentication-test-v2"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
@@ -75,86 +75,86 @@ steps:
       - '-auto-approve'
     dir: 'terraform/ai_agent_resources'
   
-  # Step 7: Unregister the agent from GE
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    id: 'ge-unregister-agent'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        apt-get update && apt-get install -y jq curl
-        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
-        
-        echo "Checking and deleting existing agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
-          --agent-display-name "${_AGENT_DISPLAY_NAME}"
+  # Step 7: Unregister the agent from GE (Disabled)
+  # - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  #   id: 'ge-unregister-agent'
+  #   entrypoint: 'bash'
+  #   args:
+  #     - '-c'
+  #     - |
+  #       apt-get update && apt-get install -y jq curl
+  #       chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+  #       
+  #       echo "Checking and deleting existing agent in GE..."
+  #       ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh unregister-agent \
+  #         --project ${PROJECT_ID} \
+  #         --ge-location ${_GE_REGION} \
+  #         --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
+  #         --agent-display-name "${_AGENT_DISPLAY_NAME}"
 
-  # Step 8: Delete all auth resources
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    id: 'ge-delete-auth-resources'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        apt-get update && apt-get install -y jq curl
-        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+  # Step 8: Delete all auth resources (Disabled)
+  # - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  #   id: 'ge-delete-auth-resources'
+  #   entrypoint: 'bash'
+  #   args:
+  #     - '-c'
+  #     - |
+  #       apt-get update && apt-get install -y jq curl
+  #       chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+  #
+  #       echo "Deleting GE Auth IDs ${_GEMINI_GOOGLE_AUTH_ID}, ${_GEMINI_MICROSOFT_AUTH_ID}, and ${_GEMINI_ATLASSIAN_AUTH_ID}..."
+  #       ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-auth-ids \
+  #         --project ${PROJECT_ID} \
+  #         --ge-location ${_GE_REGION} \
+  #         --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID},${_GEMINI_ATLASSIAN_AUTH_ID}"
 
-        echo "Deleting GE Auth IDs ${_GEMINI_GOOGLE_AUTH_ID}, ${_GEMINI_MICROSOFT_AUTH_ID}, and ${_GEMINI_ATLASSIAN_AUTH_ID}..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh delete-auth-ids \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID},${_GEMINI_ATLASSIAN_AUTH_ID}"
-
-  # Step 9: Create new auth resources
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    id: 'ge-create-auth-resources'
-    entrypoint: 'bash'
-    secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'ATLASSIAN_OAUTH_CLIENT_ID', 'ATLASSIAN_OAUTH_CLIENT_SECRET']
-    args:
-      - '-c'
-      - |
-        apt-get update && apt-get install -y jq curl
-        chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
-
-        echo "Creating GE Auth ID for Google: ${_GEMINI_GOOGLE_AUTH_ID}..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID}" \
-          --client-id "$$GOOGLE_OAUTH_CLIENT_ID" \
-          --client-secret "$$GOOGLE_OAUTH_CLIENT_SECRET" \
-          --scopes "${_GOOGLE_OAUTH_SCOPES}" \
-          --auth-uri-base "https://accounts.google.com/o/oauth2/v2/auth" \
-          --token-uri "https://oauth2.googleapis.com/token" \
-          --auth-uri-extras "include_granted_scopes=true&access_type=offline"
-
-        echo "Creating GE Auth ID for Microsoft: ${_GEMINI_MICROSOFT_AUTH_ID}..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --auth-ids "${_GEMINI_MICROSOFT_AUTH_ID}" \
-          --client-id "$$MICROSOFT_OAUTH_CLIENT_ID" \
-          --client-secret "$$MICROSOFT_OAUTH_CLIENT_SECRET" \
-          --scopes "${_MICROSOFT_OAUTH_SCOPES}" \
-          --auth-uri-base "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize" \
-          --token-uri "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/token" \
-          --prompt "select_account"
-
-        echo "Creating GE Auth ID for Atlassian: ${_GEMINI_ATLASSIAN_AUTH_ID}..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --auth-ids "${_GEMINI_ATLASSIAN_AUTH_ID}" \
-          --client-id "$$ATLASSIAN_OAUTH_CLIENT_ID" \
-          --client-secret "$$ATLASSIAN_OAUTH_CLIENT_SECRET" \
-          --scopes "${_ATLASSIAN_OAUTH_SCOPES}" \
-          --auth-uri-base "https://auth.atlassian.com/authorize" \
-          --token-uri "https://auth.atlassian.com/oauth/token" \
-          --auth-uri-extras "audience=api.atlassian.com" \
-          --prompt "consent"
+  # Step 9: Create new auth resources (Disabled)
+  # - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  #   id: 'ge-create-auth-resources'
+  #   entrypoint: 'bash'
+  #   secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'ATLASSIAN_OAUTH_CLIENT_ID', 'ATLASSIAN_OAUTH_CLIENT_SECRET']
+  #   args:
+  #     - '-c'
+  #     - |
+  #       apt-get update && apt-get install -y jq curl
+  #       chmod +x terraform/ai_agent_resources/scripts/ge_agent_manager.sh
+  #
+  #       echo "Creating GE Auth ID for Google: ${_GEMINI_GOOGLE_AUTH_ID}..."
+  #       ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
+  #         --project ${PROJECT_ID} \
+  #         --ge-location ${_GE_REGION} \
+  #         --auth-ids "${_GEMINI_GOOGLE_AUTH_ID}" \
+  #         --client-id "$$GOOGLE_OAUTH_CLIENT_ID" \
+  #         --client-secret "$$GOOGLE_OAUTH_CLIENT_SECRET" \
+  #         --scopes "${_GOOGLE_OAUTH_SCOPES}" \
+  #         --auth-uri-base "https://accounts.google.com/o/oauth2/v2/auth" \
+  #         --token-uri "https://oauth2.googleapis.com/token" \
+  #         --auth-uri-extras "include_granted_scopes=true&access_type=offline"
+  #
+  #       echo "Creating GE Auth ID for Microsoft: ${_GEMINI_MICROSOFT_AUTH_ID}..."
+  #       ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
+  #         --project ${PROJECT_ID} \
+  #         --ge-location ${_GE_REGION} \
+  #         --auth-ids "${_GEMINI_MICROSOFT_AUTH_ID}" \
+  #         --client-id "$$MICROSOFT_OAUTH_CLIENT_ID" \
+  #         --client-secret "$$MICROSOFT_OAUTH_CLIENT_SECRET" \
+  #         --scopes "${_MICROSOFT_OAUTH_SCOPES}" \
+  #         --auth-uri-base "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/authorize" \
+  #         --token-uri "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/token" \
+  #         --prompt "select_account"
+  #
+  #       echo "Creating GE Auth ID for Atlassian: ${_GEMINI_ATLASSIAN_AUTH_ID}..."
+  #       ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh create-auth-ids \
+  #         --project ${PROJECT_ID} \
+  #         --ge-location ${_GE_REGION} \
+  #         --auth-ids "${_GEMINI_ATLASSIAN_AUTH_ID}" \
+  #         --client-id "$$ATLASSIAN_OAUTH_CLIENT_ID" \
+  #         --client-secret "$$ATLASSIAN_OAUTH_CLIENT_SECRET" \
+  #         --scopes "${_ATLASSIAN_OAUTH_SCOPES}" \
+  #         --auth-uri-base "https://auth.atlassian.com/authorize" \
+  #         --token-uri "https://auth.atlassian.com/oauth/token" \
+  #         --auth-uri-extras "audience=api.atlassian.com" \
+  #         --prompt "consent"
 
   
   # Step 10: Deploy the AI-Agent to Agent Engine
@@ -175,9 +175,9 @@ steps:
         ENV_VARS="$${ENV_VARS},REGION=${_REGION}"
         ENV_VARS="$${ENV_VARS},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone"
         ENV_VARS="$${ENV_VARS},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
-        ENV_VARS="$${ENV_VARS},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID}"
-        ENV_VARS="$${ENV_VARS},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID}"
-        ENV_VARS="$${ENV_VARS},GEMINI_ATLASSIAN_AUTH_ID=${_GEMINI_ATLASSIAN_AUTH_ID}"
+        # ENV_VARS="$${ENV_VARS},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID}"
+        # ENV_VARS="$${ENV_VARS},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID}"
+        # ENV_VARS="$${ENV_VARS},GEMINI_ATLASSIAN_AUTH_ID=${_GEMINI_ATLASSIAN_AUTH_ID}"
         
         ENV_VARS="$${ENV_VARS},BIGQUERY_URL=https://bigquery-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
         ENV_VARS="$${ENV_VARS},DRIVE_URL=https://drive-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
@@ -189,9 +189,16 @@ steps:
         ENV_VARS="$${ENV_VARS},OUTLOOK_URL=https://outlook-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
         
         ENV_VARS="$${ENV_VARS},EKB_PIPELINE_URL=https://ekb-pipeline-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},METRICS_PROJECT_ID=${PROJECT_ID}"
-        ENV_VARS="$${ENV_VARS},METRICS_DATASET_ID=${_METRICS_DATASET_ID}"
-        ENV_VARS="$${ENV_VARS},METRICS_TABLE_ID=${_METRICS_TABLE_ID}"
+        
+        # OpenTelemetry & Observability configuration
+        ENV_VARS="$${ENV_VARS},OTEL_METRICS_EXPORTER=gcp_monitoring"
+        ENV_VARS="$${ENV_VARS},OTEL_TRACES_EXPORTER=gcp_trace"
+        ENV_VARS="$${ENV_VARS},OTEL_LOGS_EXPORTER=gcp_logging"
+        ENV_VARS="$${ENV_VARS},OTEL_INSTRUMENTATION_GENAI_UPLOAD_FORMAT=jsonl"
+        ENV_VARS="$${ENV_VARS},OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK=upload"
+        ENV_VARS="$${ENV_VARS},OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH=gs://${PROJECT_ID}-ai-agent-landing-zone/traces"
+        ENV_VARS="$${ENV_VARS},OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true"
+        ENV_VARS="$${ENV_VARS},GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true"
 
         uv run --group ai-agent --group dev python -m agent.deployment.deploy \
           --project ${PROJECT_ID} \
@@ -210,32 +217,31 @@ steps:
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
 
-
-  # Step 11: Register the Agent in GE
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    id: 'ge-register-agent'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        apt-get update && apt-get install -y jq curl
-        ADK_RESOURCE_ID=$(cat /workspace/adk_resource.txt)
-
-        if [ -z "$$ADK_RESOURCE_ID" ]; then
-            echo "Failed to capture ADK_RESOURCE_ID"
-            exit 1
-        fi
-
-        echo "Registering Agent in GE..."
-        ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh register-agent \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
-          --agent-display-name "${_AGENT_DISPLAY_NAME}" \
-          --agent-description "${_GE_AGENT_DESCRIPTION}" \
-          --agent-engine-location ${_REGION} \
-          --agent-engine-agent-id "$${ADK_RESOURCE_ID}" \
-          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID},${_GEMINI_ATLASSIAN_AUTH_ID}"
+  # Step 11: Register the Agent in GE (Disabled)
+  # - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  #   id: 'ge-register-agent'
+  #   entrypoint: 'bash'
+  #   args:
+  #     - '-c'
+  #     - |
+  #       apt-get update && apt-get install -y jq curl
+  #       ADK_RESOURCE_ID=$(cat /workspace/adk_resource.txt)
+  #
+  #       if [ -z "$$ADK_RESOURCE_ID" ]; then
+  #           echo "Failed to capture ADK_RESOURCE_ID"
+  #           exit 1
+  #       fi
+  #
+  #       echo "Registering Agent in GE..."
+  #       ./terraform/ai_agent_resources/scripts/ge_agent_manager.sh register-agent \
+  #         --project ${PROJECT_ID} \
+  #         --ge-location ${_GE_REGION} \
+  #         --app-id ${PROJECT_ID}-${_GE_REGION}-${_GE_APP_NAME_SUFFIX} \
+  #         --agent-display-name "${_AGENT_DISPLAY_NAME}" \
+  #         --agent-description "${_GE_AGENT_DESCRIPTION}" \
+  #         --agent-engine-location ${_REGION} \
+  #         --agent-engine-agent-id "$${ADK_RESOURCE_ID}" \
+  #         --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID},${_GEMINI_ATLASSIAN_AUTH_ID}"
 
 availableSecrets:
   secretManager:

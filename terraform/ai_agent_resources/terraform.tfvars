@@ -6,7 +6,9 @@ apis_to_enable = [
   "aiplatform.googleapis.com",
   "modelarmor.googleapis.com",
   "cloudresourcemanager.googleapis.com",
-  "cloudtrace.googleapis.com"
+  "cloudtrace.googleapis.com",
+  "telemetry.googleapis.com",
+  "logging.googleapis.com"
 ]
 
 ai_agent_service_account_name = "adk-agent"
@@ -27,12 +29,12 @@ vertex_ai_agent_iam_project_roles = [
   "roles/cloudtrace.agent"
 ]
 
-discovery_engine_service_agent_iam_project_roles = [
-  "roles/aiplatform.user",
-  "roles/modelarmor.user",
-  "roles/discoveryengine.user",
-  "roles/run.invoker"
-]
+# discovery_engine_service_agent_iam_project_roles = [
+#   "roles/aiplatform.user",
+#   "roles/modelarmor.user",
+#   "roles/discoveryengine.user",
+#   "roles/run.invoker"
+# ]
 
 # Metrics Plugin
 bq_metrics_dataset_id          = "agent_metrics"
