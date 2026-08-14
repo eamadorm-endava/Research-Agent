@@ -164,6 +164,7 @@ steps:
     args:
       - '-c'
       - |
+        set -eo pipefail
         pip install uv
         uv export \
           --group ai-agent \

@@ -11,6 +11,9 @@ class ObservabilityPlugin(BasePlugin):
     and Loguru logs for every agent turn.
     """
 
+    def __init__(self, name: str = "observability_plugin"):
+        super().__init__(name=name)
+
     async def before_run_callback(
         self,
         *,
