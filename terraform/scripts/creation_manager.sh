@@ -388,16 +388,16 @@ if [[ "$DEPLOY_GE_APP" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     
     # Enable dialogflow and discoveryengine APIs which are required to create engines
-    echo "Ensuring Dialogflow and Discovery Engine APIs are enabled..."
-    gcloud services enable dialogflow.googleapis.com discoveryengine.googleapis.com
+    echo "Ensuring Dialogflow API is enabled..."
+    # gcloud services enable dialogflow.googleapis.com discoveryengine.googleapis.com
     
-    echo "Creating Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
-    bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" create-ge-app \
-        --project "$PROJECT_ID" \
-        --ge-location "$GE_APP_LOCATION" \
-        --ge-app-id "$GE_APP_ID"
-    
-    echo "Gemini Enterprise App creation completed."
+    # echo "Creating Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
+    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" create-ge-app \
+    #     --project "$PROJECT_ID" \
+    #     --ge-location "$GE_APP_LOCATION" \
+    #     --ge-app-id "$GE_APP_ID"
+    # 
+    # echo "Gemini Enterprise App creation completed."
 else
     echo "Skipping Gemini Enterprise App deployment."
 fi

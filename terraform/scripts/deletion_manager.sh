@@ -277,18 +277,18 @@ if [[ "$UNREGISTER_AI_AGENT" == "true" ]]; then
     echo "STEP 1: Unregister Agent & Delete Auth IDs"
     echo "-----------------------------------------------------------------"
     
-    echo "Unregistering Agent..."
-    bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" unregister-agent \
-        --project "$PROJECT_ID" \
-        --app-id "$GE_APP_ID" \
-        --agent-display-name "$AGENT_DISPLAY_NAME" \
-        --ge-location "$GE_APP_LOCATION"
+    # echo "Unregistering Agent..."
+    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" unregister-agent \
+    #     --project "$PROJECT_ID" \
+    #     --app-id "$GE_APP_ID" \
+    #     --agent-display-name "$AGENT_DISPLAY_NAME" \
+    #     --ge-location "$GE_APP_LOCATION"
 
-    echo "Deleting Auth IDs..."
-    bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" delete-auth-ids \
-        --project "$PROJECT_ID" \
-        --auth-ids "$GE_AUTH_IDS" \
-        --ge-location "$GE_APP_LOCATION"
+    # echo "Deleting Auth IDs..."
+    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" delete-auth-ids \
+    #     --project "$PROJECT_ID" \
+    #     --auth-ids "$GE_AUTH_IDS" \
+    #     --ge-location "$GE_APP_LOCATION"
 else
     echo "Skipping Step 1: Unregister Agent & Auth IDs."
 fi
@@ -327,10 +327,11 @@ if [[ "$DELETE_GE_APP" == "true" ]]; then
     echo "STEP 3: Delete Gemini Enterprise App"
     echo "-----------------------------------------------------------------"
     
-    bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" delete-ge-app \
-        --project "$PROJECT_ID" \
-        --ge-location "$GE_APP_LOCATION" \
-        --ge-app-id "$GE_APP_ID"
+    # echo "Deleting Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
+    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" delete-ge-app \
+    #     --project "$PROJECT_ID" \
+    #     --ge-location "$GE_APP_LOCATION" \
+    #     --ge-app-id "$GE_APP_ID"
 else
     echo "Skipping Step 3: Gemini Enterprise App deletion."
 fi
