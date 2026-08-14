@@ -271,15 +271,15 @@ def deploy_agent_engine_app(
                     import traceback
                     import sys
 
-                    logger.error(
-                        "Creation after delete failed:\n" + traceback.format_exc()
-                    )
+                    print("Creation after delete failed:", file=sys.stderr)
+                    traceback.print_exc(file=sys.stderr)
                     sys.exit(1)
             else:
                 import traceback
                 import sys
 
-                logger.error("Update failed:\n" + traceback.format_exc())
+                print("Update failed:", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 sys.exit(1)
     else:
         try:
@@ -288,7 +288,8 @@ def deploy_agent_engine_app(
             import traceback
             import sys
 
-            logger.error("Creation failed:\n" + traceback.format_exc())
+            print("Creation failed:", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             sys.exit(1)
 
     metadata = {
@@ -298,6 +299,9 @@ def deploy_agent_engine_app(
         "deployment_timestamp": datetime.datetime.now().isoformat(),
     }
     logger.info(metadata)
+
+    # Synchronously print the resource name to stdout so the CI/CD pipeline's grep command can find it.
+    print(f"\nSuccessfully deployed! Resource Name: {remote_agent.api_resource.name}")
 
     return remote_agent
 
