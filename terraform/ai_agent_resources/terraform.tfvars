@@ -9,7 +9,8 @@ apis_to_enable = [
   "cloudtrace.googleapis.com",
   "telemetry.googleapis.com",
   "logging.googleapis.com",
-  "agentregistry.googleapis.com"
+  "agentregistry.googleapis.com",
+  "apphub.googleapis.com"
 ]
 
 ai_agent_service_account_name = "adk-agent"
