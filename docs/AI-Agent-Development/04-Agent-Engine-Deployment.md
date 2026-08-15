@@ -7,7 +7,9 @@ This guide is based on the [ADK Starter Pack](https://github.com/GoogleCloudPlat
 ## Prerequisites
 
 1. **Active GCP Project** with Billing enabled.
-2. **APIs Enabled**: Vertex AI API (`aiplatform.googleapis.com`) and Cloud Resource Manager API (`cloudresourcemanager.googleapis.com`).
+2. **APIs Enabled**: 
+   - **Core APIs**: Vertex AI API (`aiplatform.googleapis.com`) and Cloud Resource Manager API (`cloudresourcemanager.googleapis.com`).
+   - **Platform Capabilities APIs**: For full integration (Logging, Tracing, Notebooks, Security), ensure `agentregistry.googleapis.com`, `apphub.googleapis.com`, `connectors.googleapis.com`, `iap.googleapis.com`, `networksecurity.googleapis.com`, `networkservices.googleapis.com`, `notebooks.googleapis.com`, `securitycenter.googleapis.com`, `texttospeech.googleapis.com`, `cloudapiregistry.googleapis.com`, and `observability.googleapis.com` are enabled. (This is managed via `terraform.tfvars`).
 3. **CI/CD Service Account**: Access to deploy Agent Engine resources (e.g., Vertex AI Administrator).
 
 ## Repository Structure
@@ -79,6 +81,9 @@ Upon success, a unique **Resource Name** is generated:
 `projects/<PROJECT_NUMBER>/locations/<LOCATION_ID>/reasoningEngines/<RESOURCE_ID>`
 
 Keep note of this `RESOURCE_ID`. It is required to bind the agent to Gemini Enterprise.
+
+> **CI/CD Gotcha (CloudLoggingHandler)**: If you use `loguru` configured with GCP's `CloudLoggingHandler` (e.g. via `ObservabilityPlugin`), logging becomes asynchronous. If the deployment script completes and exits with status 0, the Python `atexit` hook will ungracefully shut down the background logging thread (resulting in `CloudLoggingHandler shutting down... Failed to send logs`). 
+> **Solution**: To ensure the CI/CD pipeline can extract the `RESOURCE_ID` (via `grep` or `sed`), `deploy.py` must **synchronously `print()`** the resource ID to standard output rather than relying on `logger.info()`.
 
 ---
 
