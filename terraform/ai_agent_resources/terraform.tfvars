@@ -20,7 +20,14 @@ apis_to_enable = [
   "securitycenter.googleapis.com",
   "texttospeech.googleapis.com",
   "cloudapiregistry.googleapis.com",
-  "observability.googleapis.com"
+  "observability.googleapis.com",
+  "compute.googleapis.com",
+  "dataform.googleapis.com",
+  "iam.googleapis.com",
+  "monitoring.googleapis.com",
+  "saasservicemgmt.googleapis.com",
+  "storage.googleapis.com",
+  "storage-component.googleapis.com"
 ]
 
 ai_agent_service_account_name = "adk-agent"
