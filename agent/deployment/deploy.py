@@ -75,7 +75,7 @@ def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
 )
 @click.option(
     "--description",
-    default="BigQuery Agent",
+    default="A hierarchical multi-agent system designed to break information silos and search across enterprise data sources.",
     help="Description of the agent",
 )
 @click.option(
