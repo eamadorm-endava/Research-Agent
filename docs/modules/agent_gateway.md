@@ -9,12 +9,12 @@ This module provisions an enterprise-grade, 100% private networking layer connec
 ```text
 [ Vertex AI Agent Engine ]
           │
-          │ (VPC Peering / Direct VPC Egress)
+          │ (PSC-I Network Attachment: mcp-agent-vpc-network-attachment)
           ▼
-   [ Cloud DNS Private Zone: gateway.mcp.internal ]
+   [ Cloud DNS Peering: gateway.mcp.internal ]
           │
           ▼
-   [ Regional Internal Application Load Balancer (Envoy L7) ]
+   [ Regional Internal Application Load Balancer (Envoy L7: 10.10.0.2) ]
           │
           ├── /bq/*         ──> [ Serverless NEG: bigquery-mcp-server ]
           ├── /drive/*      ──> [ Serverless NEG: drive-mcp-server ]

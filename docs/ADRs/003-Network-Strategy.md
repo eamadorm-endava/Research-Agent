@@ -58,26 +58,26 @@ flowchart TD
 
     subgraph CustomerVPC["Customer VPC Network (e.g., default / custom-vpc)"]
         subgraph Subnets["VPC Subnets (us-central1)"]
-            ProxySubnet["Proxy-Only Subnet (10.129.0.0/23 - REGIONAL_MANAGED_PROXY)"]
-            AppSubnet["Application Subnet (Default IP range)"]
-            PrivateDNS["Private Cloud DNS Zone (mcp.internal.)"]
+        subgraph ClientTier["Client Subnet (Application Subnet)"]
+            NetAttach["Compute Engine Network Attachment (PSC-I)"]
+            PrivateDNS["Private Cloud DNS (mcp.internal)"]
+            FwdRule["Internal Forwarding Rule (10.10.0.2:80)"]
         end
 
-        subgraph ILB["Regional Internal Application Load Balancer (Envoy L7)"]
-            FwdRule["Forwarding Rule (Internal IP: Port 80)"]
+        subgraph ProxySubnet["Proxy-Only Subnet (10.129.0.0/23)"]
             TargetProxy["Target HTTP Proxy"]
-            URLMap["URL Map (Path Prefix Rewrite Rules)"]
-            
-            subgraph BackendServices["Regional Backend Services"]
-                BS_BQ["Backend Service: BigQuery"]
-                BS_DRV["Backend Service: Drive"]
-                BS_GCS["Backend Service: GCS"]
-                BS_CAL["Backend Service: Calendar"]
-                BS_ONE["Backend Service: OneDrive"]
-                BS_OUT["Backend Service: Outlook"]
-                BS_SP["Backend Service: SharePoint"]
-                BS_EKB["Backend Service: EKB Pipeline"]
-            end
+            URLMap["Regional URL Map & URL Rewrites"]
+        end
+
+        subgraph Backends["Backend Services (load_balancing_scheme = INTERNAL_MANAGED)"]
+            BS_BQ["Backend Service: BigQuery"]
+            BS_DRV["Backend Service: Drive"]
+            BS_GCS["Backend Service: GCS"]
+            BS_CAL["Backend Service: Calendar"]
+            BS_ONE["Backend Service: OneDrive"]
+            BS_OUT["Backend Service: Outlook"]
+            BS_SP["Backend Service: SharePoint"]
+            BS_EKB["Backend Service: EKB Pipeline"]
         end
 
         subgraph NEGs["Serverless Network Endpoint Groups"]
@@ -105,8 +105,9 @@ flowchart TD
 
     User -->|"Web Query"| GE
     GE ==>|"Tier 1: Vertex AI API Call - IAM Auth"| AE
-    AE ==>|"Tier 2: VPC Direct Egress"| PrivateDNS
-    AE ==>|"HTTP POST to http://gateway.mcp.internal/bq/mcp"| FwdRule
+    AE ==>|"Tier 2: PSC-I Network Attachment & DNS Peering"| NetAttach
+    NetAttach --> PrivateDNS
+    NetAttach ==>|"HTTP POST to http://gateway.mcp.internal/bq/mcp"| FwdRule
     FwdRule --> TargetProxy --> URLMap
     
     URLMap -->|"/bq/* -> rewrite /"| BS_BQ --> NEG_BQ --> CR_BQ
@@ -131,17 +132,23 @@ flowchart TD
 ### 4.2. Tier 2: Vertex AI Agent Engine to Cloud Run MCP Microservices
 * **Protocol & Endpoint**: HTTP requests to `http://gateway.mcp.internal/<service-path>/mcp`.
 * **Authentication**: Layer 7 application token verification (Google OAuth 2.0 PKCE user-delegated access tokens passed in `Authorization: Bearer <token>` and Service Account ID tokens in `X-Serverless-Authorization`).
-* **Network Boundary**: 100% Private VPC Data Plane. When the Agent Engine initiates an MCP tool call, the request exits into the customer's attached VPC, resolves `gateway.mcp.internal` through Private Cloud DNS, hits the Regional Internal Load Balancer on port 80, and is routed via Serverless NEGs directly to the Cloud Run microservice enforcing `INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER`.
+* **Network Boundary & PSC-I Egress**: 100% Private VPC Data Plane. Vertex AI Agent Engine connects to the customer VPC via a dedicated **Compute Engine Network Attachment (`google_compute_network_attachment`)** and **Cloud DNS Peering** (`roles/dns.peer`). When the Agent Engine initiates an MCP tool call, the request exits into `mcp-agent-vpc`, resolves `gateway.mcp.internal` through Private Cloud DNS, hits the Regional Internal Load Balancer on port 80, and is routed via Serverless NEGs directly to the Cloud Run microservices enforcing `INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER`.
 
 ---
 
 ## 5. Component Definitions
 
-### 5.1. Proxy-Only Subnetwork (`REGIONAL_MANAGED_PROXY`)
+### 5.1. Compute Engine Network Attachment (`PSC-I`)
+* Dedicated network attachment created in the application subnetwork (`google_compute_subnetwork.app_subnet`). It provides the Private Service Connect interface (PSC-I) that allows Vertex AI Agent Engine instances running in the Google tenant project to send egress traffic directly into the customer VPC network.
+
+### 5.2. Cloud DNS Peering (`roles/dns.peer`)
+* Grants the Vertex AI Service Agent identity (`service-<project-number>@gcp-sa-aiplatform.iam.gserviceaccount.com`) permission to peer with the customer VPC's Cloud DNS private zone `mcp.internal`, ensuring domain queries from the agent container resolve to the internal forwarding rule IP.
+
+### 5.3. Proxy-Only Subnetwork (`REGIONAL_MANAGED_PROXY`)
 * **Purpose**: Google Cloud's Regional Internal Application Load Balancer relies on Envoy proxies running within a dedicated subnet reserved exclusively for load balancer proxies (`purpose = "REGIONAL_MANAGED_PROXY"`, `role = "ACTIVE"`).
 * **CIDR Range**: `10.129.0.0/23` allocated within the region (`us-central1`).
 
-### 5.2. Serverless Network Endpoint Groups (Serverless NEGs)
+### 5.4. Serverless Network Endpoint Groups (Serverless NEGs)
 * **Purpose**: Serverless NEGs (`google_compute_region_network_endpoint_group` of type `SERVERLESS`) act as the native GCP bridge connecting the Load Balancer's backend services to Cloud Run without requiring Compute Engine VMs or manual NAT configurations.
 * **Granularity**: One Serverless NEG is created per Cloud Run service.
 
