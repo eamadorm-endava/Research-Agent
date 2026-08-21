@@ -58,7 +58,9 @@ module "mcp_server_cloud_run" {
     }
   }
 
-  iam = {}
+  iam = {
+    "roles/run.invoker" = ["allUsers"]
+  }
 
   service_account_config = {
     create = false
