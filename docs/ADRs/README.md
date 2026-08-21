@@ -6,3 +6,4 @@ This directory contains Architecture Decision Records (ADRs) for the Gemini Ente
 
 - [ADR-001: Data Privacy Strategy](001-Data-Privacy-Strategy.md) - Decision on how to handle data privacy for the AI agents and services
 - [ADR-002: Authentication Strategy](002-Authentication-Strategy.md) - Decision on authentication strategy for the MCP servers
+- [ADR-003: Network Strategy](003-Network-Strategy.md) - Decision on internal networking, load balancing, and private DNS for MCP servers and agent runtime
