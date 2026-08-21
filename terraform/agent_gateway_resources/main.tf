@@ -252,9 +252,9 @@ resource "google_compute_network_attachment" "agent_network_attachment" {
 }
 
 # Grant Vertex AI Service Agent permissions for Network Attachment and DNS Peering
-resource "google_project_iam_member" "vertex_network_user" {
+resource "google_project_iam_member" "vertex_network_admin" {
   project = var.project_id
-  role    = "roles/compute.networkUser"
+  role    = "roles/compute.networkAdmin"
   member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
 
   depends_on = [module.enable_apis]
