@@ -65,7 +65,6 @@ resource "google_compute_region_backend_service" "mcp_backends" {
   region                = var.main_region
   protocol              = "HTTP"
   load_balancing_scheme = "INTERNAL_MANAGED"
-  timeout_sec           = 300
 
   backend {
     group = google_compute_region_network_endpoint_group.mcp_negs[each.key].id
