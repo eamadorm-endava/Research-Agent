@@ -280,7 +280,7 @@ variable "service_config" {
       iam_additive = optional(list(string), [])
     }), null)
     ingress              = optional(string, "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER")
-    invoker_iam_disabled = optional(bool, true)
+    invoker_iam_disabled = optional(bool, false)
     max_concurrency      = optional(number)
     scaling = optional(object({
       max_instance_count = optional(number)

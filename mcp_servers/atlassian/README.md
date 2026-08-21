@@ -87,3 +87,4 @@ To run smoke tests manually against a running local instance:
 ```bash
 make run-atlassian-mcp-smoke
 ```
+
