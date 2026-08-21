@@ -239,3 +239,23 @@ resource "google_dns_record_set" "wildcard_gateway_dns" {
   ttl          = 300
   rrdatas      = [google_compute_forwarding_rule.mcp_forwarding_rule.ip_address]
 }
+
+################ PSC Network Attachment for Vertex AI Agent Engine ################
+resource "google_compute_network_attachment" "agent_network_attachment" {
+  name                  = "${var.network_name}-network-attachment-${var.main_region}"
+  project               = var.project_id
+  region                = var.main_region
+  subnetworks           = [google_compute_subnetwork.app_subnet.id]
+  connection_preference = "ACCEPT_AUTOMATIC"
+
+  depends_on = [google_compute_subnetwork.app_subnet]
+}
+
+# Grant Vertex AI Service Agent permissions for DNS Peering
+resource "google_project_iam_member" "vertex_dns_peer" {
+  project = var.project_id
+  role    = "roles/dns.peer"
+  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
+
+  depends_on = [module.enable_apis]
+}

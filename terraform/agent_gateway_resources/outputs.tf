@@ -12,3 +12,8 @@ output "url_map_id" {
   description = "The ID of the Regional URL Map"
   value       = google_compute_region_url_map.mcp_url_map.id
 }
+
+output "network_attachment_id" {
+  description = "The ID of the Compute Engine Network Attachment for Vertex AI Agent Engine"
+  value       = google_compute_network_attachment.agent_network_attachment.id
+}

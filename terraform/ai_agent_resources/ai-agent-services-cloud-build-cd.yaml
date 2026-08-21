@@ -254,6 +254,9 @@ steps:
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --network-attachment=projects/${PROJECT_ID}/regions/${_REGION}/networkAttachments/mcp-agent-vpc-network-attachment-${_REGION} \
+          --dns-peering-domain=mcp.internal. \
+          --target-network=projects/${PROJECT_ID}/global/networks/mcp-agent-vpc \
           --min-instances=1 \
           --memory=16Gi \
           --num-workers=4 \
