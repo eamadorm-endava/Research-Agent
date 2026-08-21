@@ -54,10 +54,10 @@ bootstrap-no-shared:
 ### Gemini Enterprise Commands ###
 
 create-ge-app:
-	bash gemini_enterprise/scripts/create_resources.sh --project $(PROJECT_ID) --ge-location $(GE_LOCATION) --ge-app-name-suffix $(GE_APP_NAME_SUFFIX)
+	bash gemini_enterprise/scripts/ge_manager.sh create-ge-app --project $(PROJECT_ID) --ge-location $(GE_LOCATION) --app-id $(PROJECT_ID)-$(GE_LOCATION)-$(GE_APP_NAME_SUFFIX)
 
 delete-ge-app:
-	bash gemini_enterprise/scripts/delete_resources.sh --project $(PROJECT_ID) --ge-location $(GE_LOCATION) --ge-app-name-suffix $(GE_APP_NAME_SUFFIX)
+	bash gemini_enterprise/scripts/ge_manager.sh delete-ge-app --project $(PROJECT_ID) --ge-location $(GE_LOCATION) --app-id $(PROJECT_ID)-$(GE_LOCATION)-$(GE_APP_NAME_SUFFIX)
 
 test-ge-terraform:
 	cd terraform/gemini_enterprise_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
