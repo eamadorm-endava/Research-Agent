@@ -105,6 +105,7 @@ case "$COMMAND" in
                     \"industryVertical\": \"GENERIC\",
                     \"appType\": \"APP_TYPE_INTRANET\"
                 }")
+            ENG_RES_CODE=$(echo "$ENG_RES" | tail -n 1)
             if [ "$ENG_RES_CODE" -eq 409 ]; then
                 echo "Gemini Enterprise App '$APP_ID' already exists (409 Conflict). Skipping creation."
             elif [ "$ENG_RES_CODE" -ne 200 ] && [ "$ENG_RES_CODE" -ne 201 ] && [ "$ENG_RES_CODE" -ne 202 ]; then
