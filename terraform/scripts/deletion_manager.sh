@@ -141,12 +141,14 @@ DEL_AI_TRIGGERS="$DELETE_AI_AGENT"
 DEL_MCP_TRIGGERS="$DELETE_MCP_SERVERS"
 MCP_DEL_TARGET="$MCP_SERVERS_TO_DELETE"
 DEL_EKB_TRIGGERS="$DELETE_EKB_PIPELINE"
+DEL_GE_TRIGGERS="$DELETE_GE_APP"
 
 if [[ "$DELETE_CICD_TRIGGERS" == "true" ]]; then
     DEL_AI_TRIGGERS="true"
     DEL_MCP_TRIGGERS="true"
     MCP_DEL_TARGET="all"
     DEL_EKB_TRIGGERS="true"
+    DEL_GE_TRIGGERS="true"
 fi
 
 if [[ "$UNREGISTER_AI_AGENT" == "true" ]] || [[ "$DELETE_GE_APP" == "true" ]]; then
@@ -477,7 +479,7 @@ fi
 # -----------------------------------------------------------------
 # 7. Delete CI/CD Triggers
 # -----------------------------------------------------------------
-if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
+if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DEL_GE_TRIGGERS" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     echo "STEP 7: Delete CI/CD Triggers"
     echo "-----------------------------------------------------------------"
@@ -487,11 +489,13 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         DEL_MCP_TRIGGERS_FLAG="true"
         MCP_DEL_TARGET="all"
         DEL_EKB_TRIGGERS_FLAG="true"
+        DEL_GE_TRIGGERS_FLAG="true"
         DEL_AI_TRIGGERS_FLAG="true"
     else
         DEL_SHARED_TRIGGERS="$DELETE_SHARED_RESOURCES"
         DEL_MCP_TRIGGERS_FLAG="$DEL_MCP_TRIGGERS"
         DEL_EKB_TRIGGERS_FLAG="$DEL_EKB_TRIGGERS"
+        DEL_GE_TRIGGERS_FLAG="$DEL_GE_TRIGGERS"
         DEL_AI_TRIGGERS_FLAG="$DEL_AI_TRIGGERS"
     fi
 
@@ -502,6 +506,7 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         --delete-mcp-server-triggers "$DEL_MCP_TRIGGERS_FLAG" \
         --mcp-server-triggers-to-delete "$MCP_DEL_TARGET" \
         --delete-ekb-pipeline-triggers "$DEL_EKB_TRIGGERS_FLAG" \
+        --delete-gemini-enterprise-triggers "$DEL_GE_TRIGGERS_FLAG" \
         --delete-ai-agent-triggers "$DEL_AI_TRIGGERS_FLAG"
 else
     echo "Skipping Step 7: CI/CD Triggers cleanup."

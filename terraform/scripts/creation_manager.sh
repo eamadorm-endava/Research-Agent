@@ -306,6 +306,7 @@ bash "$SCRIPT_DIR/cicd_triggers_creation.sh" \
     --create-mcp-server-triggers "$DEPLOY_MCP_SERVERS" \
     --mcp-server-triggers-to-create "$MCP_SERVERS_TO_DEPLOY" \
     --create-ekb-pipeline-triggers "$DEPLOY_EKB_PIPELINE" \
+    --create-gemini-enterprise-triggers "$DEPLOY_GE_APP" \
     --create-ai-agent-triggers "$DEPLOY_AI_AGENT" \
     --force-recreate "$FORCE_RECREATE"
 

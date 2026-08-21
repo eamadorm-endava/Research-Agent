@@ -43,6 +43,8 @@ CREATE_SHARED_RESOURCES_TRIGGERS="false"
 CREATE_MCP_SERVER_TRIGGERS="false"
 MCP_SERVER_TRIGGERS_TO_CREATE="all"
 CREATE_EKB_PIPELINE_TRIGGERS="false"
+CREATE_GEMINI_ENTERPRISE_TRIGGERS="false"
+CREATE_AI_AGENT_TRIGGERS="false"
 
 # --- AI Agent Parameters ---
 CREATE_AI_AGENT_TRIGGERS="false"
@@ -65,6 +67,7 @@ while [[ "$#" -gt 0 ]]; do
         --create-mcp-server-triggers) CREATE_MCP_SERVER_TRIGGERS="$2"; shift ;;
         --mcp-server-triggers-to-create) MCP_SERVER_TRIGGERS_TO_CREATE="$2"; shift ;;
         --create-ekb-pipeline-triggers) CREATE_EKB_PIPELINE_TRIGGERS="$2"; shift ;;
+        --create-gemini-enterprise-triggers) CREATE_GEMINI_ENTERPRISE_TRIGGERS="$2"; shift ;;
         --create-ai-agent-triggers) CREATE_AI_AGENT_TRIGGERS="$2"; shift ;;
         --force-recreate) FORCE_RECREATE="$2"; shift ;;
         *) ;; # Ignore unknown params
@@ -229,6 +232,12 @@ if [[ "$CREATE_EKB_PIPELINE_TRIGGERS" == "true" ]]; then
     create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"
 fi
 
+# --- Gemini Enterprise Triggers ---
+if [[ "$CREATE_GEMINI_ENTERPRISE_TRIGGERS" == "true" ]]; then
+    create_trigger "gemini-enterprise-services-plan" "pr" "terraform/gemini_enterprise_resources" "terraform/gemini_enterprise_resources/gemini-enterprise-services-cloud-build-ci.yaml" "gemini_enterprise/**"
+    create_trigger "gemini-enterprise-services-apply" "push" "terraform/gemini_enterprise_resources" "terraform/gemini_enterprise_resources/gemini-enterprise-services-cloud-build-cd.yaml" "gemini_enterprise/**"
+fi
+
 # --- Shared Resources Triggers ---
 if [[ "$CREATE_SHARED_RESOURCES_TRIGGERS" == "true" ]]; then
     create_trigger "shared-resources-services-plan" "pr" "terraform/shared_resources" "terraform/shared_resources/shared-resources-cloud-build-ci.yaml" ""
@@ -236,3 +245,4 @@ if [[ "$CREATE_SHARED_RESOURCES_TRIGGERS" == "true" ]]; then
 fi
 
 echo "Done. Requested triggers processed."
+
