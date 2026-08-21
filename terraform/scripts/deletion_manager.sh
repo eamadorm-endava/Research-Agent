@@ -219,7 +219,7 @@ echo "================================================================="
 echo "Target Project: $PROJECT_ID"
 echo "Default Region: $REGION"
 echo ""
-echo "You have requested the following deletions:"
+echo "You have requested the following deletions (in exact execution order):"
 
 echo "Step 1: Unregister Agent & Auth IDs: $UNREGISTER_AI_AGENT"
 if [[ "$UNREGISTER_AI_AGENT" == "true" ]]; then
@@ -240,11 +240,11 @@ if [[ "$DELETE_GE_APP" == "true" ]]; then
     echo "  - GE App ID: $GE_APP_ID"
 fi
 
-echo "Step 4: Delete Agent Gateway: $DELETE_AGENT_GATEWAY"
+echo "Step 4: Delete Agent Gateway (ILB, Serverless NEGs & DNS): $DELETE_AGENT_GATEWAY"
 
-echo "Step 5: Delete EKB Pipeline: $DELETE_EKB_PIPELINE"
+echo "Step 5: Delete EKB Pipeline (Cloud Run): $DELETE_EKB_PIPELINE"
 
-echo "Step 6: MCP Servers: $DELETE_MCP_SERVERS"
+echo "Step 6: Delete MCP Servers (Cloud Run): $DELETE_MCP_SERVERS"
 if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
     echo "  - Servers to Delete: $MCP_SERVERS_TO_DELETE"
 fi

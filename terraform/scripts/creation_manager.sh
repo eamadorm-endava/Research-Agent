@@ -220,25 +220,27 @@ echo "================================================================="
 echo "Target Project: $PROJECT_ID"
 echo "Default Region: $REGION"
 echo ""
-echo "You have requested the following deployments:"
-echo "Bootstrap: $DEPLOY_BOOTSTRAP"
-echo "Shared Resources: $DEPLOY_SHARED_RESOURCES"
-echo "Gemini Enterprise App: $DEPLOY_GE_APP"
+echo "You have requested the following deployments (in exact execution order):"
+echo "Step 1: Bootstrap (SA, IAM & APIs): $DEPLOY_BOOTSTRAP"
+echo "Step 2: Shared Resources (Landing Zone, Secrets & Registry): $DEPLOY_SHARED_RESOURCES"
+echo "Step 3: CI/CD Triggers Creation: true (Dynamic based on selected targets)"
+echo "Step 4: MCP Servers (Cloud Run): $DEPLOY_MCP_SERVERS"
+if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
+    echo "  - Servers to Deploy: $MCP_SERVERS_TO_DEPLOY"
+fi
+echo "Step 5: EKB Pipeline (Cloud Run): $DEPLOY_EKB_PIPELINE"
+echo "Step 6: Agent Gateway (Internal Load Balancer & Private DNS): $DEPLOY_AGENT_GATEWAY"
+echo "Step 7: Gemini Enterprise App: $DEPLOY_GE_APP"
 if [[ "$DEPLOY_GE_APP" == "true" ]]; then
     echo "  - GE App Location: $GE_APP_LOCATION"
     echo "  - GE App ID: $GE_APP_ID"
 fi
-echo "AI Agent Resources: $DEPLOY_AI_AGENT"
+echo "Step 8: AI Agent (Vertex AI Agent Engine): $DEPLOY_AI_AGENT"
 if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     echo "  - Agent Engine Location: $AGENT_ENGINE_LOCATION"
     echo "  - Agent Display Name: $AGENT_DISPLAY_NAME"
     echo "  - Register in Gemini Enterprise: $REGISTER_AGENT_IN_GE"
 fi
-echo "MCP Servers: $DEPLOY_MCP_SERVERS"
-if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
-    echo "  - Servers to Deploy: $MCP_SERVERS_TO_DEPLOY"
-fi
-echo "EKB Pipeline: $DEPLOY_EKB_PIPELINE"
 echo "================================================================="
 read -p "Are you absolutely sure you want to proceed with these deployments? (y/N): " confirm
 
@@ -395,10 +397,10 @@ else
 fi
 
 
-# 5.5. Agent Gateway (Internal Load Balancer & Private DNS)
+# 6. Agent Gateway (Internal Load Balancer & Private DNS)
 if [[ "$DEPLOY_AGENT_GATEWAY" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 5.5: Deploy Agent Gateway (Internal Load Balancer & DNS)"
+    echo "STEP 6: Deploy Agent Gateway (Internal Load Balancer & DNS)"
     echo "-----------------------------------------------------------------"
     
     BUCKET_NAME="${PROJECT_ID}-terraform-state"
@@ -415,13 +417,13 @@ if [[ "$DEPLOY_AGENT_GATEWAY" == "true" ]]; then
         echo "Agent Gateway deployed successfully."
     fi
 else
-    echo "Skipping Agent Gateway deployment."
+    echo "Skipping Step 6: Agent Gateway deployment."
 fi
 
-# 6. Gemini Enterprise App
+# 7. Gemini Enterprise App
 if [[ "$DEPLOY_GE_APP" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 6: Deploy Gemini Enterprise App & Enable APIs"
+    echo "STEP 7: Deploy Gemini Enterprise App & Enable APIs"
     echo "-----------------------------------------------------------------"
     
     BUCKET_NAME="${PROJECT_ID}-terraform-state"
@@ -445,13 +447,13 @@ if [[ "$DEPLOY_GE_APP" == "true" ]]; then
     
     echo "Gemini Enterprise App deployment completed."
 else
-    echo "Skipping Gemini Enterprise App deployment."
+    echo "Skipping Step 7: Gemini Enterprise App deployment."
 fi
 
-# 7. AI Agent
+# 8. AI Agent
 if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 7: Deploy AI Agent Resources"
+    echo "STEP 8: Deploy AI Agent Resources"
     echo "-----------------------------------------------------------------"
     
     # Trigger Cloud Build for Agent deployment
