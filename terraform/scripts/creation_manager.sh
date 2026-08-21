@@ -277,7 +277,7 @@ if [[ "$DEPLOY_SHARED_RESOURCES" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     BUCKET_NAME="${PROJECT_ID}-terraform-state"
     pushd "$REPO_ROOT/terraform/shared_resources" >/dev/null
-    terraform init -reconfigure \
+    terraform init -upgrade -reconfigure \
         -backend-config="bucket=${BUCKET_NAME}" \
         -backend-config="prefix=terraform/state/shared-resources"
     terraform plan -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
