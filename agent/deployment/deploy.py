@@ -308,7 +308,9 @@ def deploy_agent_engine_app(
                 f"\n⚠️ Update failed ({e}). Falling back to delete and recreate..."
             )
             try:
-                client.agent_engines.delete(name=matching_agents[0].api_resource.name)
+                client.agent_engines.delete(
+                    name=matching_agents[0].api_resource.name, force=True
+                )
             except Exception as del_err:
                 click.echo(f"Delete cleanup note: {del_err}")
             remote_agent = client.agent_engines.create(config=config)
