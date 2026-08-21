@@ -75,7 +75,7 @@ def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
 )
 @click.option(
     "--description",
-    default="BigQuery Agent",
+    default="A hierarchical multi-agent system designed to break information silos and search across enterprise data sources.",
     help="Description of the agent",
 )
 @click.option(
@@ -278,6 +278,9 @@ def deploy_agent_engine_app(
         "deployment_timestamp": datetime.datetime.now().isoformat(),
     }
     logger.info(metadata)
+
+    # Synchronously print the resource name to stdout so the CI/CD pipeline's grep command can find it.
+    print(f"\nSuccessfully deployed! Resource Name: {remote_agent.api_resource.name}")
 
     return remote_agent
 

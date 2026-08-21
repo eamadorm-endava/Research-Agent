@@ -41,12 +41,12 @@ steps:
       - |
         apt-get update && apt-get install -y make
         pip install uv
-        make run-onedrive-tests
+        make run-outlook-tests
 
   # Step 5: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-build'
-    args: ['build', '-t', 'onedrive-mcp-test:ci', '-f', 'mcp_servers/onedrive/Dockerfile', '.']
+    args: ['build', '-t', 'outlook-mcp-test:ci', '-f', 'mcp_servers/outlook/Dockerfile', '.']
 
   # Step 6: Validate (Terraform)
   - name: 'hashicorp/terraform:1.12.2'

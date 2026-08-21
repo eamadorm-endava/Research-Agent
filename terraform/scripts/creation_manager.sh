@@ -240,6 +240,8 @@ fi
 echo "-----------------------------------------------------------------"
 echo "Configuring gcloud project..."
 gcloud config set project "$PROJECT_ID"
+CURRENT_BRANCH=$(git branch --show-current)
+echo "Using branch: $CURRENT_BRANCH for Cloud Build triggers."
 echo "-----------------------------------------------------------------"
 
 # 1. Bootstrap
@@ -337,7 +339,7 @@ if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
         echo "Triggering Cloud Build for ${SERVER_BASE} MCP server in ${SERVER_REGION}: ${TRIGGER_NAME}"
         
         if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
-            BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="main" --format="value(metadata.build.id)" || echo "")
+            BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="${CURRENT_BRANCH}" --format="value(metadata.build.id)" || echo "")
             if [ -n "$BUILD_ID" ]; then
                 MCP_BUILD_IDS+=("$BUILD_ID")
                 echo "Successfully triggered build: $BUILD_ID"
@@ -365,7 +367,7 @@ if [[ "$DEPLOY_EKB_PIPELINE" == "true" ]]; then
     TRIGGER_NAME="ekb-pipeline-services-apply"
     if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
         echo "Triggering Cloud Build for EKB Pipeline: ${TRIGGER_NAME}"
-        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="main" --format="value(metadata.build.id)" || echo "")
+        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" --region="${REGION}" --branch="${CURRENT_BRANCH}" --format="value(metadata.build.id)" || echo "")
         if [ -n "$BUILD_ID" ]; then
             echo "Successfully triggered build: $BUILD_ID"
             echo "Waiting for EKB Pipeline build to complete..."
@@ -388,16 +390,16 @@ if [[ "$DEPLOY_GE_APP" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     
     # Enable dialogflow and discoveryengine APIs which are required to create engines
-    echo "Ensuring Dialogflow and Discovery Engine APIs are enabled..."
-    gcloud services enable dialogflow.googleapis.com discoveryengine.googleapis.com
+    echo "Ensuring Dialogflow API is enabled..."
+    # gcloud services enable dialogflow.googleapis.com discoveryengine.googleapis.com
     
-    echo "Creating Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
-    bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" create-ge-app \
-        --project "$PROJECT_ID" \
-        --ge-location "$GE_APP_LOCATION" \
-        --ge-app-id "$GE_APP_ID"
-    
-    echo "Gemini Enterprise App creation completed."
+    # echo "Creating Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
+    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" create-ge-app \
+    #     --project "$PROJECT_ID" \
+    #     --ge-location "$GE_APP_LOCATION" \
+    #     --ge-app-id "$GE_APP_ID"
+    # 
+    # echo "Gemini Enterprise App creation completed."
 else
     echo "Skipping Gemini Enterprise App deployment."
 fi
@@ -418,7 +420,7 @@ if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
 
         BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" \
             --region="${REGION}" \
-            --branch="main" \
+            --branch="${CURRENT_BRANCH}" \
             --substitutions="${SUBS_STR}" \
             --format="value(metadata.build.id)" || echo "")
         

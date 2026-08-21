@@ -279,7 +279,7 @@ variable "service_config" {
       iam          = optional(list(string), [])
       iam_additive = optional(list(string), [])
     }), null)
-    ingress              = optional(string, null)
+    ingress              = optional(string, "INGRESS_TRAFFIC_INTERNAL_ONLY")
     invoker_iam_disabled = optional(bool, false)
     max_concurrency      = optional(number)
     scaling = optional(object({
