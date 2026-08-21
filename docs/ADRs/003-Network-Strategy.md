@@ -39,11 +39,20 @@ The AI Agent routes all MCP tool invocations to the centralized internal gateway
 
 ---
 
-## 3. Architectural Topology & Component Definitions
+## 3. Architectural Topology & Two-Tier Communication Model
+
+The architecture establishes a strict **Two-Tier Communication Model**:
+1. **Tier 1 (Control Plane - Gemini Enterprise to Agent Engine)**: Operates over Google's managed API control plane (`aiplatform.googleapis.com`). Gemini Enterprise invokes the Agent Engine using IAM authorization (`roles/aiplatform.user`). This layer is completely decoupled from VPC ingress restrictions, allowing Gemini Enterprise to seamlessly dispatch user queries and receive streamed responses.
+2. **Tier 2 (Data Plane - Agent Engine to Cloud Run MCP Microservices)**: Operates 100% within the Customer VPC. When the agent decides to invoke an MCP tool, traffic is routed through the Regional Internal Application Load Balancer and Private Cloud DNS directly to the private Cloud Run containers.
 
 ```mermaid
 flowchart TD
-    subgraph VertexTenant["Vertex AI Managed Tenant"]
+    subgraph ClientLayer["User Interface & Enterprise Search Layer"]
+        User["Enterprise User"]
+        GE["Gemini Enterprise (Discovery Engine / App Engine)"]
+    end
+
+    subgraph VertexTenant["Vertex AI Managed Control Plane"]
         AE["Vertex AI Agent Engine (ADK Runtime)"]
     end
 
@@ -94,7 +103,9 @@ flowchart TD
         end
     end
 
-    AE ==>|VPC Network Peering / Direct Egress| PrivateDNS
+    User -->|Web Query| GE
+    GE ==>|Tier 1: Vertex AI API Call (IAM Auth)| AE
+    AE ==>|Tier 2: VPC Direct Egress| PrivateDNS
     AE ==>|HTTP POST to http://gateway.mcp.internal/bq/mcp| FwdRule
     FwdRule --> TargetProxy --> URLMap
     
@@ -110,31 +121,45 @@ flowchart TD
 
 ---
 
-## 4. Component Definitions
+## 4. Communication Flows: Gemini Enterprise vs. Cloud Run MCPs
 
-### 4.1. Proxy-Only Subnetwork (`REGIONAL_MANAGED_PROXY`)
+### 4.1. Tier 1: Gemini Enterprise to Vertex AI Agent Engine
+* **Protocol & Endpoint**: HTTPS requests directed to Google Cloud's managed Vertex AI APIs (`https://<region>-aiplatform.googleapis.com/v1/projects/<project>/locations/<region>/reasoningEngines/<id>:query` and `:streamQuery`).
+* **Authentication**: Google Cloud IAM service-to-service authorization using the Gemini Enterprise service identity granted `roles/aiplatform.user`.
+* **Network Boundary**: Public Google API Control Plane. Because this is a native Google Cloud service-to-service interaction, it is **completely unaffected** by VPC subnets or Cloud Run internal ingress restrictions. Gemini Enterprise can always discover, invoke, and stream responses from the Agent Engine.
+
+### 4.2. Tier 2: Vertex AI Agent Engine to Cloud Run MCP Microservices
+* **Protocol & Endpoint**: HTTP requests to `http://gateway.mcp.internal/<service-path>/mcp`.
+* **Authentication**: Layer 7 application token verification (Google OAuth 2.0 PKCE user-delegated access tokens passed in `Authorization: Bearer <token>` and Service Account ID tokens in `X-Serverless-Authorization`).
+* **Network Boundary**: 100% Private VPC Data Plane. When the Agent Engine initiates an MCP tool call, the request exits into the customer's attached VPC, resolves `gateway.mcp.internal` through Private Cloud DNS, hits the Regional Internal Load Balancer on port 80, and is routed via Serverless NEGs directly to the Cloud Run microservice enforcing `INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER`.
+
+---
+
+## 5. Component Definitions
+
+### 5.1. Proxy-Only Subnetwork (`REGIONAL_MANAGED_PROXY`)
 * **Purpose**: Google Cloud's Regional Internal Application Load Balancer relies on Envoy proxies running within a dedicated subnet reserved exclusively for load balancer proxies (`purpose = "REGIONAL_MANAGED_PROXY"`, `role = "ACTIVE"`).
 * **CIDR Range**: `10.129.0.0/23` allocated within the region (`us-central1`).
 
-### 4.2. Serverless Network Endpoint Groups (Serverless NEGs)
+### 5.2. Serverless Network Endpoint Groups (Serverless NEGs)
 * **Purpose**: Serverless NEGs (`google_compute_region_network_endpoint_group` of type `SERVERLESS`) act as the native GCP bridge connecting the Load Balancer's backend services to Cloud Run without requiring Compute Engine VMs or manual NAT configurations.
 * **Granularity**: One Serverless NEG is created per Cloud Run service.
 
-### 4.3. URL Map & Path Prefix Rewriting
+### 5.3. URL Map & Path Prefix Rewriting
 * **Purpose**: Provides a unified entry point (`gateway.mcp.internal`) with path-based routing:
   * `http://gateway.mcp.internal/bq/mcp` $\rightarrow$ routes to `bigquery-mcp-server` at `/mcp`
   * `http://gateway.mcp.internal/outlook/mcp` $\rightarrow$ routes to `outlook-mcp-server` at `/mcp`
   * `http://gateway.mcp.internal/drive/mcp` $\rightarrow$ routes to `drive-mcp-server` at `/mcp`
 * **Route Action**: Uses `path_prefix_rewrite = "/"` to strip the path prefix so that the underlying FastMCP server receives its expected `/mcp` root endpoint without modifying the Python application code.
 
-### 4.4. Private Cloud DNS (`google_dns_managed_zone`)
+### 5.4. Private Cloud DNS (`google_dns_managed_zone`)
 * **Zone Name**: `mcp-internal-zone` (`mcp.internal.`)
 * **Scope**: Visibility is set to `private`, linked directly to the VPC network.
 * **Records**: An `A` record (`gateway.mcp.internal`) and wildcard (`*.mcp.internal`) resolving to the Internal IP of the Load Balancer Forwarding Rule.
 
 ---
 
-## 5. Evaluated Options
+## 6. Evaluated Options
 
 ### Option A. Public Ingress (`INGRESS_TRAFFIC_ALL`) + Application-Level Auth (Zero Trust)
 * **Pros**: Zero additional infrastructure cost; instantaneous setup.
@@ -157,20 +182,20 @@ flowchart TD
 
 ---
 
-## 6. Consequences
+## 7. Consequences
 
-### 6.1. Positive
+### 7.1. Positive
 * **Full Network Isolation**: MCP servers and EKB pipelines cannot be reached or probed from the public internet.
 * **Simplified Configuration**: Developers and agents target a single, consistent internal domain (`http://gateway.mcp.internal/<service_prefix>`) instead of managing dynamic, random Cloud Run hash URLs.
 * **Defense-in-Depth**: In addition to private network isolation, all MCP servers still enforce **Layer 7 Application Security** via OAuth 2.0 PKCE user-delegated tokens and `roles/run.invoker` IAM checks.
 
-### 6.2. Negative / Operational Notes
+### 7.2. Negative / Operational Notes
 * **Terraform Stack Dependency**: The `agent_gateway_resources` Terraform stack must be deployed after MCP servers exist (so Cloud Run services are available for NEGs) and before the AI Agent is deployed (so the internal endpoints resolve).
 * **Proxy-Only Subnet**: The VPC network must have IP address space available for the `10.129.0.0/23` proxy-only subnet in the deployment region.
 
 ---
 
-## 7. Implementation Reference
+## 8. Implementation Reference
 
 * **Terraform Module**: [`terraform/agent_gateway_resources/`](../../terraform/agent_gateway_resources/)
 * **Module Documentation**: [`docs/modules/agent_gateway.md`](../modules/agent_gateway.md)
