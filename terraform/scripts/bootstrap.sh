@@ -97,6 +97,8 @@ ROLES=(
     "roles/bigquery.admin" # To manage BigQuery datasets and tables
     "roles/storage.admin" # To manage GCS buckets
     "roles/cloudtasks.admin" # To manage Cloud Tasks queues
+    "roles/compute.admin" # To manage Load Balancers, Subnets, NEGs and Forwarding Rules
+    "roles/dns.admin" # To manage Cloud DNS private zones and record sets
 )
 
 for ROLE in "${ROLES[@]}"; do
