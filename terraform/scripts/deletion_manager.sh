@@ -310,7 +310,7 @@ if [[ "$DELETE_AI_AGENT" == "true" ]]; then
 
     echo "Executing terraform destroy for AI Agent Resources..."
     pushd "$REPO_ROOT/terraform/ai_agent_resources" > /dev/null
-    terraform init -reconfigure \
+    terraform init -upgrade -reconfigure \
         -backend-config="bucket=${STATE_BUCKET}" \
         -backend-config="prefix=terraform/state/ai-agent-resources"
     terraform destroy -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$AGENT_ENGINE_LOCATION"
@@ -380,7 +380,7 @@ if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
         echo "Destroying MCP Terraform stack: $STACK_NAME (Region: $SERVER_REGION)"
         echo "State prefix: $STATE_PREFIX"
 
-        terraform -chdir="$STACK_DIR" init -reconfigure \
+        terraform -chdir="$STACK_DIR" init -upgrade -reconfigure \
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="prefix=${STATE_PREFIX}"
 
@@ -407,7 +407,7 @@ if [[ "$DELETE_EKB_PIPELINE" == "true" ]]; then
     EKB_DIR="$REPO_ROOT/terraform/ekb_pipeline_resources"
     if [ -d "$EKB_DIR" ]; then
         echo "Initializing EKB Pipeline stack..."
-        terraform -chdir="$EKB_DIR" init -reconfigure \
+        terraform -chdir="$EKB_DIR" init -upgrade -reconfigure \
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="prefix=terraform/state/ekb-pipeline-resources"
 
@@ -432,7 +432,7 @@ if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     SHARED_DIR="$REPO_ROOT/terraform/shared_resources"
     if [ -d "$SHARED_DIR" ]; then
         echo "Initializing Shared Resources stack..."
-        terraform -chdir="$SHARED_DIR" init -reconfigure \
+        terraform -chdir="$SHARED_DIR" init -upgrade -reconfigure \
             -backend-config="bucket=${STATE_BUCKET}" \
             -backend-config="prefix=terraform/state/shared-resources"
 
