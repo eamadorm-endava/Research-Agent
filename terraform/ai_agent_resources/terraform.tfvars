@@ -49,12 +49,7 @@ vertex_ai_agent_iam_project_roles = [
   "roles/cloudtrace.agent"
 ]
 
-# discovery_engine_service_agent_iam_project_roles = [
-#   "roles/aiplatform.user",
-#   "roles/modelarmor.user",
-#   "roles/discoveryengine.user",
-#   "roles/run.invoker"
-# ]
+
 
 # Metrics Plugin
 bq_metrics_dataset_id          = "agent_metrics"
