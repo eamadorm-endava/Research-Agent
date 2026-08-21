@@ -103,20 +103,20 @@ flowchart TD
         end
     end
 
-    User -->|Web Query| GE
-    GE ==>|Tier 1: Vertex AI API Call (IAM Auth)| AE
-    AE ==>|Tier 2: VPC Direct Egress| PrivateDNS
-    AE ==>|HTTP POST to http://gateway.mcp.internal/bq/mcp| FwdRule
+    User -->|"Web Query"| GE
+    GE ==>|"Tier 1: Vertex AI API Call - IAM Auth"| AE
+    AE ==>|"Tier 2: VPC Direct Egress"| PrivateDNS
+    AE ==>|"HTTP POST to http://gateway.mcp.internal/bq/mcp"| FwdRule
     FwdRule --> TargetProxy --> URLMap
     
-    URLMap -- "/bq/* -> rewrite /" --> BS_BQ --> NEG_BQ --> CR_BQ
-    URLMap -- "/drive/* -> rewrite /" --> BS_DRV --> NEG_DRV --> CR_DRV
-    URLMap -- "/gcs/* -> rewrite /" --> BS_GCS --> NEG_GCS --> CR_GCS
-    URLMap -- "/calendar/* -> rewrite /" --> BS_CAL --> NEG_CAL --> CR_CAL
-    URLMap -- "/onedrive/* -> rewrite /" --> BS_ONE --> NEG_ONE --> CR_ONE
-    URLMap -- "/outlook/* -> rewrite /" --> BS_OUT --> NEG_OUT --> CR_OUT
-    URLMap -- "/sharepoint/* -> rewrite /" --> BS_SP --> NEG_SP --> CR_SP
-    URLMap -- "/ekb/* -> rewrite /" --> BS_EKB --> NEG_EKB --> CR_EKB
+    URLMap -->|"/bq/* -> rewrite /"| BS_BQ --> NEG_BQ --> CR_BQ
+    URLMap -->|"/drive/* -> rewrite /"| BS_DRV --> NEG_DRV --> CR_DRV
+    URLMap -->|"/gcs/* -> rewrite /"| BS_GCS --> NEG_GCS --> CR_GCS
+    URLMap -->|"/calendar/* -> rewrite /"| BS_CAL --> NEG_CAL --> CR_CAL
+    URLMap -->|"/onedrive/* -> rewrite /"| BS_ONE --> NEG_ONE --> CR_ONE
+    URLMap -->|"/outlook/* -> rewrite /"| BS_OUT --> NEG_OUT --> CR_OUT
+    URLMap -->|"/sharepoint/* -> rewrite /"| BS_SP --> NEG_SP --> CR_SP
+    URLMap -->|"/ekb/* -> rewrite /"| BS_EKB --> NEG_EKB --> CR_EKB
 ```
 
 ---
