@@ -17,3 +17,9 @@ variable "services_to_enable" {
     "dialogflow.googleapis.com"
   ]
 }
+
+variable "discovery_engine_service_agent_roles" {
+  description = "A list of roles to be assigned to the Discovery Engine service agent."
+  type        = list(string)
+  default     = []
+}
