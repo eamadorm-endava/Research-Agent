@@ -7,7 +7,7 @@ substitutions:
   _AGENT_SA: "adk-agent"
   _METRICS_DATASET_ID: "agent_metrics"
   _METRICS_TABLE_ID: "response_times"
-  _REGISTER_AGENT_IN_GE: "false"
+  _REGISTER_AGENT_IN_GE: "true"
   _GE_REGION: "global"
   _GE_APP_NAME_SUFFIX: "osiris-app"
   _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
