@@ -93,6 +93,7 @@ ingestion_agent = (
     .with_native_tools(
         [
             GetArtifactURITool(),
+            GetCurrentTimeTool(),
             TriggerEKBPipelineTool(),
             CheckIngestionStatusTool(),
             load_artifacts,
@@ -113,7 +114,7 @@ root_agent = (
     )
     .with_subagents([research_agent, ingestion_agent])
     .with_before_agent_callback([sync_ekb_job_status])
-    .with_native_tools([GetArtifactURITool(), load_artifacts])
+    .with_native_tools([GetArtifactURITool(), GetCurrentTimeTool(), load_artifacts])
     .build()
 )
 

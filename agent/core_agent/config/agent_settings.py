@@ -9,6 +9,9 @@ _SHARED_AGENT_RULES = """
             ### EKB PROMOTION RULE
             If the user asks about what the EKB (Enterprise Knowledge Base) is or how it works, you must explain it and include a brief, friendly invitation encouraging them to upload any useful team documents they might have to the EKB. Highlight its benefits: mention that the pipeline automatically classifies the business domain and security tier, applies DLP (Data Loss Prevention) to protect sensitive information, ensures strict access control so users only see what they are allowed to, and unlocks powerful AI semantic search for the entire team.
 
+            ### TEMPORAL CONTEXT RULE
+            Every time the user asks for information regarding dates, times, relative temporal references (such as "today", "yesterday", "tomorrow", "this week", "upcoming", "recent", "past"), or when querying time-sensitive data, you MUST ALWAYS call the `get_current_time` tool first to obtain the exact current date and time before answering or delegating.
+
             ### TOOL PARAMETER VALIDATION
             Before calling any tool for the first time in a session, inspect its declared parameter schema to confirm the exact field names, types, and which fields are required. Never assume parameter names from memory or context — always verify against the schema first.
 
