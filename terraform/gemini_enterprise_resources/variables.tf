@@ -17,18 +17,3 @@ variable "services_to_enable" {
     "dialogflow.googleapis.com"
   ]
 }
-
-variable "sa_name" {
-  description = "Terraform / Automation service account base name"
-  type        = string
-  default     = "terraform-sa-gemini-project"
-}
-
-variable "ge_sa_roles" {
-  description = "IAM roles to grant to the service account for managing Gemini Enterprise"
-  type        = list(string)
-  default = [
-    "roles/discoveryengine.admin",
-    "roles/secretmanager.secretAccessor"
-  ]
-}

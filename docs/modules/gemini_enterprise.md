@@ -58,6 +58,4 @@ terraform/gemini_enterprise_resources/
 
 ## 5. Security & IAM
 
-The Gemini Enterprise Terraform stack provisions the following IAM roles for the automation service account (`terraform-sa-gemini-project`):
-- `roles/discoveryengine.admin`
-- `roles/secretmanager.secretAccessor`
+Permissions required to manage Gemini Enterprise (such as `roles/discoveryengine.admin` and `roles/secretmanager.admin`) are granted to the automation Service Account (`terraform-sa-gemini-project`) at the project level via `bootstrap.sh`. The Terraform stack (`terraform/gemini_enterprise_resources`) remains strictly focused on enabling the necessary Google Cloud APIs (`discoveryengine.googleapis.com`, `dialogflow.googleapis.com`).

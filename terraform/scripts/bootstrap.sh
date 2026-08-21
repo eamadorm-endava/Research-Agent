@@ -91,7 +91,7 @@ ROLES=(
     "roles/aiplatform.admin" # To deploy the agent to Agent Engine
     "roles/secretmanager.admin" # To create, access, and delete secrets in Secret Manager
     "roles/cloudbuild.admin" # To manage (create and delete) Cloud Build triggers
-    # "roles/discoveryengine.admin" # To create Auth resources and register agents in Gemini Enterprise
+    "roles/discoveryengine.admin" # To create Auth resources and register agents in Gemini Enterprise
     "roles/dlp.admin" # To manage DLP templates and jobs
     "roles/modelarmor.admin" # To manage Model Armor templates
     "roles/bigquery.admin" # To manage BigQuery datasets and tables
