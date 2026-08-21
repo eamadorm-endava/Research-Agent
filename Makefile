@@ -40,7 +40,7 @@ verify-all-ci:
 	$(MAKE) verify-ekb-ci
 	$(MAKE) verify-atlassian-ci
 	$(MAKE) verify-outlook-ci
-	$(MAKE) test-ge-terraform
+	$(MAKE) verify-ge-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -61,6 +61,9 @@ delete-ge-app:
 
 test-ge-terraform:
 	cd terraform/gemini_enterprise_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+verify-ge-ci:
+	$(MAKE) test-ge-terraform
 
 ### AI Agent Commands ###
 

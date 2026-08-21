@@ -1,0 +1,47 @@
+substitutions:
+  _LOCATION: us-central1
+  _GE_LOCATION: global
+  _GE_APP_NAME_SUFFIX: osiris-app
+
+steps:
+  # Step 1: Initialize Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/gemini_enterprise_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/gemini-enterprise-resources"
+
+  # Step 2: Apply Terraform (APIs & Service Agent Identity/IAM)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply'
+    args:
+      - 'apply'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-auto-approve'
+    dir: 'terraform/gemini_enterprise_resources'
+
+  # Step 3: Provision Gemini Enterprise App Engine
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'ge-create-app'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y jq curl
+        chmod +x gemini_enterprise/scripts/ge_manager.sh
+        echo "Creating Gemini Enterprise App Engine..."
+        ./gemini_enterprise/scripts/ge_manager.sh create-ge-app \
+          --project ${PROJECT_ID} \
+          --ge-location ${_GE_LOCATION} \
+          --app-id ${PROJECT_ID}-${_GE_LOCATION}-${_GE_APP_NAME_SUFFIX}
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

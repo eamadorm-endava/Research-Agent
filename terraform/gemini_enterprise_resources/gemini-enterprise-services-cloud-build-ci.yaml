@@ -1,0 +1,44 @@
+substitutions:
+  _LOCATION: us-central1
+  _GE_LOCATION: global
+  _GE_APP_NAME_SUFFIX: osiris-app
+
+steps:
+  # Step 1: Initialize Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/gemini_enterprise_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/gemini-enterprise-resources"
+
+  # Step 2: Format Check (Terraform)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-fmt'
+    args: ['fmt', '-check']
+    dir: 'terraform/gemini_enterprise_resources'
+
+  # Step 3: Validate (Terraform)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/gemini_enterprise_resources'
+
+  # Step 4: Plan (Terraform)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args:
+      - 'plan'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-out=tfplan'
+    dir: 'terraform/gemini_enterprise_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
