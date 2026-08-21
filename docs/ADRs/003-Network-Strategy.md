@@ -26,16 +26,16 @@ Therefore, a robust, private networking layer was required to bridge the managed
 
 ## 2. Decision
 
-We will implement a **Regional Internal Application Load Balancer (L7 Envoy-based ILB)** paired with **Serverless Network Endpoint Groups (NEGs)** and a **Private Cloud DNS Zone (`mcp.internal`)** within the Customer VPC.
+A **Regional Internal Application Load Balancer (L7 Envoy-based ILB)** will be implemented, paired with **Serverless Network Endpoint Groups (NEGs)** and a **Private Cloud DNS Zone (`mcp.internal`)** within the Customer VPC.
 
-All Cloud Run services will standardize on:
+All Cloud Run services standardize on:
 ```hcl
 service_config = {
   ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 }
 ```
 
-The AI Agent will route all MCP tool invocations to the centralized internal gateway domain `http://gateway.mcp.internal/<service_path>`, which rewrites the path prefix and routes internally across private Google infrastructure.
+The AI Agent routes all MCP tool invocations to the centralized internal gateway domain `http://gateway.mcp.internal/<service_path>`, which rewrites the path prefix and routes internally across private Google infrastructure.
 
 ---
 
