@@ -5,8 +5,7 @@ Independent module to manage Gemini Enterprise (Vertex AI Search / Discovery Eng
 ## Overview
 
 Gemini Enterprise allows organizations to unify search across enterprise data stores and orchestrate conversational AI agents. This module provides:
-1. **Lifecycle Scripts**: Idempotent provisioning and teardown of the Gemini Enterprise App (`APP_TYPE_INTRANET`).
-2. **Unified CLI (`ge_manager.sh`)**:
+1. **Unified CLI (`ge_manager.sh`)**:
    - `create-ge-app`: Provision a search engine.
    - `delete-ge-app`: Delete a search engine.
    - `create-auth-ids`: Create OAuth authorizations for Google Workspace, Microsoft Entra, and Atlassian.
@@ -19,20 +18,18 @@ Gemini Enterprise allows organizations to unify search across enterprise data st
 ```text
 gemini_enterprise/
 ├── scripts/
-│   ├── create_resources.sh   # Provisions APIs and the GE App
-│   ├── delete_resources.sh   # Tears down the GE App
 │   └── ge_manager.sh         # Core management CLI
 └── README.md
 ```
 
 ## Usage Examples
 
-### 1. Provisioning
+### 1. Provisioning App
 ```bash
-./gemini_enterprise/scripts/create_resources.sh \
+./gemini_enterprise/scripts/ge_manager.sh create-ge-app \
   --project "<PROJECT_ID>" \
   --ge-location "global" \
-  --ge-app-name-suffix "osiris-app"
+  --app-id "<PROJECT_ID>-global-osiris-app"
 ```
 
 ### 2. Registering an Agent
@@ -45,10 +42,10 @@ gemini_enterprise/
   --agent-engine-location "us-central1"
 ```
 
-### 3. Teardown
+### 3. Teardown App
 ```bash
-./gemini_enterprise/scripts/delete_resources.sh \
+./gemini_enterprise/scripts/ge_manager.sh delete-ge-app \
   --project "<PROJECT_ID>" \
   --ge-location "global" \
-  --ge-app-name-suffix "osiris-app"
+  --app-id "<PROJECT_ID>-global-osiris-app"
 ```

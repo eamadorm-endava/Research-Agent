@@ -18,9 +18,7 @@ Gemini Enterprise is fully decoupled from the AI Agent codebase:
 ```text
 gemini_enterprise/
 ├── scripts/
-│   ├── ge_manager.sh         # Core management CLI (create/delete app, auths, register/unregister agent)
-│   ├── create_resources.sh   # Stage 1 creation script (enables APIs and provisions GE App)
-│   └── delete_resources.sh   # Stage 1 deletion script (tears down GE App)
+│   └── ge_manager.sh         # Core management CLI (create/delete app, auths, register/unregister agent)
 └── README.md                 # Module usage and command references
 
 terraform/gemini_enterprise_resources/
@@ -46,15 +44,15 @@ terraform/gemini_enterprise_resources/
 
 ---
 
-## 4. Lifecycle Management
+## 4. Orchestration Integration
 
-### 4.1 Provisioning
-- **Stage 1 (Prototyping)**: Execute `gemini_enterprise/scripts/create_resources.sh` (or `make create-ge-app`) to enable APIs and provision the App Engine.
-- **Stage 2 (IaC & Production)**: Apply `terraform/gemini_enterprise_resources` for Terraform-managed APIs and IAM roles.
+### 4.1 Master Creation (`creation_manager.sh`)
+- **Step 6**: Deploys Gemini Enterprise Terraform resources and executes `ge_manager.sh create-ge-app`.
+- **Step 7**: Deploys the AI Agent and injects `_REGISTER_AGENT_IN_GE` into the Cloud Build trigger substitution parameters.
 
-### 4.2 Teardown
-- **Agent & Auth Cleanup**: Execute `gemini_enterprise/scripts/ge_manager.sh unregister-agent` and `delete-auth-ids`.
-- **App & Terraform Teardown**: Execute `gemini_enterprise/scripts/delete_resources.sh` (or `make delete-ge-app`) and destroy `terraform/gemini_enterprise_resources`.
+### 4.2 Master Deletion (`deletion_manager.sh`)
+- **Step 1**: Unregisters the agent and deletes OAuth authorization IDs via `ge_manager.sh`.
+- **Step 3**: Deletes the GE App via `ge_manager.sh delete-ge-app` and destroys `terraform/gemini_enterprise_resources`.
 
 ---
 
