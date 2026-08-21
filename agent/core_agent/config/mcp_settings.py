@@ -90,7 +90,7 @@ class BigQueryMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="google-workspace-authentication",
+            default="mock-ge-auth-id",
             description="Auth Resource ID for BigQuery.",
             validation_alias=AliasChoices(
                 "BIGQUERY_AUTH_ID",
@@ -112,7 +112,7 @@ class DriveMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="google-workspace-authentication",
+            default="mock-ge-auth-id",
             description="Auth Resource ID for Google Drive.",
             validation_alias=AliasChoices(
                 "GEMINI_DRIVE_AUTH_ID",
@@ -135,7 +135,7 @@ class CalendarMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="google-workspace-authentication",
+            default="mock-ge-auth-id",
             description="Auth Resource ID for Google Calendar.",
             validation_alias=AliasChoices("CALENDAR_AUTH_ID", "GEMINI_GOOGLE_AUTH_ID"),
         ),
@@ -156,7 +156,7 @@ class GCSMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="google-workspace-authentication",
+            default="mock-ge-auth-id",
             description="Auth Resource ID for Google Cloud Storage.",
             validation_alias=AliasChoices(
                 "GCS_AUTH_ID",
@@ -186,7 +186,7 @@ class AtlassianMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="atlassian-authentication",
+            default="mock-atlassian-auth-id",
             description="Auth Resource ID for Atlassian Jira and Confluence.",
             validation_alias=AliasChoices(
                 "ATLASSIAN_AUTH_ID",
@@ -210,7 +210,7 @@ class OneDriveMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="microsoft-entra-authentication",
+            default="mock-ms-auth-id",
             description="Auth Resource ID for Microsoft OneDrive.",
             validation_alias=AliasChoices(
                 "ONEDRIVE_AUTH_ID",
@@ -235,7 +235,7 @@ class SharePointMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="microsoft-entra-authentication",
+            default="mock-ms-auth-id",
             description="Auth Resource ID for Microsoft SharePoint.",
             validation_alias=AliasChoices(
                 "SHAREPOINT_AUTH_ID",
@@ -262,7 +262,7 @@ class OutlookMCPConfig(BaseMCPConfig):
     GEMINI_AUTH_ID: Annotated[
         Optional[str],
         Field(
-            default="microsoft-entra-authentication",
+            default="mock-ms-auth-id",
             description="Auth Resource ID for Microsoft Outlook.",
             validation_alias=AliasChoices(
                 "OUTLOOK_AUTH_ID",
