@@ -37,6 +37,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # ## AI Agent Parameters
 #   --deploy-ai-agent            Set to "true" to deploy AI Agent resources.
 #   --agent-engine-location      Location for the Vertex AI Agent Engine (e.g., "us-central1").
+#   --register-agent-in-ge       Set to "true" to register the agent in Gemini Enterprise App (Default: "false").
 #
 # ## MCP Servers Parameters
 #   --deploy-mcp-servers         Set to "true" to deploy MCP servers.
@@ -73,6 +74,7 @@ GE_APP_NAME_SUFFIX="osiris-app"
 # --- AI Agent Parameters ---
 DEPLOY_AI_AGENT="false"
 AGENT_ENGINE_LOCATION=""
+REGISTER_AGENT_IN_GE="false"
 
 # --- MCP Servers Parameters ---
 DEPLOY_MCP_SERVERS="false"
@@ -111,6 +113,7 @@ while [[ "$#" -gt 0 ]]; do
         # AI Agent
         --deploy-ai-agent) DEPLOY_AI_AGENT="$2"; shift ;;
         --agent-engine-location) AGENT_ENGINE_LOCATION="$2"; shift ;;
+        --register-agent-in-ge) REGISTER_AGENT_IN_GE="$2"; shift ;;
         
         # MCP Servers
         --deploy-mcp-servers) DEPLOY_MCP_SERVERS="$2"; shift ;;
@@ -223,6 +226,7 @@ echo "AI Agent Resources: $DEPLOY_AI_AGENT"
 if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     echo "  - Agent Engine Location: $AGENT_ENGINE_LOCATION"
     echo "  - Agent Display Name: $AGENT_DISPLAY_NAME"
+    echo "  - Register in Gemini Enterprise: $REGISTER_AGENT_IN_GE"
 fi
 echo "MCP Servers: $DEPLOY_MCP_SERVERS"
 if [[ "$DEPLOY_MCP_SERVERS" == "true" ]]; then
@@ -386,20 +390,29 @@ fi
 # 6. Gemini Enterprise App
 if [[ "$DEPLOY_GE_APP" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 6: Deploy Gemini Enterprise App"
+    echo "STEP 6: Deploy Gemini Enterprise App & Enable APIs"
     echo "-----------------------------------------------------------------"
     
-    # Enable dialogflow and discoveryengine APIs which are required to create engines
-    echo "Ensuring Dialogflow API is enabled..."
-    # gcloud services enable dialogflow.googleapis.com discoveryengine.googleapis.com
+    BUCKET_NAME="${PROJECT_ID}-terraform-state"
+    GE_TF_DIR="$REPO_ROOT/terraform/gemini_enterprise_resources"
+    if [ -d "$GE_TF_DIR" ]; then
+        echo "Applying Terraform for Gemini Enterprise APIs and IAM..."
+        pushd "$GE_TF_DIR" >/dev/null
+        terraform init -upgrade -reconfigure \
+            -backend-config="bucket=${BUCKET_NAME}" \
+            -backend-config="prefix=terraform/state/gemini-enterprise-resources"
+        terraform plan -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
+        terraform apply -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
+        popd >/dev/null
+    fi
+
+    echo "Provisioning Gemini Enterprise App Engine..."
+    bash "$REPO_ROOT/gemini_enterprise/scripts/create_resources.sh" \
+        --project "$PROJECT_ID" \
+        --ge-location "$GE_APP_LOCATION" \
+        --ge-app-name-suffix "$GE_APP_NAME_SUFFIX"
     
-    # echo "Creating Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
-    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" create-ge-app \
-    #     --project "$PROJECT_ID" \
-    #     --ge-location "$GE_APP_LOCATION" \
-    #     --ge-app-id "$GE_APP_ID"
-    # 
-    # echo "Gemini Enterprise App creation completed."
+    echo "Gemini Enterprise App deployment completed."
 else
     echo "Skipping Gemini Enterprise App deployment."
 fi
@@ -415,8 +428,14 @@ if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
         echo "Triggering Cloud Build for AI Agent: ${TRIGGER_NAME}"
         
-        # Build the substitutions string for the GE App
-        SUBS_STR="_GE_REGION=${GE_APP_LOCATION},_GE_APP_NAME_SUFFIX=${GE_APP_NAME_SUFFIX}"
+        # Build the substitutions string for the AI Agent
+        SUBS_STR="_REGISTER_AGENT_IN_GE=${REGISTER_AGENT_IN_GE}"
+        if [[ -n "$GE_APP_LOCATION" ]]; then
+            SUBS_STR="${SUBS_STR},_GE_REGION=${GE_APP_LOCATION}"
+        fi
+        if [[ -n "$GE_APP_NAME_SUFFIX" ]]; then
+            SUBS_STR="${SUBS_STR},_GE_APP_NAME_SUFFIX=${GE_APP_NAME_SUFFIX}"
+        fi
 
         BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" \
             --region="${REGION}" \

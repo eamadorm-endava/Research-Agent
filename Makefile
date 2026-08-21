@@ -1,5 +1,7 @@
 PROJECT_ID?=host-endava-ge-prod-01-2u00# ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
+GE_LOCATION?=global
+GE_APP_NAME_SUFFIX?=osiris-app
 BIGQUERY_PROD_URL?=https://bigquery-mcp-server-1057005221381.us-central1.run.app
 DRIVE_PROD_URL?=https://drive-mcp-server-1057005221381.us-central1.run.app
 GCS_PROD_URL?=https://gcs-mcp-server-1057005221381.us-central1.run.app
@@ -38,6 +40,7 @@ verify-all-ci:
 	$(MAKE) verify-ekb-ci
 	$(MAKE) verify-atlassian-ci
 	$(MAKE) verify-outlook-ci
+	$(MAKE) test-ge-terraform
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -47,6 +50,17 @@ bootstrap:
 
 bootstrap-no-shared:
 	APPLY_SHARED_RESOURCES=false ./terraform/scripts/bootstrap.sh
+
+### Gemini Enterprise Commands ###
+
+create-ge-app:
+	bash gemini_enterprise/scripts/create_resources.sh --project $(PROJECT_ID) --ge-location $(GE_LOCATION) --ge-app-name-suffix $(GE_APP_NAME_SUFFIX)
+
+delete-ge-app:
+	bash gemini_enterprise/scripts/delete_resources.sh --project $(PROJECT_ID) --ge-location $(GE_LOCATION) --ge-app-name-suffix $(GE_APP_NAME_SUFFIX)
+
+test-ge-terraform:
+	cd terraform/gemini_enterprise_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
 
 ### AI Agent Commands ###
 
