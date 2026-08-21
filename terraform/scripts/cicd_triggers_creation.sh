@@ -44,9 +44,7 @@ CREATE_MCP_SERVER_TRIGGERS="false"
 MCP_SERVER_TRIGGERS_TO_CREATE="all"
 CREATE_EKB_PIPELINE_TRIGGERS="false"
 CREATE_GEMINI_ENTERPRISE_TRIGGERS="false"
-CREATE_AI_AGENT_TRIGGERS="false"
-
-# --- AI Agent Parameters ---
+CREATE_AGENT_GATEWAY_TRIGGERS="false"
 CREATE_AI_AGENT_TRIGGERS="false"
 
 # --- Optional / Overridable Variables ---
@@ -68,6 +66,7 @@ while [[ "$#" -gt 0 ]]; do
         --mcp-server-triggers-to-create) MCP_SERVER_TRIGGERS_TO_CREATE="$2"; shift ;;
         --create-ekb-pipeline-triggers) CREATE_EKB_PIPELINE_TRIGGERS="$2"; shift ;;
         --create-gemini-enterprise-triggers) CREATE_GEMINI_ENTERPRISE_TRIGGERS="$2"; shift ;;
+        --create-agent-gateway-triggers) CREATE_AGENT_GATEWAY_TRIGGERS="$2"; shift ;;
         --create-ai-agent-triggers) CREATE_AI_AGENT_TRIGGERS="$2"; shift ;;
         --force-recreate) FORCE_RECREATE="$2"; shift ;;
         *) ;; # Ignore unknown params
@@ -230,6 +229,12 @@ fi
 if [[ "$CREATE_EKB_PIPELINE_TRIGGERS" == "true" ]]; then
     create_trigger "ekb-pipeline-services-plan" "pr" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-ci.yaml" "pipelines/enterprise_knowledge_base/**"
     create_trigger "ekb-pipeline-services-apply" "push" "terraform/ekb_pipeline_resources" "terraform/ekb_pipeline_resources/ekb-pipeline-services-cloud-build-cd.yaml" "pipelines/enterprise_knowledge_base/**"
+fi
+
+# --- Agent Gateway Triggers ---
+if [[ "$CREATE_AGENT_GATEWAY_TRIGGERS" == "true" ]]; then
+    create_trigger "agent-gateway-services-plan" "pr" "terraform/agent_gateway_resources" "terraform/agent_gateway_resources/agent-gateway-services-cloud-build-ci.yaml" ""
+    create_trigger "agent-gateway-services-apply" "push" "terraform/agent_gateway_resources" "terraform/agent_gateway_resources/agent-gateway-services-cloud-build-cd.yaml" ""
 fi
 
 # --- Gemini Enterprise Triggers ---

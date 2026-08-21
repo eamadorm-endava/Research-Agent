@@ -1,0 +1,47 @@
+substitutions:
+  _REGION: "us-central1"
+  _NETWORK_NAME: "default"
+  _SUBNETWORK_NAME: "default"
+  _PROXY_SUBNET_CIDR: "10.129.0.0/23"
+
+steps:
+  # Step 1: Initialize Terraform with Dynamic Backend
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/agent-gateway-resources"
+    dir: 'terraform/agent_gateway_resources'
+
+  # Step 2: Ensure code is formatted correctly
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-fmt'
+    args: ['fmt', '-check']
+    dir: 'terraform/agent_gateway_resources'
+
+  # Step 3: Validate the configuration syntax
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/agent_gateway_resources'
+
+  # Step 4: Run Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args:
+      - 'plan'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_REGION}'
+      - '-var=network_name=${_NETWORK_NAME}'
+      - '-var=subnetwork_name=${_SUBNETWORK_NAME}'
+      - '-var=proxy_only_subnet_cidr=${_PROXY_SUBNET_CIDR}'
+    dir: 'terraform/agent_gateway_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
