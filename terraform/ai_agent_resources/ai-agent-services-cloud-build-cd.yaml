@@ -224,16 +224,16 @@ steps:
           # ENV_VARS="$${ENV_VARS},GEMINI_ATLASSIAN_AUTH_ID=${_GEMINI_ATLASSIAN_AUTH_ID}"
         fi
         
-        ENV_VARS="$${ENV_VARS},BIGQUERY_URL=https://bigquery-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},DRIVE_URL=https://drive-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},GCS_URL=https://gcs-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},CALENDAR_URL=https://calendar-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},ONEDRIVE_URL=https://onedrive-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},ATLASSIAN_URL=https://atlassian-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},SHAREPOINT_URL=https://sharepoint-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
-        ENV_VARS="$${ENV_VARS},OUTLOOK_URL=https://outlook-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},BIGQUERY_URL=http://gateway.mcp.internal/bq"
+        ENV_VARS="$${ENV_VARS},DRIVE_URL=http://gateway.mcp.internal/drive"
+        ENV_VARS="$${ENV_VARS},GCS_URL=http://gateway.mcp.internal/gcs"
+        ENV_VARS="$${ENV_VARS},CALENDAR_URL=http://gateway.mcp.internal/calendar"
+        ENV_VARS="$${ENV_VARS},ONEDRIVE_URL=http://gateway.mcp.internal/onedrive"
+        ENV_VARS="$${ENV_VARS},ATLASSIAN_URL=http://gateway.mcp.internal/atlassian"
+        ENV_VARS="$${ENV_VARS},SHAREPOINT_URL=http://gateway.mcp.internal/sharepoint"
+        ENV_VARS="$${ENV_VARS},OUTLOOK_URL=http://gateway.mcp.internal/outlook"
         
-        ENV_VARS="$${ENV_VARS},EKB_PIPELINE_URL=https://ekb-pipeline-${PROJECT_NUMBER}.${_REGION}.run.app"
+        ENV_VARS="$${ENV_VARS},EKB_PIPELINE_URL=http://gateway.mcp.internal/ekb"
         
         # OpenTelemetry & Observability configuration
         ENV_VARS="$${ENV_VARS},OTEL_METRICS_EXPORTER=gcp_monitoring"
@@ -254,6 +254,9 @@ steps:
           --entrypoint-object=app \
           --requirements-file=./agent/core_agent/requirements.txt \
           --service-account=${_AGENT_SA}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --network-attachment=projects/${PROJECT_ID}/regions/${_REGION}/networkAttachments/mcp-agent-vpc-network-attachment-${_REGION} \
+          --dns-peering-domain=mcp.internal. \
+          --target-network=projects/${PROJECT_ID}/global/networks/mcp-agent-vpc \
           --min-instances=1 \
           --memory=16Gi \
           --num-workers=4 \

@@ -143,6 +143,24 @@ def parse_key_value_pairs(kv_string: Optional[str]) -> dict[str, str]:
     default=1,
     help="Number of worker processes (default: 1)",
 )
+@click.option(
+    "--network-attachment",
+    type=str,
+    default=None,
+    help="PSC Network Attachment resource name for VPC egress",
+)
+@click.option(
+    "--dns-peering-domain",
+    type=str,
+    default="mcp.internal.",
+    help="DNS peering domain for private DNS resolution",
+)
+@click.option(
+    "--target-network",
+    type=str,
+    default=None,
+    help="Target VPC network for DNS peering",
+)
 def deploy_agent_engine_app(
     project: Optional[str],
     location: str,
@@ -160,6 +178,9 @@ def deploy_agent_engine_app(
     memory: str,
     container_concurrency: int,
     num_workers: int,
+    network_attachment: Optional[str] = None,
+    dns_peering_domain: Optional[str] = "mcp.internal.",
+    target_network: Optional[str] = None,
 ) -> AgentEngine:
     """Deploys or updates the agent application on Vertex AI Agent Engine.
 
@@ -183,6 +204,9 @@ def deploy_agent_engine_app(
         memory: str -> Memory limit per instance.
         container_concurrency: int -> Maximum concurrent requests per container.
         num_workers: int -> Number of worker processes.
+        network_attachment: Optional[str] -> PSC Network Attachment resource for VPC egress.
+        dns_peering_domain: Optional[str] -> DNS domain for private DNS peering.
+        target_network: Optional[str] -> Target VPC network for private DNS resolution.
 
     Returns:
         AgentEngine -> The created or updated remote Agent Engine resource.
@@ -208,6 +232,10 @@ def deploy_agent_engine_app(
     ]
     if service_account:
         params.append(("Service Account", service_account))
+    if network_attachment:
+        params.append(("Network Attachment", network_attachment))
+    if target_network:
+        params.append(("Target Network", target_network))
     for name, value in params:
         click.echo(f"  {name}: {value}")
 
@@ -244,6 +272,29 @@ def deploy_agent_engine_app(
         agent_framework="google-adk",
     )
 
+    if network_attachment:
+        from vertexai._genai.types import DnsPeeringConfig, PscInterfaceConfig
+
+        dns_peering_configs = None
+        if dns_peering_domain and target_network:
+            domain_name = (
+                dns_peering_domain
+                if dns_peering_domain.endswith(".")
+                else f"{dns_peering_domain}."
+            )
+            network_name = target_network.split("/")[-1]
+            dns_peering_configs = [
+                DnsPeeringConfig(
+                    domain=domain_name,
+                    target_project=project,
+                    target_network=network_name,
+                )
+            ]
+        config.psc_interface_config = PscInterfaceConfig(
+            network_attachment=network_attachment,
+            dns_peering_configs=dns_peering_configs,
+        )
+
     existing_agents = list(client.agent_engines.list())
     matching_agents = [
         agent
@@ -260,14 +311,16 @@ def deploy_agent_engine_app(
                 name=matching_agents[0].api_resource.name, config=config
             )
         except Exception as e:
-            if "INTERNAL" in str(e) or "13" in str(e):
-                click.echo(
-                    "\nUpdate failed with an INTERNAL error from Vertex AI. Falling back to delete and recreate..."
+            click.echo(
+                f"\n⚠️ Update failed ({e}). Falling back to delete and recreate..."
+            )
+            try:
+                client.agent_engines.delete(
+                    name=matching_agents[0].api_resource.name, force=True
                 )
-                client.agent_engines.delete(name=matching_agents[0].api_resource.name)
-                remote_agent = client.agent_engines.create(config=config)
-            else:
-                raise e
+            except Exception as del_err:
+                click.echo(f"Delete cleanup note: {del_err}")
+            remote_agent = client.agent_engines.create(config=config)
     else:
         remote_agent = client.agent_engines.create(config=config)
 

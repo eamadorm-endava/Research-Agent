@@ -71,6 +71,9 @@ MCP_SERVERS_TO_DELETE="all"
 # --- Pipelines Parameters ---
 DELETE_EKB_PIPELINE="false"
 
+# --- Agent Gateway Parameters ---
+DELETE_AGENT_GATEWAY="false"
+
 # --- Shared Resources Parameters ---
 DELETE_SHARED_RESOURCES="false"
 SHARED_SECRETS_TO_DELETE="GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,MICROSOFT_OAUTH_CLIENT_ID,MICROSOFT_OAUTH_CLIENT_SECRET,ATLASSIAN_OAUTH_CLIENT_ID,ATLASSIAN_OAUTH_CLIENT_SECRET"
@@ -106,6 +109,9 @@ while [[ "$#" -gt 0 ]]; do
         
         # Pipelines
         --delete-ekb-pipeline) DELETE_EKB_PIPELINE="$2"; shift ;;
+        
+        # Agent Gateway
+        --delete-agent-gateway) DELETE_AGENT_GATEWAY="$2"; shift ;;
         
         # Shared Resources
         --delete-shared-resources) DELETE_SHARED_RESOURCES="$2"; shift ;;
@@ -213,7 +219,7 @@ echo "================================================================="
 echo "Target Project: $PROJECT_ID"
 echo "Default Region: $REGION"
 echo ""
-echo "You have requested the following deletions:"
+echo "You have requested the following deletions (in exact execution order):"
 
 echo "Step 1: Unregister Agent & Auth IDs: $UNREGISTER_AI_AGENT"
 if [[ "$UNREGISTER_AI_AGENT" == "true" ]]; then
@@ -234,33 +240,36 @@ if [[ "$DELETE_GE_APP" == "true" ]]; then
     echo "  - GE App ID: $GE_APP_ID"
 fi
 
-echo "Step 4: MCP Servers: $DELETE_MCP_SERVERS"
+echo "Step 4: Delete Agent Gateway (ILB, Serverless NEGs & DNS): $DELETE_AGENT_GATEWAY"
+
+echo "Step 5: Delete EKB Pipeline (Cloud Run): $DELETE_EKB_PIPELINE"
+
+echo "Step 6: Delete MCP Servers (Cloud Run): $DELETE_MCP_SERVERS"
 if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
     echo "  - Servers to Delete: $MCP_SERVERS_TO_DELETE"
 fi
 
-echo "Step 5: EKB Pipeline: $DELETE_EKB_PIPELINE"
-
-echo "Step 6: Shared Resources: $DELETE_SHARED_RESOURCES"
+echo "Step 7: Shared Resources: $DELETE_SHARED_RESOURCES"
 if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "  - Secrets to Delete: $SHARED_SECRETS_TO_DELETE"
 fi
 
-if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
-    echo "Step 7: CI/CD Triggers: true (Modular Cleanup)"
+if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DEL_GATEWAY_TRIGGERS_FLAG" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
+    echo "Step 8: CI/CD Triggers: true (Modular Cleanup)"
     if [[ "$DELETE_CICD_TRIGGERS" == "true" ]]; then
         echo "  - Wiping ALL CI/CD Triggers"
     else
         [[ "$DEL_AI_TRIGGERS" == "true" ]] && echo "  - AI Agent Triggers"
-        [[ "$DEL_MCP_TRIGGERS" == "true" ]] && echo "  - MCP Server Triggers ($MCP_DEL_TARGET)"
+        [[ "$DEL_GATEWAY_TRIGGERS_FLAG" == "true" ]] && echo "  - Agent Gateway Triggers"
         [[ "$DEL_EKB_TRIGGERS" == "true" ]] && echo "  - EKB Pipeline Triggers"
+        [[ "$DEL_MCP_TRIGGERS" == "true" ]] && echo "  - MCP Server Triggers ($MCP_DEL_TARGET)"
         [[ "$DELETE_SHARED_RESOURCES" == "true" ]] && echo "  - Shared Resources Triggers"
     fi
 else
-    echo "Step 7: CI/CD Triggers: false"
+    echo "Step 8: CI/CD Triggers: false"
 fi
 
-echo "Step 8: Bootstrap Cleanup: $DELETE_BOOTSTRAP"
+echo "Step 9: Bootstrap Cleanup: $DELETE_BOOTSTRAP"
 if [[ "$DELETE_BOOTSTRAP" == "true" ]]; then
     echo "  - SA Name: $SA_NAME"
 fi
@@ -357,11 +366,61 @@ else
 fi
 
 # -----------------------------------------------------------------
-# 4. Delete MCP Servers
+# 4. Delete Agent Gateway
+# -----------------------------------------------------------------
+if [[ "$DELETE_AGENT_GATEWAY" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 4: Delete Agent Gateway Resources (ILB & DNS)"
+    echo "-----------------------------------------------------------------"
+    GATEWAY_DIR="$REPO_ROOT/terraform/agent_gateway_resources"
+    if [ -d "$GATEWAY_DIR" ]; then
+        echo "Initializing Agent Gateway stack..."
+        terraform -chdir="$GATEWAY_DIR" init -upgrade -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="prefix=terraform/state/agent-gateway-resources"
+
+        echo "Destroying Agent Gateway stack..."
+        echo "  - Project ID: $PROJECT_ID"
+        echo "  - Main Region: $REGION"
+        terraform -chdir="$GATEWAY_DIR" destroy -var="project_id=$PROJECT_ID" -var="main_region=$REGION" -auto-approve || echo "Warning: Failed to destroy Agent Gateway."
+    else
+        echo "Warning: Directory $GATEWAY_DIR not found. Skipping."
+    fi
+else
+    echo "Skipping Step 4: Agent Gateway Resources deletion."
+fi
+
+# -----------------------------------------------------------------
+# 5. Delete EKB Pipeline
+# -----------------------------------------------------------------
+if [[ "$DELETE_EKB_PIPELINE" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 5: Delete EKB Pipeline Resources"
+    echo "-----------------------------------------------------------------"
+    EKB_DIR="$REPO_ROOT/terraform/ekb_pipeline_resources"
+    if [ -d "$EKB_DIR" ]; then
+        echo "Initializing EKB Pipeline stack..."
+        terraform -chdir="$EKB_DIR" init -upgrade -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="prefix=terraform/state/ekb-pipeline-resources"
+
+        echo "Destroying EKB Pipeline stack..."
+        echo "  - Project ID: $PROJECT_ID"
+        echo "  - Main Region: $REGION"
+        terraform -chdir="$EKB_DIR" destroy -var="project_id=$PROJECT_ID" -var="main_region=$REGION" -auto-approve || echo "Warning: Failed to destroy EKB pipeline."
+    else
+        echo "Warning: Directory $EKB_DIR not found. Skipping."
+    fi
+else
+    echo "Skipping Step 5: EKB Pipeline Resources deletion."
+fi
+
+# -----------------------------------------------------------------
+# 6. Delete MCP Servers
 # -----------------------------------------------------------------
 if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
     echo "-----------------------------------------------------------------"
-    echo "STEP 4: Delete MCP Servers"
+    echo "STEP 6: Delete MCP Servers"
     echo "-----------------------------------------------------------------"
     SERVER_LIST=()
     if [[ "$MCP_SERVERS_TO_DELETE" == "all" ]]; then
@@ -414,32 +473,7 @@ if [[ "$DELETE_MCP_SERVERS" == "true" ]]; then
         terraform -chdir="$STACK_DIR" destroy -var="project_id=$PROJECT_ID" -var="main_region=$SERVER_REGION" -auto-approve || echo "Warning: Failed to destroy $STACK_NAME. Skipping."
     done
 else
-    echo "Skipping Step 4: MCP Servers deletion."
-fi
-
-# -----------------------------------------------------------------
-# 5. Delete EKB Pipeline
-# -----------------------------------------------------------------
-if [[ "$DELETE_EKB_PIPELINE" == "true" ]]; then
-    echo "-----------------------------------------------------------------"
-    echo "STEP 5: Delete EKB Pipeline Resources"
-    echo "-----------------------------------------------------------------"
-    EKB_DIR="$REPO_ROOT/terraform/ekb_pipeline_resources"
-    if [ -d "$EKB_DIR" ]; then
-        echo "Initializing EKB Pipeline stack..."
-        terraform -chdir="$EKB_DIR" init -upgrade -reconfigure \
-            -backend-config="bucket=${STATE_BUCKET}" \
-            -backend-config="prefix=terraform/state/ekb-pipeline-resources"
-
-        echo "Destroying EKB Pipeline stack..."
-        echo "  - Project ID: $PROJECT_ID"
-        echo "  - Main Region: $REGION"
-        terraform -chdir="$EKB_DIR" destroy -var="project_id=$PROJECT_ID" -var="main_region=$REGION" -auto-approve || echo "Warning: Failed to destroy EKB pipeline."
-    else
-        echo "Warning: Directory $EKB_DIR not found. Skipping."
-    fi
-else
-    echo "Skipping Step 5: EKB Pipeline Resources deletion."
+    echo "Skipping Step 6: MCP Servers deletion."
 fi
 
 # -----------------------------------------------------------------
@@ -489,12 +523,14 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         DEL_MCP_TRIGGERS_FLAG="true"
         MCP_DEL_TARGET="all"
         DEL_EKB_TRIGGERS_FLAG="true"
+        DEL_GATEWAY_TRIGGERS_FLAG="true"
         DEL_GE_TRIGGERS_FLAG="true"
         DEL_AI_TRIGGERS_FLAG="true"
     else
         DEL_SHARED_TRIGGERS="$DELETE_SHARED_RESOURCES"
         DEL_MCP_TRIGGERS_FLAG="$DEL_MCP_TRIGGERS"
         DEL_EKB_TRIGGERS_FLAG="$DEL_EKB_TRIGGERS"
+        DEL_GATEWAY_TRIGGERS_FLAG="$DELETE_AGENT_GATEWAY"
         DEL_GE_TRIGGERS_FLAG="$DEL_GE_TRIGGERS"
         DEL_AI_TRIGGERS_FLAG="$DEL_AI_TRIGGERS"
     fi
@@ -506,6 +542,7 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         --delete-mcp-server-triggers "$DEL_MCP_TRIGGERS_FLAG" \
         --mcp-server-triggers-to-delete "$MCP_DEL_TARGET" \
         --delete-ekb-pipeline-triggers "$DEL_EKB_TRIGGERS_FLAG" \
+        --delete-agent-gateway-triggers "$DEL_GATEWAY_TRIGGERS_FLAG" \
         --delete-gemini-enterprise-triggers "$DEL_GE_TRIGGERS_FLAG" \
         --delete-ai-agent-triggers "$DEL_AI_TRIGGERS_FLAG"
 else

@@ -68,7 +68,8 @@ module "ekb_pipeline_cloud_run" {
   }
 
   service_config = {
-    timeout = "3600s"
+    custom_audiences = ["http://gateway.mcp.internal/ekb"]
+    timeout          = "3600s"
     scaling = {
       min_instance_count = var.ekb_pipeline_cloud_run_min_instances
       max_instance_count = 100
