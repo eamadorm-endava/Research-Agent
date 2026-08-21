@@ -1,4 +1,4 @@
-PROJECT_ID?=host-endava-ge-prod-01-2u00# ?= is used to set a default value if the variable is not set in the .env file
+PROJECT_ID?=prd-endava-ge-prod-01-2u00-1# ?= is used to set a default value if the variable is not set in the .env file
 REGION?=us-central1
 GE_LOCATION?=global
 GE_APP_NAME_SUFFIX?=osiris-app
