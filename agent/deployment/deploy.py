@@ -304,14 +304,14 @@ def deploy_agent_engine_app(
                 name=matching_agents[0].api_resource.name, config=config
             )
         except Exception as e:
-            if "INTERNAL" in str(e) or "13" in str(e):
-                click.echo(
-                    "\nUpdate failed with an INTERNAL error from Vertex AI. Falling back to delete and recreate..."
-                )
+            click.echo(
+                f"\n⚠️ Update failed ({e}). Falling back to delete and recreate..."
+            )
+            try:
                 client.agent_engines.delete(name=matching_agents[0].api_resource.name)
-                remote_agent = client.agent_engines.create(config=config)
-            else:
-                raise e
+            except Exception as del_err:
+                click.echo(f"Delete cleanup note: {del_err}")
+            remote_agent = client.agent_engines.create(config=config)
     else:
         remote_agent = client.agent_engines.create(config=config)
 
