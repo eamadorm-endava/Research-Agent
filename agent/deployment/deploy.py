@@ -277,10 +277,17 @@ def deploy_agent_engine_app(
 
         dns_peering_configs = None
         if dns_peering_domain and target_network:
+            domain_name = (
+                dns_peering_domain
+                if dns_peering_domain.endswith(".")
+                else f"{dns_peering_domain}."
+            )
+            network_name = target_network.split("/")[-1]
             dns_peering_configs = [
                 DnsPeeringConfig(
-                    domain=dns_peering_domain,
-                    target_network=target_network,
+                    domain=domain_name,
+                    target_project=project,
+                    target_network=network_name,
                 )
             ]
         config.psc_interface_config = PscInterfaceConfig(
