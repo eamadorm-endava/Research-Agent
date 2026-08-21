@@ -11,11 +11,11 @@ substitutions:
   _GE_AGENT_DESCRIPTION: "A hierarchical multi-agent system designed to break information silos and search across enterprise data sources."
   _GOOGLE_OAUTH_SCOPES: "openid email https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/bigquery https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/meetings.space.readonly"
   _MICROSOFT_OAUTH_SCOPES: "openid offline_access Files.Read.All Sites.Read.All User.Read Mail.Read email Calendars.Read"
-  _ATLASSIAN_OAUTH_SCOPES: "offline_access read:jira-work read:jira-user read:space:confluence read:page:confluence read:attachment:confluence read:comment:confluence read:label:confluence search:confluence"
+  # _ATLASSIAN_OAUTH_SCOPES: "offline_access read:jira-work read:jira-user read:space:confluence read:page:confluence read:attachment:confluence read:comment:confluence read:label:confluence search:confluence"
   _MICROSOFT_TENANT_ID: "93f8f3d2-54f6-417d-9a37-10ff2952f228"
   _GEMINI_GOOGLE_AUTH_ID: "google-workspace-authentication-test-v2"
   _GEMINI_MICROSOFT_AUTH_ID: "microsoft-entra-authentication-test-v2"
-  _GEMINI_ATLASSIAN_AUTH_ID: "atlassian-authentication-test-v2"
+  # _GEMINI_ATLASSIAN_AUTH_ID: "atlassian-authentication-test-v2"
 
 steps:
   # Step 1: Initialize Terraform with Dynamic Backend
@@ -111,17 +111,17 @@ steps:
         apt-get update && apt-get install -y jq curl
         chmod +x gemini_enterprise/scripts/ge_manager.sh
 
-        echo "Deleting GE Auth IDs ${_GEMINI_GOOGLE_AUTH_ID}, ${_GEMINI_MICROSOFT_AUTH_ID}, and ${_GEMINI_ATLASSIAN_AUTH_ID}..."
+        echo "Deleting GE Auth IDs ${_GEMINI_GOOGLE_AUTH_ID} and ${_GEMINI_MICROSOFT_AUTH_ID}..."
         ./gemini_enterprise/scripts/ge_manager.sh delete-auth-ids \
           --project ${PROJECT_ID} \
           --ge-location ${_GE_REGION} \
-          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID},${_GEMINI_ATLASSIAN_AUTH_ID}" || true
+          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID}" || true
 
   # Step 9: Create new auth resources (Conditional)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'ge-create-auth-resources'
     entrypoint: 'bash'
-    secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'ATLASSIAN_OAUTH_CLIENT_ID', 'ATLASSIAN_OAUTH_CLIENT_SECRET']
+    secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET']
     args:
       - '-c'
       - |
@@ -156,18 +156,18 @@ steps:
           --token-uri "https://login.microsoftonline.com/${_MICROSOFT_TENANT_ID}/oauth2/v2.0/token" \
           --prompt "select_account"
 
-        echo "Creating GE Auth ID for Atlassian: ${_GEMINI_ATLASSIAN_AUTH_ID}..."
-        ./gemini_enterprise/scripts/ge_manager.sh create-auth-ids \
-          --project ${PROJECT_ID} \
-          --ge-location ${_GE_REGION} \
-          --auth-ids "${_GEMINI_ATLASSIAN_AUTH_ID}" \
-          --client-id "$$ATLASSIAN_OAUTH_CLIENT_ID" \
-          --client-secret "$$ATLASSIAN_OAUTH_CLIENT_SECRET" \
-          --scopes "${_ATLASSIAN_OAUTH_SCOPES}" \
-          --auth-uri-base "https://auth.atlassian.com/authorize" \
-          --token-uri "https://auth.atlassian.com/oauth/token" \
-          --auth-uri-extras "audience=api.atlassian.com" \
-          --prompt "consent"
+        # echo "Creating GE Auth ID for Atlassian: ${_GEMINI_ATLASSIAN_AUTH_ID}..."
+        # ./gemini_enterprise/scripts/ge_manager.sh create-auth-ids \
+        #   --project ${PROJECT_ID} \
+        #   --ge-location ${_GE_REGION} \
+        #   --auth-ids "${_GEMINI_ATLASSIAN_AUTH_ID}" \
+        #   --client-id "$$ATLASSIAN_OAUTH_CLIENT_ID" \
+        #   --client-secret "$$ATLASSIAN_OAUTH_CLIENT_SECRET" \
+        #   --scopes "${_ATLASSIAN_OAUTH_SCOPES}" \
+        #   --auth-uri-base "https://auth.atlassian.com/authorize" \
+        #   --token-uri "https://auth.atlassian.com/oauth/token" \
+        #   --auth-uri-extras "audience=api.atlassian.com" \
+        #   --prompt "consent"
 
   
   # Step 10: Deploy the AI-Agent to Agent Engine
@@ -193,7 +193,7 @@ steps:
         if [ "${_REGISTER_AGENT_IN_GE}" = "true" ]; then
           ENV_VARS="$${ENV_VARS},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID}"
           ENV_VARS="$${ENV_VARS},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID}"
-          ENV_VARS="$${ENV_VARS},GEMINI_ATLASSIAN_AUTH_ID=${_GEMINI_ATLASSIAN_AUTH_ID}"
+          # ENV_VARS="$${ENV_VARS},GEMINI_ATLASSIAN_AUTH_ID=${_GEMINI_ATLASSIAN_AUTH_ID}"
         fi
         
         ENV_VARS="$${ENV_VARS},BIGQUERY_URL=https://bigquery-mcp-server-${PROJECT_NUMBER}.${_REGION}.run.app"
@@ -259,7 +259,7 @@ steps:
           --agent-description "${_GE_AGENT_DESCRIPTION}" \
           --agent-engine-location ${_REGION} \
           --agent-engine-agent-id "$${ADK_RESOURCE_ID}" \
-          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID},${_GEMINI_ATLASSIAN_AUTH_ID}"
+          --auth-ids "${_GEMINI_GOOGLE_AUTH_ID},${_GEMINI_MICROSOFT_AUTH_ID}"
 
 availableSecrets:
   secretManager:
@@ -271,10 +271,10 @@ availableSecrets:
       env: 'MICROSOFT_OAUTH_CLIENT_ID'
     - versionName: projects/${PROJECT_ID}/secrets/MICROSOFT_OAUTH_CLIENT_SECRET/versions/latest
       env: 'MICROSOFT_OAUTH_CLIENT_SECRET'
-    - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_ID/versions/latest
-      env: 'ATLASSIAN_OAUTH_CLIENT_ID'
-    - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_SECRET/versions/latest
-      env: 'ATLASSIAN_OAUTH_CLIENT_SECRET'
+    # - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_ID/versions/latest
+    #   env: 'ATLASSIAN_OAUTH_CLIENT_ID'
+    # - versionName: projects/${PROJECT_ID}/secrets/ATLASSIAN_OAUTH_CLIENT_SECRET/versions/latest
+    #   env: 'ATLASSIAN_OAUTH_CLIENT_SECRET'
 
 # Ensure this Service Account has 'Storage Object Admin' on the state bucket
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
