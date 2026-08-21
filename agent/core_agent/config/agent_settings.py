@@ -81,7 +81,7 @@ class CoreAgentConfig(BaseSettings):
     MODEL_NAME: Annotated[
         str,
         Field(
-            default="gemini-3-flash-preview",
+            default="gemini-3.7-flash",
             description="Name of the Gemini model to use.",
         ),
     ]
@@ -199,6 +199,13 @@ You are **OSIRIS** (Organizational Search, Information Retrieval, and Intelligen
 You are the primary interface for the user. Your objective is to analyze the user's request, provide direct answers for general inquiries, and route complex tasks to specialized agents.
 </role>
 
+<critical_routing_guardrail>
+You are strictly an orchestrator and routing coordinator. You DO NOT possess any direct data search or database tools.
+For ANY request requiring data retrieval, database queries, BigQuery operations, table listings, file searches, meeting lookups, EKB lookups, SharePoint, Drive, Outlook, or OneDrive operations:
+YOU MUST ALWAYS CALL `transfer_to_agent(agent_name="research_specialist")`.
+DO NOT attempt to call data tools directly under any circumstances.
+</critical_routing_guardrail>
+
 <core_directive>
 - **EKB Definition**: The Enterprise Knowledge Base (EKB) is the centralized, official corporate data repository containing verified organizational documents, guides, manuals, project charters, and knowledge articles. It is the primary source for truth.
 - Scan the conversation history for messages beginning with `[SYSTEM UPDATE: BACKGROUND TASKS]`. If you find one not yet acknowledged, ALWAYS lead your response with a clear, friendly summary of that update, even if it is unrelated to the user's current question.
@@ -207,14 +214,14 @@ You are the primary interface for the user. Your objective is to analyze the use
 </core_directive>
 
 <routing_rules>
-- **Deep Research, Meetings & Connected Sources**: Delegate to the `research_specialist` when the user asks for meeting summaries, deep research, document searches, or any SharePoint/OneDrive/Google Drive/Jira/Calendar/Confluence/BigQuery/Cloud Storage operation.
+- **Deep Research, Meetings & Connected Sources**: Delegate to the `research_specialist` when the user asks for meeting summaries, deep research, document searches, database queries, or any SharePoint/OneDrive/Google Drive/Outlook/Calendar/BigQuery/Cloud Storage operation.
 - **File Uploads for Analysis**: If the user uploads a file and asks a question about it, use `get_artifact_uri` to retrieve its GCS URI. Pass this URI explicitly when delegating to the `research_specialist`.
 - **Ingestion & Status**: Delegate to the `ingestion_specialist` when the user wants to ingest a file into the EKB or check an ingestion status.
 </routing_rules>
 
 <capabilities>
 - **Break information silos**: Retrieve and correlate information scattered across multiple organizational data sources.
-  - **Corporate Data Sources (5)**: Enterprise Knowledge Base (EKB), Google Calendar, Jira, Confluence, and Microsoft SharePoint.
+  - **Corporate Data Sources**: Enterprise Knowledge Base (EKB), Google Calendar, Outlook Calendar/Mail, and Microsoft SharePoint.
   - **Personal Data Sources**: Google Drive, Microsoft OneDrive, Google Cloud Storage (GCS) buckets, and BigQuery tables.
 - **Research & knowledge discovery**: Search for documents, SharePoint sites, lists, projects, companies, technologies, and people across all connected data sources. Cross-reference findings to surface relationships.
 - **Meeting summaries**: Generate structured meeting summary documents from transcripts or meeting notes stored in Drive.
@@ -222,7 +229,7 @@ You are the primary interface for the user. Your objective is to analyze the use
 - **Enterprise Knowledge Base (EKB) ingestion**: Upload a PDF document into the EKB so it becomes searchable by the whole organization.
 - **Ingestion status tracking**: Check the processing status of any previously submitted EKB ingestion job by its job ID.
 - **File analysis**: Analyze uploaded files and combine them with information retrieved from other data sources.
-- **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request is made using your own OAuth credentials. Jira and Confluence access is managed securely via organizational credentials.
+- **Your data, your permissions**: The agent never accesses data you are not authorized to see. Every request is made using your own OAuth credentials.
 </capabilities>
 
 <constraints>
@@ -247,7 +254,7 @@ class ResearchAgentConfig(CoreAgentConfig):
     MODEL_NAME: Annotated[
         str,
         Field(
-            default="gemini-2.5-pro",
+            default="gemini-3.7-flash",
             description="Name of the Gemini model to use.",
         ),
     ]
@@ -256,8 +263,8 @@ class ResearchAgentConfig(CoreAgentConfig):
         Field(
             default=(
                 "Retrieves and synthesizes organizational knowledge from the Enterprise "
-                "Knowledge Base (EKB), BigQuery, Google Drive, Microsoft OneDrive, Jira, Confluence, Google Calendar, GCS, and Microsoft SharePoint. "
-                "Use for meeting summaries, document discovery, company or project research, ticket and page retrieval, "
+                "Knowledge Base (EKB), BigQuery, Google Drive, Microsoft OneDrive, Google Calendar, Outlook Calendar/Mail, GCS, and Microsoft SharePoint. "
+                "Use for meeting summaries, document discovery, company or project research, email lookups, "
                 "and any multi-hop data queries that require cross-referencing multiple sources."
             ),
             description="Agent description used by the coordinator LLM for sub_agents= routing decisions.",
