@@ -415,10 +415,17 @@ class OutlookClient:
         """
         cache_key = None
 
+        path, query_params, request_headers, is_search = self._build_list_emails_query(
+            criteria
+        )
+
         if criteria.use_cache:
             criteria_dict = criteria.model_dump(exclude={"use_cache"})
-            criteria_dict.pop("page", None)
-            criteria_dict.pop("limit", None)
+            if is_search:
+                # For search queries, Graph API returns all top results (no $skip support),
+                # so we cache the full result set and slice in memory across pages.
+                criteria_dict.pop("page", None)
+                criteria_dict.pop("limit", None)
             criteria_dict["mcp_tenant_user_id"] = (
                 criteria.dependencies.user_id if criteria.dependencies else "unknown"
             )
@@ -427,19 +434,19 @@ class OutlookClient:
             if cache_key in self._list_emails_cache:
                 timestamp, cached_payload = self._list_emails_cache[cache_key]
                 if time.time() - timestamp < self._cache_ttl:
-                    all_emails, total_matched = cached_payload
-                    start_off = (criteria.page - 1) * criteria.limit
-                    return all_emails[
-                        start_off : start_off + criteria.limit
-                    ], total_matched
+                    cached_emails, total_matched = cached_payload
+                    if is_search:
+                        start_off = (criteria.page - 1) * criteria.limit
+                        return (
+                            cached_emails[start_off : start_off + criteria.limit],
+                            total_matched,
+                        )
+                    return cached_emails, total_matched
                 self._list_emails_cache.pop(cache_key, None)
 
         my_email = await self.get_my_email()
         folder_map = await self.build_folder_display_map()
 
-        path, query_params, request_headers, is_search = self._build_list_emails_query(
-            criteria
-        )
         response_data = await self._get(
             path, params=query_params, headers=request_headers
         )
@@ -460,8 +467,11 @@ class OutlookClient:
                 (processed_list, total_matched),
             )
 
-        start_off = (criteria.page - 1) * criteria.limit
-        return processed_list[start_off : start_off + criteria.limit], total_matched
+        if is_search:
+            start_off = (criteria.page - 1) * criteria.limit
+            return processed_list[start_off : start_off + criteria.limit], total_matched
+
+        return processed_list, total_matched
 
     async def read_email(self, email_id: str) -> dict[str, Any]:
         """
