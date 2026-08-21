@@ -105,13 +105,14 @@ case "$COMMAND" in
                     \"industryVertical\": \"GENERIC\",
                     \"appType\": \"APP_TYPE_INTRANET\"
                 }")
-            ENG_RES_CODE=$(echo "$ENG_RES" | tail -n 1)
-            
-            if [ "$ENG_RES_CODE" -ne 200 ] && [ "$ENG_RES_CODE" -ne 201 ] && [ "$ENG_RES_CODE" -ne 202 ]; then
+            if [ "$ENG_RES_CODE" -eq 409 ]; then
+                echo "Gemini Enterprise App '$APP_ID' already exists (409 Conflict). Skipping creation."
+            elif [ "$ENG_RES_CODE" -ne 200 ] && [ "$ENG_RES_CODE" -ne 201 ] && [ "$ENG_RES_CODE" -ne 202 ]; then
                 echo "Failed to create Engine. HTTP Status: $ENG_RES_CODE. Response: $(echo "$ENG_RES" | sed '$d')"
                 exit 1
+            else
+                echo "Gemini Enterprise App with ID: $APP_ID created successfully."
             fi
-            echo "Gemini Enterprise App with ID: $APP_ID created successfully."
         else
             echo "Failed to check app status. HTTP Status Code: $HTTP_STATUS"
             exit 1
@@ -175,11 +176,14 @@ case "$COMMAND" in
                 -H "X-Goog-User-Project: ${PROJECT_ID}" \
                 "$CREATE_AUTH_URL" -d "$JSON_PAYLOAD")
             CREATE_CODE=$(echo "$CREATE_RESPONSE" | tail -n 1)
-            if [ "$CREATE_CODE" -ne 200 ] && [ "$CREATE_CODE" -ne 201 ] && [ "$CREATE_CODE" -ne 202 ]; then
+            if [ "$CREATE_CODE" -eq 409 ]; then
+                echo "Auth ID $ID already exists in GE (409 Conflict). Skipping creation."
+            elif [ "$CREATE_CODE" -ne 200 ] && [ "$CREATE_CODE" -ne 201 ] && [ "$CREATE_CODE" -ne 202 ]; then
                 echo "Failed to create Auth ID $ID. HTTP Status: $CREATE_CODE. Response: $(echo "$CREATE_RESPONSE" | sed '$d')"
                 exit 1
+            else
+                echo "Auth ID $ID created successfully."
             fi
-            echo "Auth ID $ID created successfully."
         done
         ;;
 
