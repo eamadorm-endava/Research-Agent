@@ -1,6 +1,6 @@
 substitutions:
   # Note: Variables such as _GE_REGION, _GE_APP_NAME_SUFFIX, and various MCP Server URLs 
-  # are dynamically injected at runtime by the Cloud Build Trigger created via creation_manager.sh.
+  # can be dynamically injected at runtime by the Cloud Build Trigger substitutions or flags.
   _REGION: "us-central1"
   _AGENT_DISPLAY_NAME: "OSIRIS"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
