@@ -1,7 +1,7 @@
 # project_id and main_region are passed dynamically via -var in CI/CD
 
-network_name           = "default"
-subnetwork_name        = "default"
+network_name           = "mcp-agent-vpc"
+app_subnet_cidr        = "10.10.0.0/24"
 proxy_only_subnet_cidr = "10.129.0.0/23"
 dns_zone_name          = "mcp-internal-zone"
 dns_domain_name        = "mcp.internal."

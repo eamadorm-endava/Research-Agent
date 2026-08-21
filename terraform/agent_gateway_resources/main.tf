@@ -2,21 +2,30 @@ data "google_project" "project" {
   project_id = var.project_id
 }
 
-data "google_compute_network" "vpc" {
-  name    = var.network_name
-  project = var.project_id
-}
-
-data "google_compute_subnetwork" "app_subnet" {
-  name    = var.subnetwork_name
-  region  = var.main_region
-  project = var.project_id
-}
-
 ################ APIs ################
 module "enable_apis" {
   source           = "../base_modules/api-manager"
   project_services = { (var.project_id) = var.apis_to_enable }
+}
+
+################ VPC Network & Subnets ################
+resource "google_compute_network" "vpc" {
+  name                    = var.network_name
+  project                 = var.project_id
+  auto_create_subnetworks = false
+
+  depends_on = [module.enable_apis]
+}
+
+resource "google_compute_subnetwork" "app_subnet" {
+  name          = "${var.network_name}-app-subnet-${var.main_region}"
+  project       = var.project_id
+  region        = var.main_region
+  network       = google_compute_network.vpc.id
+  ip_cidr_range = var.app_subnet_cidr
+  purpose       = "PRIVATE"
+
+  depends_on = [module.enable_apis]
 }
 
 ################ Proxy-Only Subnet ################
@@ -25,7 +34,7 @@ resource "google_compute_subnetwork" "proxy_only_subnet" {
   name          = "${var.network_name}-proxy-only-subnet-${var.main_region}"
   project       = var.project_id
   region        = var.main_region
-  network       = data.google_compute_network.vpc.id
+  network       = google_compute_network.vpc.id
   ip_cidr_range = var.proxy_only_subnet_cidr
   purpose       = "REGIONAL_MANAGED_PROXY"
   role          = "ACTIVE"
@@ -189,8 +198,8 @@ resource "google_compute_forwarding_rule" "mcp_forwarding_rule" {
   load_balancing_scheme = "INTERNAL_MANAGED"
   port_range            = "80"
   target                = google_compute_region_target_http_proxy.mcp_target_proxy.id
-  network               = data.google_compute_network.vpc.id
-  subnetwork            = data.google_compute_subnetwork.app_subnet.id
+  network               = google_compute_network.vpc.id
+  subnetwork            = google_compute_subnetwork.app_subnet.id
 
   depends_on = [
     google_compute_subnetwork.proxy_only_subnet
@@ -207,7 +216,7 @@ resource "google_dns_managed_zone" "mcp_private_zone" {
 
   private_visibility_config {
     networks {
-      network_url = data.google_compute_network.vpc.id
+      network_url = google_compute_network.vpc.id
     }
   }
 
