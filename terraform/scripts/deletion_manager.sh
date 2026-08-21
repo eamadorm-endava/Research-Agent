@@ -71,6 +71,9 @@ MCP_SERVERS_TO_DELETE="all"
 # --- Pipelines Parameters ---
 DELETE_EKB_PIPELINE="false"
 
+# --- Agent Gateway Parameters ---
+DELETE_AGENT_GATEWAY="false"
+
 # --- Shared Resources Parameters ---
 DELETE_SHARED_RESOURCES="false"
 SHARED_SECRETS_TO_DELETE="GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,MICROSOFT_OAUTH_CLIENT_ID,MICROSOFT_OAUTH_CLIENT_SECRET,ATLASSIAN_OAUTH_CLIENT_ID,ATLASSIAN_OAUTH_CLIENT_SECRET"
@@ -106,6 +109,9 @@ while [[ "$#" -gt 0 ]]; do
         
         # Pipelines
         --delete-ekb-pipeline) DELETE_EKB_PIPELINE="$2"; shift ;;
+        
+        # Agent Gateway
+        --delete-agent-gateway) DELETE_AGENT_GATEWAY="$2"; shift ;;
         
         # Shared Resources
         --delete-shared-resources) DELETE_SHARED_RESOURCES="$2"; shift ;;
@@ -443,6 +449,31 @@ else
 fi
 
 # -----------------------------------------------------------------
+# 5.5. Delete Agent Gateway
+# -----------------------------------------------------------------
+if [[ "$DELETE_AGENT_GATEWAY" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 5.5: Delete Agent Gateway Resources"
+    echo "-----------------------------------------------------------------"
+    GATEWAY_DIR="$REPO_ROOT/terraform/agent_gateway_resources"
+    if [ -d "$GATEWAY_DIR" ]; then
+        echo "Initializing Agent Gateway stack..."
+        terraform -chdir="$GATEWAY_DIR" init -upgrade -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="prefix=terraform/state/agent-gateway-resources"
+
+        echo "Destroying Agent Gateway stack..."
+        echo "  - Project ID: $PROJECT_ID"
+        echo "  - Main Region: $REGION"
+        terraform -chdir="$GATEWAY_DIR" destroy -var="project_id=$PROJECT_ID" -var="main_region=$REGION" -auto-approve || echo "Warning: Failed to destroy Agent Gateway."
+    else
+        echo "Warning: Directory $GATEWAY_DIR not found. Skipping."
+    fi
+else
+    echo "Skipping Step 5.5: Agent Gateway Resources deletion."
+fi
+
+# -----------------------------------------------------------------
 # 6. Delete Shared Resources
 # -----------------------------------------------------------------
 if [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
@@ -489,12 +520,14 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         DEL_MCP_TRIGGERS_FLAG="true"
         MCP_DEL_TARGET="all"
         DEL_EKB_TRIGGERS_FLAG="true"
+        DEL_GATEWAY_TRIGGERS_FLAG="true"
         DEL_GE_TRIGGERS_FLAG="true"
         DEL_AI_TRIGGERS_FLAG="true"
     else
         DEL_SHARED_TRIGGERS="$DELETE_SHARED_RESOURCES"
         DEL_MCP_TRIGGERS_FLAG="$DEL_MCP_TRIGGERS"
         DEL_EKB_TRIGGERS_FLAG="$DEL_EKB_TRIGGERS"
+        DEL_GATEWAY_TRIGGERS_FLAG="$DELETE_AGENT_GATEWAY"
         DEL_GE_TRIGGERS_FLAG="$DEL_GE_TRIGGERS"
         DEL_AI_TRIGGERS_FLAG="$DEL_AI_TRIGGERS"
     fi
@@ -506,6 +539,7 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         --delete-mcp-server-triggers "$DEL_MCP_TRIGGERS_FLAG" \
         --mcp-server-triggers-to-delete "$MCP_DEL_TARGET" \
         --delete-ekb-pipeline-triggers "$DEL_EKB_TRIGGERS_FLAG" \
+        --delete-agent-gateway-triggers "$DEL_GATEWAY_TRIGGERS_FLAG" \
         --delete-gemini-enterprise-triggers "$DEL_GE_TRIGGERS_FLAG" \
         --delete-ai-agent-triggers "$DEL_AI_TRIGGERS_FLAG"
 else

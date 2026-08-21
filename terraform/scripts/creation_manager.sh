@@ -66,6 +66,9 @@ REPOSITORY_SLUG="eamadorm-endava-Research-Agent"
 # --- Shared Resources Parameters ---
 DEPLOY_SHARED_RESOURCES="false"
 
+# --- Agent Gateway Parameters ---
+DEPLOY_AGENT_GATEWAY="false"
+
 # --- Gemini Enterprise Parameters ---
 DEPLOY_GE_APP="false"
 GE_APP_LOCATION=""
@@ -104,6 +107,9 @@ while [[ "$#" -gt 0 ]]; do
         
         # Shared Resources
         --deploy-shared-resources) DEPLOY_SHARED_RESOURCES="$2"; shift ;;
+        
+        # Agent Gateway
+        --deploy-agent-gateway) DEPLOY_AGENT_GATEWAY="$2"; shift ;;
         
         # Gemini Enterprise
         --deploy-ge-app) DEPLOY_GE_APP="$2"; shift ;;
@@ -306,6 +312,7 @@ bash "$SCRIPT_DIR/cicd_triggers_creation.sh" \
     --create-mcp-server-triggers "$DEPLOY_MCP_SERVERS" \
     --mcp-server-triggers-to-create "$MCP_SERVERS_TO_DEPLOY" \
     --create-ekb-pipeline-triggers "$DEPLOY_EKB_PIPELINE" \
+    --create-agent-gateway-triggers "$DEPLOY_AGENT_GATEWAY" \
     --create-gemini-enterprise-triggers "$DEPLOY_GE_APP" \
     --create-ai-agent-triggers "$DEPLOY_AI_AGENT" \
     --force-recreate "$FORCE_RECREATE"
@@ -387,6 +394,29 @@ else
     echo "Skipping EKB Pipeline Resources deployment."
 fi
 
+
+# 5.5. Agent Gateway (Internal Load Balancer & Private DNS)
+if [[ "$DEPLOY_AGENT_GATEWAY" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 5.5: Deploy Agent Gateway (Internal Load Balancer & DNS)"
+    echo "-----------------------------------------------------------------"
+    
+    BUCKET_NAME="${PROJECT_ID}-terraform-state"
+    GATEWAY_TF_DIR="$REPO_ROOT/terraform/agent_gateway_resources"
+    if [ -d "$GATEWAY_TF_DIR" ]; then
+        echo "Applying Terraform for Agent Gateway..."
+        pushd "$GATEWAY_TF_DIR" >/dev/null
+        terraform init -upgrade -reconfigure \
+            -backend-config="bucket=${BUCKET_NAME}" \
+            -backend-config="prefix=terraform/state/agent-gateway-resources"
+        terraform plan -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
+        terraform apply -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
+        popd >/dev/null
+        echo "Agent Gateway deployed successfully."
+    fi
+else
+    echo "Skipping Agent Gateway deployment."
+fi
 
 # 6. Gemini Enterprise App
 if [[ "$DEPLOY_GE_APP" == "true" ]]; then
