@@ -24,6 +24,7 @@ apis_to_enable = [
   "compute.googleapis.com",
   "dataform.googleapis.com",
   "iam.googleapis.com",
+  "iamconnectors.googleapis.com",
   "monitoring.googleapis.com",
   "saasservicemgmt.googleapis.com",
   "storage.googleapis.com",
