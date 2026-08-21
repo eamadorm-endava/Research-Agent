@@ -57,7 +57,7 @@ research_agent = (
             DRIVE_MCP_CONFIG,
             CALENDAR_MCP_CONFIG,
             GCS_MCP_CONFIG,
-            # ATLASSIAN_MCP_CONFIG,
+            ATLASSIAN_MCP_CONFIG,
             ONEDRIVE_MCP_CONFIG,
             SHAREPOINT_MCP_CONFIG,
             OUTLOOK_MCP_CONFIG,
