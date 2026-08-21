@@ -218,11 +218,8 @@ steps:
         ENV_VARS="$${ENV_VARS},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone"
         ENV_VARS="$${ENV_VARS},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
         
-        if [ "${_REGISTER_AGENT_IN_GE}" = "true" ]; then
-          ENV_VARS="$${ENV_VARS},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID}"
-          ENV_VARS="$${ENV_VARS},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID}"
-          # ENV_VARS="$${ENV_VARS},GEMINI_ATLASSIAN_AUTH_ID=${_GEMINI_ATLASSIAN_AUTH_ID}"
-        fi
+        ENV_VARS="$${ENV_VARS},GEMINI_GOOGLE_AUTH_ID=${_GEMINI_GOOGLE_AUTH_ID}"
+        ENV_VARS="$${ENV_VARS},GEMINI_MICROSOFT_AUTH_ID=${_GEMINI_MICROSOFT_AUTH_ID}"
         
         ENV_VARS="$${ENV_VARS},BIGQUERY_URL=http://gateway.mcp.internal/bq"
         ENV_VARS="$${ENV_VARS},DRIVE_URL=http://gateway.mcp.internal/drive"
