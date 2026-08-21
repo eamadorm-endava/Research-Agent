@@ -173,7 +173,7 @@ class CoreAgentConfig(BaseSettings):
     INCLUDE_THOUGHTS: Annotated[
         bool,
         Field(
-            default=True,
+            default=False,
             description="Indicates whether to include thoughts in the response. If true, thoughts are returned only if the model supports thought and thoughts are available.",
         ),
     ]
