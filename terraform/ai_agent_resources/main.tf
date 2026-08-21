@@ -17,15 +17,8 @@ resource "google_project_service_identity" "vertex_ai_sa" {
   service  = "aiplatform.googleapis.com"
 }
 
-# resource "google_project_service_identity" "discovery_engine_sa" {
-#   provider = google-beta
-#   project  = var.project_id
-#   service  = "discoveryengine.googleapis.com"
-# }
-
 locals {
   vertex_ai_agent_email = "serviceAccount:${google_project_service_identity.vertex_ai_sa.email}"
-  # discovery_engine_service_agent = "serviceAccount:${google_project_service_identity.discovery_engine_sa.email}"
 }
 
 module "ai-agent-service-account" {
@@ -47,7 +40,6 @@ module "ai-agent-service-account" {
   ]
 }
 
-
 resource "google_project_iam_member" "vertex_ai_agent_roles" {
   for_each = toset(var.vertex_ai_agent_iam_project_roles)
 
@@ -59,18 +51,6 @@ resource "google_project_iam_member" "vertex_ai_agent_roles" {
     module.enable_apis
   ]
 }
-
-# resource "google_project_iam_member" "discovery_engine_service_agent_roles" {
-#   for_each = toset(var.discovery_engine_service_agent_iam_project_roles)
-
-#   project = var.project_id
-#   role    = each.value
-#   member  = local.discovery_engine_service_agent
-
-#   depends_on = [
-#     module.enable_apis
-#   ]
-# }
 
 resource "google_storage_bucket_iam_member" "ai_agent_landing_zone_bucket_admin" {
   bucket = "${var.project_id}-${var.landing_zone_bucket_name}"

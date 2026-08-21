@@ -50,12 +50,7 @@ variable "vertex_ai_agent_iam_project_roles" {
   default     = []
 }
 
-#Discovery Engine service account and IAM roles
-variable "discovery_engine_service_agent_iam_project_roles" {
-  description = "A list of roles to be assigned to the Discovery Engine service agent."
-  type        = list(string)
-  default     = []
-}
+
 
 variable "bq_metrics_dataset_id" {
   type        = string

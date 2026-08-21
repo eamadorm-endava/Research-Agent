@@ -141,12 +141,14 @@ DEL_AI_TRIGGERS="$DELETE_AI_AGENT"
 DEL_MCP_TRIGGERS="$DELETE_MCP_SERVERS"
 MCP_DEL_TARGET="$MCP_SERVERS_TO_DELETE"
 DEL_EKB_TRIGGERS="$DELETE_EKB_PIPELINE"
+DEL_GE_TRIGGERS="$DELETE_GE_APP"
 
 if [[ "$DELETE_CICD_TRIGGERS" == "true" ]]; then
     DEL_AI_TRIGGERS="true"
     DEL_MCP_TRIGGERS="true"
     MCP_DEL_TARGET="all"
     DEL_EKB_TRIGGERS="true"
+    DEL_GE_TRIGGERS="true"
 fi
 
 if [[ "$UNREGISTER_AI_AGENT" == "true" ]] || [[ "$DELETE_GE_APP" == "true" ]]; then
@@ -194,9 +196,14 @@ fi
 if [[ "$UNREGISTER_AI_AGENT" == "true" ]] || [[ "$DELETE_AI_AGENT" == "true" ]]; then
     YAML_FILE="$REPO_ROOT/terraform/ai_agent_resources/ai-agent-services-cloud-build-cd.yaml"
     AGENT_DISPLAY_NAME=$(grep -E '^[[:space:]]+_AGENT_DISPLAY_NAME:' "$YAML_FILE" | sed -E 's/.*_AGENT_DISPLAY_NAME:[[:space:]]*"([^"]+)".*/\1/')
-    GEMINI_GOOGLE_AUTH_ID=$(grep -E '^[[:space:]]+_GEMINI_GOOGLE_AUTH_ID:' "$YAML_FILE" | sed -E 's/.*_GEMINI_GOOGLE_AUTH_ID:[[:space:]]*"([^"]+)".*/\1/')
-    GEMINI_MICROSOFT_AUTH_ID=$(grep -E '^[[:space:]]+_GEMINI_MICROSOFT_AUTH_ID:' "$YAML_FILE" | sed -E 's/.*_GEMINI_MICROSOFT_AUTH_ID:[[:space:]]*"([^"]+)".*/\1/')
-    GE_AUTH_IDS="${GEMINI_GOOGLE_AUTH_ID},${GEMINI_MICROSOFT_AUTH_ID}"
+    GEMINI_GOOGLE_AUTH_ID=$(grep -E '^[[:space:]]+_GEMINI_GOOGLE_AUTH_ID:' "$YAML_FILE" | sed -E 's/.*_GEMINI_GOOGLE_AUTH_ID:[[:space:]]*"([^"]+)".*/\1/' || echo "")
+    GEMINI_MICROSOFT_AUTH_ID=$(grep -E '^[[:space:]]+_GEMINI_MICROSOFT_AUTH_ID:' "$YAML_FILE" | sed -E 's/.*_GEMINI_MICROSOFT_AUTH_ID:[[:space:]]*"([^"]+)".*/\1/' || echo "")
+    GEMINI_ATLASSIAN_AUTH_ID=$(grep -E '^[[:space:]]+_GEMINI_ATLASSIAN_AUTH_ID:' "$YAML_FILE" | sed -E 's/.*_GEMINI_ATLASSIAN_AUTH_ID:[[:space:]]*"([^"]+)".*/\1/' || echo "")
+    AUTH_LIST=()
+    [[ -n "$GEMINI_GOOGLE_AUTH_ID" ]] && AUTH_LIST+=("$GEMINI_GOOGLE_AUTH_ID")
+    [[ -n "$GEMINI_MICROSOFT_AUTH_ID" ]] && AUTH_LIST+=("$GEMINI_MICROSOFT_AUTH_ID")
+    [[ -n "$GEMINI_ATLASSIAN_AUTH_ID" ]] && AUTH_LIST+=("$GEMINI_ATLASSIAN_AUTH_ID")
+    GE_AUTH_IDS=$(IFS=,; echo "${AUTH_LIST[*]}")
 fi
 
 # Summary
@@ -277,18 +284,20 @@ if [[ "$UNREGISTER_AI_AGENT" == "true" ]]; then
     echo "STEP 1: Unregister Agent & Delete Auth IDs"
     echo "-----------------------------------------------------------------"
     
-    # echo "Unregistering Agent..."
-    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" unregister-agent \
-    #     --project "$PROJECT_ID" \
-    #     --app-id "$GE_APP_ID" \
-    #     --agent-display-name "$AGENT_DISPLAY_NAME" \
-    #     --ge-location "$GE_APP_LOCATION"
+    echo "Unregistering Agent..."
+    bash "$REPO_ROOT/gemini_enterprise/scripts/ge_manager.sh" unregister-agent \
+        --project "$PROJECT_ID" \
+        --app-id "$GE_APP_ID" \
+        --agent-display-name "$AGENT_DISPLAY_NAME" \
+        --ge-location "$GE_APP_LOCATION"
 
-    # echo "Deleting Auth IDs..."
-    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" delete-auth-ids \
-    #     --project "$PROJECT_ID" \
-    #     --auth-ids "$GE_AUTH_IDS" \
-    #     --ge-location "$GE_APP_LOCATION"
+    if [[ -n "$GE_AUTH_IDS" ]]; then
+        echo "Deleting Auth IDs..."
+        bash "$REPO_ROOT/gemini_enterprise/scripts/ge_manager.sh" delete-auth-ids \
+            --project "$PROJECT_ID" \
+            --auth-ids "$GE_AUTH_IDS" \
+            --ge-location "$GE_APP_LOCATION"
+    fi
 else
     echo "Skipping Step 1: Unregister Agent & Auth IDs."
 fi
@@ -327,11 +336,22 @@ if [[ "$DELETE_GE_APP" == "true" ]]; then
     echo "STEP 3: Delete Gemini Enterprise App"
     echo "-----------------------------------------------------------------"
     
-    # echo "Deleting Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
-    # bash "$REPO_ROOT/terraform/ai_agent_resources/scripts/ge_agent_manager.sh" delete-ge-app \
-    #     --project "$PROJECT_ID" \
-    #     --ge-location "$GE_APP_LOCATION" \
-    #     --ge-app-id "$GE_APP_ID"
+    echo "Deleting Gemini Enterprise App (Engine) with ID: $GE_APP_ID..."
+    bash "$REPO_ROOT/gemini_enterprise/scripts/ge_manager.sh" delete-ge-app \
+        --project "$PROJECT_ID" \
+        --ge-location "$GE_APP_LOCATION" \
+        --app-id "$GE_APP_ID"
+
+    GE_TF_DIR="$REPO_ROOT/terraform/gemini_enterprise_resources"
+    if [ -d "$GE_TF_DIR" ]; then
+        echo "Destroying Gemini Enterprise Terraform stack..."
+        pushd "$GE_TF_DIR" > /dev/null
+        terraform init -upgrade -reconfigure \
+            -backend-config="bucket=${STATE_BUCKET}" \
+            -backend-config="prefix=terraform/state/gemini-enterprise-resources"
+        terraform destroy -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$REGION" || echo "Warning: Failed to destroy Gemini Enterprise Terraform stack."
+        popd > /dev/null
+    fi
 else
     echo "Skipping Step 3: Gemini Enterprise App deletion."
 fi
@@ -459,7 +479,7 @@ fi
 # -----------------------------------------------------------------
 # 7. Delete CI/CD Triggers
 # -----------------------------------------------------------------
-if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
+if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]] || [[ "$DEL_MCP_TRIGGERS" == "true" ]] || [[ "$DEL_EKB_TRIGGERS" == "true" ]] || [[ "$DEL_GE_TRIGGERS" == "true" ]] || [[ "$DELETE_SHARED_RESOURCES" == "true" ]]; then
     echo "-----------------------------------------------------------------"
     echo "STEP 7: Delete CI/CD Triggers"
     echo "-----------------------------------------------------------------"
@@ -469,11 +489,13 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         DEL_MCP_TRIGGERS_FLAG="true"
         MCP_DEL_TARGET="all"
         DEL_EKB_TRIGGERS_FLAG="true"
+        DEL_GE_TRIGGERS_FLAG="true"
         DEL_AI_TRIGGERS_FLAG="true"
     else
         DEL_SHARED_TRIGGERS="$DELETE_SHARED_RESOURCES"
         DEL_MCP_TRIGGERS_FLAG="$DEL_MCP_TRIGGERS"
         DEL_EKB_TRIGGERS_FLAG="$DEL_EKB_TRIGGERS"
+        DEL_GE_TRIGGERS_FLAG="$DEL_GE_TRIGGERS"
         DEL_AI_TRIGGERS_FLAG="$DEL_AI_TRIGGERS"
     fi
 
@@ -484,6 +506,7 @@ if [[ "$DELETE_CICD_TRIGGERS" == "true" ]] || [[ "$DEL_AI_TRIGGERS" == "true" ]]
         --delete-mcp-server-triggers "$DEL_MCP_TRIGGERS_FLAG" \
         --mcp-server-triggers-to-delete "$MCP_DEL_TARGET" \
         --delete-ekb-pipeline-triggers "$DEL_EKB_TRIGGERS_FLAG" \
+        --delete-gemini-enterprise-triggers "$DEL_GE_TRIGGERS_FLAG" \
         --delete-ai-agent-triggers "$DEL_AI_TRIGGERS_FLAG"
 else
     echo "Skipping Step 7: CI/CD Triggers cleanup."

@@ -32,6 +32,7 @@ DELETE_SHARED_RESOURCES_TRIGGERS="false"
 DELETE_MCP_SERVER_TRIGGERS="false"
 MCP_SERVER_TRIGGERS_TO_DELETE="all"
 DELETE_EKB_PIPELINE_TRIGGERS="false"
+DELETE_GEMINI_ENTERPRISE_TRIGGERS="false"
 
 # --- AI Agent Parameters ---
 DELETE_AI_AGENT_TRIGGERS="false"
@@ -45,6 +46,7 @@ while [[ "$#" -gt 0 ]]; do
         --delete-mcp-server-triggers) DELETE_MCP_SERVER_TRIGGERS="$2"; shift ;;
         --mcp-server-triggers-to-delete) MCP_SERVER_TRIGGERS_TO_DELETE="$2"; shift ;;
         --delete-ekb-pipeline-triggers) DELETE_EKB_PIPELINE_TRIGGERS="$2"; shift ;;
+        --delete-gemini-enterprise-triggers) DELETE_GEMINI_ENTERPRISE_TRIGGERS="$2"; shift ;;
         --delete-ai-agent-triggers) DELETE_AI_AGENT_TRIGGERS="$2"; shift ;;
         *) ;; # Ignore unknown params
     esac
@@ -125,3 +127,10 @@ if [[ "$DELETE_EKB_PIPELINE_TRIGGERS" == "true" ]]; then
     delete_trigger "ekb-pipeline-services-plan"
     delete_trigger "ekb-pipeline-services-apply"
 fi
+
+# --- Gemini Enterprise Triggers ---
+if [[ "$DELETE_GEMINI_ENTERPRISE_TRIGGERS" == "true" ]]; then
+    delete_trigger "gemini-enterprise-services-plan"
+    delete_trigger "gemini-enterprise-services-apply"
+fi
+
