@@ -76,6 +76,7 @@ module "mcp_server_cloud_run" {
   }
 
   service_config = {
+    custom_audiences = ["http://gateway.mcp.internal/gcs"]
     scaling = {
       min_instance_count = var.mcp_server_cloud_run_min_instances
     }
