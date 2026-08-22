@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 
 from mcp_servers.gcs.app.mcp_server import (
     _make_gcs_manager,
-    create_bucket,
-    list_objects,
-    list_buckets,
-    read_object,
-    upload_object,
-    update_object_metadata,
+    gcs_create_bucket,
+    gcs_list_objects,
+    gcs_list_buckets,
+    gcs_read_object,
+    gcs_upload_object,
+    gcs_update_object_metadata,
 )
 from mcp_servers.gcs.app.config import GCS_API_CONFIG, GCS_SERVER_CONFIG
 from mcp_servers.gcs.app.schemas import (
@@ -38,7 +38,7 @@ def test_mcp_create_bucket_success(mock_gcs_manager):
         bucket_name="my-gcs-bucket",
         location="US",
     )
-    result = asyncio.run(create_bucket(request))
+    result = asyncio.run(gcs_create_bucket(request))
 
     assert result.execution_status == "success"
     assert "Successfully created bucket" in result.execution_message
@@ -61,10 +61,10 @@ def test_mcp_upload_object_success_oauth_flow(mock_gcs_manager):
         filename="new_file.pdf",
         path_inside_bucket="dest/",
     )
-    # Patch _make_gcs_manager inside upload_object to check use_sa
+    # Patch _make_gcs_manager inside gcs_upload_object to check use_sa
     with patch("mcp_servers.gcs.app.mcp_server._make_gcs_manager") as mock_make:
         mock_make.return_value = mock_gcs_manager
-        result = asyncio.run(upload_object(request))
+        result = asyncio.run(gcs_upload_object(request))
         # Ensure it was called with use_sa=False (default)
         mock_make.assert_called_with(use_sa=False)
 
@@ -94,7 +94,7 @@ def test_mcp_upload_object_success_sa_flow(mock_gcs_manager):
         mock_config.landing_zone_bucket = "mock-project-id-ai-agent-landing-zone"
         mock_config.kb_ingestion_bucket = "mock-project-id-kb-landing-zone"
         mock_make.return_value = mock_gcs_manager
-        result = asyncio.run(upload_object(request))
+        result = asyncio.run(gcs_upload_object(request))
         # Ensure it was called with use_sa=True
         mock_make.assert_called_with(use_sa=True)
 
@@ -142,7 +142,7 @@ def test_mcp_list_objects_success(mock_gcs_manager):
     mock_gcs_manager.list_blobs.return_value = ["docs/a.txt", "docs/b.txt"]
 
     request = ListObjectsRequest(bucket_name="my-gcs-bucket", prefix="docs/")
-    result = asyncio.run(list_objects(request))
+    result = asyncio.run(gcs_list_objects(request))
 
     assert result.execution_status == "success"
     assert result.objects == ["docs/a.txt", "docs/b.txt"]
@@ -153,7 +153,7 @@ def test_mcp_list_buckets_success(mock_gcs_manager):
     mock_gcs_manager.list_buckets.return_value = ["my-gcs-bucket", "my-gcs-backup"]
 
     request = ListBucketsRequest(project_id="test-project", prefix="my-")
-    result = asyncio.run(list_buckets(request))
+    result = asyncio.run(gcs_list_buckets(request))
 
     assert result.execution_status == "success"
     assert result.buckets == ["my-gcs-bucket", "my-gcs-backup"]
@@ -164,7 +164,7 @@ def test_mcp_list_objects_authorized_user_success(mock_gcs_manager):
     mock_gcs_manager.list_blobs.return_value = ["docs/a.txt", "docs/b.txt"]
 
     request = ListObjectsRequest(bucket_name="allowed-bucket", prefix="docs/")
-    result = asyncio.run(list_objects(request))
+    result = asyncio.run(gcs_list_objects(request))
 
     assert result.execution_status == "success"
     assert result.objects == ["docs/a.txt", "docs/b.txt"]
@@ -192,7 +192,7 @@ def test_mcp_read_object_success(mock_gcs_manager):
         mock_config.landing_zone_bucket = "lz-bucket"
         mock_config.kb_ingestion_bucket = "kb-bucket"
 
-        result = asyncio.run(read_object(request))
+        result = asyncio.run(gcs_read_object(request))
 
     assert result.execution_status == "success"
     # Ensure it returns the new Landing Zone URI
@@ -226,7 +226,7 @@ def test_mcp_read_object_unauthorized_user_permission_denied(mock_gcs_manager):
     )
 
     request = ReadObjectRequest(bucket_name="restricted-bucket", object_name="a.txt")
-    result = asyncio.run(read_object(request))
+    result = asyncio.run(gcs_read_object(request))
 
     assert result.execution_status == "error"
     assert "Permission Denied" in result.execution_message
@@ -241,7 +241,7 @@ def test_mcp_read_object_not_found_normalized_message(mock_gcs_manager):
         bucket_name="restricted-bucket",
         object_name="missing.txt",
     )
-    result = asyncio.run(read_object(request))
+    result = asyncio.run(gcs_read_object(request))
 
     assert result.execution_status == "error"
     assert "Object not found" in result.execution_message
@@ -340,7 +340,7 @@ def test_mcp_update_object_metadata_success_sa_flow(mock_gcs_manager):
     ):
         mock_config.kb_ingestion_bucket = "mock-project-id-kb-landing-zone"
         mock_make.return_value = mock_gcs_manager
-        result = asyncio.run(update_object_metadata(request))
+        result = asyncio.run(gcs_update_object_metadata(request))
         # Ensure it was called with use_sa=True
         mock_make.assert_called_with(use_sa=True)
 
