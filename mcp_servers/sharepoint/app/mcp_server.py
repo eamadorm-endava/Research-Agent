@@ -50,7 +50,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def search_sharepoint_sites(
+async def sharepoint_search_sites(
     request: SearchSharePointSitesRequest,
 ) -> SearchSharePointSitesResponse:
     """
@@ -62,11 +62,11 @@ async def search_sharepoint_sites(
     Returns:
         SearchSharePointSitesResponse -> Matching site metadata.
     """
-    logger.info("Tool call: search_sharepoint_sites(query=%s)", request.query)
+    logger.info("Tool call: sharepoint_search_sites(query=%s)", request.query)
     try:
         return await create_sharepoint_client().search_sharepoint_sites(request)
     except Exception as exc:
-        logger.exception("Error during search_sharepoint_sites execution")
+        logger.exception("Error during sharepoint_search_sites execution")
         return SearchSharePointSitesResponse(
             execution_status="error",
             execution_message=f"Error searching SharePoint sites: {str(exc)}",
@@ -79,7 +79,7 @@ async def search_sharepoint_sites(
 
 
 @mcp.tool()
-async def get_sharepoint_site(
+async def sharepoint_get_site(
     request: GetSharePointSiteRequest,
 ) -> GetSharePointSiteResponse:
     """
@@ -91,11 +91,11 @@ async def get_sharepoint_site(
     Returns:
         GetSharePointSiteResponse -> Expanded site metadata.
     """
-    logger.info("Tool call: get_sharepoint_site(site_id=%s)", request.site_id)
+    logger.info("Tool call: sharepoint_get_site(site_id=%s)", request.site_id)
     try:
         return await create_sharepoint_client().get_sharepoint_site(request)
     except Exception as exc:
-        logger.exception("Error during get_sharepoint_site execution")
+        logger.exception("Error during sharepoint_get_site execution")
         return GetSharePointSiteResponse(
             execution_status="error",
             execution_message=f"Error getting SharePoint site: {str(exc)}",
@@ -104,7 +104,7 @@ async def get_sharepoint_site(
 
 
 @mcp.tool()
-async def discover_sharepoint_site_content(
+async def sharepoint_discover_site_content(
     request: DiscoverSharePointSiteContentRequest,
 ) -> DiscoverSharePointSiteContentResponse:
     """
@@ -117,14 +117,14 @@ async def discover_sharepoint_site_content(
         DiscoverSharePointSiteContentResponse -> Site content overview.
     """
     logger.info(
-        "Tool call: discover_sharepoint_site_content(site_id=%s)", request.site_id
+        "Tool call: sharepoint_discover_site_content(site_id=%s)", request.site_id
     )
     try:
         return await create_sharepoint_client().discover_sharepoint_site_content(
             request
         )
     except Exception as exc:
-        logger.exception("Error during discover_sharepoint_site_content execution")
+        logger.exception("Error during sharepoint_discover_site_content execution")
         return DiscoverSharePointSiteContentResponse(
             execution_status="error",
             execution_message=f"Error discovering SharePoint site content: {str(exc)}",
@@ -136,7 +136,7 @@ async def discover_sharepoint_site_content(
 
 
 @mcp.tool()
-async def list_sharepoint_site_drives(
+async def sharepoint_list_site_drives(
     request: ListSharePointSiteDrivesRequest,
 ) -> ListSharePointSiteDrivesResponse:
     """
@@ -148,11 +148,11 @@ async def list_sharepoint_site_drives(
     Returns:
         ListSharePointSiteDrivesResponse -> Document-library drive metadata.
     """
-    logger.info("Tool call: list_sharepoint_site_drives(site_id=%s)", request.site_id)
+    logger.info("Tool call: sharepoint_list_site_drives(site_id=%s)", request.site_id)
     try:
         return await create_sharepoint_client().list_sharepoint_site_drives(request)
     except Exception as exc:
-        logger.exception("Error during list_sharepoint_site_drives execution")
+        logger.exception("Error during sharepoint_list_site_drives execution")
         return ListSharePointSiteDrivesResponse(
             execution_status="error",
             execution_message=f"Error listing SharePoint drives: {str(exc)}",
@@ -165,7 +165,7 @@ async def list_sharepoint_site_drives(
 
 
 @mcp.tool()
-async def list_sharepoint_site_lists(
+async def sharepoint_list_site_lists(
     request: ListSharePointSiteListsRequest,
 ) -> ListSharePointSiteListsResponse:
     """
@@ -177,11 +177,11 @@ async def list_sharepoint_site_lists(
     Returns:
         ListSharePointSiteListsResponse -> SharePoint list metadata.
     """
-    logger.info("Tool call: list_sharepoint_site_lists(site_id=%s)", request.site_id)
+    logger.info("Tool call: sharepoint_list_site_lists(site_id=%s)", request.site_id)
     try:
         return await create_sharepoint_client().list_sharepoint_site_lists(request)
     except Exception as exc:
-        logger.exception("Error during list_sharepoint_site_lists execution")
+        logger.exception("Error during sharepoint_list_site_lists execution")
         return ListSharePointSiteListsResponse(
             execution_status="error",
             execution_message=f"Error listing SharePoint lists: {str(exc)}",
@@ -194,7 +194,7 @@ async def list_sharepoint_site_lists(
 
 
 @mcp.tool()
-async def list_sharepoint_list_items(
+async def sharepoint_list_list_items(
     request: ListSharePointListItemsRequest,
 ) -> ListSharePointListItemsResponse:
     """
@@ -206,11 +206,11 @@ async def list_sharepoint_list_items(
     Returns:
         ListSharePointListItemsResponse -> List item field values and previews.
     """
-    logger.info("Tool call: list_sharepoint_list_items(list_id=%s)", request.list_id)
+    logger.info("Tool call: sharepoint_list_list_items(list_id=%s)", request.list_id)
     try:
         return await create_sharepoint_client().list_sharepoint_list_items(request)
     except Exception as exc:
-        logger.exception("Error during list_sharepoint_list_items execution")
+        logger.exception("Error during sharepoint_list_list_items execution")
         return ListSharePointListItemsResponse(
             execution_status="error",
             execution_message=f"Error reading SharePoint list items: {str(exc)}",
@@ -223,7 +223,7 @@ async def list_sharepoint_list_items(
 
 
 @mcp.tool()
-async def list_sharepoint_site_pages(
+async def sharepoint_list_site_pages(
     request: ListSharePointSitePagesRequest,
 ) -> ListSharePointSitePagesResponse:
     """
@@ -235,11 +235,11 @@ async def list_sharepoint_site_pages(
     Returns:
         ListSharePointSitePagesResponse -> Modern page metadata.
     """
-    logger.info("Tool call: list_sharepoint_site_pages(site_id=%s)", request.site_id)
+    logger.info("Tool call: sharepoint_list_site_pages(site_id=%s)", request.site_id)
     try:
         return await create_sharepoint_client().list_sharepoint_site_pages(request)
     except Exception as exc:
-        logger.exception("Error during list_sharepoint_site_pages execution")
+        logger.exception("Error during sharepoint_list_site_pages execution")
         return ListSharePointSitePagesResponse(
             execution_status="error",
             execution_message=f"Error listing SharePoint pages: {str(exc)}",
@@ -252,7 +252,7 @@ async def list_sharepoint_site_pages(
 
 
 @mcp.tool()
-async def get_sharepoint_site_page(
+async def sharepoint_get_site_page(
     request: GetSharePointSitePageRequest,
 ) -> GetSharePointSitePageResponse:
     """
@@ -264,11 +264,11 @@ async def get_sharepoint_site_page(
     Returns:
         GetSharePointSitePageResponse -> Page metadata and extracted text.
     """
-    logger.info("Tool call: get_sharepoint_site_page(page_id=%s)", request.page_id)
+    logger.info("Tool call: sharepoint_get_site_page(page_id=%s)", request.page_id)
     try:
         return await create_sharepoint_client().get_sharepoint_site_page(request)
     except Exception as exc:
-        logger.exception("Error during get_sharepoint_site_page execution")
+        logger.exception("Error during sharepoint_get_site_page execution")
         return GetSharePointSitePageResponse(
             execution_status="error",
             execution_message=f"Error reading SharePoint page: {str(exc)}",
@@ -279,7 +279,7 @@ async def get_sharepoint_site_page(
 
 
 @mcp.tool()
-async def list_sharepoint_drive_items(
+async def sharepoint_list_drive_items(
     request: ListSharePointDriveItemsRequest,
 ) -> ListSharePointDriveItemsResponse:
     """
@@ -291,11 +291,11 @@ async def list_sharepoint_drive_items(
     Returns:
         ListSharePointDriveItemsResponse -> Files and folders in the requested location.
     """
-    logger.info("Tool call: list_sharepoint_drive_items(drive_id=%s)", request.drive_id)
+    logger.info("Tool call: sharepoint_list_drive_items(drive_id=%s)", request.drive_id)
     try:
         return await create_sharepoint_client().list_sharepoint_drive_items(request)
     except Exception as exc:
-        logger.exception("Error during list_sharepoint_drive_items execution")
+        logger.exception("Error during sharepoint_list_drive_items execution")
         return ListSharePointDriveItemsResponse(
             execution_status="error",
             execution_message=f"Error listing SharePoint drive items: {str(exc)}",
@@ -308,7 +308,7 @@ async def list_sharepoint_drive_items(
 
 
 @mcp.tool()
-async def get_sharepoint_drive_item(
+async def sharepoint_get_drive_item(
     request: GetSharePointDriveItemRequest,
 ) -> GetSharePointDriveItemResponse:
     """
@@ -320,11 +320,11 @@ async def get_sharepoint_drive_item(
     Returns:
         GetSharePointDriveItemResponse -> Drive item metadata.
     """
-    logger.info("Tool call: get_sharepoint_drive_item(item_id=%s)", request.item_id)
+    logger.info("Tool call: sharepoint_get_drive_item(item_id=%s)", request.item_id)
     try:
         return await create_sharepoint_client().get_sharepoint_drive_item(request)
     except Exception as exc:
-        logger.exception("Error during get_sharepoint_drive_item execution")
+        logger.exception("Error during sharepoint_get_drive_item execution")
         return GetSharePointDriveItemResponse(
             execution_status="error",
             execution_message=f"Error getting SharePoint drive item: {str(exc)}",
@@ -333,7 +333,7 @@ async def get_sharepoint_drive_item(
 
 
 @mcp.tool()
-async def search_sharepoint_drive_items(
+async def sharepoint_search_drive_items(
     request: SearchSharePointDriveItemsRequest,
 ) -> SearchSharePointDriveItemsResponse:
     """
@@ -345,11 +345,11 @@ async def search_sharepoint_drive_items(
     Returns:
         SearchSharePointDriveItemsResponse -> Matching drive items.
     """
-    logger.info("Tool call: search_sharepoint_drive_items(query=%s)", request.query)
+    logger.info("Tool call: sharepoint_search_drive_items(query=%s)", request.query)
     try:
         return await create_sharepoint_client().search_sharepoint_drive_items(request)
     except Exception as exc:
-        logger.exception("Error during search_sharepoint_drive_items execution")
+        logger.exception("Error during sharepoint_search_drive_items execution")
         return SearchSharePointDriveItemsResponse(
             execution_status="error",
             execution_message=f"Error searching SharePoint drive items: {str(exc)}",
@@ -362,7 +362,7 @@ async def search_sharepoint_drive_items(
 
 
 @mcp.tool()
-async def ingest_sharepoint_drive_item(
+async def sharepoint_ingest_drive_item(
     request: IngestSharePointDriveItemRequest,
 ) -> IngestSharePointDriveItemResponse:
     """
@@ -374,11 +374,11 @@ async def ingest_sharepoint_drive_item(
     Returns:
         IngestSharePointDriveItemResponse -> GCS URI and multimodal injection metadata.
     """
-    logger.info("Tool call: ingest_sharepoint_drive_item(item_id=%s)", request.item_id)
+    logger.info("Tool call: sharepoint_ingest_drive_item(item_id=%s)", request.item_id)
     try:
         return await create_sharepoint_client().ingest_sharepoint_drive_item(request)
     except Exception as exc:
-        logger.exception("Error during ingest_sharepoint_drive_item execution")
+        logger.exception("Error during sharepoint_ingest_drive_item execution")
         return IngestSharePointDriveItemResponse(
             execution_status="error",
             execution_message=f"Error ingesting SharePoint drive item: {str(exc)}",

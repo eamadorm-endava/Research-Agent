@@ -96,7 +96,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def list_files(request: ListFilesRequest) -> ListFilesResponse:
+async def google_drive_list_files(request: ListFilesRequest) -> ListFilesResponse:
     """
     Retrieves file and folder metadata from Google Drive that matches specific filter criteria.
 
@@ -109,7 +109,7 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
             aggregate counts, and execution status.
     """
     logger.info(
-        "Tool call: list_files(folder_name=%s, file_name=%s, mime_type=%s)",
+        "Tool call: google_drive_list_files(folder_name=%s, file_name=%s, mime_type=%s)",
         request.folder_name,
         request.file_name,
         request.mime_type,
@@ -156,7 +156,9 @@ async def list_files(request: ListFilesRequest) -> ListFilesResponse:
 
 
 @mcp.tool()
-async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
+async def google_drive_get_file_text(
+    request: GetFileTextRequest,
+) -> GetFileTextResponse:
     """
     Extracts readable text content from a Google Drive file identified by its file ID.
 
@@ -168,7 +170,7 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
         GetFileTextResponse -> The retrieved document content, related metadata,
             and execution status for the text extraction request.
     """
-    logger.info("Tool call: get_file_text(file_id=%s)", request.file_id)
+    logger.info("Tool call: google_drive_get_file_text(file_id=%s)", request.file_id)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.read_scopes)
         document = await asyncio.to_thread(
@@ -204,7 +206,9 @@ async def get_file_text(request: GetFileTextRequest) -> GetFileTextResponse:
 
 
 @mcp.tool()
-async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocResponse:
+async def google_drive_create_google_doc(
+    request: CreateGoogleDocRequest,
+) -> CreateGoogleDocResponse:
     """
     Creates a Google Docs document in Drive using the provided title, content, and folder.
 
@@ -216,7 +220,7 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
         CreateGoogleDocResponse -> The created document metadata and the execution
             result for the document creation operation.
     """
-    logger.info("Tool call: create_google_doc(title=%s)", request.title)
+    logger.info("Tool call: google_drive_create_google_doc(title=%s)", request.title)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.write_doc_scopes)
         file = await asyncio.to_thread(
@@ -254,7 +258,7 @@ async def create_google_doc(request: CreateGoogleDocRequest) -> CreateGoogleDocR
 
 
 @mcp.tool()
-async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
+async def google_drive_upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
     """
     Generates a PDF from text content and uploads the resulting file to Google Drive.
 
@@ -266,7 +270,7 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
         UploadPdfResponse -> The uploaded PDF metadata and the execution result
             for the upload request.
     """
-    logger.info("Tool call: upload_pdf(title=%s)", request.title)
+    logger.info("Tool call: google_drive_upload_pdf(title=%s)", request.title)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.write_pdf_scopes)
         file = await asyncio.to_thread(
@@ -304,7 +308,7 @@ async def upload_pdf(request: UploadPdfRequest) -> UploadPdfResponse:
 
 
 @mcp.tool()
-async def create_file(request: CreateFileRequest) -> CreateFileResponse:
+async def google_drive_create_file(request: CreateFileRequest) -> CreateFileResponse:
     """
     Creates a standard file in Google Drive with the supplied content and MIME type.
 
@@ -317,7 +321,9 @@ async def create_file(request: CreateFileRequest) -> CreateFileResponse:
             for the file creation request.
     """
     logger.info(
-        "Tool call: create_file(name=%s, mime_type=%s)", request.name, request.mime_type
+        "Tool call: google_drive_create_file(name=%s, mime_type=%s)",
+        request.name,
+        request.mime_type,
     )
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
@@ -360,7 +366,9 @@ async def create_file(request: CreateFileRequest) -> CreateFileResponse:
 
 
 @mcp.tool()
-async def create_folder(request: CreateFolderRequest) -> CreateFolderResponse:
+async def google_drive_create_folder(
+    request: CreateFolderRequest,
+) -> CreateFolderResponse:
     """
     Creates a new folder in Google Drive, optionally inside an existing parent folder.
 
@@ -372,7 +380,7 @@ async def create_folder(request: CreateFolderRequest) -> CreateFolderResponse:
         CreateFolderResponse -> The created folder metadata and the execution
             result for the folder creation operation.
     """
-    logger.info("Tool call: create_folder(name=%s)", request.name)
+    logger.info("Tool call: google_drive_create_folder(name=%s)", request.name)
     try:
         manager = _make_drive_manager(scopes=DRIVE_API_CONFIG.management_scopes)
         file = await asyncio.to_thread(
@@ -406,7 +414,7 @@ async def create_folder(request: CreateFolderRequest) -> CreateFolderResponse:
 
 
 @mcp.tool()
-async def move_file(request: MoveFileRequest) -> MoveFileResponse:
+async def google_drive_move_file(request: MoveFileRequest) -> MoveFileResponse:
     """
     Moves an existing Google Drive item into a different destination folder.
 
@@ -419,7 +427,7 @@ async def move_file(request: MoveFileRequest) -> MoveFileResponse:
             for the move operation.
     """
     logger.info(
-        "Tool call: move_file(file_id=%s, destination_folder_id=%s)",
+        "Tool call: google_drive_move_file(file_id=%s, destination_folder_id=%s)",
         request.file_id,
         request.destination_folder_id,
     )
@@ -456,7 +464,7 @@ async def move_file(request: MoveFileRequest) -> MoveFileResponse:
 
 
 @mcp.tool()
-async def rename_file(request: RenameFileRequest) -> RenameFileResponse:
+async def google_drive_rename_file(request: RenameFileRequest) -> RenameFileResponse:
     """
     Renames an existing file or folder in Google Drive without changing its location.
 
@@ -469,7 +477,7 @@ async def rename_file(request: RenameFileRequest) -> RenameFileResponse:
             for the rename operation.
     """
     logger.info(
-        "Tool call: rename_file(file_id=%s, new_name=%s)",
+        "Tool call: google_drive_rename_file(file_id=%s, new_name=%s)",
         request.file_id,
         request.new_name,
     )

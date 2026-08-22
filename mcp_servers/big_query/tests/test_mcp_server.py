@@ -2,13 +2,13 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pydantic import ValidationError
 from mcp_servers.big_query.app.mcp_server import (
-    create_dataset,
-    create_table,
-    ekb_keyword_search,
-    get_table_schema,
-    add_rows,
-    execute_query,
-    list_tables,
+    bigquery_create_dataset,
+    bigquery_create_table,
+    bigquery_ekb_keyword_search,
+    bigquery_get_table_schema,
+    bigquery_add_rows,
+    bigquery_execute_query,
+    bigquery_list_tables,
 )
 from mcp_servers.big_query.app.schemas import (
     CreateDatasetRequest,
@@ -39,7 +39,7 @@ def mock_bq_manager():
 @pytest.mark.asyncio
 async def test_mcp_create_dataset_success(mock_bq_manager):
     """
-    Tests the successful execution of the create_dataset MCP tool.
+    Tests the successful execution of the bigquery_create_dataset MCP tool.
     Implementation: Mocks the BigQueryManager's create_dataset response and verifies the ToolResponse contains a 'success' status and the correct message.
     """
     mock_bq_manager.create_dataset.return_value = (
@@ -47,7 +47,7 @@ async def test_mcp_create_dataset_success(mock_bq_manager):
     )
     req = CreateDatasetRequest(dataset_id="my_ds", location="US")
 
-    result = await create_dataset(req)
+    result = await bigquery_create_dataset(req)
 
     assert result.execution_status == "success"
     assert "Successfully created dataset" in result.execution_message
@@ -96,7 +96,7 @@ async def test_mcp_create_table_error_handling(mock_bq_manager):
         schema_fields=[{"name": "id", "type": "INT"}],
     )
 
-    result = await create_table(req)
+    result = await bigquery_create_table(req)
 
     assert result.execution_status == "error"
     assert "BQ Error" in result.execution_message
@@ -105,7 +105,7 @@ async def test_mcp_create_table_error_handling(mock_bq_manager):
 @pytest.mark.asyncio
 async def test_mcp_get_table_schema_success(mock_bq_manager):
     """
-    Tests the get_table_schema MCP tool with valid input.
+    Tests the bigquery_get_table_schema MCP tool with valid input.
     Implementation: Mocks the retrieval of table fields and verifies the tool correctly formats and returns the schema in the execution response.
     """
     mock_field = MagicMock()
@@ -113,7 +113,7 @@ async def test_mcp_get_table_schema_success(mock_bq_manager):
     mock_bq_manager.get_table_schema.return_value = [mock_field]
 
     req = GetTableSchemaRequest(dataset_id="ds", table_id="table")
-    result = await get_table_schema(req)
+    result = await bigquery_get_table_schema(req)
 
     assert result.execution_status == "success"
     assert result.fields == [{"name": "id", "type": "INTEGER"}]
@@ -122,7 +122,7 @@ async def test_mcp_get_table_schema_success(mock_bq_manager):
 @pytest.mark.asyncio
 async def test_mcp_add_rows_success(mock_bq_manager):
     """
-    Tests the add_rows MCP tool for successful data insertion.
+    Tests the bigquery_add_rows MCP tool for successful data insertion.
     Implementation: Invokes the tool with a valid AddRowsRequest and confirms that BigQueryManager.insert_rows is called with the correct parameters, yielding a success response.
     """
     req = AddRowsRequest(
@@ -131,7 +131,7 @@ async def test_mcp_add_rows_success(mock_bq_manager):
         rows=[{"id": 1}],
     )
 
-    result = await add_rows(req)
+    result = await bigquery_add_rows(req)
 
     assert result.execution_status == "success"
     assert "Successfully inserted 1 rows" in result.execution_message
@@ -150,7 +150,7 @@ async def test_mcp_execute_query_authorized_user_success(mock_bq_manager):
         query="SELECT id, name FROM `mock-bq-project-id.ds.allowed_table` LIMIT 10",
     )
 
-    result = await execute_query(req)
+    result = await bigquery_execute_query(req)
 
     assert result.execution_status == "success"
     assert result.results == [{"id": 1, "name": "allowed"}]
@@ -159,7 +159,7 @@ async def test_mcp_execute_query_authorized_user_success(mock_bq_manager):
 @pytest.mark.asyncio
 async def test_mcp_ekb_keyword_search_success(mock_bq_manager):
     """
-    Tests the successful execution of the ekb_keyword_search MCP tool.
+    Tests the successful execution of the bigquery_ekb_keyword_search MCP tool.
     Implementation: Mocks keyword_search to return two distinct rows and verifies the tool
     returns a success status with the expected results list.
     """
@@ -181,7 +181,7 @@ async def test_mcp_ekb_keyword_search_success(mock_bq_manager):
     ]
     req = KeywordSearchRequest(keyword="kubernetes")
 
-    result = await ekb_keyword_search(req)
+    result = await bigquery_ekb_keyword_search(req)
 
     assert result.execution_status == "success"
     assert len(result.results) == 2
@@ -203,14 +203,14 @@ async def test_mcp_ekb_keyword_search_empty_keyword_validation_error():
 @pytest.mark.asyncio
 async def test_mcp_ekb_keyword_search_bq_error(mock_bq_manager):
     """
-    Tests that ekb_keyword_search returns an error status when the underlying BQ call raises.
+    Tests that bigquery_ekb_keyword_search returns an error status when the underlying BQ call raises.
     Implementation: Configures keyword_search to raise a generic exception and verifies the
     tool wraps it in an error response rather than propagating the exception.
     """
     mock_bq_manager.keyword_search.side_effect = Exception("BQ failure")
     req = KeywordSearchRequest(keyword="react")
 
-    result = await ekb_keyword_search(req)
+    result = await bigquery_ekb_keyword_search(req)
 
     assert result.execution_status == "error"
     assert "BQ failure" in result.execution_message
@@ -228,7 +228,7 @@ async def test_mcp_list_tables_unauthorized_user_permission_denied(mock_bq_manag
         dataset_id="restricted_ds",
     )
 
-    result = await list_tables(req)
+    result = await bigquery_list_tables(req)
 
     assert result.execution_status == "error"
     assert "Permission Denied" in result.execution_message

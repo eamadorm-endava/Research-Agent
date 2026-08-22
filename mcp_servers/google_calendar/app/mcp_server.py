@@ -40,7 +40,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def list_calendar_events(
+async def google_calendar_list_events(
     request: ListCalendarEventsRequest,
 ) -> ListCalendarEventsResponse:
     """Fetch and parse calendar events into structured models.
@@ -53,7 +53,7 @@ async def list_calendar_events(
         ListCalendarEventsResponse -> A response containing the list of calendar events and execution status.
     """
     logger.info(
-        "Tool call: list_calendar_events(max_events=%s, query=%s, sort_order=%s)",
+        "Tool call: google_calendar_list_events(max_events=%s, query=%s, sort_order=%s)",
         request.max_events,
         request.query,
         request.sort_order,
@@ -85,7 +85,7 @@ async def list_calendar_events(
 
 
 @mcp.tool()
-async def list_meet_sessions(
+async def google_calendar_list_meet_sessions(
     request: ListMeetSessionsRequest,
 ) -> ListMeetSessionsResponse:
     """Lists and summarizes all Meet sessions for a specific meeting code.
@@ -97,7 +97,10 @@ async def list_meet_sessions(
     Returns:
         ListMeetSessionsResponse -> A response containing the Meet sessions and execution status.
     """
-    logger.info("Tool call: list_meet_sessions(meeting_code=%s)", request.meeting_code)
+    logger.info(
+        "Tool call: google_calendar_list_meet_sessions(meeting_code=%s)",
+        request.meeting_code,
+    )
     try:
         client = create_events_client()
         sessions = await asyncio.to_thread(
@@ -119,7 +122,7 @@ async def list_meet_sessions(
 
 
 @mcp.tool()
-async def list_meet_participants(
+async def google_calendar_list_meet_participants(
     request: ListMeetParticipantsRequest,
 ) -> ListMeetParticipantsResponse:
     """Retrieves detailed participant data for a specific Meet session.
@@ -132,7 +135,8 @@ async def list_meet_participants(
         ListMeetParticipantsResponse -> A response containing the participants and execution status.
     """
     logger.info(
-        "Tool call: list_meet_participants(meet_session_id=%s)", request.meet_session_id
+        "Tool call: google_calendar_list_meet_participants(meet_session_id=%s)",
+        request.meet_session_id,
     )
     try:
         client = create_events_client()
@@ -155,7 +159,7 @@ async def list_meet_participants(
 
 
 @mcp.tool()
-async def get_meet_recording(
+async def google_calendar_get_meet_recording(
     request: GetMeetRecordingRequest,
 ) -> GetMeetRecordingResponse:
     """Retrieves detailed metadata for a specific Google Meet recording.
@@ -167,7 +171,10 @@ async def get_meet_recording(
     Returns:
         GetMeetRecordingResponse -> A response containing the recording metadata and execution status.
     """
-    logger.info("Tool call: get_meet_recording(recording_id=%s)", request.recording_id)
+    logger.info(
+        "Tool call: google_calendar_get_meet_recording(recording_id=%s)",
+        request.recording_id,
+    )
     try:
         client = create_events_client()
         recording = await asyncio.to_thread(
@@ -189,7 +196,7 @@ async def get_meet_recording(
 
 
 @mcp.tool()
-async def get_meet_transcript(
+async def google_calendar_get_meet_transcript(
     request: GetMeetTranscriptRequest,
 ) -> GetMeetTranscriptResponse:
     """Retrieves detailed metadata for a specific Google Meet transcript.
@@ -202,7 +209,8 @@ async def get_meet_transcript(
         GetMeetTranscriptResponse -> A response containing the transcript metadata and execution status.
     """
     logger.info(
-        "Tool call: get_meet_transcript(transcript_id=%s)", request.transcript_id
+        "Tool call: google_calendar_get_meet_transcript(transcript_id=%s)",
+        request.transcript_id,
     )
     try:
         client = create_events_client()

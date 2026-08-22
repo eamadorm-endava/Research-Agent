@@ -76,7 +76,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def create_bucket(request: CreateBucketRequest) -> CreateBucketResponse:
+async def gcs_create_bucket(request: CreateBucketRequest) -> CreateBucketResponse:
     """
     Creates a new Google Cloud Storage bucket.
 
@@ -87,7 +87,7 @@ async def create_bucket(request: CreateBucketRequest) -> CreateBucketResponse:
         CreateBucketResponse -> The result of the bucket creation operation.
     """
     logger.info(
-        "Tool call: create_bucket("
+        "Tool call: gcs_create_bucket("
         f"project_id={request.project_id}, bucket_name={request.bucket_name}, "
         f"location={request.location})"
     )
@@ -120,7 +120,7 @@ async def create_bucket(request: CreateBucketRequest) -> CreateBucketResponse:
 
 
 @mcp.tool()
-async def update_bucket_labels(
+async def gcs_update_bucket_labels(
     request: UpdateBucketLabelsRequest,
 ) -> UpdateBucketLabelsResponse:
     """
@@ -133,7 +133,7 @@ async def update_bucket_labels(
         UpdateBucketLabelsResponse -> The result of the label update operation.
     """
     logger.info(
-        f"Tool call: update_bucket_labels(bucket_name={request.bucket_name}, labels={request.labels})"
+        f"Tool call: gcs_update_bucket_labels(bucket_name={request.bucket_name}, labels={request.labels})"
     )
     try:
         gcs_manager = _make_gcs_manager()
@@ -158,7 +158,7 @@ async def update_bucket_labels(
 
 
 @mcp.tool()
-async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
+async def gcs_upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
     """
     Ingests an object from a source GCS URI into a destination bucket.
     This tool replaces direct uploads and implements automated authentication switching.
@@ -170,7 +170,7 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
         UploadObjectResponse -> The resulting destination URI and status.
     """
     logger.info(
-        f"Tool call: upload_object(source_bucket={request.source_bucket_name}, "
+        f"Tool call: gcs_upload_object(source_bucket={request.source_bucket_name}, "
         f"source_object={request.source_object_name}, "
         f"dest_bucket={request.destination_bucket}, filename={request.filename})"
     )
@@ -200,7 +200,7 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
 
         # 3. Apply Metadata if provided
         if request.metadata:
-            logger.info("Applying metadata during upload_object")
+            logger.info("Applying metadata during gcs_upload_object")
             await asyncio.to_thread(
                 gcs_manager.update_object_metadata,
                 request.destination_bucket,
@@ -224,7 +224,7 @@ async def upload_object(request: UploadObjectRequest) -> UploadObjectResponse:
 
 
 @mcp.tool()
-async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
+async def gcs_read_object(request: ReadObjectRequest) -> ReadObjectResponse:
     """
     Retrieves file metadata and automatically streams external files into the Agent Landing Zone.
 
@@ -241,7 +241,7 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
         ReadObjectResponse -> Contains the canonical Landing Zone GCS URI and strictly typed metadata.
     """
     logger.info(
-        f"Tool call: read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
+        f"Tool call: gcs_read_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
         # 1. Determine if we are reading from the Landing Zone directly
@@ -394,7 +394,7 @@ async def read_object(request: ReadObjectRequest) -> ReadObjectResponse:
 
 
 @mcp.tool()
-async def update_object_metadata(
+async def gcs_update_object_metadata(
     request: UpdateObjectMetadataRequest,
 ) -> UpdateObjectMetadataResponse:
     """
@@ -408,7 +408,7 @@ async def update_object_metadata(
         UpdateObjectMetadataResponse -> The updated metadata summary.
     """
     logger.info(
-        "Tool call: update_object_metadata("
+        "Tool call: gcs_update_object_metadata("
         f"bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
@@ -450,7 +450,7 @@ async def update_object_metadata(
 
 
 @mcp.tool()
-async def delete_object(request: DeleteObjectRequest) -> DeleteObjectResponse:
+async def gcs_delete_object(request: DeleteObjectRequest) -> DeleteObjectResponse:
     """
     Deletes an object from a GCS bucket.
 
@@ -461,7 +461,7 @@ async def delete_object(request: DeleteObjectRequest) -> DeleteObjectResponse:
         DeleteObjectResponse -> The result of the deletion operation.
     """
     logger.info(
-        f"Tool call: delete_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
+        f"Tool call: gcs_delete_object(bucket_name={request.bucket_name}, object_name={request.object_name})"
     )
     try:
         gcs_manager = _make_gcs_manager()
@@ -486,7 +486,7 @@ async def delete_object(request: DeleteObjectRequest) -> DeleteObjectResponse:
 
 
 @mcp.tool()
-async def list_objects(request: ListObjectsRequest) -> ListObjectsResponse:
+async def gcs_list_objects(request: ListObjectsRequest) -> ListObjectsResponse:
     """
     Lists objects in a GCS bucket, optionally filtered by prefix to simulate folders.
 
@@ -497,7 +497,7 @@ async def list_objects(request: ListObjectsRequest) -> ListObjectsResponse:
         ListObjectsResponse -> A list of found object names.
     """
     logger.info(
-        f"Tool call: list_objects(bucket_name={request.bucket_name}, prefix={request.prefix})"
+        f"Tool call: gcs_list_objects(bucket_name={request.bucket_name}, prefix={request.prefix})"
     )
     try:
         gcs_manager = _make_gcs_manager()
@@ -524,7 +524,7 @@ async def list_objects(request: ListObjectsRequest) -> ListObjectsResponse:
 
 
 @mcp.tool()
-async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
+async def gcs_list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
     """
     Lists buckets available to the current project credentials,
     optionally filtered by bucket-name prefix.
@@ -536,7 +536,7 @@ async def list_buckets(request: ListBucketsRequest) -> ListBucketsResponse:
         ListBucketsResponse -> A structured response with matching bucket names.
     """
     logger.info(
-        f"Tool call: list_buckets(project_id={request.project_id}, prefix={request.prefix})"
+        f"Tool call: gcs_list_buckets(project_id={request.project_id}, prefix={request.prefix})"
     )
     try:
         gcs_manager = _make_gcs_manager()

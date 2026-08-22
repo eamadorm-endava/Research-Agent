@@ -80,7 +80,9 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse:
+async def bigquery_create_dataset(
+    request: CreateDatasetRequest,
+) -> CreateDatasetResponse:
     """
     Creates a new Google Cloud BigQuery dataset.
     Args:
@@ -88,7 +90,7 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
     Returns:
         CreateDatasetResponse -> Full request details and status.
     """
-    logger.info(f"Tool call: create_dataset(dataset_id={request.dataset_id})")
+    logger.info(f"Tool call: bigquery_create_dataset(dataset_id={request.dataset_id})")
     try:
         bq_manager = _make_bq_manager()
         full_id = await asyncio.to_thread(
@@ -120,7 +122,7 @@ async def create_dataset(request: CreateDatasetRequest) -> CreateDatasetResponse
 
 
 @mcp.tool()
-async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
+async def bigquery_list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
     """
     Lists all datasets in a BigQuery project.
     Args:
@@ -128,7 +130,7 @@ async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
     Returns:
         ListDatasetsResponse -> A List[str] containing dataset IDs.
     """
-    logger.info("Tool call: list_datasets()")
+    logger.info("Tool call: bigquery_list_datasets()")
     try:
         bq_manager = _make_bq_manager()
         datasets = await asyncio.to_thread(
@@ -154,7 +156,7 @@ async def list_datasets(request: ListDatasetsRequest) -> ListDatasetsResponse:
 
 
 @mcp.tool()
-async def create_table(request: CreateTableRequest) -> CreateTableResponse:
+async def bigquery_create_table(request: CreateTableRequest) -> CreateTableResponse:
     """
     Creates a new table in BigQuery.
     Args:
@@ -163,7 +165,7 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
         CreateTableResponse -> Full request details and status.
     """
     logger.info(
-        f"Tool call: create_table(dataset_id={request.dataset_id}, table_id={request.table_id})"
+        f"Tool call: bigquery_create_table(dataset_id={request.dataset_id}, table_id={request.table_id})"
     )
     try:
         bq_manager = _make_bq_manager()
@@ -200,7 +202,9 @@ async def create_table(request: CreateTableRequest) -> CreateTableResponse:
 
 
 @mcp.tool()
-async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResponse:
+async def bigquery_get_table_schema(
+    request: GetTableSchemaRequest,
+) -> GetTableSchemaResponse:
     """
     Retrieves the schema definition of a specific table.
     Args:
@@ -209,7 +213,7 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
         GetTableSchemaResponse -> The schema fields as a List[Dict[str, Any]].
     """
     logger.info(
-        f"Tool call: get_table_schema(dataset_id={request.dataset_id}, table_id={request.table_id})"
+        f"Tool call: bigquery_get_table_schema(dataset_id={request.dataset_id}, table_id={request.table_id})"
     )
     try:
         bq_manager = _make_bq_manager()
@@ -245,7 +249,7 @@ async def get_table_schema(request: GetTableSchemaRequest) -> GetTableSchemaResp
 
 
 @mcp.tool()
-async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
+async def bigquery_list_tables(request: ListTablesRequest) -> ListTablesResponse:
     """
     Retrieves a list of all tables within a given dataset.
     Args:
@@ -253,7 +257,7 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
     Returns:
         ListTablesResponse -> A List[str] of table IDs.
     """
-    logger.info(f"Tool call: list_tables(dataset_id={request.dataset_id})")
+    logger.info(f"Tool call: bigquery_list_tables(dataset_id={request.dataset_id})")
     try:
         bq_manager = _make_bq_manager()
         tables = await asyncio.to_thread(
@@ -284,7 +288,7 @@ async def list_tables(request: ListTablesRequest) -> ListTablesResponse:
 
 
 @mcp.tool()
-async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
+async def bigquery_add_rows(request: AddRowsRequest) -> AddRowsResponse:
     """
     Inserts one or more rows into an existing table.
     Args:
@@ -293,7 +297,7 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
         AddRowsResponse -> Full request details and status.
     """
     logger.info(
-        f"Tool call: add_rows(dataset_id={request.dataset_id}, table_id={request.table_id})"
+        f"Tool call: bigquery_add_rows(dataset_id={request.dataset_id}, table_id={request.table_id})"
     )
     try:
         bq_manager = _make_bq_manager()
@@ -330,7 +334,7 @@ async def add_rows(request: AddRowsRequest) -> AddRowsResponse:
 
 
 @mcp.tool()
-async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
+async def bigquery_execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     """
     Executes a read-only SQL query against BigQuery.
     Args:
@@ -338,7 +342,7 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
     Returns:
         ExecuteQueryResponse -> The query results as a List[Dict[str, Any]].
     """
-    logger.info("Tool call: execute_query()")
+    logger.info("Tool call: bigquery_execute_query()")
     try:
         bq_manager = _make_bq_manager()
         results = await asyncio.to_thread(
@@ -367,7 +371,9 @@ async def execute_query(request: ExecuteQueryRequest) -> ExecuteQueryResponse:
 
 
 @mcp.tool()
-async def ekb_semantic_search(request: SemanticSearchRequest) -> SemanticSearchResponse:
+async def bigquery_ekb_semantic_search(
+    request: SemanticSearchRequest,
+) -> SemanticSearchResponse:
     """
     Performs a semantic search against the Enterprise Knowledge Base.
     Args:
@@ -375,7 +381,7 @@ async def ekb_semantic_search(request: SemanticSearchRequest) -> SemanticSearchR
     Returns:
         SemanticSearchResponse -> The search results and execution status.
     """
-    logger.info(f"Tool call: ekb_semantic_search(query={request.query})")
+    logger.info(f"Tool call: bigquery_ekb_semantic_search(query={request.query})")
     try:
         bq_manager = _make_bq_manager()
         results = await asyncio.to_thread(bq_manager.semantic_search, request)
@@ -399,7 +405,9 @@ async def ekb_semantic_search(request: SemanticSearchRequest) -> SemanticSearchR
 
 
 @mcp.tool()
-async def ekb_keyword_search(request: KeywordSearchRequest) -> KeywordSearchResponse:
+async def bigquery_ekb_keyword_search(
+    request: KeywordSearchRequest,
+) -> KeywordSearchResponse:
     """
     Performs a deterministic keyword search against the Enterprise Knowledge Base chunks.
     Returns distinct filenames and project names for all documents containing the keyword.
@@ -408,7 +416,7 @@ async def ekb_keyword_search(request: KeywordSearchRequest) -> KeywordSearchResp
     Returns:
         KeywordSearchResponse -> Distinct filenames and project names matching the keyword.
     """
-    logger.info(f"Tool call: ekb_keyword_search(keyword={request.keyword})")
+    logger.info(f"Tool call: bigquery_ekb_keyword_search(keyword={request.keyword})")
     try:
         bq_manager = _make_bq_manager()
         results = await asyncio.to_thread(bq_manager.keyword_search, request)

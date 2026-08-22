@@ -55,7 +55,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def search_jira_issues(
+async def jira_search_issues(
     request: SearchJiraIssuesRequest,
 ) -> SearchJiraIssuesResponse:
     """Search for issues globally across Jira using JQL.
@@ -66,7 +66,7 @@ async def search_jira_issues(
     Returns:
         SearchJiraIssuesResponse -> A list of matching issues and status
     """
-    logger.info(f"Tool call: search_jira_issues(jql='{request.jql}')")
+    logger.info(f"Tool call: jira_search_issues(jql='{request.jql}')")
     try:
         client = create_atlassian_client()
         return await client.search_issues(request)
@@ -80,7 +80,7 @@ async def search_jira_issues(
 
 
 @mcp.tool()
-async def get_jira_issue_details(
+async def jira_get_issue_details(
     request: GetJiraIssueDetailsRequest,
 ) -> GetJiraIssueDetailsResponse:
     """Retrieve detailed information of a single Jira issue.
@@ -91,7 +91,7 @@ async def get_jira_issue_details(
     Returns:
         GetJiraIssueDetailsResponse -> Detailed ticket fields
     """
-    logger.info(f"Tool call: get_jira_issue_details(key='{request.issue_id_or_key}')")
+    logger.info(f"Tool call: jira_get_issue_details(key='{request.issue_id_or_key}')")
     try:
         client = create_atlassian_client()
         return await client.get_issue_details(request)
@@ -105,7 +105,7 @@ async def get_jira_issue_details(
 
 
 @mcp.tool()
-async def list_jira_projects(
+async def jira_list_projects(
     request: ListJiraProjectsRequest,
 ) -> ListJiraProjectsResponse:
     """List all projects available in Jira.
@@ -116,7 +116,7 @@ async def list_jira_projects(
     Returns:
         ListJiraProjectsResponse -> Catalog of projects
     """
-    logger.info("Tool call: list_jira_projects()")
+    logger.info("Tool call: jira_list_projects()")
     try:
         client = create_atlassian_client()
         return await client.list_projects(request)
@@ -130,7 +130,7 @@ async def list_jira_projects(
 
 
 @mcp.tool()
-async def get_jira_project_details(
+async def jira_get_project_details(
     request: GetJiraProjectDetailsRequest,
 ) -> GetJiraProjectDetailsResponse:
     """Retrieve metadata of a single project including category and lead.
@@ -142,7 +142,7 @@ async def get_jira_project_details(
         GetJiraProjectDetailsResponse -> Detailed project metadata
     """
     logger.info(
-        f"Tool call: get_jira_project_details(key='{request.project_id_or_key}')"
+        f"Tool call: jira_get_project_details(key='{request.project_id_or_key}')"
     )
     try:
         client = create_atlassian_client()
@@ -157,7 +157,7 @@ async def get_jira_project_details(
 
 
 @mcp.tool()
-async def list_jira_project_components(
+async def jira_list_project_components(
     request: ListJiraProjectComponentsRequest,
 ) -> ListJiraProjectComponentsResponse:
     """List components/technologies defined in a project.
@@ -169,7 +169,7 @@ async def list_jira_project_components(
         ListJiraProjectComponentsResponse -> Tech stack component listings
     """
     logger.info(
-        f"Tool call: list_jira_project_components(key='{request.project_id_or_key}')"
+        f"Tool call: jira_list_project_components(key='{request.project_id_or_key}')"
     )
     try:
         client = create_atlassian_client()
@@ -184,7 +184,7 @@ async def list_jira_project_components(
 
 
 @mcp.tool()
-async def list_jira_project_categories(
+async def jira_list_project_categories(
     request: ListJiraProjectCategoriesRequest,
 ) -> ListJiraProjectCategoriesResponse:
     """List project categories (representing clients/domains).
@@ -195,7 +195,7 @@ async def list_jira_project_categories(
     Returns:
         ListJiraProjectCategoriesResponse -> Client categorization listings
     """
-    logger.info("Tool call: list_jira_project_categories()")
+    logger.info("Tool call: jira_list_project_categories()")
     try:
         client = create_atlassian_client()
         return await client.list_project_categories(request)
@@ -209,7 +209,7 @@ async def list_jira_project_categories(
 
 
 @mcp.tool()
-async def list_confluence_spaces(
+async def confluence_list_spaces(
     request: ListConfluenceSpacesRequest,
 ) -> ListConfluenceSpacesResponse:
     """List all Confluence spaces available.
@@ -220,7 +220,7 @@ async def list_confluence_spaces(
     Returns:
         ListConfluenceSpacesResponse -> List of spaces and next page cursor
     """
-    logger.info("Tool call: list_confluence_spaces()")
+    logger.info("Tool call: confluence_list_spaces()")
     try:
         client = create_atlassian_client()
         return await client.list_spaces(request)
@@ -234,7 +234,7 @@ async def list_confluence_spaces(
 
 
 @mcp.tool()
-async def list_confluence_pages(
+async def confluence_list_pages(
     request: ListConfluencePagesRequest,
 ) -> ListConfluencePagesResponse:
     """List Confluence pages, optionally filtered by space ID.
@@ -245,7 +245,7 @@ async def list_confluence_pages(
     Returns:
         ListConfluencePagesResponse -> List of pages and next page cursor
     """
-    logger.info(f"Tool call: list_confluence_pages(space_id='{request.space_id}')")
+    logger.info(f"Tool call: confluence_list_pages(space_id='{request.space_id}')")
     try:
         client = create_atlassian_client()
         return await client.list_pages(request)
@@ -259,7 +259,7 @@ async def list_confluence_pages(
 
 
 @mcp.tool()
-async def search_confluence_pages(
+async def confluence_search_pages(
     request: SearchConfluencePagesRequest,
 ) -> SearchConfluencePagesResponse:
     """Search Confluence pages using CQL (Confluence Query Language).
@@ -270,7 +270,7 @@ async def search_confluence_pages(
     Returns:
         SearchConfluencePagesResponse -> Matching Confluence pages
     """
-    logger.info(f"Tool call: search_confluence_pages(cql='{request.cql}')")
+    logger.info(f"Tool call: confluence_search_pages(cql='{request.cql}')")
     try:
         client = create_atlassian_client()
         return await client.search_confluence_pages(request)
@@ -284,7 +284,7 @@ async def search_confluence_pages(
 
 
 @mcp.tool()
-async def get_confluence_page_details(
+async def confluence_get_page_details(
     request: GetConfluencePageDetailsRequest,
 ) -> GetConfluencePageDetailsResponse:
     """Retrieve metadata of a single Confluence page.
@@ -295,7 +295,7 @@ async def get_confluence_page_details(
     Returns:
         GetConfluencePageDetailsResponse -> Detailed page metadata
     """
-    logger.info(f"Tool call: get_confluence_page_details(id='{request.page_id}')")
+    logger.info(f"Tool call: confluence_get_page_details(id='{request.page_id}')")
     try:
         client = create_atlassian_client()
         return await client.get_page_details(request)
@@ -309,7 +309,7 @@ async def get_confluence_page_details(
 
 
 @mcp.tool()
-async def read_confluence_page(
+async def confluence_read_page(
     request: ReadConfluencePageRequest,
 ) -> ReadConfluencePageResponse:
     """Read Confluence page content and stream it to the GCS Landing Zone.
@@ -320,7 +320,7 @@ async def read_confluence_page(
     Returns:
         ReadConfluencePageResponse -> Landing Zone path and metadata
     """
-    logger.info(f"Tool call: read_confluence_page(id='{request.page_id}')")
+    logger.info(f"Tool call: confluence_read_page(id='{request.page_id}')")
     try:
         client = create_atlassian_client()
         return await client.read_confluence_page(request)
@@ -337,7 +337,7 @@ async def read_confluence_page(
 
 
 @mcp.tool()
-async def list_confluence_page_attachments(
+async def confluence_list_page_attachments(
     request: ListConfluencePageAttachmentsRequest,
 ) -> ListConfluencePageAttachmentsResponse:
     """List attachments associated with a Confluence page.
@@ -348,7 +348,7 @@ async def list_confluence_page_attachments(
     Returns:
         ListConfluencePageAttachmentsResponse -> List of attachments and next cursor
     """
-    logger.info(f"Tool call: list_confluence_page_attachments(id='{request.page_id}')")
+    logger.info(f"Tool call: confluence_list_page_attachments(id='{request.page_id}')")
     try:
         client = create_atlassian_client()
         return await client.list_confluence_page_attachments(request)
@@ -362,7 +362,7 @@ async def list_confluence_page_attachments(
 
 
 @mcp.tool()
-async def get_confluence_attachment_details(
+async def confluence_get_attachment_details(
     request: GetConfluenceAttachmentDetailsRequest,
 ) -> GetConfluenceAttachmentDetailsResponse:
     """Retrieve details of a specific Confluence attachment.
@@ -374,7 +374,7 @@ async def get_confluence_attachment_details(
         GetConfluenceAttachmentDetailsResponse -> Detailed attachment metadata
     """
     logger.info(
-        f"Tool call: get_confluence_attachment_details(id='{request.attachment_id}')"
+        f"Tool call: confluence_get_attachment_details(id='{request.attachment_id}')"
     )
     try:
         client = create_atlassian_client()
@@ -389,7 +389,7 @@ async def get_confluence_attachment_details(
 
 
 @mcp.tool()
-async def list_confluence_page_comments(
+async def confluence_list_page_comments(
     request: ListConfluencePageCommentsRequest,
 ) -> ListConfluencePageCommentsResponse:
     """List comments associated with a specific Confluence page.
@@ -400,7 +400,7 @@ async def list_confluence_page_comments(
     Returns:
         ListConfluencePageCommentsResponse -> Page comments and next cursor
     """
-    logger.info(f"Tool call: list_confluence_page_comments(id='{request.page_id}')")
+    logger.info(f"Tool call: confluence_list_page_comments(id='{request.page_id}')")
     try:
         client = create_atlassian_client()
         return await client.list_confluence_page_comments(request)
@@ -414,7 +414,7 @@ async def list_confluence_page_comments(
 
 
 @mcp.tool()
-async def list_confluence_page_labels(
+async def confluence_list_page_labels(
     request: ListConfluencePageLabelsRequest,
 ) -> ListConfluencePageLabelsResponse:
     """List labels/tags associated with a Confluence page.
@@ -425,7 +425,7 @@ async def list_confluence_page_labels(
     Returns:
         ListConfluencePageLabelsResponse -> List of labels and next cursor
     """
-    logger.info(f"Tool call: list_confluence_page_labels(id='{request.page_id}')")
+    logger.info(f"Tool call: confluence_list_page_labels(id='{request.page_id}')")
     try:
         client = create_atlassian_client()
         return await client.list_confluence_page_labels(request)
