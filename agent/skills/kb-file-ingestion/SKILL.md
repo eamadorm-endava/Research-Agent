@@ -57,7 +57,7 @@ Do not infer `PII = No` from silence. Only set it if the user stated it or the f
 - **BigQuery project**: query `knowledge_base.documents_metadata` directly. Do not use a project prefix.
 - **Job IDs**: always return the `job_id` from **each entry** in `job_responses` in the pipeline response to the user.
 - **URI splitting**: `get_artifact_uri` returns a full `gs://<bucket>/<object_path>` URI. You must split it: `source_bucket_name` = the bucket name (between `gs://` and the first `/`), `source_object_name` = everything after that first `/`.
-- **`path_inside_bucket`**: when calling `upload_object`, set `path_inside_bucket` to the confirmed `ekb_project_name` (e.g., `"Project Alpha"`). Do not include leading or trailing slashes. The tool will construct the final path as `<path_inside_bucket>/<filename>` automatically.
+- **`path_inside_bucket`**: when calling `gcs_upload_object`, set `path_inside_bucket` to the confirmed `ekb_project_name` (e.g., `"Project Alpha"`). Do not include leading or trailing slashes. The tool will construct the final path as `<path_inside_bucket>/<filename>` automatically.
 
 ---
 
@@ -127,7 +127,7 @@ For each returned `gcs_uri` (format: `gs://<bucket>/<object_path>`), split it:
 - `source_object_name` = everything after that first `/`
 
 **4b — Upload to KB Bucket (parallel)**
-Once all URIs are resolved, call `upload_object` for **all files simultaneously**:
+Once all URIs are resolved, call `gcs_upload_object` for **all files simultaneously**:
 - `source_bucket_name`: extracted from the `get_artifact_uri` response (see above).
 - `source_object_name`: extracted from the `get_artifact_uri` response (see above).
 - `destination_bucket`: `<project_id>-kb-landing-zone`
