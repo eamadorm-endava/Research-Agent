@@ -122,7 +122,7 @@ Populate the placeholders and preserve this section order:
 7. Date of the future session
 8. Documents that could be useful
 
-Save the document using `create_file` with `mime_type = "application/msword"` to produce a `.doc` file.
+Save the document using `google_drive_create_file` with `mime_type = "application/msword"` to produce a `.doc` file.
 
 ## Document generation rule
 

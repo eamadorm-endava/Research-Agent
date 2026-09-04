@@ -1,157 +1,109 @@
 ---
 name: knowledge-discovery
-description: MANDATORY PROTOCOL for data retrieval. You MUST trigger this skill whenever the user asks to "search", "find", "look up", "summarize", "investigate", or "retrieve" ANY information. If the user asks a question about a project, person, topic, email, calendar event, or ticket, you MUST trigger this skill first before answering. Examples "find emails about Project Alpha", "what is the status of the migration?", "search SharePoint for Q3 results".
+description: MANDATORY PROTOCOL for data retrieval and research. Trigger this skill whenever the user asks to "search", "find", "look up", "summarize", "investigate", or "retrieve" ANY information across enterprise, personal, collaborative, or communication tools. If the user asks about a project, person, topic, email, calendar event, ticket, document, or repository, you MUST follow this protocol before answering.
 ---
 
 ## Pre-Search Validation
 Before proceeding, verify whether the user has clearly stated the target of the search.
 **A query is considered unclear when it:**
-- Expresses intent without a topic (e.g., "search the EKB", "conduct research", "look it up").
-- Names only a source, not a subject (e.g., "check the knowledge base", "query the EKB", "search SharePoint").
+- Expresses intent without a topic (e.g., "search everything", "conduct research", "look it up").
+- Names only a source or tool, not a subject (e.g., "check the knowledge base", "query BigQuery", "search SharePoint").
 - Is too vague to form a meaningful search (e.g., "find documents", "search for info").
 
 **When the query is unclear**, execution must halt. Do not guess, infer, or proceed with a search. Respond EXACTLY with:
 > "What topic, document, project, or information would you like me to search for?"
 
-## Phase 0: Pre-Search Keyword Extraction
-Before launching any search tools, internally analyze the user's prompt to distill the core subjects.
-- Extract the primary entities (e.g., project names, company names, specific technologies).
-- Strip these down into **pure keywords of maximum 1 or 2 words** (e.g., extracting "Alpha" from "Project Alpha status report").
-- These distilled keywords MUST be used for all keyword-based corporate searches in Phase 1 to ensure high recall. NEVER use the raw, conversational user query for keyword parameters.
+---
 
-## Phase 1: Massive Parallel Corporate Discovery
-
-**CRITICAL RULE:** Do NOT launch personal data tools in this step unless the user explicitly declared them in their prompt. Corporate data MUST be searched first.
-**OMNI-SEARCH PROTOCOL:** If the user explicitly asks to search "all sources", "everywhere", or "all data" (e.g. "en todas las fuentes posibles"), you MUST bypass the sequential flow. You must launch **both Corporate (Phase 1) and Personal (Phase 4) listing/search tools concurrently** in the very first turn.
-
-Execute corporate tools CONCURRENTLY in a single parallel turn:
-1. `ekb_semantic_search`: `query` using the specific core request extracted from the user's prompt (e.g., "Alpha project status" rather than "Hello, can you tell me about the Alpha project status?"). Do NOT use the raw conversational prompt.
-2. `ekb_keyword_search`: `keyword` using the distilled 1-2 word entities from Phase 0.
-3. `search_sharepoint_sites`: broad business keyword (1-2 words max) from Phase 0.
-4. `list_calendar_events`: call with `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
-5. `outlook_list_calendar_events`: use the distilled 1-2 word entities in the `search_term` parameter. Leave `date_min` and `date_max` empty to default to 6 months of bounds. Use `sort_order` = `asc`.
-6. `outlook_list_emails`: execute a broad mailbox sweep using the distilled 1-2 word entities as `$search` criteria.
-7. `search_jira_issues`: using the distilled 1-2 word entities from Phase 0 for JQL search (e.g., `text ~ "<keyword>"`).
-8. `search_confluence_pages`: using the distilled 1-2 word entities from Phase 0.
-
-## Phase 2: Strict Relevance Filtering
-Evaluate the returned corporate data. If a source returns a keyword match that is semantically irrelevant to the user's prompt, you MUST completely ignore it to avoid distractions. NEVER include irrelevant matches in the final response or the references table.
-
-## Phase 3: Corporate Response & Mandatory UX Flow
-Generate the response based ONLY on the relevant corporate data.
-**CRITICAL REQUIREMENT:** At the end of the response, you MUST:
-1. Explicitly list which corporate sources were used to generate the answer.
-2. Conditionally ask the user the exact prompt below. **DO NOT ask this if:** you are just responding to conversational chat (e.g., "thanks"), you did not perform a search, or you already searched personal data sources.
-> "This information was obtained from corporate data sources. Would you like me to also search in your personal data sources (Google Drive, OneDrive, Cloud Storage buckets, and BigQuery tables)? It might take a few minutes."
-
-## Phase 4: Personal Source Expansion
-ONLY if the user replies "Yes" (or explicitly requested it upfront), execute the personal data source tools.
-
-**Anchor Extraction (Context Graph)**:
-Before searching personal data, build a relational map from the merged corporate results to generate enriched keywords. Do NOT just send the raw user query.
-- **Identities**: jira keys, confluence page ids, sharepoint site/page ids, summaries.
-- **Context**: description/body texts — key for generating personal data listing keywords.
-- **Entities**: company names (clients/partners), technologies, technical stacks.
-- **Relational Mapping**: map project names to their associated companies and tech stacks. Use these mapped pairs as the primary enriched keywords for the personal data listing tools.
-- **People**: uploader_email, reporter, assignee, and stakeholders mentioned in summaries.
-
-Use these enriched, mapped keywords (1 to 2 words max) to execute the personal data source tools concurrently.
-
-## Phase 5: Deep Content Extraction (Universal)
-Whether you are extracting context from personal data (Phase 4) or the user is asking to deep dive into a corporate result (Phase 3), you MUST execute the respective deep-read tools (`get_file_text`, `read_file`, `read_confluence_page`, `get_jira_issue_details`, `get_sharepoint_site_page`, etc.) on the top hits to extract the full body text and generate an enriched, in-depth summary. Do not stop at just listing titles.
-
-### EKB vs. Personal Data Definitions
-The current Google Cloud project ID is `<project_id>`. Use this logic to distinguish EKB vs Personal sources:
-- **Corporate EKB Buckets**: Any GCS bucket starting with `<project_id>-kb-` (e.g., `<project_id>-kb-finance`, `<project_id>-kb-hr`, `<project_id>-kb-it`).
-  - **CRITICAL RESTRICTION**: NEVER search in infrastructural buckets like `<project_id>-kb-landing-zone` or `<project_id>-kb-rag-staging`. Only target domain-specific buckets.
-- **Corporate EKB Datasets**: The `knowledge_base` BigQuery dataset.
-- **Personal Sources**: Google Drive, Microsoft OneDrive, and ANY BigQuery table or Cloud Storage bucket that does NOT match the EKB patterns above.
+## Phase 0: Temporal & Entity Extraction
+1. **Temporal Grounding**:
+   - If current time context is not yet established in the session, use `get_current_time()` to ground date-sensitive, relative, or time-bounded queries (e.g., "last month", "recent meetings", "since June 2026").
+2. **Entity Distillation**:
+   - Extract primary subjects, project codes, ticket IDs, person names, client names, and technical terms.
+   - Strip these down into **pure keywords of maximum 1 or 2 words** (e.g., extracting "Alpha" from "Project Alpha status report").
+   - These distilled keywords MUST be used for all broad discovery tool parameters. NEVER use the raw conversational user prompt for keyword parameters.
 
 ---
 
-## Data Source Tool Gotchas (MUST READ)
+## Phase 1: Massive Parallel Omni-Discovery
+Fire discovery tools across all active MCP servers CONCURRENTLY in a single turn. 
 
-### UNIVERSAL READING LIMITS
-- **Max Concurrency Per Turn**: You may execute a MAXIMUM of **5 deep-read tools concurrently** in a single turn.
-- **Dynamic Max Per Source**: 
-  - **Multi-Source (Omni-Search)**: If you are reading from multiple data sources in the same loop, you may read a maximum of **2 files per data source**.
-  - **Single-Source**: If you are doing a deep dive into only a **single data source** (e.g., only Confluence, or only SharePoint), you may use your full concurrency limit to read up to **5 files from that single source**.
-- **Max Loop Limit**: You are allowed to iterate up to a maximum of **8 internal reading loops**.
+You must dynamically identify and fire ALL available discovery tools that match the following regex patterns:
+- `*_search_*` (for keyword-based searches)
+- `*_list_*` (for broad sweeps or enumeration)
+- `*_query_*` (for semantic queries)
 
-### EKB DEEP DIVE PREFERENCE
-- For EKB data (vectorized in BQ), you MUST prefer using `ekb_semantic_search` to obtain more targeted information.
-- ONLY use `read_object` to read the full GCS file from a domain bucket if the absolute full context of the entire document is needed, or if the user explicitly requires full reading to be accurate and precise.
-
-### SHAREPOINT
-- **Sequence**: 1. `search_sharepoint_sites`, 2. `discover_sharepoint_site_content`, 3. `list_sharepoint_site_drives` / `list_sharepoint_site_lists` / `list_sharepoint_site_pages`, 4. `get_sharepoint_site_page` / `ingest_sharepoint_drive_item`.
-- Never invent IDs; use IDs returned by prior SharePoint tool calls. Do not expose raw IDs in the final answer.
-
-### GOOGLE DRIVE
-- `list_files(file_name=<keyword>)` — returns list of files. Strip keywords to max two words, but **single-word keywords are heavily preferred** for maximum discovery.
-- `get_file_text(file_id=<id>)` — extracts text using a real `file_id`.
-
-### MICROSOFT ONEDRIVE
-- `find_items(query=<keyword>)` — searches OneDrive.
-- `read_file(file_id=<id>)` — extracts text using a real `file_id`.
-
-### CALENDAR
-- The response schema includes `server_current_time_utc`. Use this along with the events' timezones to accurately classify events as `Past` or `Future` relative to the server time.
-- Display Format: render each event as a bullet-point block (Title, Time, Attendees, Meet link, Attachments, Description) separated by `---`.
-- **Deep Extraction**: Use `outlook_read_calendar_event(event_id=<id>)` after initial search lists are generated if you need to extract the full HTML/Text body, complete attendee lists, or exact attachment metadata.
-- **Attachments**: Use `outlook_read_calendar_event_attachment()` when reading a specific file attached to an Outlook calendar event.
-
-### MICROSOFT OUTLOOK
-- **Default Search**: Use `outlook_list_emails()` for any request to find, search, investigate, or summarize emails. Your search parameters MUST target the entire mailbox across all Outlook folders simultaneously. Do NOT limit the search to a specific folder (like Inbox or Sent Items) unless explicitly requested.
-- **Broad Queries**: If the user asks for "emails", "mail", "Outlook", or "messages" without specifying a location, execute a broad mailbox sweep using `$search` criteria across all folders.
-- **Folder Specific Requests**: Only use `outlook_list_folder()` or pass a `folder_id` into `outlook_list_emails()` when the user explicitly requests to list or search a designated folder (e.g., Inbox, Sent Items, Archive, custom folder) or asks for "recent messages" (which naturally map to the Inbox).
-- **Pagination**: When using `outlook_list_emails()`, ensure you retrieve all relevant emails and handle pagination correctly.
-- **Deep Extraction**: Use `outlook_read_email(email_id=<id>)` after initial search lists are generated if you need to extract the full HTML/Text body, exact recipient arrays, attachment payloads, or deep transport details.
-- **Attachments**: Use `outlook_read_email_attachment()` when reading a specific email attachment is required.
-
-### BIGQUERY
-1. `list_tables` to confirm which tables exist.
-2. `get_table_schema` if column names can't be inferred.
-3. `execute_query` with validated SQL.
-
-### JIRA & CONFLUENCE
-- **Jira**: `search_jira_issues` followed by `get_jira_issue_details` if needed.
-- **Confluence**: `search_confluence_pages` followed by `read_confluence_page` if needed. Returns `inject_file_data: True`.
-
-### GCS FILE READING
-- If reading a file directly from GCS, parse the GCS URI into `bucket_name` and `object_name`, and call `read_object`. The system intercepts it and loads it natively.
+**Parameter Mapping:**
+- For any parameter expecting a `query`, `keyword`, or `search_term`, use the 1-2 word distilled keywords from Phase 0.
+- For date or time bounds, default to a 6-month window ascending unless specified by the user.
 
 ---
 
-## Output Format (Full Report Mode)
-When synthesizing information from multiple sources, structure your final response using the exact markdown template below. **Do NOT include the "Output Format" title in your response.**
+## Phase 2: Relational Identity Graph & Cross-Search
+Analyze the results returned from Phase 1.
+1. **Relevance Filtering**: Discard keyword matches that are semantically irrelevant to the user's intent.
+2. **Context Graph Extraction**: Extract associated entities:
+   - **Ticket keys & Page IDs**: Jira issue keys, Confluence page IDs, SharePoint site IDs.
+   - **Stakeholders & People**: Authors, assignees, participants, senders, reviewers.
+   - **Organizations & Projects**: Client names, vendor names, repository names, technical tags.
+3. **Secondary Targeted Search (If Needed)**:
+   - If initial results yield partial information or reveal critical linked entities (e.g., an email mentions a Jira ticket key `PROJ-1234` or a specific file name), launch a quick targeted search for those specific identifiers in the respective tools.
 
-### Formatting Rules
-1. **STRICT NO-MONOLOGUE RULE:** You MUST NOT output conversational filler, internal thoughts, or intermediate status updates (e.g., "I have searched X", "I am now reading Y"). Your final response must strictly start with `## Summary`.
-2. **Meeting Sections:** If relevant meetings are found via Google Calendar OR Outlook Calendar, you MUST include the "Upcoming Meetings" and "Previous Meetings" sections. Treat events from both calendar sources identically. Omit these sections entirely only if no events exist in those timeframes or if no calendar search was executed. For every meeting, you MUST include: name of the meeting, description, attendees, organizer, meeting link, and whether it has attachments.
-3. **Reference Table Source Names:** Only use `BigQuery` or `Cloud Storage` for Personal Sources. EKB buckets must be attributed as `EKB`. For calendar events, specifically use `Google Calendar` or `Outlook Calendar`. For emails, use `Outlook Email`. For Jira and Confluence, use `Jira` and `Confluence`. All found meetings and emails related to the search query must be listed in the references.
-4. **Personal Search Follow-Up Prompt:** If you retrieved data from corporate sources AND you have NOT yet searched personal data, you must display the following question (outside of the Reference table)
-"This information was obtained from corporate data sources. Would you like me to also search in your personal data sources (Google Drive, OneDrive, Cloud Storage buckets, and BigQuery tables)? It might take a few minutes."
+---
+
+## Phase 3: Selective Deep Reading (Need-to-Know Only)
+Do NOT read entire document payloads or full email/event bodies if the snippet/metadata (`bodyPreview`, summary, description, schema) already satisfies the user's inquiry.
+
+When deeper inspection is strictly required, execute deep-reading tools ONLY for the specific IDs or items discovered in Phase 1. You must dynamically identify and use tools matching the following patterns:
+- `*_read_*` (for reading full content bodies)
+- `*_get_*` or `*_details*` (for fetching metadata or specific details)
+
+### Concurrency & Reading Guardrails
+- **Max Concurrency Per Turn**: Maximum **5 deep-read tool calls** in a single turn.
+- **Dynamic Max Per Source**:
+  - Multi-source search: Maximum **2 deep files per data source**.
+  - Single-source deep dive: Maximum **5 files** from that single source.
+- **Max Loop Limit**: Maximum **8 internal iterations** before synthesizing findings.
+
+---
+
+## Phase 4: Executive Output Format
+Structure your synthesized response using the markdown template below. **Do NOT include the "Executive Output Format" title in your response.**
+
+### Formatting Guidelines
+1. **STRICT NO-MONOLOGUE RULE**: Never output intermediate thoughts or conversational status logs (e.g., "I am reading Jira tickets"). Start immediately with `## Summary`.
+2. **Calendar & Meetings**: If meetings are found (from Google Calendar or Outlook Calendar), render the "Upcoming Meetings" and "Previous Meetings" sections (name, description, attendees, organizer, meeting link, attachments). Omit these sections only if no calendar search was executed or no events exist.
+3. **References Table**: Every relevant piece of evidence must be cited in the table. The `Source` column must display the human-readable platform name derived from the MCP tool (e.g., `EKB`, `Jira`, `Confluence`, `Google Drive`, `OneDrive`, `SharePoint`, `Google Calendar`, `Outlook Calendar`, `Outlook Email`, `BigQuery`, `Cloud Storage`).
 
 ### Output Template
 ```markdown
 ## Summary
-[1–2 paragraphs. Brief context of what was found across the systems, the core topic, and its relevance. No bullet points.]
+[1–2 paragraphs. Crisp, executive overview of findings across all consulted data sources, answering the core question directly. No bullet points.]
 
 ## Key Findings
-- [Bullet list of the most important facts, decisions, ticket updates, page entries, and dates extracted from the sources.]
+- [Bulleted list of the most critical facts, project statuses, technical decisions, and notable updates extracted from sources.]
 
-## Stakeholders
-- [Name (Role) - Email]
+## Action Items & Next Steps
+- [Actionable follow-up item with designated owner and deadline if identified in sources.]
+
+## Stakeholders & Contacts
+- [Name (Role / Organization) - Email]
 
 ## Upcoming Meetings
-[List meetings occurring after the current server time. Separate with `---`. Each meeting must include: name, description, attendees, organizer, meeting link, and attachment status.]
+[Meetings occurring after current date/time. Separate with `---`. Include: Name, Date/Time, Organizer, Attendees, Meeting Link, Attachments status.]
 
 ## Previous Meetings
-[List meetings that occurred before the current server time. Separate with `---`. Each meeting must include: name, description, attendees, organizer, meeting link, and attachment status.]
+[Meetings that occurred before current date/time. Separate with `---`. Include: Name, Date/Time, Organizer, Attendees, Meeting Link, Attachments status.]
 
 ## References
-| Source | Project Name | Filename / Item Name | Owner / Assignee | Created at / Last Update |
+| Source | Project / Context | Item Name / Subject / Title | Owner / Author | Date / Last Update |
 |:---:|:---:|:---:|:---:|:---:|
-| [EKB/Drive/Google Calendar/Outlook Calendar/Outlook Email/Jira/Confluence/etc] | [Project] | [Filename/Meeting Name/Email Subject/Issue Key/Page Title] | [Email/Assignee] | [YYYY-MM-DD] |
-
+| [Source Name] | [Project/Domain] | [Filename / Email Subject / Ticket Key / Page Title] | [Owner Email / Assignee] | [YYYY-MM-DD] |
 ```
+
+---
+
+## Tool Naming Standard Enforcement
+To successfully execute this skill, you rely on the consistent naming convention of MCP tools. If you are ever tasked with creating or modifying a new MCP tool for discovery or reading, you MUST ensure it follows the format: `[datasource]_[verb]_[entity]`.
+- **Discovery verbs:** `search`, `list`, or `query`.
+- **Reading verbs:** `read`, `get`, or `details`.

@@ -32,7 +32,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def find_items(request: FindItemsRequest) -> FindItemsResponse:
+async def onedrive_search_files(request: FindItemsRequest) -> FindItemsResponse:
     """
     Search for items globally across the OneDrive environment.
     Performs fuzzy matching on the item name, bounded by date filters and folder scopes.
@@ -43,12 +43,12 @@ async def find_items(request: FindItemsRequest) -> FindItemsResponse:
     Returns:
         FindItemsResponse -> A paginated list of matching items, organized structurally.
     """
-    logger.info("Tool call: find_items(item_name=%s)", request.item_name)
+    logger.info("Tool call: onedrive_search_files(item_name=%s)", request.item_name)
     try:
         client = create_onedrive_client()
         return await client.find_items(request)
     except Exception as exc:
-        logger.exception("Error during find_items execution")
+        logger.exception("Error during onedrive_search_files execution")
         return FindItemsResponse(
             execution_status="error",
             execution_message=f"Error finding items: {str(exc)}",
@@ -61,7 +61,7 @@ async def find_items(request: FindItemsRequest) -> FindItemsResponse:
 
 
 @mcp.tool()
-async def list_folder_contents(
+async def onedrive_list_files(
     request: ListFolderContentsRequest,
 ) -> ListFolderContentsResponse:
     """
@@ -74,12 +74,12 @@ async def list_folder_contents(
     Returns:
         ListFolderContentsResponse -> A paginated list of explicit child items within the folder.
     """
-    logger.info("Tool call: list_folder_contents(folder_id=%s)", request.folder_id)
+    logger.info("Tool call: onedrive_list_files(folder_id=%s)", request.folder_id)
     try:
         client = create_onedrive_client()
         return await client.list_folder_contents(request)
     except Exception as exc:
-        logger.exception("Error during list_folder_contents execution")
+        logger.exception("Error during onedrive_list_files execution")
         return ListFolderContentsResponse(
             execution_status="error",
             execution_message=f"Error listing folder contents: {str(exc)}",
@@ -92,7 +92,7 @@ async def list_folder_contents(
 
 
 @mcp.tool()
-async def read_file(request: ReadFileRequest) -> ReadFileResponse:
+async def onedrive_read_file(request: ReadFileRequest) -> ReadFileResponse:
     """
     Read and ingest a specific file from OneDrive into the GCS Landing Zone.
     Zero-copy streaming bypasses local memory and provisions direct multimodal ingestion.
@@ -103,12 +103,12 @@ async def read_file(request: ReadFileRequest) -> ReadFileResponse:
     Returns:
         ReadFileResponse -> The landing zone URI and ingestion metadata.
     """
-    logger.info("Tool call: read_file(file_id=%s)", request.file_id)
+    logger.info("Tool call: onedrive_read_file(file_id=%s)", request.file_id)
     try:
         client = create_onedrive_client()
         return await client.read_file(request)
     except Exception as exc:
-        logger.exception("Error during read_file execution")
+        logger.exception("Error during onedrive_read_file execution")
         return ReadFileResponse(
             execution_status="error",
             execution_message=f"Error reading file: {str(exc)}",
