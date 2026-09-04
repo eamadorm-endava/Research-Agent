@@ -26,15 +26,16 @@ Before proceeding, verify whether the user has clearly stated the target of the 
 ---
 
 ## Phase 1: Massive Parallel Omni-Discovery
-Fire discovery tools (`*_search_*`, `*_list_*`, `*_query_*`) across all active MCP servers CONCURRENTLY in a single turn:
+Fire discovery tools across all active MCP servers CONCURRENTLY in a single turn. 
 
-- **EKB / BigQuery**: `bigquery_ekb_semantic_search` (using distilled core subject), `bigquery_ekb_keyword_search` (using 1-2 word keywords), `bigquery_list_tables`.
-- **Atlassian Jira & Confluence**: `jira_search_issues` (using JQL `text ~ "<keyword>"`), `confluence_search_pages` (using CQL).
-- **Microsoft SharePoint**: `sharepoint_search_sites`, `sharepoint_search_drive_items`.
-- **Google Drive & Microsoft OneDrive**: `google_drive_list_files` (using 1-word keyword), `onedrive_search_files` (using 1-word keyword).
-- **Calendar & Meetings**: `google_calendar_list_events`, `outlook_list_calendar_events` (default bounds to 6 months, sort ascending).
-- **Email & Communications**: `outlook_list_emails` (broad sweep across folders using `$search="<keyword>"`).
-- **Cloud Storage**: `gcs_list_buckets`, `gcs_list_objects`.
+You must dynamically identify and fire ALL available discovery tools that match the following regex patterns:
+- `*_search_*` (for keyword-based searches)
+- `*_list_*` (for broad sweeps or enumeration)
+- `*_query_*` (for semantic queries)
+
+**Parameter Mapping:**
+- For any parameter expecting a `query`, `keyword`, or `search_term`, use the 1-2 word distilled keywords from Phase 0.
+- For date or time bounds, default to a 6-month window ascending unless specified by the user.
 
 ---
 
@@ -53,14 +54,9 @@ Analyze the results returned from Phase 1.
 ## Phase 3: Selective Deep Reading (Need-to-Know Only)
 Do NOT read entire document payloads or full email/event bodies if the snippet/metadata (`bodyPreview`, summary, description, schema) already satisfies the user's inquiry.
 
-Execute deep-reading tools (`*_read_*`, `*_get_*`, `*_details*`) ONLY when deeper inspection is strictly required:
-- **Google Drive**: `google_drive_get_file_text(file_id=...)`
-- **OneDrive**: `onedrive_read_file(file_id=...)`
-- **SharePoint**: `sharepoint_get_site_page(page_id=...)` or `sharepoint_ingest_drive_item(...)`
-- **Confluence**: `confluence_read_page(page_id=...)`
-- **Jira**: `jira_get_issue_details(issue_id_or_key=...)`
-- **Outlook**: `outlook_read_email(email_id=...)`, `outlook_read_calendar_event(event_id=...)`
-- **Google Cloud Storage**: `gcs_read_object(bucket_name=..., object_name=...)`
+When deeper inspection is strictly required, execute deep-reading tools ONLY for the specific IDs or items discovered in Phase 1. You must dynamically identify and use tools matching the following patterns:
+- `*_read_*` (for reading full content bodies)
+- `*_get_*` or `*_details*` (for fetching metadata or specific details)
 
 ### Concurrency & Reading Guardrails
 - **Max Concurrency Per Turn**: Maximum **5 deep-read tool calls** in a single turn.
@@ -104,3 +100,10 @@ Structure your synthesized response using the markdown template below. **Do NOT 
 |:---:|:---:|:---:|:---:|:---:|
 | [Source Name] | [Project/Domain] | [Filename / Email Subject / Ticket Key / Page Title] | [Owner Email / Assignee] | [YYYY-MM-DD] |
 ```
+
+---
+
+## Tool Naming Standard Enforcement
+To successfully execute this skill, you rely on the consistent naming convention of MCP tools. If you are ever tasked with creating or modifying a new MCP tool for discovery or reading, you MUST ensure it follows the format: `[datasource]_[verb]_[entity]`.
+- **Discovery verbs:** `search`, `list`, or `query`.
+- **Reading verbs:** `read`, `get`, or `details`.
