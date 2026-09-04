@@ -42,12 +42,16 @@ ai_agent_iam_project_roles = [
   "roles/serviceusage.serviceUsageConsumer",
   "roles/iam.serviceAccountOpenIdTokenCreator",
   "roles/cloudtrace.agent",
-  "roles/agentregistry.admin"
+  "roles/agentregistry.admin",
+  "roles/monitoring.metricWriter",
+  "roles/logging.logWriter"
 ]
 
 vertex_ai_agent_iam_project_roles = [
   "roles/modelarmor.user",
-  "roles/cloudtrace.agent"
+  "roles/cloudtrace.agent",
+  "roles/monitoring.metricWriter",
+  "roles/logging.logWriter"
 ]
 
 
