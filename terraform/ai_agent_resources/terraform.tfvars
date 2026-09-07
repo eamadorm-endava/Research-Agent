@@ -44,7 +44,8 @@ ai_agent_iam_project_roles = [
   "roles/cloudtrace.agent",
   "roles/agentregistry.admin",
   "roles/monitoring.metricWriter",
-  "roles/logging.logWriter"
+  "roles/logging.logWriter",
+  "roles/telemetry.tracesWriter"
 ]
 
 vertex_ai_agent_iam_project_roles = [
