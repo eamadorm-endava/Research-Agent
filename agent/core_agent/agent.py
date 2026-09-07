@@ -46,7 +46,7 @@ def init_gcp_metrics():
 
         # 2. Configura el lector para exportar cada 5 segundos (5000 ms)
         # Esto es vital para evitar el CPU throttling en Cloud Run
-        reader = PeriodicExportingMetricReader(exporter, export_interval_millis=2000)
+        reader = PeriodicExportingMetricReader(exporter, export_interval_millis=10_000)
 
         # 3. Registra el provider globalmente
         provider = MeterProvider(metric_readers=[reader])
