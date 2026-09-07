@@ -28,6 +28,37 @@ from .config import (
     MICROSOFT_AUTH_CONFIG,
     ATLASSIAN_AUTH_CONFIG,
 )
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.exporter.cloud_monitoring import CloudMonitoringMetricsExporter
+
+
+def init_gcp_metrics():
+    # Evita inicializar el provider múltiples veces si hay varios workers
+    if isinstance(metrics.get_meter_provider(), MeterProvider):
+        return
+
+    try:
+        # 1. Crea el exportador nativo apuntando a tu proyecto
+        # CloudMonitoringMetricsExporter toma el project_id del entorno automáticamente
+        exporter = CloudMonitoringMetricsExporter()
+
+        # 2. Configura el lector para exportar cada 5 segundos (5000 ms)
+        # Esto es vital para evitar el CPU throttling en Cloud Run
+        reader = PeriodicExportingMetricReader(exporter, export_interval_millis=2000)
+
+        # 3. Registra el provider globalmente
+        provider = MeterProvider(metric_readers=[reader])
+        metrics.set_meter_provider(provider)
+        print("Exportador de métricas de GCP inicializado correctamente.")
+    except Exception as e:
+        print(f"Advertencia: No se pudieron configurar las métricas de GCP: {e}")
+
+
+# Llama a la función ANTES de instanciar tu app
+init_gcp_metrics()
+
 
 # ---------------------------------------------------------------------------
 # MCP Configuration Instantiation
