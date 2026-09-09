@@ -3,8 +3,6 @@ substitutions:
   _AGENT_DISPLAY_NAME: "OSIRIS - Test"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
-  _METRICS_DATASET_ID: "agent_metrics"
-  _METRICS_TABLE_ID: "response_times"
   _REGISTER_AGENT_IN_GE: "true"
   _GE_REGION: "global"
   _GE_APP_NAME_SUFFIX: "osiris-app"
@@ -214,7 +212,11 @@ steps:
         ENV_VARS="$${ENV_VARS},OTEL_INSTRUMENTATION_GENAI_UPLOAD_FORMAT=jsonl"
         ENV_VARS="$${ENV_VARS},OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK=upload"
         ENV_VARS="$${ENV_VARS},OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH=gs://${PROJECT_ID}-ai-agent-landing-zone/traces"
+        ENV_VARS="$${ENV_VARS},OTEL_SERVICE_NAME=osiris-agent"
         ENV_VARS="$${ENV_VARS},OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true"
+        ENV_VARS="$${ENV_VARS},OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental"
+        ENV_VARS="$${ENV_VARS},OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY"
+        ENV_VARS="$${ENV_VARS},ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false"
         ENV_VARS="$${ENV_VARS},GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true"
 
         uv run --group ai-agent --group dev python -m agent.deployment.deploy \

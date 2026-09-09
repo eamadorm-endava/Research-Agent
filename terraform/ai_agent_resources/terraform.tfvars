@@ -44,7 +44,8 @@ ai_agent_iam_project_roles = [
   "roles/cloudtrace.agent",
   "roles/agentregistry.admin",
   "roles/monitoring.metricWriter",
-  "roles/logging.logWriter"
+  "roles/logging.logWriter",
+  "roles/telemetry.tracesWriter"
 ]
 
 vertex_ai_agent_iam_project_roles = [
@@ -53,10 +54,3 @@ vertex_ai_agent_iam_project_roles = [
   "roles/monitoring.metricWriter",
   "roles/logging.logWriter"
 ]
-
-
-
-# Metrics Plugin
-bq_metrics_dataset_id          = "agent_metrics"
-bq_metrics_dataset_description = "Dataset to collect agent and tool response time metrics"
-bq_metrics_table_id            = "response_times"

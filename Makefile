@@ -9,9 +9,8 @@ CALENDAR_PROD_URL?=https://calendar-mcp-server-1057005221381.us-central1.run.app
 EKB_PIPELINE_URL?=https://ekb-pipeline-server-1057005221381.us-central1.run.app
 GOOGLE_AUTH_ID?=mock-GE-drive-auth-resource-id
 LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
-METRICS_DATASET_ID?=agent_metrics
-METRICS_TABLE_ID?=response_times
 ### General Commands ###
+
 
 gcloud-auth:
 	gcloud config unset auth/impersonate_service_account
@@ -34,8 +33,8 @@ verify-all-ci:
 	$(MAKE) verify-gcs-ci
 	$(MAKE) verify-drive-ci
 	$(MAKE) verify-calendar-ci
-	$(MAKE) verify-metrics-ci
 	$(MAKE) verify-onedrive-ci
+
 	$(MAKE) verify-sharepoint-ci
 	$(MAKE) verify-ekb-ci
 	$(MAKE) verify-atlassian-ci
@@ -92,7 +91,7 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET},METRICS_PROJECT_ID=${PROJECT_ID},METRICS_DATASET_ID=${METRICS_DATASET_ID},METRICS_TABLE_ID=${METRICS_TABLE_ID}"
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},OTEL_METRICS_EXPORTER=gcp_monitoring,OTEL_TRACES_EXPORTER=gcp_trace,OTEL_LOGS_EXPORTER=gcp_logging,OTEL_SERVICE_NAME=osiris-agent,GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true,OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental,OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true,OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY,ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
@@ -184,23 +183,8 @@ verify-calendar-ci:
 	$(MAKE) run-calendar-tests
 	$(MAKE) build-calendar-mcp-image
 
-### Metrics Plugin Commands ###
-
-run-metrics-precommit:
-	uvx pre-commit run --files agent/plugins/metrics/**/*
-
-run-metrics-tests:
-	cd agent && uv run --group ai-agent --group dev pytest tests/plugins/test_metrics_plugin.py
-
-verify-metrics-ci:
-	$(MAKE) run-metrics-precommit
-	$(MAKE) run-metrics-tests
-	$(MAKE) test-metrics-terraform
-
-test-metrics-terraform:
-	cd terraform/ai_agent_resources && rm -rf .terraform .terraform.lock.hcl && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
-
 ### OneDrive MCP Commands ###
+
 
 run-onedrive-precommit:
 	uvx pre-commit run --files mcp_servers/onedrive/**/*

@@ -29,7 +29,9 @@ from .config import (
     ATLASSIAN_AUTH_CONFIG,
 )
 
+
 # ---------------------------------------------------------------------------
+
 # MCP Configuration Instantiation
 # ---------------------------------------------------------------------------
 BIGQUERY_MCP_CONFIG = BigQueryMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)

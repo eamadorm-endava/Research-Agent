@@ -1,6 +1,12 @@
 import logging
+from typing import Optional
 from loguru import logger
 import google.cloud.logging
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from google.adk.telemetry.google_cloud import get_gcp_exporters, get_gcp_resource
+from google.adk.telemetry.setup import maybe_set_otel_providers
+from .config.agent_settings import GCP_CONFIG
 
 
 class PropagateHandler(logging.Handler):
@@ -15,25 +21,65 @@ class PropagateHandler(logging.Handler):
         logging.getLogger(record.name).handle(record)
 
 
-def setup_observability() -> None:
+def _setup_cloud_logging() -> None:
     """
-    Initializes OpenTelemetry exporters and hooks Loguru into standard Python
-    logging, which is intercepted by google.cloud.logging.
+    Configures Google Cloud Logging and bridges Loguru output.
 
-    This ensures that logs correctly define their real level in Cloud Logging
-    instead of just outputting everything as INFO to stderr.
+    Args:
+        None
+
+    Returns:
+        None
     """
-    # 1. Initialize Google Cloud Logging standard handler
-    client = google.cloud.logging.Client()
-    client.setup_logging()
+    try:
+        client = google.cloud.logging.Client()
+        client.setup_logging()
+    except Exception as err:
+        logger.debug(f"Cloud Logging skipped (running locally or without ADC): {err}")
 
-    # 2. Redirect Loguru to standard Python logging
-    # Remove the default loguru stderr handler if it exists
     logger.remove()
-
-    # Add our PropagateHandler to loguru
     logger.add(PropagateHandler(), format="{message}")
 
-    # Note: OpenTelemetry auto-instrumentation is driven by environment variables
-    # injected via `.env` (or CI/CD runtime variables), such as `OTEL_TRACES_EXPORTER=gcp_trace`
-    # The ADK runtime automatically instruments underlying models and traces.
+
+def _setup_cloud_metrics(project_id: Optional[str] = None) -> None:
+    """
+    Initializes OpenTelemetry MeterProvider with Cloud Monitoring exporter.
+
+    Args:
+        project_id: Optional[str] -> Target GCP project ID for metrics
+
+    Returns:
+        None
+    """
+    if isinstance(metrics.get_meter_provider(), MeterProvider):
+        return
+
+    resolved_project_id = project_id or GCP_CONFIG.PROJECT_ID
+    try:
+        hooks = get_gcp_exporters(
+            enable_cloud_tracing=True,
+            enable_cloud_metrics=True,
+            enable_cloud_logging=False,
+        )
+        resource = get_gcp_resource(project_id=resolved_project_id)
+        maybe_set_otel_providers(
+            otel_hooks_to_setup=[hooks],
+            otel_resource=resource,
+        )
+        logger.info("OpenTelemetry Cloud Monitoring metrics provider initialized.")
+    except Exception as err:
+        logger.warning(f"Could not initialize Cloud Monitoring metrics provider: {err}")
+
+
+def setup_observability(project_id: Optional[str] = None) -> None:
+    """
+    Initializes both Cloud Logging and OpenTelemetry Cloud Monitoring metrics.
+
+    Args:
+        project_id: Optional[str] -> Target GCP project ID for metrics
+
+    Returns:
+        None
+    """
+    _setup_cloud_logging()
+    _setup_cloud_metrics(project_id=project_id)
