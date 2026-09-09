@@ -28,52 +28,10 @@ from .config import (
     MICROSOFT_AUTH_CONFIG,
     ATLASSIAN_AUTH_CONFIG,
 )
-import os
-import uuid
-from opentelemetry import metrics
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.exporter.cloud_monitoring import CloudMonitoringMetricsExporter
-from opentelemetry.sdk.resources import Resource
-
-
-def init_gcp_metrics():
-    # Evita la doble inicialización si el worker se recarga
-    if isinstance(metrics.get_meter_provider(), MeterProvider):
-        return
-
-    try:
-        exporter = CloudMonitoringMetricsExporter()
-
-        # 15 segundos evita el límite de GCP (10s) y le gana al CPU Throttling
-        reader = PeriodicExportingMetricReader(exporter, export_interval_millis=15000)
-
-        # Crea un identificador inmutable y único para cada proceso de Python (worker)
-        worker_id = f"worker-{os.getpid()}-{uuid.uuid4().hex[:8]}"
-
-        # El atributo service.instance.id es el estándar de OpenTelemetry para aislar réplicas
-        resource = Resource.create(
-            {"service.name": "osiris-agent", "service.instance.id": worker_id}
-        )
-
-        # Asigna el provider con el recurso etiquetado
-        provider = MeterProvider(metric_readers=[reader], resource=resource)
-        metrics.set_meter_provider(provider)
-
-        print(f"Exportador OTel inicializado correctamente para {worker_id}")
-    except Exception as e:
-        print(f"Advertencia: Fallo al inicializar métricas de GCP: {e}")
-
-
-# Llama a la función inmediatamente en la carga del módulo
-init_gcp_metrics()
-
-
-# Llama a la función ANTES de instanciar tu app
-init_gcp_metrics()
 
 
 # ---------------------------------------------------------------------------
+
 # MCP Configuration Instantiation
 # ---------------------------------------------------------------------------
 BIGQUERY_MCP_CONFIG = BigQueryMCPConfig(OAUTH_CONFIG=GOOGLE_AUTH_CONFIG)
