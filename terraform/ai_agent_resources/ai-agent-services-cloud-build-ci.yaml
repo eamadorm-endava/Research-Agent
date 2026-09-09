@@ -3,8 +3,6 @@ substitutions:
   _AGENT_DISPLAY_NAME: "OSIRIS - Test"
   _MODEL_ARMOR_TEMPLATE_ID: "security-template"
   _AGENT_SA: "adk-agent"
-  _METRICS_DATASET_ID: "agent_metrics"
-  _METRICS_TABLE_ID: "response_times"
   _REGISTER_AGENT_IN_GE: "true"
   _GE_REGION: "global"
   _GE_APP_NAME_SUFFIX: "osiris-app"
@@ -186,6 +184,7 @@ steps:
           -o agent/core_agent/requirements.txt
 
         ENV_VARS="PROJECT_ID=${PROJECT_ID}"
+        ENV_VARS="$${ENV_VARS},GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
         ENV_VARS="$${ENV_VARS},REGION=${_REGION}"
         ENV_VARS="$${ENV_VARS},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone"
         ENV_VARS="$${ENV_VARS},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
