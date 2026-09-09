@@ -21,3 +21,4 @@ We recommend reviewing these documents logically as they walk through building, 
 - **[10-AgentTool-vs-SubAgents.md](10-AgentTool-vs-SubAgents.md)**: Deep-dive comparison of the two ADK multi-agent delegation patterns — `AgentTool` (explicit tool invocation) vs. `sub_agents=` (LLM-transfer) — covering internal mechanics, event propagation, and a decision guide.
 - **[11-MCP-Data-Transmission-Methods.md](11-MCP-Data-Transmission-Methods.md)**: Comparison of MCP file transmission architectures (Text-Only vs. GCS Landing Zone).
 - **[12-Observability.md](12-Observability.md)**: Documentation on Traces, Logs, and Metrics using OpenTelemetry and GCP Cloud Operations.
+- **[13-GCP-Telemetry-Implementation-Architecture.md](13-GCP-Telemetry-Implementation-Architecture.md)**: Diagrammatic implementation architecture for Metrics, Traces, and Logs (with Loguru bridge) sent to GCP.
