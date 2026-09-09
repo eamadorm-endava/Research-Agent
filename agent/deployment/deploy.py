@@ -212,6 +212,8 @@ def deploy_agent_engine_app(
         AgentEngine -> The created or updated remote Agent Engine resource.
     """
     env_vars = parse_key_value_pairs(set_env_vars)
+    # GOOGLE_CLOUD_PROJECT is a reserved environment variable managed by Agent Engine
+    env_vars.pop("GOOGLE_CLOUD_PROJECT", None)
 
     env_vars["GOOGLE_CLOUD_REGION"] = location
     env_vars["NUM_WORKERS"] = str(num_workers)

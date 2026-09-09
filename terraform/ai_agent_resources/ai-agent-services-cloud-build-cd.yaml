@@ -212,7 +212,6 @@ steps:
           -o agent/core_agent/requirements.txt
         
         ENV_VARS="PROJECT_ID=${PROJECT_ID}"
-        ENV_VARS="$${ENV_VARS},GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
         ENV_VARS="$${ENV_VARS},REGION=${_REGION}"
         ENV_VARS="$${ENV_VARS},LANDING_ZONE_BUCKET=${PROJECT_ID}-ai-agent-landing-zone"
         ENV_VARS="$${ENV_VARS},MODEL_ARMOR_TEMPLATE_ID=${_MODEL_ARMOR_TEMPLATE_ID}"
