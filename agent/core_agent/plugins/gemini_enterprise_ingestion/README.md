@@ -23,4 +23,32 @@ This plugin acts as an interceptor to bridge the gap:
 2. **Discovers**: It extracts the `filename` from the tag and uses `artifact_service.get_artifact_metadata(filename)` to query the Landing Zone bucket and discover the exact `gs://...` URI of the file GE just uploaded.
 3. **Replaces**: It slices the text tag out of the prompt and replaces it with a fully hydrated `types.Part(file_data=...)` object. 
 
-When the LLM receives the prompt, the text tag is replaced with a native GCS reference, allowing the agent to securely read the file
+When the LLM receives the prompt, the text tag is replaced with a native GCS reference, allowing the agent to securely read the file.
+
+---
+
+## How to Use It
+
+### Registration
+Register the plugin in `agent/core_agent/agent.py` when building the production agent:
+
+```python
+from agent.core_agent.plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
+from agent.core_agent.builder import AppBuilder
+
+app = (
+    AppBuilder(
+        agent=root_agent,
+        gcp_config=GCP_CONFIG,
+        agent_config=COORDINATOR_CONFIG,
+    )
+    .with_plugins([
+        GeminiEnterpriseFileIngestionPlugin(),
+        # other plugins...
+    ])
+    .build()
+)
+```
+
+> [!NOTE]
+> In local development environments (`ADK Web`), the built-in `SaveFilesAsArtifactsPlugin` is used instead, whereas `GeminiEnterpriseFileIngestionPlugin` is registered for production and Agent Engine deployments.

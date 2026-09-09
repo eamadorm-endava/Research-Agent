@@ -60,3 +60,39 @@ sequenceDiagram
 ## Internal Structure
 
 Because this plugin is highly specialized and focuses entirely on modifying the `LlmRequest` payload, it does not require external configuration (`config.py`) or custom Pydantic schemas (`schemas.py`). It operates purely on the standard `google.genai.types` objects provided by the ADK.
+
+---
+
+## How to Use It
+
+### Registration
+Register the plugin inside `AppBuilder` in `agent/core_agent/agent.py`:
+
+```python
+from agent.core_agent.plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
+from agent.core_agent.builder import AppBuilder
+
+app = (
+    AppBuilder(
+        agent=root_agent,
+        gcp_config=GCP_CONFIG,
+        agent_config=COORDINATOR_CONFIG,
+    )
+    .with_plugins([
+        MultimodalFileInjectionPlugin(),
+        # other plugins...
+    ])
+    .build()
+)
+```
+
+### Trigger Mechanism
+The plugin activates automatically whenever any tool returns a dictionary containing:
+```python
+{
+    "inject_file_data": True,
+    "gcs_uri": "gs://<bucket>/path/to/file.pdf",
+    "mime_type": "application/pdf",
+}
+```
+The plugin intercepts the subsequent `before_model_callback`, reads these attributes from the tool execution result, and injects a `types.Part.from_uri(file_uri=gcs_uri, mime_type=mime_type)` sibling part directly into the LLM request.
