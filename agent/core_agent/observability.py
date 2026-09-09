@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import Optional
 from loguru import logger
 import google.cloud.logging
@@ -7,6 +6,7 @@ from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
 from google.adk.telemetry.google_cloud import get_gcp_exporters, get_gcp_resource
 from google.adk.telemetry.setup import maybe_set_otel_providers
+from .config.agent_settings import GCP_CONFIG
 
 
 class PropagateHandler(logging.Handler):
@@ -54,9 +54,7 @@ def _setup_cloud_metrics(project_id: Optional[str] = None) -> None:
     if isinstance(metrics.get_meter_provider(), MeterProvider):
         return
 
-    resolved_project_id = (
-        project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID")
-    )
+    resolved_project_id = project_id or GCP_CONFIG.PROJECT_ID
     try:
         hooks = get_gcp_exporters(
             enable_cloud_tracing=True,
