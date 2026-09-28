@@ -28,7 +28,8 @@ apis_to_enable = [
   "monitoring.googleapis.com",
   "saasservicemgmt.googleapis.com",
   "storage.googleapis.com",
-  "storage-component.googleapis.com"
+  "storage-component.googleapis.com",
+  "firestore.googleapis.com"
 ]
 
 ai_agent_service_account_name = "adk-agent"
@@ -45,7 +46,8 @@ ai_agent_iam_project_roles = [
   "roles/agentregistry.admin",
   "roles/monitoring.metricWriter",
   "roles/logging.logWriter",
-  "roles/telemetry.tracesWriter"
+  "roles/telemetry.tracesWriter",
+  "roles/datastore.user"
 ]
 
 vertex_ai_agent_iam_project_roles = [

@@ -23,6 +23,7 @@ ai-agent = [
     "loguru>=0.7.3",
     "httpx>=0.28.1",
     "google-auth>=2.0.0",
+    "google-cloud-firestore>=2.19.0",
     "google-cloud-logging",
     "opentelemetry-api",
     "opentelemetry-sdk",
@@ -140,6 +141,21 @@ mcp_sharepoint = [
     "pydantic-settings>=2.13.1",
     "httpx>=0.27.0",
     "loguru>=0.7.3",
+]
+backend = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "requests>=2.31.0",
+    "loguru>=0.7.0",
+    "google-cloud-aiplatform>=1.138.0",
+    "google-auth>=2.0.0",
+    "google-cloud-firestore>=2.19.0",
+]
+frontend = [
+    "streamlit>=1.32.0",
+    "requests>=2.31.0",
 ]
 
 [tool.pytest.ini_options]
