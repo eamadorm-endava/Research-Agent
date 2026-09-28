@@ -91,11 +91,14 @@ async def login(provider: str, request: Request):
     scopes = PROVIDER_SCOPES.get(provider, [])
     scope_str = " ".join(scopes)
 
+    import uuid
+
     params = {
         "client_id": config.CLIENT_ID,
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": scope_str,
+        "state": str(uuid.uuid4()),  # State is STRICTLY REQUIRED by Atlassian 3LO
     }
 
     # Provider-specific parameters
