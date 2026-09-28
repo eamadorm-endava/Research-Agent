@@ -69,6 +69,12 @@ def test_get_mcp_toolset_prod_mode_logic():
     """Test factory prod mode structures (delegated token, no ADK schemes)."""
     with patch.dict(os.environ, {"BIGQUERY_AUTH_ID": "test-id"}, clear=True):
         mcp_config = BigQueryMCPConfig(_env_file=None)
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            _env_file=None,
+        )
 
     builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=True)
@@ -99,6 +105,12 @@ def test_get_mcp_toolset_prod_mode_gcs_uses_delegated_token():
     """Test factory prod mode for GCS forwards the delegated OAuth token."""
     with patch.dict(os.environ, {"GCS_AUTH_ID": "gcs-auth-id"}, clear=True):
         mcp_config = GCSMCPConfig()
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            _env_file=None,
+        )
 
     builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=True)
