@@ -43,7 +43,7 @@ if st.session_state.pending_prompt:
         payload = {"message": prompt, "session_id": st.session_state.session_id}
         headers = {
             # Mocking the IAP header for local development
-            "X-Goog-Authenticated-User-Email": "dev-user@example.com"
+            "X-Goog-Authenticated-User-Email": "mock-user@example.com"
         }
 
         try:
