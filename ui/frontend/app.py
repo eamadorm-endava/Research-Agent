@@ -78,14 +78,45 @@ if st.session_state.pending_prompt:
                         )
 
                         login_url = f"{API_URL}/auth/{provider}/login"
-                        st.link_button(f"🔗 Conectar {provider.title()}", login_url)
 
-                        st.info(
-                            "💡 La autenticación se abrirá en una pestaña nueva (Pop-up). Al finalizar se cerrará sola y podrás continuar en esta sesión."
+                        import streamlit.components.v1 as components
+
+                        components.html(
+                            f"""
+                            <script>
+                                function openAuth() {{
+                                    var authWindow = window.open('{login_url}', 'AuthWindow', 'width=500,height=650,resizable=yes,scrollbars=yes');
+                                    var timer = setInterval(function() {{
+                                        if (authWindow && authWindow.closed) {{
+                                            clearInterval(timer);
+                                            // Auto-click the continue button in the parent Streamlit window
+                                            var parentDoc = window.parent.document;
+                                            var buttons = parentDoc.querySelectorAll('button');
+                                            for (var i = 0; i < buttons.length; i++) {{
+                                                if (buttons[i].innerText.includes('Continuar (Autenticación completada)')) {{
+                                                    buttons[i].click();
+                                                    break;
+                                                }}
+                                            }}
+                                        }}
+                                    }}, 1000);
+                                }}
+                            </script>
+                            <div style="display: flex; justify-content: left; margin-top: 10px;">
+                                <button onclick="openAuth()" style="background-color: #FF4B4B; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; font-family: sans-serif;">
+                                    🔗 Conectar {provider.title()}
+                                </button>
+                            </div>
+                            """,
+                            height=80,
                         )
 
-                        # Give user a way to resume without retyping their prompt
-                        if st.button("Continuar (Ya me autentiqué)"):
+                        st.info(
+                            "💡 Haz clic en el botón para abrir la ventana emergente de autenticación. Al finalizar, la ventana se cerrará sola y el chat continuará automáticamente."
+                        )
+
+                        # Fallback button that the JS script will automatically click
+                        if st.button("Continuar (Autenticación completada)"):
                             st.rerun()
 
                     break
