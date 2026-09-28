@@ -7,7 +7,7 @@ from fastapi.openapi.models import OAuth2, OAuthFlowAuthorizationCode, OAuthFlow
 from google.adk.auth import AuthCredential, AuthCredentialTypes, OAuth2Auth
 
 from ..config import BaseMCPConfig
-from ..security import get_ge_oauth_token, get_id_token
+from ..security import get_id_token, token_store
 
 
 class MCPToolsetBuilder:
@@ -95,12 +95,23 @@ class MCPToolsetBuilder:
                 "X-Serverless-Authorization": f"Bearer {get_id_token(mcp_config.URL)}"
             }
 
-            # Inject GE-managed OAuth token only in production for servers with Auth IDs
-            if prod_execution and mcp_config.GEMINI_AUTH_ID:
-                headers["Authorization"] = (
-                    f"Bearer {get_ge_oauth_token(ctx, mcp_config.GEMINI_AUTH_ID)}"
+            # Inject managed OAuth token only in production for servers with OAUTH_CONFIG
+            if prod_execution and mcp_config.OAUTH_CONFIG:
+                provider_name = mcp_config.OAUTH_CONFIG.PROVIDER_NAME
+                user_id = ctx.user_id
+
+                access_token = token_store.get_valid_access_token(
+                    user_id=user_id, provider=provider_name
                 )
-                logger.debug("Injected delegated OAuth token into Authorization header")
+                if access_token:
+                    headers["Authorization"] = f"Bearer {access_token}"
+                    logger.debug(
+                        f"Injected {provider_name} delegated OAuth token into Authorization header"
+                    )
+                else:
+                    logger.warning(
+                        f"No valid access token found for {user_id} on {provider_name}"
+                    )
 
             return headers
 

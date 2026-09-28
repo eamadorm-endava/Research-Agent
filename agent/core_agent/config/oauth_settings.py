@@ -13,6 +13,14 @@ class BaseOAuthConfig(BaseSettings):
         validate_assignment=True,
     )
 
+    PROVIDER_NAME: Annotated[
+        str,
+        Field(
+            default="unknown",
+            description="The identifier name for the OAuth provider (e.g., 'google', 'microsoft', 'atlassian').",
+        ),
+    ]
+
     CLIENT_ID: Annotated[
         str,
         Field(
@@ -70,6 +78,8 @@ class GoogleAuthConfig(BaseOAuthConfig):
         env_prefix="GOOGLE_OAUTH_",
     )
 
+    PROVIDER_NAME: str = "google"
+
     AUTH_URI: Annotated[
         str,
         Field(
@@ -98,6 +108,8 @@ class AtlassianAuthConfig(BaseOAuthConfig):
     model_config = SettingsConfigDict(
         env_prefix="ATLASSIAN_OAUTH_",
     )
+
+    PROVIDER_NAME: str = "atlassian"
 
     AUTH_URI: Annotated[
         str,
@@ -138,6 +150,8 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
     model_config = SettingsConfigDict(
         env_prefix="MICROSOFT_OAUTH_",
     )
+
+    PROVIDER_NAME: str = "microsoft"
 
     TENANT_ID: Annotated[
         str,
