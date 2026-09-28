@@ -43,7 +43,7 @@ class GCPConfig(BaseSettings):
     REGION: Annotated[
         str,
         Field(
-            default="dummy-gcp-region",
+            default="us-central1",
             description="GCP Region where most of the services will be deployed",
         ),
     ]
