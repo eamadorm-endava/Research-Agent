@@ -114,10 +114,7 @@ class AtlassianAuthConfig(BaseOAuthConfig):
     AUTH_URI: Annotated[
         str,
         Field(
-            default=(
-                "https://auth.atlassian.com/authorize"
-                "?audience=api.atlassian.com&prompt=consent"
-            ),
+            default="https://auth.atlassian.com/authorize",
             description=(
                 "Atlassian 3LO authorization endpoint. The audience query "
                 "parameter is required so Atlassian issues an api.atlassian.com "
