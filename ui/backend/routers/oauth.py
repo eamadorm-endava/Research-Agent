@@ -153,8 +153,8 @@ async def callback(
         )
         logger.info(f"Successfully saved {provider} tokens for {user_id}")
 
-        # Redirect back to the chat UI
-        return RedirectResponse(url="/")
+        # Redirect back to the Streamlit UI
+        return RedirectResponse(url="http://localhost:8501")
 
     except Exception as e:
         logger.error(f"Failed to exchange code for {provider} tokens: {e}")
