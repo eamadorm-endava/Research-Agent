@@ -1,6 +1,6 @@
 import time
 from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from loguru import logger
 import requests
 import urllib.parse
@@ -153,8 +153,25 @@ async def callback(
         )
         logger.info(f"Successfully saved {provider} tokens for {user_id}")
 
-        # Redirect back to the Streamlit UI
-        return RedirectResponse(url="http://localhost:8501")
+        # Return an auto-closing HTML page so the user stays in their original session
+        html_content = """
+        <html>
+            <head>
+                <title>Autenticación Exitosa</title>
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() { window.close(); }, 2000);
+                    }
+                </script>
+            </head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding-top: 50px;">
+                <h1 style="color: #4CAF50;">¡Autenticación Exitosa!</h1>
+                <p>Hemos vinculado tu cuenta de <b>{provider.title()}</b> correctamente.</p>
+                <p>Ya puedes cerrar esta pestaña o ventana y volver al chat.</p>
+            </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
 
     except Exception as e:
         logger.error(f"Failed to exchange code for {provider} tokens: {e}")

@@ -13,6 +13,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "session_id" not in st.session_state:
     st.session_state.session_id = None
+if "pending_prompt" not in st.session_state:
+    st.session_state.pending_prompt = None
 
 # Display chat history
 for msg in st.session_state.messages:
@@ -20,18 +22,21 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # Chat input
-if prompt := st.chat_input("Escribe tu consulta..."):
-    # Append and show user message
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+user_input = st.chat_input("Escribe tu consulta...")
 
-    # Placeholder for assistant response
+# If the user typed something new, capture it and trigger a rerun
+if user_input:
+    st.session_state.pending_prompt = user_input
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.rerun()
+
+# Process the pending prompt (either newly captured or re-attempted after auth)
+if st.session_state.pending_prompt:
+    prompt = st.session_state.pending_prompt
+
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
-
-        # We use a container specifically for the tool accordions
         status_container = st.container()
 
         # Prepare request
@@ -48,6 +53,8 @@ if prompt := st.chat_input("Escribe tu consulta..."):
             )
             response.raise_for_status()
 
+            auth_required = False
+
             for line in response.iter_lines(decode_unicode=True):
                 if not line or not line.startswith("data: "):
                     continue
@@ -60,15 +67,27 @@ if prompt := st.chat_input("Escribe tu consulta..."):
 
                 # Handle Authentication Requirement
                 if event_type == "AUTH_REQUIRED":
+                    auth_required = True
                     missing = event_data.get("missing_providers", [])
-                    st.warning("Autenticación requerida para continuar:")
 
-                    cols = st.columns(len(missing))
-                    for i, provider in enumerate(missing):
-                        with cols[i]:
-                            # Render the specific login button
-                            login_url = f"{API_URL}/auth/{provider}/login"
-                            st.link_button(f"Conectar {provider.title()}", login_url)
+                    if missing:
+                        # 1. SEQUENTIAL AUTH: Only process the first missing provider
+                        provider = missing[0]
+                        st.warning(
+                            f"Autenticación secuencial requerida. Siguiente paso: Conectar **{provider.title()}**."
+                        )
+
+                        login_url = f"{API_URL}/auth/{provider}/login"
+                        st.link_button(f"🔗 Conectar {provider.title()}", login_url)
+
+                        st.info(
+                            "💡 La autenticación se abrirá en una pestaña nueva (Pop-up). Al finalizar se cerrará sola y podrás continuar en esta sesión."
+                        )
+
+                        # Give user a way to resume without retyping their prompt
+                        if st.button("Continuar (Ya me autentiqué)"):
+                            st.rerun()
+
                     break
 
                 # Handle Session Tracking
@@ -107,12 +126,16 @@ if prompt := st.chat_input("Escribe tu consulta..."):
                 elif event_type == "error":
                     st.error(event_data.get("message"))
 
-            # Clean up the typing cursor
-            if full_response:
-                message_placeholder.markdown(full_response)
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": full_response}
-                )
+            # If we successfully completed the loop without requiring auth
+            if not auth_required:
+                st.session_state.pending_prompt = None  # Clear the prompt
+                if full_response:
+                    message_placeholder.markdown(full_response)
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": full_response}
+                    )
 
         except Exception as e:
             st.error(f"Error conectando con el backend: {e}")
+            # Clear the prompt to avoid infinite loop of failures
+            st.session_state.pending_prompt = None
