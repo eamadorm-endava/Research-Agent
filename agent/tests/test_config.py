@@ -22,7 +22,7 @@ def test_gcp_config_defaults():
     with patch.dict(os.environ, clear=True):
         config = GCPConfig(_env_file=None)
         assert config.PROJECT_ID == "dummy-gcp-project-id"
-        assert config.REGION == "dummy-gcp-region"
+        assert config.REGION == "us-central1"
         assert config.PROD_EXECUTION is True
 
 

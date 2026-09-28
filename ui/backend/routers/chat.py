@@ -107,6 +107,6 @@ async def chat_stream(
                 yield f"data: {json.dumps({'type': 'agent_event', 'payload': event})}\n\n"
         except Exception as e:
             logger.error(f"Error during agent streaming: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An error occurred during agent streaming. Please try again later.'})}\n\n"
 
     return StreamingResponse(generate_agent_stream(), media_type="text/event-stream")
