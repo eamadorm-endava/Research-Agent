@@ -96,13 +96,17 @@ async def login(provider: str, request: Request):
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": scope_str,
-        "access_type": "offline",  # Needed for Google to return a refresh token
-        "prompt": "consent",  # Force consent to ensure refresh token
     }
 
-    # Atlassian requires an audience parameter
-    if provider == "atlassian":
+    # Provider-specific parameters
+    if provider == "google":
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
+    elif provider == "microsoft":
+        params["prompt"] = "select_account"
+    elif provider == "atlassian":
         params["audience"] = "api.atlassian.com"
+        params["prompt"] = "consent"
 
     auth_url = f"{config.AUTH_URI}?{urllib.parse.urlencode(params)}"
     logger.info(f"Redirecting user to {provider} login...")
