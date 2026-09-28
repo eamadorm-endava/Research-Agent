@@ -103,7 +103,7 @@ async def chat_stream(
                 message=body.message,
             ):
                 # The event from async_stream_query is a dict, we need to pass it safely to JSON
-                # E.g. event could be FunctionCall, string chunk, etc. depending on ADK stream format
+                logger.info(f"Agent event received: {event}")
                 yield f"data: {json.dumps({'type': 'agent_event', 'payload': event})}\n\n"
         except Exception as e:
             logger.error(f"Error during agent streaming: {e}")

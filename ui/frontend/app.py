@@ -64,6 +64,8 @@ if st.session_state.pending_prompt:
                 event_data = json.loads(raw_data)
 
                 event_type = event_data.get("type")
+                # DEBUG: uncomment if needed
+                # st.write(f"Received event: {event_type}")
 
                 # Handle Authentication Requirement
                 if event_type == "AUTH_REQUIRED":
