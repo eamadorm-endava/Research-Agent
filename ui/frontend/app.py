@@ -10,7 +10,7 @@ API_URL = "http://localhost:8000/api"
 st.markdown(
     """
     <div style="text-align: center; margin-bottom: 3rem; margin-top: 1rem;">
-        <div style="font-size: 5rem; font-weight: 600; letter-spacing: -0.15rem; margin-bottom: 0.5rem; line-height: 1; transform: scale(1, 0.85); display: inline-block;">OSIRIS</div>
+        <div style="font-size: 5rem; font-weight: 300; letter-spacing: -0.15rem; margin-bottom: 0.5rem; line-height: 1; transform: scale(1, 0.85); display: inline-block;">OSIRIS</div>
         <p style="font-size: 1.2rem; font-weight: 400; color: #888888; max-width: 800px; margin: 0 auto; line-height: 1.5;">A hierarchical multi-agent system designed to break information silos<br>and search across enterprise data sources</p>
     </div>
     """,
