@@ -3,16 +3,29 @@ import requests
 import json
 import time
 
-st.set_page_config(page_title="Research Agent", layout="wide")
+st.set_page_config(page_title="OSIRIS", layout="wide")
 
 API_URL = "http://localhost:8000/api"
 
-st.title("Research Agent 🧠")
+st.markdown(
+    """
+    <div style="text-align: center; margin-bottom: 3rem; margin-top: 1rem;">
+        <h1 style="font-size: 5rem; font-weight: 300; letter-spacing: 0.2rem; margin-bottom: 0.5rem; line-height: 1;">OSIRIS</h1>
+        <p style="font-size: 1.2rem; font-weight: 400; color: #888888; max-width: 800px; margin: 0 auto; line-height: 1.5;">A hierarchical multi-agent system designed to break information silos<br>and search across enterprise data sources</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap');
+
+    html, body, [class*="css"], [class*="st-"], .stMarkdown, p, div, span, h1, h2, h3, h4, h5, h6, button, input {
+        font-family: 'Montserrat', sans-serif !important;
+    }
     @keyframes spin {
         100% { transform: rotate(360deg); }
     }
