@@ -35,9 +35,9 @@ if st.session_state.pending_prompt:
     prompt = st.session_state.pending_prompt
 
     with st.chat_message("assistant"):
+        status_container = st.container()
         message_placeholder = st.empty()
         full_response = ""
-        status_container = st.container()
 
         # Prepare request
         payload = {"message": prompt, "session_id": st.session_state.session_id}
