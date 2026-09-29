@@ -119,7 +119,6 @@ if st.session_state.pending_prompt:
     prompt = st.session_state.pending_prompt
 
     with st.chat_message("assistant"):
-        status_container = st.empty()
         message_placeholder = st.empty()
         full_response = ""
 
@@ -140,7 +139,7 @@ if st.session_state.pending_prompt:
             auth_required = False
 
             # Initialize status immediately so it's open by default
-            status_box = status_container.status("Pensando...", expanded=True)
+            status_box = st.status("Pensando...", expanded=True)
             active_tools = {}
             thought_text = ""
             thought_placeholder = None
@@ -246,7 +245,7 @@ if st.session_state.pending_prompt:
                                         message_placeholder.empty()
 
                                     if status_box is None:
-                                        status_box = status_container.status(
+                                        status_box = st.status(
                                             "🧠 Pensamientos del agente...",
                                             expanded=False,
                                         )
@@ -399,16 +398,7 @@ if st.session_state.pending_prompt:
 
                 final_label = f"Ejecutado en {time_str}"
 
-                if not completed_actions and not thought_text:
-                    status_container.empty()
-                    status_container.markdown(
-                        f"<div style='color: #888888; font-size: 13px; font-family: sans-serif; margin-bottom: 8px;'>{final_label}</div>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    status_box.update(
-                        label=final_label, state="complete", expanded=False
-                    )
+                status_box.update(label=final_label, state="complete", expanded=False)
 
             # If we successfully completed the loop without requiring auth
             if not auth_required:
