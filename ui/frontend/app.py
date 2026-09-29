@@ -267,7 +267,7 @@ if st.session_state.pending_prompt:
                     process_start_time = time.time()
                     final_label = "Executed"
 
-                    for line in response.iter_lines(decode_unicode=True):
+                    for line in response.iter_lines(chunk_size=1, decode_unicode=True):
                         if not line or not line.startswith("data: "):
                             continue
 
