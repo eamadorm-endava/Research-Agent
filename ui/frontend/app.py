@@ -10,7 +10,7 @@ API_URL = "http://localhost:8000/api"
 st.markdown(
     """
     <div style="text-align: center; margin-bottom: 3rem; margin-top: 1rem;">
-        <h1 style="font-size: 5rem; font-weight: 300; letter-spacing: 0.2rem; margin-bottom: 0.5rem; line-height: 1;">OSIRIS</h1>
+        <div style="font-size: 5rem; font-weight: 300; letter-spacing: 0.2rem; margin-bottom: 0.5rem; line-height: 1;">OSIRIS</div>
         <p style="font-size: 1.2rem; font-weight: 400; color: #888888; max-width: 800px; margin: 0 auto; line-height: 1.5;">A hierarchical multi-agent system designed to break information silos<br>and search across enterprise data sources</p>
     </div>
     """,
@@ -61,11 +61,13 @@ st.markdown(
         color: #000000 !important; /* Solid black for the OSIRIS agent */
     }
     
-    /* Aggressively remove all backgrounds and borders from st.status and expanders */
-    [data-testid="stStatusWidget"] *,
+    /* Aggressively remove all backgrounds and borders from st.status and expanders, without killing the spinner */
     [data-testid="stStatusWidget"],
-    [data-testid="stExpander"] *,
-    [data-testid="stExpander"] {
+    [data-testid="stExpander"],
+    [data-testid="stStatusWidget"] > div,
+    [data-testid="stExpander"] > div,
+    [data-testid="stStatusWidget"] details,
+    [data-testid="stExpander"] details {
         background-color: transparent !important;
         background: none !important;
         border: none !important;
