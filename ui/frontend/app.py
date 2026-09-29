@@ -10,6 +10,21 @@ API_URL = "http://localhost:8000/api"
 st.title("Research Agent 🧠")
 
 
+st.markdown(
+    """
+    <style>
+    @keyframes spin {
+        100% { transform: rotate(360deg); }
+    }
+    .spin-icon {
+        animation: spin 1s linear infinite;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 def format_agent_action(icon_svg, text):
     return f"""
     <div style="color: #888888; font-family: sans-serif; font-size: 15px; margin-bottom: 4px; display: flex; align-items: center;">
@@ -30,6 +45,18 @@ if "pending_prompt" not in st.session_state:
 # Display chat history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
+        if msg.get("actions") or msg.get("thought_text"):
+            with st.status(
+                msg.get("status_label", "Ejecutado"), state="complete", expanded=False
+            ):
+                if msg.get("thought_text"):
+                    st.markdown(
+                        f"<div style='color: #888888; font-family: sans-serif; font-size: 15px; margin-bottom: 12px; font-style: italic;'>{msg['thought_text']}</div>",
+                        unsafe_allow_html=True,
+                    )
+                if msg.get("actions"):
+                    for action in msg["actions"]:
+                        st.markdown(action, unsafe_allow_html=True)
         st.markdown(msg["content"])
 
 # Chat input
@@ -50,9 +77,6 @@ if st.session_state.pending_prompt:
         message_placeholder = st.empty()
         full_response = ""
 
-        # Show a thinking indicator IMMEDIATELY before blocking on the API request
-        message_placeholder.markdown("⏳ *Pensando...*")
-
         # Prepare request
         payload = {"message": prompt, "session_id": st.session_state.session_id}
         headers = {
@@ -69,10 +93,13 @@ if st.session_state.pending_prompt:
 
             auth_required = False
 
-            status_box = None
+            # Initialize status immediately so it's open by default
+            status_box = status_container.status("Pensando...", expanded=True)
             active_tools = {}
             thought_text = ""
             thought_placeholder = None
+            completed_actions = []
+            process_start_time = time.time()
 
             for line in response.iter_lines(decode_unicode=True):
                 if not line or not line.startswith("data: "):
@@ -214,13 +241,14 @@ if st.session_state.pending_prompt:
                                             .replace("-", " ")
                                             .title()
                                         )
-                                        status_box.markdown(
-                                            format_agent_action(
-                                                svg_transfer,
-                                                f"Transfer To Subagent {clean_target}",
-                                            ),
-                                            unsafe_allow_html=True,
+                                        action_html = format_agent_action(
+                                            svg_transfer,
+                                            f"Transfer To Subagent {clean_target}",
                                         )
+                                        status_box.markdown(
+                                            action_html, unsafe_allow_html=True
+                                        )
+                                        completed_actions.append(action_html)
                                     else:
                                         with status_box:
                                             ph = st.empty()
@@ -240,10 +268,12 @@ if st.session_state.pending_prompt:
                                                 .title()
                                             )
 
+                                            svg_spinner = '<svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>'
+
                                             ph.markdown(
                                                 format_agent_action(
                                                     svg_skill,
-                                                    f"Reading Skill {clean_skill} - ⏳",
+                                                    f"Reading Skill {clean_skill} - {svg_spinner}",
                                                 ),
                                                 unsafe_allow_html=True,
                                             )
@@ -255,9 +285,11 @@ if st.session_state.pending_prompt:
                                                 "svg": svg_skill,
                                             }
                                         else:
+                                            svg_spinner = '<svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>'
                                             ph.markdown(
                                                 format_agent_action(
-                                                    svg_tool, f"{clean_name} - ⏳"
+                                                    svg_tool,
+                                                    f"{clean_name} - {svg_spinner}",
                                                 ),
                                                 unsafe_allow_html=True,
                                             )
@@ -284,21 +316,17 @@ if st.session_state.pending_prompt:
                                         ph = tool_info["ph"]
 
                                         if tool_info["type"] == "skill":
-                                            ph.markdown(
-                                                format_agent_action(
-                                                    tool_info["svg"],
-                                                    f"Reading Skill {tool_info['name']} - {duration:.1f}s",
-                                                ),
-                                                unsafe_allow_html=True,
+                                            action_html = format_agent_action(
+                                                tool_info["svg"],
+                                                f"Reading Skill {tool_info['name']} - {duration:.1f}s",
                                             )
                                         else:
-                                            ph.markdown(
-                                                format_agent_action(
-                                                    tool_info["svg"],
-                                                    f"{tool_info['name']} - {duration:.1f}s",
-                                                ),
-                                                unsafe_allow_html=True,
+                                            action_html = format_agent_action(
+                                                tool_info["svg"],
+                                                f"{tool_info['name']} - {duration:.1f}s",
                                             )
+                                        ph.markdown(action_html, unsafe_allow_html=True)
+                                        completed_actions.append(action_html)
 
                                         del active_tools[call_id]
 
@@ -315,16 +343,29 @@ if st.session_state.pending_prompt:
 
             # Update status block if it was created
             if status_box is not None:
-                status_box.update(label="✅ Proceso completado", state="complete")
+                total_duration = time.time() - process_start_time
+                mins = int(total_duration // 60)
+                secs = int(total_duration % 60)
+                if mins > 0:
+                    time_str = f"{mins} min {secs} s"
+                else:
+                    time_str = f"{secs} s"
+
+                final_label = f"Ejecutado en {time_str}"
+                status_box.update(label=final_label, state="complete", expanded=False)
 
             # If we successfully completed the loop without requiring auth
             if not auth_required:
                 st.session_state.pending_prompt = None  # Clear the prompt
                 if full_response:
                     message_placeholder.markdown(full_response)
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": full_response}
-                    )
+                    msg_data = {"role": "assistant", "content": full_response}
+                    if completed_actions or thought_text:
+                        msg_data["actions"] = completed_actions
+                        msg_data["thought_text"] = thought_text
+                        if status_box is not None:
+                            msg_data["status_label"] = final_label
+                    st.session_state.messages.append(msg_data)
 
         except Exception as e:
             st.error(f"Error conectando con el backend: {e}")
