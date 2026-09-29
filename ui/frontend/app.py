@@ -19,6 +19,46 @@ st.markdown(
     .spin-icon {
         animation: spin 1s linear infinite;
     }
+    
+    /* Remove background and borders from ALL chat messages */
+    [data-testid="stChatMessage"] {
+        background-color: transparent !important;
+        border: none !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    
+    /* Align User Chat Messages to the right and restrict width */
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+        flex-direction: row-reverse;
+    }
+    
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) .stMarkdown {
+        max-width: 50vw;
+        margin-left: auto;
+        text-align: right;
+    }
+    
+    /* Hide the user avatar so it looks like WhatsApp/iMessage */
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="chatAvatarIcon-user"] {
+        display: none !important;
+    }
+    
+    /* Make the st.status expander look subtle and without borders */
+    [data-testid="stStatusWidget"] {
+        border: none !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    
+    [data-testid="stStatusWidget"] summary {
+        background-color: transparent !important;
+        border: none !important;
+        color: #888888 !important;
+        font-size: 14px !important;
+        padding: 0 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -57,6 +97,12 @@ for msg in st.session_state.messages:
                 if msg.get("actions"):
                     for action in msg["actions"]:
                         st.markdown(action, unsafe_allow_html=True)
+        elif msg.get("status_label"):
+            st.markdown(
+                f"<div style='color: #888888; font-size: 13px; font-family: sans-serif; margin-bottom: 8px;'>{msg['status_label']}</div>",
+                unsafe_allow_html=True,
+            )
+
         st.markdown(msg["content"])
 
 # Chat input
@@ -352,7 +398,17 @@ if st.session_state.pending_prompt:
                     time_str = f"{secs} s"
 
                 final_label = f"Ejecutado en {time_str}"
-                status_box.update(label=final_label, state="complete", expanded=False)
+
+                if not completed_actions and not thought_text:
+                    status_box.empty()
+                    status_container.markdown(
+                        f"<div style='color: #888888; font-size: 13px; font-family: sans-serif; margin-bottom: 8px;'>{final_label}</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    status_box.update(
+                        label=final_label, state="complete", expanded=False
+                    )
 
             # If we successfully completed the loop without requiring auth
             if not auth_required:
@@ -360,11 +416,11 @@ if st.session_state.pending_prompt:
                 if full_response:
                     message_placeholder.markdown(full_response)
                     msg_data = {"role": "assistant", "content": full_response}
+                    if status_box is not None:
+                        msg_data["status_label"] = final_label
                     if completed_actions or thought_text:
                         msg_data["actions"] = completed_actions
                         msg_data["thought_text"] = thought_text
-                        if status_box is not None:
-                            msg_data["status_label"] = final_label
                     st.session_state.messages.append(msg_data)
 
         except Exception as e:
