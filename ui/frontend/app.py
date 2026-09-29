@@ -44,20 +44,31 @@ st.markdown(
         display: none !important;
     }
     
-    /* Make the st.status expander look subtle and without borders */
-    [data-testid="stStatusWidget"] {
-        border: none !important;
+    /* Aggressively remove all backgrounds and borders from st.status and expanders */
+    [data-testid="stStatusWidget"] *,
+    [data-testid="stStatusWidget"],
+    [data-testid="stExpander"] *,
+    [data-testid="stExpander"] {
         background-color: transparent !important;
+        background: none !important;
+        border: none !important;
         box-shadow: none !important;
-        padding: 0 !important;
+        outline: none !important;
     }
-    
-    [data-testid="stStatusWidget"] summary {
-        background-color: transparent !important;
-        border: none !important;
+
+    [data-testid="stStatusWidget"] summary,
+    [data-testid="stExpander"] summary {
         color: #888888 !important;
         font-size: 14px !important;
-        padding: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+    }
+    
+    [data-testid="stStatusWidget"] [data-testid="stExpanderDetails"] {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
     }
     </style>
     """,
