@@ -133,30 +133,42 @@ if st.session_state.pending_prompt:
                 # Handle Agent Output
                 elif event_type == "agent_event":
                     payload = event_data.get("payload", {})
+                    print(f"DEBUG FRONTEND PAYLOAD: {payload}")
 
+                    if isinstance(payload, str):
+                        # Sometimes ADK yields just the string directly
+                        full_response += payload
+                        message_placeholder.markdown(full_response + "▌")
                     # Basic ADK Event Parser
-                    if "content" in payload and "parts" in payload["content"]:
-                        for part in payload["content"]["parts"]:
-                            # 1. Text Chunks
-                            if "text" in part:
-                                full_response += part["text"]
-                                message_placeholder.markdown(full_response + "▌")
+                    elif isinstance(payload, dict):
+                        if "content" in payload and "parts" in payload["content"]:
+                            for part in payload["content"]["parts"]:
+                                # 1. Text Chunks
+                                if "text" in part:
+                                    full_response += part["text"]
+                                    message_placeholder.markdown(full_response + "▌")
 
-                            # 2. Tool Calls
-                            elif "functionCall" in part:
-                                func_name = part["functionCall"]["name"]
-                                func_args = part["functionCall"].get("args", {})
+                                # 2. Tool Calls
+                                elif "functionCall" in part:
+                                    func_name = part["functionCall"]["name"]
+                                    func_args = part["functionCall"].get("args", {})
 
-                                # Render the accordion (spinner is built into st.status while it runs)
-                                with status_container.status(
-                                    f"Ejecutando {func_name}...", expanded=False
-                                ) as status:
-                                    st.write("Argumentos:")
-                                    st.json(func_args)
-                                    status.update(
-                                        label=f"Completado: {func_name}",
-                                        state="complete",
-                                    )
+                                    # Render the accordion (spinner is built into st.status while it runs)
+                                    with status_container.status(
+                                        f"Ejecutando {func_name}...", expanded=False
+                                    ) as status:
+                                        st.write("Argumentos:")
+                                        st.json(func_args)
+                                        status.update(
+                                            label=f"Completado: {func_name}",
+                                            state="complete",
+                                        )
+                        elif "error_message" in payload or "errorMessage" in payload:
+                            err_msg = payload.get("error_message") or payload.get(
+                                "errorMessage"
+                            )
+                            full_response += f"❌ **Error del Agente**: {err_msg}"
+                            message_placeholder.markdown(full_response)
 
                 # Handle Errors
                 elif event_type == "error":
