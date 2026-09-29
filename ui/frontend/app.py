@@ -557,7 +557,6 @@ if st.session_state.pending_prompt:
                             msg_data["actions"] = completed_actions
                             msg_data["thought_text"] = thought_text
                         st.session_state.messages.append(msg_data)
-                    st.rerun()
 
         except Exception as e:
             st.error(f"Error connecting to the backend: {e}")
