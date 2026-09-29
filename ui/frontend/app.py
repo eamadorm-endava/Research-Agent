@@ -90,11 +90,32 @@ st.markdown(
         max-width: 1000px !important;
         margin: 0 auto !important;
         border-radius: 40px !important;
-        border: 1px solid #333 !important;
+        border: 1px solid #333 !important; /* This is our outer border */
         background-color: #1e1e1e !important;
+        padding: 0 !important;
     }
+    
+    /* Remove native inner borders/backgrounds of Streamlit's input wrapper */
+    [data-testid="stChatInput"] > div {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    
+    /* Ensure the textarea doesn't get a focus outline that looks like a second border */
     [data-testid="stChatInput"] textarea {
         border-radius: 40px !important;
+        background-color: transparent !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stChatInput"] textarea:focus {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    
+    [data-testid="stChatInput"] button {
+        background-color: transparent !important;
+        border: none !important;
     }
     
     /* Aggressively remove all backgrounds and borders from st.status and expanders, without killing the spinner */
