@@ -41,6 +41,16 @@ st.markdown(
         padding-right: 0 !important;
     }
     
+    [data-testid="stChatMessage"]:focus,
+    [data-testid="stChatMessage"]:active,
+    [data-testid="stChatMessage"]:focus-visible,
+    [data-testid="stChatMessage"]:focus-within {
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+    
+
     /* Hide avatars completely */
     [data-testid="stChatMessage"] > div:first-child {
         display: none !important;
@@ -134,9 +144,6 @@ for msg in st.session_state.messages:
     avatar = "👤" if is_user else "🔘"
 
     with st.chat_message(msg["role"], avatar=avatar):
-        if is_user:
-            st.markdown("<div class='user-msg'></div>", unsafe_allow_html=True)
-
         if msg.get("actions") or msg.get("thought_text"):
             with st.status(
                 msg.get("status_label", "Executed"), state="complete", expanded=False
@@ -155,7 +162,13 @@ for msg in st.session_state.messages:
                 unsafe_allow_html=True,
             )
 
-        st.markdown(msg["content"])
+        # Merge the user-msg tag into the single markdown output to avoid empty bubbles
+        content = (
+            f"<span class='user-msg'></span>{msg['content']}"
+            if is_user
+            else msg["content"]
+        )
+        st.markdown(content, unsafe_allow_html=True)
 
 # Chat input
 user_input = st.chat_input("Escribe tu consulta...")
