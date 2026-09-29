@@ -55,6 +55,9 @@ if st.session_state.pending_prompt:
 
             auth_required = False
 
+            # Show a thinking indicator while waiting for the stream
+            message_placeholder.markdown("⏳ *Pensando...*")
+
             for line in response.iter_lines(decode_unicode=True):
                 if not line or not line.startswith("data: "):
                     continue
