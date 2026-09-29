@@ -26,6 +26,13 @@ st.markdown(
     html, body, [class*="css"], [class*="st-"], .stMarkdown, p, div, span, h1, h2, h3, h4, h5, h6, button, input {
         font-family: 'Montserrat', sans-serif !important;
     }
+    
+    /* Restore font family for material icons so they don't render as text */
+    .material-symbols-rounded, 
+    [data-testid="stIconMaterial"],
+    .stIcon {
+        font-family: 'Material Symbols Rounded' !important;
+    }
     @keyframes spin {
         100% { transform: rotate(360deg); }
     }
@@ -141,6 +148,16 @@ st.markdown(
     [data-testid="stStatusWidget"] summary,
     [data-testid="stExpander"] summary {
         list-style: none !important;
+    }
+    
+    /* Disable hover background on summary */
+    [data-testid="stStatusWidget"] summary:hover,
+    [data-testid="stExpander"] summary:hover,
+    [data-testid="stStatusWidget"] summary:focus,
+    [data-testid="stExpander"] summary:focus {
+        background-color: transparent !important;
+        background: none !important;
+        color: inherit !important;
     }
     [data-testid="stStatusWidget"] summary::-webkit-details-marker,
     [data-testid="stExpander"] summary::-webkit-details-marker {
