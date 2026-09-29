@@ -57,10 +57,34 @@ st.markdown(
         color: #ffffff !important;
         border-radius: 18px 18px 0px 18px !important;
         padding: 12px 18px !important;
-        max-width: 60vw;
-        margin-left: auto;
+        max-width: fit-content !important;
+        margin-left: auto !important;
+        margin-right: 0 !important;
         text-align: left; /* Keep text left aligned inside the container */
         box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+    }
+    
+    /* Ensure the parent takes full width to allow auto margins to work */
+    [data-testid="stChatMessage"]:has(.user-msg) [data-testid="stChatMessageContent"] {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+    }
+
+    /* Redesign Chat Input Bar */
+    [data-testid="stChatFloatingInputContainer"] {
+        background: transparent !important;
+        padding-bottom: 2rem !important;
+    }
+    [data-testid="stChatInput"] {
+        max-width: 800px !important;
+        margin: 0 auto !important;
+        border-radius: 25px !important;
+        border: 1px solid #333 !important;
+        background-color: #1e1e1e !important;
+    }
+    [data-testid="stChatInput"] textarea {
+        border-radius: 25px !important;
     }
     
     /* Aggressively remove all backgrounds and borders from st.status and expanders, without killing the spinner */
