@@ -118,6 +118,11 @@ st.markdown(
         border: none !important;
     }
     
+    /* Make chat placeholder gray */
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: #888888 !important;
+    }
+    
     /* Aggressively remove all backgrounds and borders from st.status and expanders, without killing the spinner */
     [data-testid="stStatusWidget"],
     [data-testid="stExpander"],
@@ -130,6 +135,16 @@ st.markdown(
         border: none !important;
         box-shadow: none !important;
         outline: none !important;
+    }
+
+    /* Hide native browser arrow in details summary that overlaps with Streamlit's SVG arrow */
+    [data-testid="stStatusWidget"] summary,
+    [data-testid="stExpander"] summary {
+        list-style: none !important;
+    }
+    [data-testid="stStatusWidget"] summary::-webkit-details-marker,
+    [data-testid="stExpander"] summary::-webkit-details-marker {
+        display: none !important;
     }
 
     [data-testid="stStatusWidget"] [data-testid="stExpanderDetails"] {
