@@ -42,19 +42,23 @@ st.markdown(
     }
     
     /* Align User Chat Messages to the right and restrict width */
-    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+    [data-testid="stChatMessage"]:has(.user-msg) {
         flex-direction: row-reverse;
     }
     
-    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) .stMarkdown {
+    [data-testid="stChatMessage"]:has(.user-msg) .stMarkdown {
         max-width: 50vw;
         margin-left: auto;
         text-align: right;
     }
     
-    /* Hide the user avatar so it looks like WhatsApp/iMessage */
-    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="chatAvatarIcon-user"] {
-        display: none !important;
+    /* Style Chat Avatars */
+    [data-testid="stChatMessage"]:has(.user-msg) [data-testid="stIconMaterial"] {
+        color: #888888 !important; /* Soft gray for the user */
+    }
+    
+    [data-testid="stChatMessage"]:not(:has(.user-msg)) [data-testid="stIconMaterial"] {
+        color: #000000 !important; /* Solid black for the OSIRIS agent */
     }
     
     /* Aggressively remove all backgrounds and borders from st.status and expanders */
@@ -108,7 +112,13 @@ if "pending_prompt" not in st.session_state:
 
 # Display chat history
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    is_user = msg["role"] == "user"
+    avatar = "material/person" if is_user else "material/adjust"
+
+    with st.chat_message(msg["role"], avatar=avatar):
+        if is_user:
+            st.markdown("<div class='user-msg'></div>", unsafe_allow_html=True)
+
         if msg.get("actions") or msg.get("thought_text"):
             with st.status(
                 msg.get("status_label", "Executed"), state="complete", expanded=False
@@ -142,7 +152,7 @@ if user_input:
 if st.session_state.pending_prompt:
     prompt = st.session_state.pending_prompt
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="material/adjust"):
         status_container = st.empty()
         message_placeholder = st.empty()
         full_response = ""
