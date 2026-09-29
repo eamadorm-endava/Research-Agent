@@ -98,7 +98,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         if msg.get("actions") or msg.get("thought_text"):
             with st.status(
-                msg.get("status_label", "Ejecutado"), state="complete", expanded=False
+                msg.get("status_label", "Executed"), state="complete", expanded=False
             ):
                 if msg.get("thought_text"):
                     st.markdown(
@@ -143,7 +143,7 @@ if st.session_state.pending_prompt:
 
         try:
             # Initialize status immediately using a context manager so it renders BEFORE blocking
-            with status_container.status("Pensando...", expanded=True) as status_box:
+            with status_container.status("Thinking...", expanded=True) as status_box:
                 # Stream the SSE response from FastAPI
                 response = requests.post(
                     f"{API_URL}/chat/", json=payload, headers=headers, stream=True
@@ -156,7 +156,7 @@ if st.session_state.pending_prompt:
                 thought_placeholder = None
                 completed_actions = []
                 process_start_time = time.time()
-                final_label = "Ejecutado"
+                final_label = "Executed"
 
                 for line in response.iter_lines(chunk_size=1, decode_unicode=True):
                     if not line or not line.startswith("data: "):
@@ -179,7 +179,7 @@ if st.session_state.pending_prompt:
                             # 1. SEQUENTIAL AUTH: Only process the first missing provider
                             provider = missing[0]
                             st.warning(
-                                f"Autenticación secuencial requerida. Siguiente paso: Conectar **{provider.title()}**."
+                                f"Sequential authentication required. Next step: Connect **{provider.title()}**."
                             )
 
                             login_url = f"{API_URL}/auth/{provider}/login"
@@ -198,7 +198,7 @@ if st.session_state.pending_prompt:
                                                 var parentDoc = window.parent.document;
                                                 var buttons = parentDoc.querySelectorAll('button');
                                                 for (var i = 0; i < buttons.length; i++) {{
-                                                    if (buttons[i].innerText.includes('Continuar (Autenticación completada)')) {{
+                                                    if (buttons[i].innerText.includes('Continue (Authentication completed)')) {{
                                                         buttons[i].click();
                                                         break;
                                                     }}
@@ -209,7 +209,7 @@ if st.session_state.pending_prompt:
                                 </script>
                                 <div style="display: flex; justify-content: left; margin-top: 10px;">
                                     <button onclick="openAuth()" style="background-color: #FF4B4B; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; font-family: sans-serif;">
-                                        🔗 Conectar {provider.title()}
+                                        🔗 Connect {provider.title()}
                                     </button>
                                 </div>
                                 """,
@@ -217,11 +217,11 @@ if st.session_state.pending_prompt:
                             )
 
                             st.info(
-                                "💡 Haz clic en el botón para abrir la ventana emergente de autenticación. Al finalizar, la ventana se cerrará sola y el chat continuará automáticamente."
+                                "💡 Click the button to open the authentication popup. When finished, the window will close itself and the chat will continue automatically."
                             )
 
                             # Fallback button that the JS script will automatically click
-                            if st.button("Continuar (Autenticación completada)"):
+                            if st.button("Continue (Authentication completed)"):
                                 st.rerun()
 
                         break
@@ -396,7 +396,7 @@ if st.session_state.pending_prompt:
                                 err_msg = payload.get("error_message") or payload.get(
                                     "errorMessage"
                                 )
-                                full_response += f"❌ **Error del Agente**: {err_msg}"
+                                full_response += f"❌ **Agent Error**: {err_msg}"
                                 message_placeholder.markdown(full_response)
 
                     # Handle Errors
@@ -413,13 +413,13 @@ if st.session_state.pending_prompt:
                     else:
                         time_str = f"{secs} s"
 
-                    final_label = f"Ejecutado en {time_str}"
+                    final_label = f"Executed in {time_str}"
                     status_box.update(
                         label=final_label, state="complete", expanded=False
                     )
                 else:
                     status_box.update(
-                        label="Autenticación requerida",
+                        label="Authentication required",
                         state="complete",
                         expanded=False,
                     )
@@ -437,6 +437,6 @@ if st.session_state.pending_prompt:
                     st.session_state.messages.append(msg_data)
 
         except Exception as e:
-            st.error(f"Error conectando con el backend: {e}")
+            st.error(f"Error connecting to the backend: {e}")
             # Clear the prompt to avoid infinite loop of failures
             st.session_state.pending_prompt = None
