@@ -41,24 +41,26 @@ st.markdown(
         padding-right: 0 !important;
     }
     
-    /* Align User Chat Messages to the right and restrict width */
+    /* Hide avatars completely */
+    [data-testid="stChatMessage"] > div:first-child {
+        display: none !important;
+    }
+    
+    /* Align User Chat Messages to the right */
     [data-testid="stChatMessage"]:has(.user-msg) {
         flex-direction: row-reverse;
     }
     
+    /* Container styling for user messages */
     [data-testid="stChatMessage"]:has(.user-msg) .stMarkdown {
-        max-width: 50vw;
+        background-color: #2b2d31 !important; /* Dark container background */
+        color: #ffffff !important;
+        border-radius: 18px 18px 0px 18px !important;
+        padding: 12px 18px !important;
+        max-width: 60vw;
         margin-left: auto;
-        text-align: right;
-    }
-    
-    /* Style Chat Avatars */
-    [data-testid="stChatMessage"]:has(.user-msg) [data-testid="stIconMaterial"] {
-        color: #888888 !important; /* Soft gray for the user */
-    }
-    
-    [data-testid="stChatMessage"]:not(:has(.user-msg)) [data-testid="stIconMaterial"] {
-        color: #000000 !important; /* Solid black for the OSIRIS agent */
+        text-align: left; /* Keep text left aligned inside the container */
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
     }
     
     /* Aggressively remove all backgrounds and borders from st.status and expanders, without killing the spinner */
@@ -115,7 +117,7 @@ if "pending_prompt" not in st.session_state:
 # Display chat history
 for msg in st.session_state.messages:
     is_user = msg["role"] == "user"
-    avatar = "material/person" if is_user else "material/adjust"
+    avatar = "👤" if is_user else "🔘"
 
     with st.chat_message(msg["role"], avatar=avatar):
         if is_user:
@@ -154,7 +156,7 @@ if user_input:
 if st.session_state.pending_prompt:
     prompt = st.session_state.pending_prompt
 
-    with st.chat_message("assistant", avatar="material/adjust"):
+    with st.chat_message("assistant", avatar="🔘"):
         status_container = st.empty()
         message_placeholder = st.empty()
         full_response = ""
