@@ -39,6 +39,9 @@ if st.session_state.pending_prompt:
         message_placeholder = st.empty()
         full_response = ""
 
+        # Show a thinking indicator IMMEDIATELY before blocking on the API request
+        message_placeholder.markdown("⏳ *Pensando...*")
+
         # Prepare request
         payload = {"message": prompt, "session_id": st.session_state.session_id}
         headers = {
@@ -54,9 +57,6 @@ if st.session_state.pending_prompt:
             response.raise_for_status()
 
             auth_required = False
-
-            # Show a thinking indicator while waiting for the stream
-            message_placeholder.markdown("⏳ *Pensando...*")
 
             status_box = None
 
