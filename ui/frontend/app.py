@@ -77,14 +77,14 @@ st.markdown(
         padding-bottom: 2rem !important;
     }
     [data-testid="stChatInput"] {
-        max-width: 800px !important;
+        max-width: 1000px !important;
         margin: 0 auto !important;
-        border-radius: 25px !important;
+        border-radius: 40px !important;
         border: 1px solid #333 !important;
         background-color: #1e1e1e !important;
     }
     [data-testid="stChatInput"] textarea {
-        border-radius: 25px !important;
+        border-radius: 40px !important;
     }
     
     /* Aggressively remove all backgrounds and borders from st.status and expanders, without killing the spinner */
@@ -101,16 +101,6 @@ st.markdown(
         outline: none !important;
     }
 
-    [data-testid="stStatusWidget"] summary,
-    [data-testid="stExpander"] summary {
-        color: #888888 !important;
-        font-size: 14px !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-        padding-top: 2px !important;
-        padding-bottom: 2px !important;
-    }
-    
     [data-testid="stStatusWidget"] [data-testid="stExpanderDetails"] {
         padding-left: 0 !important;
         padding-right: 0 !important;
