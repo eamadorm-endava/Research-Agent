@@ -23,16 +23,11 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap');
 
-    html, body, [class*="css"], [class*="st-"], .stMarkdown, p, div, span, h1, h2, h3, h4, h5, h6, button, input {
+    /* Performant font application that doesn't override Streamlit's native icons or cause layout thrashing */
+    html, body, .stApp, .stMarkdown, p, h1, h2, h3, h4, h5, h6, button, input, textarea {
         font-family: 'Montserrat', sans-serif !important;
     }
-    
-    /* Restore font family for material icons so they don't render as text */
-    .material-symbols-rounded, 
-    [data-testid="stIconMaterial"],
-    .stIcon {
-        font-family: 'Material Symbols Rounded' !important;
-    }
+
     @keyframes spin {
         100% { transform: rotate(360deg); }
     }
@@ -48,10 +43,15 @@ st.markdown(
         padding-right: 0 !important;
     }
     
+    /* Remove focus outlines globally for chat messages and status widgets to prevent pink borders */
     [data-testid="stChatMessage"]:focus,
     [data-testid="stChatMessage"]:active,
     [data-testid="stChatMessage"]:focus-visible,
-    [data-testid="stChatMessage"]:focus-within {
+    [data-testid="stChatMessage"]:focus-within,
+    [data-testid="stStatusWidget"]:focus,
+    [data-testid="stStatusWidget"]:active,
+    [data-testid="stStatusWidget"]:focus-visible,
+    [data-testid="stStatusWidget"]:focus-within {
         outline: none !important;
         box-shadow: none !important;
         background: transparent !important;
