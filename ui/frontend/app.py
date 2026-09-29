@@ -165,15 +165,18 @@ if st.session_state.pending_prompt:
                                     message_placeholder.markdown(full_response + "▌")
 
                                 # 2. Tool Calls
-                                elif "functionCall" in part:
+                                elif "functionCall" in part or "function_call" in part:
                                     if status_box is None:
                                         status_box = status_container.status(
                                             "🧠 Pensamientos del agente...",
                                             expanded=False,
                                         )
 
-                                    func_name = part["functionCall"]["name"]
-                                    func_args = part["functionCall"].get("args", {})
+                                    call_data = part.get("functionCall") or part.get(
+                                        "function_call"
+                                    )
+                                    func_name = call_data.get("name", "unknown")
+                                    func_args = call_data.get("args", {})
 
                                     if (
                                         "skill" in str(func_args).lower()
