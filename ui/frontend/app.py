@@ -58,6 +58,8 @@ if st.session_state.pending_prompt:
             # Show a thinking indicator while waiting for the stream
             message_placeholder.markdown("⏳ *Pensando...*")
 
+            status_box = None
+
             for line in response.iter_lines(decode_unicode=True):
                 if not line or not line.startswith("data: "):
                     continue
@@ -133,7 +135,7 @@ if st.session_state.pending_prompt:
                 # Handle Agent Output
                 elif event_type == "agent_event":
                     payload = event_data.get("payload", {})
-                    print(f"DEBUG FRONTEND PAYLOAD: {payload}")
+                    # print(f"DEBUG FRONTEND PAYLOAD: {payload}")
 
                     if isinstance(payload, str):
                         # Sometimes ADK yields just the string directly
@@ -141,6 +143,20 @@ if st.session_state.pending_prompt:
                         message_placeholder.markdown(full_response + "▌")
                     # Basic ADK Event Parser
                     elif isinstance(payload, dict):
+                        # Handle agent transfers
+                        if (
+                            "actions" in payload
+                            and "transfer_to_agent" in payload["actions"]
+                        ):
+                            if status_box is None:
+                                status_box = status_container.status(
+                                    "🧠 Pensamientos del agente...", expanded=False
+                                )
+                            target = payload["actions"]["transfer_to_agent"]
+                            status_box.markdown(
+                                f"🤖 **Cambiando de agente:** Transfiriendo a `{target}`"
+                            )
+
                         if "content" in payload and "parts" in payload["content"]:
                             for part in payload["content"]["parts"]:
                                 # 1. Text Chunks
@@ -150,19 +166,30 @@ if st.session_state.pending_prompt:
 
                                 # 2. Tool Calls
                                 elif "functionCall" in part:
+                                    if status_box is None:
+                                        status_box = status_container.status(
+                                            "🧠 Pensamientos del agente...",
+                                            expanded=False,
+                                        )
+
                                     func_name = part["functionCall"]["name"]
                                     func_args = part["functionCall"].get("args", {})
 
-                                    # Render the accordion (spinner is built into st.status while it runs)
-                                    with status_container.status(
-                                        f"Ejecutando {func_name}...", expanded=False
-                                    ) as status:
-                                        st.write("Argumentos:")
-                                        st.json(func_args)
-                                        status.update(
-                                            label=f"Completado: {func_name}",
-                                            state="complete",
+                                    if (
+                                        "skill" in str(func_args).lower()
+                                        or func_name == "view_file"
+                                    ):
+                                        status_box.markdown(
+                                            f"📖 **Consultando conocimiento**: `{func_name}`"
                                         )
+                                    else:
+                                        status_box.markdown(
+                                            f"🛠️ **Ejecutando herramienta**: `{func_name}`"
+                                        )
+
+                                    with status_box:
+                                        st.json(func_args)
+
                         elif "error_message" in payload or "errorMessage" in payload:
                             err_msg = payload.get("error_message") or payload.get(
                                 "errorMessage"
@@ -173,6 +200,10 @@ if st.session_state.pending_prompt:
                 # Handle Errors
                 elif event_type == "error":
                     st.error(event_data.get("message"))
+
+            # Update status block if it was created
+            if status_box is not None:
+                status_box.update(label="✅ Proceso completado", state="complete")
 
             # If we successfully completed the loop without requiring auth
             if not auth_required:
