@@ -197,10 +197,8 @@ for msg in st.session_state.messages:
     avatar = "👤" if is_user else "🔘"
 
     with st.chat_message(msg["role"], avatar=avatar):
-        if msg.get("actions") or msg.get("thought_text"):
-            with st.status(
-                msg.get("status_label", "Executed"), state="complete", expanded=False
-            ):
+        if msg.get("status_label"):
+            with st.status(msg["status_label"], state="complete", expanded=False):
                 if msg.get("thought_text"):
                     st.markdown(
                         f"<div style='color: #888888; font-family: sans-serif; font-size: 15px; margin-bottom: 12px; font-style: italic;'>{msg['thought_text']}</div>",
@@ -209,11 +207,9 @@ for msg in st.session_state.messages:
                 if msg.get("actions"):
                     for action in msg["actions"]:
                         st.markdown(action, unsafe_allow_html=True)
-        elif msg.get("status_label"):
-            st.markdown(
-                f"<div style='color: #888888; font-size: 13px; font-family: sans-serif; margin-bottom: 8px;'>{msg['status_label']}</div>",
-                unsafe_allow_html=True,
-            )
+
+                # If there are no actions or thoughts, the status box will just be empty and collapsed,
+                # maintaining the same visual checkmark and padding as the others.
 
         # Merge the user-msg tag into the single markdown output to avoid empty bubbles
         content = (
