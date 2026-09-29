@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import json
+import time
 
 st.set_page_config(page_title="Research Agent", layout="wide")
 
@@ -59,6 +60,7 @@ if st.session_state.pending_prompt:
             auth_required = False
 
             status_box = None
+            active_tools = {}
 
             for line in response.iter_lines(decode_unicode=True):
                 if not line or not line.startswith("data: "):
@@ -143,20 +145,6 @@ if st.session_state.pending_prompt:
                         message_placeholder.markdown(full_response + "▌")
                     # Basic ADK Event Parser
                     elif isinstance(payload, dict):
-                        # Handle agent transfers
-                        if (
-                            "actions" in payload
-                            and "transfer_to_agent" in payload["actions"]
-                        ):
-                            if status_box is None:
-                                status_box = status_container.status(
-                                    "🧠 Pensamientos del agente...", expanded=False
-                                )
-                            target = payload["actions"]["transfer_to_agent"]
-                            status_box.markdown(
-                                f"🤖 **Cambiando de agente:** Transfiriendo a `{target}`"
-                            )
-
                         if "content" in payload and "parts" in payload["content"]:
                             for part in payload["content"]["parts"]:
                                 # 1. Text Chunks
@@ -175,23 +163,73 @@ if st.session_state.pending_prompt:
                                     call_data = part.get("functionCall") or part.get(
                                         "function_call"
                                     )
+                                    call_id = call_data.get("id")
                                     func_name = call_data.get("name", "unknown")
                                     func_args = call_data.get("args", {})
 
-                                    if (
-                                        "skill" in str(func_args).lower()
-                                        or func_name == "view_file"
-                                    ):
+                                    if func_name == "transfer_to_agent":
+                                        target = func_args.get(
+                                            "agent_name"
+                                        ) or func_args.get("subagent_name", "unknown")
                                         status_box.markdown(
-                                            f"📖 **Consultando conocimiento**: `{func_name}`"
+                                            f"🤖 Transfer to subagent `{target}`"
                                         )
                                     else:
-                                        status_box.markdown(
-                                            f"🛠️ **Ejecutando herramienta**: `{func_name}`"
-                                        )
+                                        ph = st.empty()
+                                        start_time = time.time()
 
-                                    with status_box:
-                                        st.json(func_args)
+                                        is_skill = (
+                                            "skill" in str(func_args).lower()
+                                            or func_name == "load_skill"
+                                        )
+                                        if is_skill:
+                                            skill_name = func_args.get(
+                                                "skill_name", func_name
+                                            )
+                                            with status_box:
+                                                ph.markdown(
+                                                    f"📖 Reading skill `{skill_name}` - ⏳"
+                                                )
+                                            active_tools[call_id] = {
+                                                "ph": ph,
+                                                "start": start_time,
+                                                "type": "skill",
+                                                "name": skill_name,
+                                            }
+                                        else:
+                                            with status_box:
+                                                ph.markdown(f"🛠️ `{func_name}` - ⏳")
+                                            active_tools[call_id] = {
+                                                "ph": ph,
+                                                "start": start_time,
+                                                "type": "function",
+                                                "name": func_name,
+                                            }
+
+                                # 3. Tool Responses
+                                elif (
+                                    "functionResponse" in part
+                                    or "function_response" in part
+                                ):
+                                    resp_data = part.get(
+                                        "functionResponse"
+                                    ) or part.get("function_response")
+                                    call_id = resp_data.get("id")
+                                    if call_id in active_tools:
+                                        tool_info = active_tools[call_id]
+                                        duration = time.time() - tool_info["start"]
+                                        ph = tool_info["ph"]
+
+                                        if tool_info["type"] == "skill":
+                                            ph.markdown(
+                                                f"📖 Reading skill `{tool_info['name']}` - `{duration:.1f}s`"
+                                            )
+                                        else:
+                                            ph.markdown(
+                                                f"🛠️ `{tool_info['name']}` - `{duration:.1f}s`"
+                                            )
+
+                                        del active_tools[call_id]
 
                         elif "error_message" in payload or "errorMessage" in payload:
                             err_msg = payload.get("error_message") or payload.get(
