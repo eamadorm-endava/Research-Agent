@@ -15,8 +15,8 @@ class UIConfig(BaseSettings):
     AGENT_RESOURCE_NAME: Annotated[
         str,
         Field(
-            default="projects/1051281656239/locations/us-central1/reasoningEngines/4590161429046231040",
-            description="The full resource name of the deployed Vertex AI Reasoning Engine.",
+            default="mock-agent-runtime-endpoint",
+            description="The full resource name of the deployed Agent Platform - Reasoning Engine.",
         ),
     ]
 
