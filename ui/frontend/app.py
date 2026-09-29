@@ -119,7 +119,7 @@ if st.session_state.pending_prompt:
     prompt = st.session_state.pending_prompt
 
     with st.chat_message("assistant"):
-        status_container = st.container()
+        status_container = st.empty()
         message_placeholder = st.empty()
         full_response = ""
 
@@ -252,8 +252,9 @@ if st.session_state.pending_prompt:
                                         )
 
                                     if thought_placeholder is None and thought_text:
-                                        with status_box:
-                                            thought_placeholder = st.empty()
+                                        thought_placeholder = (
+                                            status_box.container().empty()
+                                        )
                                     if thought_placeholder and thought_text:
                                         thought_placeholder.markdown(
                                             f"<div style='color: #888888; font-family: sans-serif; font-size: 15px; margin-bottom: 12px; font-style: italic;'>{thought_text}</div>",
@@ -296,8 +297,7 @@ if st.session_state.pending_prompt:
                                         )
                                         completed_actions.append(action_html)
                                     else:
-                                        with status_box:
-                                            ph = st.empty()
+                                        ph = status_box.container().empty()
                                         start_time = time.time()
 
                                         is_skill = (
@@ -400,7 +400,7 @@ if st.session_state.pending_prompt:
                 final_label = f"Ejecutado en {time_str}"
 
                 if not completed_actions and not thought_text:
-                    status_box.empty()
+                    status_container.empty()
                     status_container.markdown(
                         f"<div style='color: #888888; font-size: 13px; font-family: sans-serif; margin-bottom: 8px;'>{final_label}</div>",
                         unsafe_allow_html=True,
