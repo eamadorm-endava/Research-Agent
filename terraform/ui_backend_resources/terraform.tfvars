@@ -4,7 +4,7 @@ apis_to_enable = [
   "firestore.googleapis.com", # To store the credentials
   "run.googleapis.com"        # All the other APIs like artifact registry, aiplatform, are defined in shared resources and in ai_agent_resources
 ]
-ui_backend_sa_name = "osiris_ui_backend"
+ui_backend_sa_name = "osiris-ui-backend"
 ui_backend_iam_project_roles = [
   "roles/aiplatform.user",
   "roles/datastore.user",
