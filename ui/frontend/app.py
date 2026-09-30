@@ -276,6 +276,9 @@ if st.session_state.pending_prompt:
                         event_data = json.loads(raw_data)
 
                         event_type = event_data.get("type")
+                        open("fe_debug.log", "a").write(
+                            f"[{time.time() - process_start_time:.2f}s] FE received: {event_type}\n"
+                        )
                         # DEBUG: uncomment if needed
                         # st.write(f"Received event: {event_type}")
 
@@ -553,6 +556,7 @@ if st.session_state.pending_prompt:
                             msg_data["actions"] = completed_actions
                             msg_data["thought_text"] = thought_text
                         st.session_state.messages.append(msg_data)
+                    st.rerun()
 
         except Exception as e:
             st.error(f"Error connecting to the backend: {e}")
