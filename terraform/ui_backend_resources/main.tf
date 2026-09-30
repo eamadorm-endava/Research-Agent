@@ -38,6 +38,32 @@ module "ui_backend_cloud_run" {
     ui-backend = {
       image = "${local.cloud_run_image}:${var.ui_backend_cloud_run_image_tag}"
       env   = var.ui_backend_cloud_run_env
+      env_from_key = {
+        "GOOGLE_OAUTH_CLIENT_ID" = {
+          secret  = "GOOGLE_OAUTH_CLIENT_ID"
+          version = "latest"
+        }
+        "GOOGLE_OAUTH_CLIENT_SECRET" = {
+          secret  = "GOOGLE_OAUTH_CLIENT_SECRET"
+          version = "latest"
+        }
+        "MICROSOFT_OAUTH_CLIENT_ID" = {
+          secret  = "MICROSOFT_OAUTH_CLIENT_ID"
+          version = "latest"
+        }
+        "MICROSOFT_OAUTH_CLIENT_SECRET" = {
+          secret  = "MICROSOFT_OAUTH_CLIENT_SECRET"
+          version = "latest"
+        }
+        "ATLASSIAN_OAUTH_CLIENT_ID" = {
+          secret  = "ATLASSIAN_OAUTH_CLIENT_ID"
+          version = "latest"
+        }
+        "ATLASSIAN_OAUTH_CLIENT_SECRET" = {
+          secret  = "ATLASSIAN_OAUTH_CLIENT_SECRET"
+          version = "latest"
+        }
+      }
       resources = {
         limits = {
           cpu    = var.ui_backend_cloud_run_cpu
