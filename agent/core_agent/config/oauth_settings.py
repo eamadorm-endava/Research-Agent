@@ -69,6 +69,13 @@ class BaseOAuthConfig(BaseSettings):
             description="The authentication method used when exchanging the code for a token (e.g., client_secret_basic or client_secret_post).",
         ),
     ]
+    SCOPES: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="The default OAuth 2.0 scopes required for this provider.",
+        ),
+    ]
 
 
 class GoogleAuthConfig(BaseOAuthConfig):
@@ -79,6 +86,16 @@ class GoogleAuthConfig(BaseOAuthConfig):
     )
 
     PROVIDER_NAME: str = "google"
+
+    SCOPES: list[str] = [
+        "openid",
+        "email",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/bigquery",
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/calendar.events.readonly",
+        "https://www.googleapis.com/auth/meetings.space.readonly",
+    ]
 
     AUTH_URI: Annotated[
         str,
@@ -110,6 +127,18 @@ class AtlassianAuthConfig(BaseOAuthConfig):
     )
 
     PROVIDER_NAME: str = "atlassian"
+
+    SCOPES: list[str] = [
+        "offline_access",
+        "read:jira-work",
+        "read:jira-user",
+        "read:space:confluence",
+        "read:page:confluence",
+        "read:attachment:confluence",
+        "read:comment:confluence",
+        "read:label:confluence",
+        "search:confluence",
+    ]
 
     AUTH_URI: Annotated[
         str,
@@ -149,6 +178,17 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
     )
 
     PROVIDER_NAME: str = "microsoft"
+
+    SCOPES: list[str] = [
+        "openid",
+        "offline_access",
+        "Files.Read.All",
+        "Sites.Read.All",
+        "User.Read",
+        "Mail.Read",
+        "email",
+        "Calendars.Read",
+    ]
 
     TENANT_ID: Annotated[
         str,
