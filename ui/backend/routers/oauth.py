@@ -56,39 +56,7 @@ async def login(provider: str, request: Request):
     # We pass the redirect URI configured in the environment
     redirect_uri = config.REDIRECT_URI
 
-    PROVIDER_SCOPES = {
-        "google": [
-            "https://www.googleapis.com/auth/bigquery",
-            "https://www.googleapis.com/auth/drive",
-            "https://www.googleapis.com/auth/calendar.events.readonly",
-            "https://www.googleapis.com/auth/meetings.space.readonly",
-            "https://www.googleapis.com/auth/cloud-platform",
-            "openid",
-            "email",
-        ],
-        "microsoft": [
-            "Files.Read.All",
-            "Sites.Read.All",
-            "offline_access",
-            "User.Read",
-            "Mail.Read",
-            "Calendars.Read",
-            "email",
-            "openid",
-        ],
-        "atlassian": [
-            "offline_access",
-            "read:jira-work",
-            "read:jira-user",
-            "read:space:confluence",
-            "read:page:confluence",
-            "read:attachment:confluence",
-            "read:comment:confluence",
-            "read:label:confluence",
-            "search:confluence",
-        ],
-    }
-    scopes = PROVIDER_SCOPES.get(provider, [])
+    scopes = config.SCOPES
     scope_str = " ".join(scopes)
 
     import uuid

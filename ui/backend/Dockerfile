@@ -17,7 +17,7 @@ COPY ui/backend/ ./ui/backend/
 
 # Copy required modules from core_agent (token_store and config are used by UI backend routers)
 COPY agent/core_agent/config/ ./agent/core_agent/config/
-COPY agent/core_agent/security/ ./agent/core_agent/security/
+COPY agent/core_agent/security/token_store.py ./agent/core_agent/security/token_store.py
 
 # --- Runtime Stage ---
 FROM python:3.12-alpine
