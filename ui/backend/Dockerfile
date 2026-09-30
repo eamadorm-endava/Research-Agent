@@ -11,7 +11,13 @@ WORKDIR /app
 COPY --from=uv_image /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
 RUN uv sync --group backend --no-dev --no-install-project --locked
+
+# Copy backend code
 COPY ui/backend/ ./ui/backend/
+
+# Copy required modules from core_agent (token_store and config are used by UI backend routers)
+COPY agent/core_agent/config/ ./agent/core_agent/config/
+COPY agent/core_agent/security/ ./agent/core_agent/security/
 
 # --- Runtime Stage ---
 FROM python:3.12-alpine
