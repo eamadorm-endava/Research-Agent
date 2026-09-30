@@ -1,6 +1,6 @@
 substitutions:
-  _LOCATION: us-west4
-  _REPO_NAME: gcp-demos
+  _LOCATION: us-central1
+  _REPO_NAME: mcp-servers
   _SERVICE_NAME: ui-backend
 
 steps:
