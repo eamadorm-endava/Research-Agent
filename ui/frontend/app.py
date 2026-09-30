@@ -114,6 +114,8 @@ st.markdown(
         border-radius: 40px !important;
         background-color: transparent !important;
         color: #ffffff !important;
+        padding-left: 24px !important;
+        padding-right: 24px !important;
     }
     [data-testid="stChatInput"] textarea:focus {
         outline: none !important;
@@ -222,7 +224,7 @@ for msg in st.session_state.messages:
         st.markdown(content, unsafe_allow_html=True)
 
 # Chat input
-user_input = st.chat_input("Escribe tu consulta...")
+user_input = st.chat_input("Ask OSIRIS to search your organization's data...")
 
 # If the user typed something new, capture it and trigger a rerun
 if user_input:
