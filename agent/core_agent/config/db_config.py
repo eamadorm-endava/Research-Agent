@@ -13,7 +13,7 @@ class FirestoreConfig(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         validate_assignment=True,
-        env_prefix="firestore_",
+        env_prefix="FIRESTORE_",
     )
 
     DB_NAME: Annotated[
