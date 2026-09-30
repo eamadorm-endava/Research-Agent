@@ -255,3 +255,18 @@ resource "google_storage_bucket" "landing_zone_bucket" {
 }
 
 
+
+################ Firestore Database ################
+
+module "firestore_db" {
+  source     = "../base_modules/firestore"
+  project_id = var.project_id
+
+  database = {
+    name        = var.firestore_db_name
+    location_id = var.main_region
+    type        = "FIRESTORE_NATIVE"
+  }
+
+  depends_on = [module.enable_apis]
+}

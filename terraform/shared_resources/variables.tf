@@ -73,3 +73,10 @@ variable "rag_staging_bucket_suffix" {
 variable "kb_domain_bucket_prefix" {
   type = string
 }
+################ Firestore ################
+
+variable "firestore_db_name" {
+  description = "The name of the Firestore database. Use '(default)' for the main database."
+  type        = string
+  default     = "(default)"
+}
