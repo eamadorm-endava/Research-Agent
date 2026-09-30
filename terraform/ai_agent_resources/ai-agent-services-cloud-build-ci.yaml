@@ -205,6 +205,10 @@ steps:
         
         ENV_VARS="$${ENV_VARS},EKB_PIPELINE_URL=http://gateway.mcp.internal/ekb"
         
+        # Firestore configuration
+        ENV_VARS="$${ENV_VARS},FIRESTORE_DB_NAME=osiris"
+        ENV_VARS="$${ENV_VARS},FIRESTORE_COLLECTION_NAME=user_oauth_tokens"
+        
         # OpenTelemetry & Observability configuration
         ENV_VARS="$${ENV_VARS},OTEL_METRICS_EXPORTER=gcp_monitoring"
         ENV_VARS="$${ENV_VARS},OTEL_TRACES_EXPORTER=gcp_trace"
