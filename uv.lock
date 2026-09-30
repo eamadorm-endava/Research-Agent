@@ -3661,6 +3661,7 @@ ekb-integration = [
     { name = "uvicorn" },
 ]
 frontend = [
+    { name = "google-auth" },
     { name = "requests" },
     { name = "streamlit" },
 ]
@@ -3814,6 +3815,7 @@ ekb-integration = [
     { name = "uvicorn", specifier = ">=0.41.0" },
 ]
 frontend = [
+    { name = "google-auth", specifier = ">=2.55.0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "streamlit", specifier = ">=1.32.0" },
 ]
