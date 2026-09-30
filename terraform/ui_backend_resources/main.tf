@@ -37,7 +37,10 @@ module "ui_backend_cloud_run" {
   containers = {
     ui-backend = {
       image = "${local.cloud_run_image}:${var.ui_backend_cloud_run_image_tag}"
-      env   = var.ui_backend_cloud_run_env
+      env = merge(var.ui_backend_cloud_run_env, {
+        PROJECT_ID = var.project_id
+        REGION     = local.cloud_run_region
+      })
       env_from_key = {
         "GOOGLE_OAUTH_CLIENT_ID" = {
           secret  = "GOOGLE_OAUTH_CLIENT_ID"
