@@ -136,7 +136,9 @@ st.markdown(
     [data-testid="stStatusWidget"] > div,
     [data-testid="stExpander"] > div,
     [data-testid="stStatusWidget"] details,
-    [data-testid="stExpander"] details {
+    [data-testid="stExpander"] details,
+    [data-testid="stStatusWidget"] summary,
+    [data-testid="stExpander"] summary {
         background-color: transparent !important;
         background: none !important;
         border: none !important;
