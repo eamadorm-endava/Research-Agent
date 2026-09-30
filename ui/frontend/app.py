@@ -243,10 +243,12 @@ if st.session_state.pending_prompt:
 
         # Prepare request
         payload = {"message": prompt, "session_id": st.session_state.session_id}
-        headers = {
-            # Mocking the IAP header for local development
-            "X-Goog-Authenticated-User-Email": "mock-user@example.com"
-        }
+
+        # Extract IAP header from Streamlit context, fallback to mock for local dev
+        user_email = st.context.headers.get(
+            "X-Goog-Authenticated-User-Email", "mock-user@example.com"
+        )
+        headers = {"X-Goog-Authenticated-User-Email": user_email}
 
         try:
             # Initialize status immediately using a context manager so it renders BEFORE blocking
