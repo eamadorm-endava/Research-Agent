@@ -12,6 +12,7 @@ from ..config import (
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
     ATLASSIAN_AUTH_CONFIG,
+    FIRESTORE_CONFIG,
 )
 
 
@@ -140,9 +141,10 @@ class TokenStore:
             project_id: Optional[str] -> Target GCP project ID. Defaults to GCP_CONFIG.
         """
         resolved_project_id = project_id or GCP_CONFIG.PROJECT_ID
-        self.db = firestore.Client(project=resolved_project_id)
-        # collection_name is the top-level namespace within the Firestore database
-        self.collection_name = "user_oauth_tokens"
+        self.db = firestore.Client(
+            project=resolved_project_id, database=FIRESTORE_CONFIG.DB_NAME
+        )
+        self.collection_name = FIRESTORE_CONFIG.COLLECTION_NAME
 
         self.refresh_strategies: dict[str, BaseOAuthRefreshStrategy] = {
             "google": GoogleRefreshStrategy(),
