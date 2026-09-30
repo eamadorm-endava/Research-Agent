@@ -55,6 +55,7 @@ module "ui_backend_cloud_run" {
   }
 
   service_config = {
+    ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY" # required to communicate with the frontend (frontend requires a VPC Egress)
     scaling = {
       min_instance_count = var.ui_backend_cloud_run_min_instances
     }
