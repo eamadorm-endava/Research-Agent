@@ -13,8 +13,10 @@ LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 
 
 gcloud-auth:
+	gcloud auth login --project=$(PROJECT_ID)
 	gcloud config unset auth/impersonate_service_account
 	gcloud auth application-default login --project=$(PROJECT_ID)
+	gcloud auth application-default set-quota-project $(PROJECT_ID)
 	gcloud config set project $(PROJECT_ID)
 
 gcloud-auth-terraform:
