@@ -27,13 +27,7 @@ steps:
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
           -backend-config="prefix=terraform/state/ui-backend-resources"
 
-  # Step 2: Validate Terraform
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-validate'
-    args: ['validate']
-    dir: 'terraform/ui_backend_resources'
-
-  # Step 3: Docker Build
+  # Step 2: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-build'
     args: [
@@ -44,7 +38,7 @@ steps:
       '.'
     ]
 
-  # Step 4: Docker Push
+  # Step 3: Docker Push
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-push'
     entrypoint: 'sh'
@@ -54,7 +48,7 @@ steps:
         docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
         docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest
 
-  # Step 5: Full Terraform Plan
+  # Step 4: Full Terraform Plan
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'
     args:
@@ -65,7 +59,7 @@ steps:
       - '-out=tfplan'
     dir: 'terraform/ui_backend_resources'
 
-  # Step 6: Full Terraform Apply
+  # Step 5: Full Terraform Apply
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
     args: ['apply', '-auto-approve', 'tfplan']
