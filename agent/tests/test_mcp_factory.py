@@ -69,6 +69,12 @@ def test_get_mcp_toolset_prod_mode_logic():
     """Test factory prod mode structures (delegated token, no ADK schemes)."""
     with patch.dict(os.environ, {"BIGQUERY_AUTH_ID": "test-id"}, clear=True):
         mcp_config = BigQueryMCPConfig(_env_file=None)
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            _env_file=None,
+        )
 
     builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=True)
@@ -79,10 +85,16 @@ def test_get_mcp_toolset_prod_mode_logic():
 
     # Check header provider logic
     ctx = MagicMock()
-    ctx.state = {"test-id": "delegated-token"}
+    ctx.user_id = "test-user"
 
-    with patch(
-        "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+    with (
+        patch(
+            "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+        ),
+        patch(
+            "agent.core_agent.builder.mcp_factory.token_store.get_valid_access_token",
+            return_value="delegated-token",
+        ),
     ):
         headers = tool._header_provider(ctx)
         assert headers["X-Serverless-Authorization"] == "Bearer id-token"
@@ -93,6 +105,12 @@ def test_get_mcp_toolset_prod_mode_gcs_uses_delegated_token():
     """Test factory prod mode for GCS forwards the delegated OAuth token."""
     with patch.dict(os.environ, {"GCS_AUTH_ID": "gcs-auth-id"}, clear=True):
         mcp_config = GCSMCPConfig()
+        mcp_config.OAUTH_CONFIG = GoogleAuthConfig(
+            CLIENT_ID="mock-id",
+            CLIENT_SECRET="mock-secret",
+            REDIRECT_URI="http://localhost",
+            _env_file=None,
+        )
 
     builder = MCPToolsetBuilder()
     tool = builder.build(mcp_config, prod_execution=True)
@@ -102,9 +120,15 @@ def test_get_mcp_toolset_prod_mode_gcs_uses_delegated_token():
 
     # Check header provider logic (Authorization must be present)
     ctx = MagicMock()
-    ctx.state = {"gcs-auth-id": "delegated-token"}
-    with patch(
-        "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+    ctx.user_id = "test-user"
+    with (
+        patch(
+            "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+        ),
+        patch(
+            "agent.core_agent.builder.mcp_factory.token_store.get_valid_access_token",
+            return_value="delegated-token",
+        ),
     ):
         headers = tool._header_provider(ctx)
         assert headers["X-Serverless-Authorization"] == "Bearer id-token"
@@ -149,9 +173,15 @@ def test_get_mcp_toolset_atlassian_local_and_prod():
     assert tool_prod._auth_credential is None
 
     ctx = MagicMock()
-    ctx.state = {"atlassian-id": "delegated-atlassian-token"}
-    with patch(
-        "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+    ctx.user_id = "test-user"
+    with (
+        patch(
+            "agent.core_agent.builder.mcp_factory.get_id_token", return_value="id-token"
+        ),
+        patch(
+            "agent.core_agent.builder.mcp_factory.token_store.get_valid_access_token",
+            return_value="delegated-atlassian-token",
+        ),
     ):
         headers = tool_prod._header_provider(ctx)
         assert headers["X-Serverless-Authorization"] == "Bearer id-token"

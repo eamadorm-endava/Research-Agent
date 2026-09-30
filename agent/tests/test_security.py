@@ -2,8 +2,8 @@ from unittest.mock import patch, MagicMock
 
 from agent.core_agent.security import (
     clear_id_token_cache,
-    get_ge_oauth_token,
     get_id_token,
+    get_ge_oauth_token,
 )
 
 

@@ -13,8 +13,10 @@ LANDING_ZONE_BUCKET?=$(PROJECT_ID)-ai-agent-landing-zone
 
 
 gcloud-auth:
+	gcloud auth login --project=$(PROJECT_ID)
 	gcloud config unset auth/impersonate_service_account
 	gcloud auth application-default login --project=$(PROJECT_ID)
+	gcloud auth application-default set-quota-project $(PROJECT_ID)
 	gcloud config set project $(PROJECT_ID)
 
 gcloud-auth-terraform:
@@ -91,7 +93,13 @@ deploy-agent:
 		--entrypoint-object=app \
 		--requirements-file=./agent/core_agent/requirements.txt \
 		--service-account=adk-agent@${PROJECT_ID}.iam.gserviceaccount.com \
-		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET},MODEL_ARMOR_TEMPLATE_ID=security-template,BIGQUERY_URL=${BIGQUERY_PROD_URL},DRIVE_URL=${DRIVE_PROD_URL},GCS_URL=${GCS_PROD_URL},CALENDAR_URL=${CALENDAR_PROD_URL},GEMINI_GOOGLE_AUTH_ID=${GOOGLE_AUTH_ID},EKB_PIPELINE_URL=${EKB_PIPELINE_URL},OTEL_METRICS_EXPORTER=gcp_monitoring,OTEL_TRACES_EXPORTER=gcp_trace,OTEL_LOGS_EXPORTER=gcp_logging,OTEL_SERVICE_NAME=osiris-agent,GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true,OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental,OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true,OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY,ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false"
+		--network-attachment=projects/${PROJECT_ID}/regions/${REGION}/networkAttachments/mcp-agent-vpc-network-attachment-${REGION} \
+		--dns-peering-domain=mcp.internal. \
+		--target-network=projects/${PROJECT_ID}/global/networks/mcp-agent-vpc \
+		--min-instances=1 \
+		--memory=16Gi \
+		--num-workers=4 \
+		--set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${REGION},LANDING_ZONE_BUCKET=${LANDING_ZONE_BUCKET},BIGQUERY_URL=http://gateway.mcp.internal/bq,DRIVE_URL=http://gateway.mcp.internal/drive,GCS_URL=http://gateway.mcp.internal/gcs,CALENDAR_URL=http://gateway.mcp.internal/calendar,ONEDRIVE_URL=http://gateway.mcp.internal/onedrive,ATLASSIAN_URL=http://gateway.mcp.internal/atlassian,SHAREPOINT_URL=http://gateway.mcp.internal/sharepoint,OUTLOOK_URL=http://gateway.mcp.internal/outlook,EKB_PIPELINE_URL=http://gateway.mcp.internal/ekb,GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID},GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET},MICROSOFT_OAUTH_TENANT_ID=${MICROSOFT_OAUTH_TENANT_ID},MICROSOFT_OAUTH_CLIENT_ID=${MICROSOFT_OAUTH_CLIENT_ID},MICROSOFT_OAUTH_CLIENT_SECRET=${MICROSOFT_OAUTH_CLIENT_SECRET},ATLASSIAN_OAUTH_CLIENT_ID=${ATLASSIAN_OAUTH_CLIENT_ID},ATLASSIAN_OAUTH_CLIENT_SECRET=${ATLASSIAN_OAUTH_CLIENT_SECRET},OTEL_METRICS_EXPORTER=gcp_monitoring,OTEL_TRACES_EXPORTER=gcp_trace,OTEL_LOGS_EXPORTER=gcp_logging,OTEL_INSTRUMENTATION_GENAI_UPLOAD_FORMAT=jsonl,OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK=upload,OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH=gs://${PROJECT_ID}-ai-agent-landing-zone/traces,OTEL_SERVICE_NAME=osiris-agent,OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true,OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental,OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY,ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false,GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true"
 	rm agent/core_agent/requirements.txt
 
 verify-agent-ci:
@@ -304,3 +312,11 @@ verify-atlassian-ci:
 
 test-atlassian-terraform:
 	cd terraform/atlassian_mcp_server_resources && terraform fmt -check -recursive && terraform init -backend=false && terraform validate
+
+### UI Migration Commands ###
+
+run-backend:
+	uv run --group backend uvicorn ui.backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+run-ui:
+	uv run --group frontend streamlit run ui/frontend/app.py --server.port 8501

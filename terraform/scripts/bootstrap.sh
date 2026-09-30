@@ -99,6 +99,7 @@ ROLES=(
     "roles/cloudtasks.admin" # To manage Cloud Tasks queues
     "roles/compute.admin" # To manage Load Balancers, Subnets, NEGs and Forwarding Rules
     "roles/dns.admin" # To manage Cloud DNS private zones and record sets
+    "roles/datastore.owner" # To manage Firestore databases and collections
 )
 
 for ROLE in "${ROLES[@]}"; do

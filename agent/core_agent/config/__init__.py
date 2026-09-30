@@ -29,6 +29,7 @@ from .mcp_settings import (
     AtlassianMCPConfig,
     OutlookMCPConfig,
 )
+from .db_config import FIRESTORE_CONFIG, FirestoreConfig
 
 __all__ = [
     # Singleton config instances (primary external API)
@@ -58,4 +59,6 @@ __all__ = [
     "SharePointMCPConfig",
     "AtlassianMCPConfig",
     "OutlookMCPConfig",
+    "FIRESTORE_CONFIG",
+    "FirestoreConfig",
 ]

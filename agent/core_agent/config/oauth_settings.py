@@ -13,6 +13,14 @@ class BaseOAuthConfig(BaseSettings):
         validate_assignment=True,
     )
 
+    PROVIDER_NAME: Annotated[
+        str,
+        Field(
+            default="unknown",
+            description="The identifier name for the OAuth provider (e.g., 'google', 'microsoft', 'atlassian').",
+        ),
+    ]
+
     CLIENT_ID: Annotated[
         str,
         Field(
@@ -61,6 +69,13 @@ class BaseOAuthConfig(BaseSettings):
             description="The authentication method used when exchanging the code for a token (e.g., client_secret_basic or client_secret_post).",
         ),
     ]
+    SCOPES: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            description="The default OAuth 2.0 scopes required for this provider.",
+        ),
+    ]
 
 
 class GoogleAuthConfig(BaseOAuthConfig):
@@ -69,6 +84,18 @@ class GoogleAuthConfig(BaseOAuthConfig):
     model_config = SettingsConfigDict(
         env_prefix="GOOGLE_OAUTH_",
     )
+
+    PROVIDER_NAME: str = "google"
+
+    SCOPES: list[str] = [
+        "openid",
+        "email",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/bigquery",
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/calendar.events.readonly",
+        "https://www.googleapis.com/auth/meetings.space.readonly",
+    ]
 
     AUTH_URI: Annotated[
         str,
@@ -99,13 +126,24 @@ class AtlassianAuthConfig(BaseOAuthConfig):
         env_prefix="ATLASSIAN_OAUTH_",
     )
 
+    PROVIDER_NAME: str = "atlassian"
+
+    SCOPES: list[str] = [
+        "offline_access",
+        "read:jira-work",
+        "read:jira-user",
+        "read:space:confluence",
+        "read:page:confluence",
+        "read:attachment:confluence",
+        "read:comment:confluence",
+        "read:label:confluence",
+        "search:confluence",
+    ]
+
     AUTH_URI: Annotated[
         str,
         Field(
-            default=(
-                "https://auth.atlassian.com/authorize"
-                "?audience=api.atlassian.com&prompt=consent"
-            ),
+            default="https://auth.atlassian.com/authorize",
             description=(
                 "Atlassian 3LO authorization endpoint. The audience query "
                 "parameter is required so Atlassian issues an api.atlassian.com "
@@ -138,6 +176,19 @@ class MicrosoftAuthConfig(BaseOAuthConfig):
     model_config = SettingsConfigDict(
         env_prefix="MICROSOFT_OAUTH_",
     )
+
+    PROVIDER_NAME: str = "microsoft"
+
+    SCOPES: list[str] = [
+        "openid",
+        "offline_access",
+        "Files.Read.All",
+        "Sites.Read.All",
+        "User.Read",
+        "Mail.Read",
+        "email",
+        "Calendars.Read",
+    ]
 
     TENANT_ID: Annotated[
         str,
