@@ -6,7 +6,7 @@ set -euo pipefail
 # Script: cicd_triggers_creation.sh
 # Purpose:
 #   This script is responsible for creating all the necessary Cloud Build triggers
-#   (CI/CD pipelines) for the AI Agent, MCP Servers, and the EKB pipeline.
+#   (CI/CD pipelines) for the AI Agent, MCP Servers, the EKB pipeline, and UI apps.
 #   It dynamically creates only the triggers requested via parameters, and prevents
 #   duplication if they already exist.
 #
@@ -27,6 +27,8 @@ set -euo pipefail
 #   --mcp-server-triggers-to-create      - Comma-separated list of MCP servers to create triggers for.
 #   --create-ekb-pipeline-triggers       - "true" to create the trigger for the EKB pipeline.
 #   --create-ai-agent-triggers           - "true" to create the trigger for the AI Agent.
+#   --create-ui-backend-triggers         - "true" to create the trigger for the UI Backend.
+#   --create-ui-frontend-triggers        - "true" to create the trigger for the UI Frontend.
 #   --force-recreate                     - "true" to delete and recreate triggers if they exist.
 # ==============================================================================
 
