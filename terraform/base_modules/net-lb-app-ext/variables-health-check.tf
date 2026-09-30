@@ -95,7 +95,7 @@ variable "health_check_configs" {
         (try(v.ssl, null) == null ? 0 : 1) <= 1
       )
     ])
-    error_message = "Only one health check type can be configured at a time."
+    error_message = "At most one health check type can be configured at a time."
   }
   validation {
     condition = alltrue(flatten([

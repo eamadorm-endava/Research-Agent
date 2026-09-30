@@ -19,7 +19,73 @@
 variable "urlmap_config" {
   description = "The URL map configuration."
   type = object({
-    description     = optional(string, "Terraform managed.")
+    description = optional(string, "Terraform managed.")
+    default_custom_error_response_policy = optional(object({
+      error_service = optional(string)
+      error_response_rules = optional(list(object({
+        match_response_codes   = optional(list(string))
+        path                   = optional(string)
+        override_response_code = optional(number)
+      })))
+    }))
+    default_route_action = optional(object({
+      request_mirror_backend = optional(string)
+      cors_policy = optional(object({
+        allow_credentials    = optional(bool)
+        allow_headers        = optional(list(string))
+        allow_methods        = optional(list(string))
+        allow_origin_regexes = optional(list(string))
+        allow_origins        = optional(list(string))
+        disabled             = optional(bool)
+        expose_headers       = optional(list(string))
+        max_age              = optional(string)
+      }))
+      fault_injection_policy = optional(object({
+        abort = optional(object({
+          percentage = number
+          status     = number
+        }))
+        delay = optional(object({
+          fixed = object({
+            seconds = number
+            nanos   = number
+          })
+          percentage = number
+        }))
+      }))
+      retry_policy = optional(object({
+        num_retries      = number
+        retry_conditions = optional(list(string))
+        per_try_timeout = optional(object({
+          seconds = number
+          nanos   = optional(number)
+        }))
+      }))
+      timeout = optional(object({
+        seconds = number
+        nanos   = optional(number)
+      }))
+      url_rewrite = optional(object({
+        host          = optional(string)
+        path_prefix   = optional(string)
+        path_template = optional(string)
+      }))
+      weighted_backend_services = optional(map(object({
+        weight = number
+        header_action = optional(object({
+          request_add = optional(map(object({
+            value   = string
+            replace = optional(bool, true)
+          })))
+          request_remove = optional(list(string))
+          response_add = optional(map(object({
+            value   = string
+            replace = optional(bool, true)
+          })))
+          response_remove = optional(list(string))
+        }))
+      })))
+    }))
     default_service = optional(string)
     default_url_redirect = optional(object({
       host          = optional(string)
@@ -27,7 +93,19 @@ variable "urlmap_config" {
       path          = optional(string)
       prefix        = optional(string)
       response_code = optional(string)
-      strip_query   = optional(bool)
+      strip_query   = optional(bool, false)
+    }))
+    header_action = optional(object({
+      request_add = optional(map(object({
+        value   = string
+        replace = optional(bool, true)
+      })))
+      request_remove = optional(list(string))
+      response_add = optional(map(object({
+        value   = string
+        replace = optional(bool, true)
+      })))
+      response_remove = optional(list(string))
     }))
     host_rules = optional(list(object({
       hosts        = list(string)
@@ -35,7 +113,72 @@ variable "urlmap_config" {
       description  = optional(string)
     })))
     path_matchers = optional(map(object({
-      description     = optional(string)
+      description = optional(string)
+      default_custom_error_response_policy = optional(object({
+        error_service = optional(string)
+        error_response_rules = optional(list(object({
+          match_response_codes   = optional(list(string))
+          path                   = optional(string)
+          override_response_code = optional(number)
+        })))
+      }))
+      default_route_action = optional(object({
+        request_mirror_backend = optional(string)
+        cors_policy = optional(object({
+          allow_credentials    = optional(bool)
+          allow_headers        = optional(list(string))
+          allow_methods        = optional(list(string))
+          allow_origin_regexes = optional(list(string))
+          allow_origins        = optional(list(string))
+          disabled             = optional(bool)
+          expose_headers       = optional(list(string))
+          max_age              = optional(string)
+        }))
+        fault_injection_policy = optional(object({
+          abort = optional(object({
+            percentage = number
+            status     = number
+          }))
+          delay = optional(object({
+            fixed = object({
+              seconds = number
+              nanos   = number
+            })
+            percentage = number
+          }))
+        }))
+        retry_policy = optional(object({
+          num_retries      = number
+          retry_conditions = optional(list(string))
+          per_try_timeout = optional(object({
+            seconds = number
+            nanos   = optional(number)
+          }))
+        }))
+        timeout = optional(object({
+          seconds = number
+          nanos   = optional(number)
+        }))
+        url_rewrite = optional(object({
+          host        = optional(string)
+          path_prefix = optional(string)
+        }))
+        weighted_backend_services = optional(map(object({
+          weight = number
+          header_action = optional(object({
+            request_add = optional(map(object({
+              value   = string
+              replace = optional(bool, true)
+            })))
+            request_remove = optional(list(string))
+            response_add = optional(map(object({
+              value   = string
+              replace = optional(bool, true)
+            })))
+            response_remove = optional(list(string))
+          }))
+        })))
+      }))
       default_service = optional(string)
       default_url_redirect = optional(object({
         host          = optional(string)
@@ -45,19 +188,39 @@ variable "urlmap_config" {
         response_code = optional(string)
         strip_query   = optional(bool)
       }))
+      header_action = optional(object({
+        request_add = optional(map(object({
+          value   = string
+          replace = optional(bool, true)
+        })))
+        request_remove = optional(list(string))
+        response_add = optional(map(object({
+          value   = string
+          replace = optional(bool, true)
+        })))
+        response_remove = optional(list(string))
+      }))
       path_rules = optional(list(object({
         paths   = list(string)
         service = optional(string)
+        custom_error_response_policy = optional(object({
+          error_service = optional(string)
+          error_response_rules = optional(list(object({
+            match_response_codes   = optional(list(string))
+            path                   = optional(string)
+            override_response_code = optional(number)
+          })))
+        }))
         route_action = optional(object({
           request_mirror_backend = optional(string)
           cors_policy = optional(object({
             allow_credentials    = optional(bool)
-            allow_headers        = optional(list(string))
-            allow_methods        = optional(list(string))
-            allow_origin_regexes = optional(list(string))
-            allow_origins        = optional(list(string))
+            allow_headers        = optional(string)
+            allow_methods        = optional(string)
+            allow_origin_regexes = list(string)
+            allow_origins        = list(string)
             disabled             = optional(bool)
-            expose_headers       = optional(list(string))
+            expose_headers       = optional(string)
             max_age              = optional(string)
           }))
           fault_injection_policy = optional(object({
@@ -117,6 +280,14 @@ variable "urlmap_config" {
       route_rules = optional(list(object({
         priority = number
         service  = optional(string)
+        custom_error_response_policy = optional(object({
+          error_service = optional(string)
+          error_response_rules = optional(list(object({
+            match_response_codes   = optional(list(string))
+            path                   = optional(string)
+            override_response_code = optional(number)
+          })))
+        }))
         header_action = optional(object({
           request_add = optional(map(object({
             value   = string
@@ -159,12 +330,12 @@ variable "urlmap_config" {
           request_mirror_backend = optional(string)
           cors_policy = optional(object({
             allow_credentials    = optional(bool)
-            allow_headers        = optional(list(string))
-            allow_methods        = optional(list(string))
-            allow_origin_regexes = optional(list(string))
-            allow_origins        = optional(list(string))
+            allow_headers        = optional(string)
+            allow_methods        = optional(string)
+            allow_origin_regexes = list(string)
+            allow_origins        = list(string)
             disabled             = optional(bool)
-            expose_headers       = optional(list(string))
+            expose_headers       = optional(string)
             max_age              = optional(string)
           }))
           fault_injection_policy = optional(object({
@@ -222,64 +393,6 @@ variable "urlmap_config" {
           strip_query   = optional(bool)
         }))
       })))
-      default_route_action = optional(object({
-        weighted_backend_services = optional(map(object({
-          weight = number
-          header_action = optional(object({
-            request_add = optional(map(object({
-              value   = string
-              replace = optional(bool, true)
-            })))
-            request_remove = optional(list(string))
-            response_add = optional(map(object({
-              value   = string
-              replace = optional(bool, true)
-            })))
-            response_remove = optional(list(string))
-          }))
-        })))
-        url_rewrite = optional(object({
-          host          = optional(string)
-          path_prefix   = optional(string)
-          path_template = optional(string)
-        }))
-        timeout = optional(object({
-          seconds = number
-          nanos   = optional(number)
-        }))
-        retry_policy = optional(object({
-          num_retries      = number
-          retry_conditions = optional(list(string))
-          per_try_timeout = optional(object({
-            seconds = number
-            nanos   = optional(number)
-          }))
-        }))
-        request_mirror_backend = optional(string)
-        cors_policy = optional(object({
-          allow_credentials    = optional(bool)
-          allow_headers        = optional(list(string))
-          allow_methods        = optional(list(string))
-          allow_origin_regexes = optional(list(string))
-          allow_origins        = optional(list(string))
-          disabled             = optional(bool)
-          expose_headers       = optional(list(string))
-          max_age              = optional(string)
-        }))
-        fault_injection_policy = optional(object({
-          abort = optional(object({
-            percentage = number
-            status     = number
-          }))
-          delay = optional(object({
-            fixed = object({
-              seconds = number
-              nanos   = number
-            })
-            percentage = number
-          }))
-        }))
-      }))
     })))
     test = optional(list(object({
       host        = string

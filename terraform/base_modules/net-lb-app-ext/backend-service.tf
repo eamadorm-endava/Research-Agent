@@ -22,19 +22,16 @@ locals {
       for k, v in google_compute_instance_group.default : k => v.id
     },
     {
+      for k, v in google_compute_global_network_endpoint_group.default : k => v.id
+    },
+    {
       for k, v in google_compute_network_endpoint_group.default : k => v.id
-    },
-    {
-      for k, v in google_compute_region_network_endpoint_group.internet : k => v.id
-    },
-    {
-      for k, v in google_compute_region_network_endpoint_group.default : k => v.id
     },
     {
       for k, v in google_compute_region_network_endpoint_group.psc : k => v.id
     },
     {
-      for k, v in google_compute_region_network_endpoint.internet : k => v.id
+      for k, v in google_compute_region_network_endpoint_group.serverless : k => v.id
     }
   )
   hc_ids = {
@@ -42,7 +39,9 @@ locals {
   }
 }
 
-resource "google_compute_region_backend_service" "default" {
+# google_compute_backend_bucket
+
+resource "google_compute_backend_service" "default" {
   provider = google-beta
   for_each = var.backend_service_configs
   project = (
@@ -50,32 +49,39 @@ resource "google_compute_region_backend_service" "default" {
     ? var.project_id
     : each.value.project_id
   )
-  region                          = var.region
   name                            = coalesce(each.value.name, "${var.name}-${each.key}")
   description                     = each.value.description
   affinity_cookie_ttl_sec         = each.value.affinity_cookie_ttl_sec
+  compression_mode                = each.value.compression_mode
   connection_draining_timeout_sec = each.value.connection_draining_timeout_sec
+  custom_request_headers          = each.value.custom_request_headers
+  custom_response_headers         = each.value.custom_response_headers
+  enable_cdn                      = each.value.enable_cdn
   health_checks = length(each.value.health_checks) == 0 ? null : [
     for k in each.value.health_checks : lookup(local.hc_ids, k, k)
-  ] # not for internet / serverless NEGs
-  locality_lb_policy    = each.value.locality_lb_policy
-  load_balancing_scheme = "INTERNAL_MANAGED"
-  port_name             = each.value.port_name # defaults to http, not for NEGs
+  ]
+  locality_lb_policy    = (each.value.locality_lb_policies == null ? each.value.locality_lb_policy : null)
+  load_balancing_scheme = var.use_classic_version ? "EXTERNAL" : "EXTERNAL_MANAGED"
+  port_name = (
+    each.value.port_name == null
+    ? lower(each.value.protocol == null ? var.protocol : each.value.protocol)
+    : each.value.port_name
+  )
   protocol = (
     each.value.protocol == null ? var.protocol : each.value.protocol
   )
+  security_policy  = each.value.security_policy
   session_affinity = each.value.session_affinity
   timeout_sec      = each.value.timeout_sec
-  security_policy  = each.value.security_policy
 
   dynamic "backend" {
-    for_each = { for b in coalesce(each.value.backends, []) : b.group => b }
+    for_each = { for b in coalesce(each.value.backends, []) : b.backend => b }
     content {
       group           = lookup(local.group_ids, backend.key, backend.key)
-      balancing_mode  = backend.value.balancing_mode
+      preference      = backend.value.preferred ? "PREFERRED" : null
+      balancing_mode  = backend.value.balancing_mode # UTILIZATION, RATE
       capacity_scaler = backend.value.capacity_scaler
       description     = backend.value.description
-      failover        = backend.value.failover
       max_connections = try(
         backend.value.max_connections.per_group, null
       )
@@ -95,6 +101,50 @@ resource "google_compute_region_backend_service" "default" {
         backend.value.max_rate.per_instance, null
       )
       max_utilization = backend.value.max_utilization
+    }
+  }
+
+  dynamic "cdn_policy" {
+    for_each = (
+      each.value.cdn_policy == null ? [] : [each.value.cdn_policy]
+    )
+    iterator = cdn
+    content {
+      cache_mode                   = cdn.value.cache_mode
+      client_ttl                   = cdn.value.client_ttl
+      default_ttl                  = cdn.value.default_ttl
+      max_ttl                      = cdn.value.max_ttl
+      negative_caching             = cdn.value.negative_caching
+      serve_while_stale            = cdn.value.serve_while_stale
+      signed_url_cache_max_age_sec = cdn.value.signed_url_cache_max_age_sec
+      dynamic "cache_key_policy" {
+        for_each = (
+          cdn.value.cache_key_policy == null
+          ? []
+          : [cdn.value.cache_key_policy]
+        )
+        iterator = ck
+        content {
+          include_host           = ck.value.include_host
+          include_named_cookies  = ck.value.include_named_cookies
+          include_protocol       = ck.value.include_protocol
+          include_query_string   = ck.value.include_query_string
+          query_string_blacklist = ck.value.query_string_blacklist
+          query_string_whitelist = ck.value.query_string_whitelist
+        }
+      }
+      dynamic "negative_caching_policy" {
+        for_each = (
+          cdn.value.negative_caching_policy == null
+          ? []
+          : [cdn.value.negative_caching_policy]
+        )
+        iterator = nc
+        content {
+          code = nc.value.code
+          ttl  = nc.value.ttl
+        }
+      }
     }
   }
 
@@ -148,18 +198,6 @@ resource "google_compute_region_backend_service" "default" {
     }
   }
 
-  dynamic "failover_policy" {
-    for_each = (
-      each.value.failover_config == null ? [] : [each.value.failover_config]
-    )
-    iterator = fc
-    content {
-      disable_connection_drain_on_failover = fc.value.disable_conn_drain
-      drop_traffic_if_unhealthy            = fc.value.drop_traffic_if_unhealthy
-      failover_ratio                       = fc.value.ratio
-    }
-  }
-
   dynamic "iap" {
     for_each = each.value.iap_config == null ? [] : [each.value.iap_config]
     content {
@@ -175,6 +213,25 @@ resource "google_compute_region_backend_service" "default" {
     content {
       enable      = true
       sample_rate = each.value.log_sample_rate
+    }
+  }
+
+  dynamic "locality_lb_policies" {
+    for_each = (each.value.locality_lb_policies == null ? [] : each.value.locality_lb_policies)
+    content {
+      dynamic "policy" {
+        for_each = (locality_lb_policies.value.policy != null ? locality_lb_policies.value.policy : {})
+        content {
+          name = policy.value
+        }
+      }
+      dynamic "custom_policy" {
+        for_each = (locality_lb_policies.value.custom_policy != null ? locality_lb_policies.value.custom_policy : {})
+        content {
+          name = custom_policy.value
+          data = custom_policy.value.data
+        }
+      }
     }
   }
 
@@ -214,26 +271,32 @@ resource "google_compute_region_backend_service" "default" {
     }
   }
 
-  dynamic "subsetting" {
-    for_each = each.value.enable_subsetting == true ? [""] : []
+  dynamic "security_settings" {
+    for_each = (
+      each.value.security_settings == null ? [] : [each.value.security_settings]
+    )
+    iterator = ss
     content {
-      policy = "CONSISTENT_HASH_SUBSETTING"
+      client_tls_policy = ss.value.client_tls_policy
+      subject_alt_names = ss.value.subject_alt_names
+
+      dynamic "aws_v4_authentication" {
+        for_each = ss.value.aws_v4_authentication == null ? [] : [""]
+
+        content {
+          access_key_id      = ss.value.aws_v4_authentication.access_key_id
+          access_key         = ss.value.aws_v4_authentication.access_key
+          access_key_version = ss.value.aws_v4_authentication.access_key_version
+          origin_region      = ss.value.aws_v4_authentication.origin_region
+        }
+      }
     }
   }
 
   dynamic "tls_settings" {
     for_each = each.value.tls_settings == null ? [] : [each.value.tls_settings]
     content {
-      # authentication_config is not supported by the beta provider in this resource?
-      # Wait, lint will tell me. Search result said yes.
-      authentication_config = tls_settings.value.authentication_config
-      sni                   = tls_settings.value.sni
-      dynamic "subject_alt_names" {
-        for_each = tls_settings.value.subject_alt_names == null ? [] : tls_settings.value.subject_alt_names
-        content {
-          dns_name = subject_alt_names.value
-        }
-      }
+      sni = tls_settings.value.sni
     }
   }
 }
