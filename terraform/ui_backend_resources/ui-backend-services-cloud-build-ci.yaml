@@ -66,7 +66,7 @@ steps:
           --platform=managed \
           --no-allow-unauthenticated \
           --ingress=internal \
-          --service-account=osiris_ui_backend@${PROJECT_ID}.iam.gserviceaccount.com \
+          --service-account=osiris-ui-backend@${PROJECT_ID}.iam.gserviceaccount.com \
           --quiet
 
   # Step 7: Full Terraform Plan
