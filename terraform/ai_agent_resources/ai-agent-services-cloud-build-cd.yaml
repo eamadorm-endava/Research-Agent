@@ -233,6 +233,19 @@ steps:
         
         ENV_VARS="$${ENV_VARS},EKB_PIPELINE_URL=http://gateway.mcp.internal/ekb"
         
+        # Firestore configuration
+        ENV_VARS="$${ENV_VARS},FIRESTORE_DB_NAME=osiris"
+        ENV_VARS="$${ENV_VARS},FIRESTORE_COLLECTION_NAME=user_oauth_tokens"
+        
+        # OAuth secrets for token refresh
+        ENV_VARS="$${ENV_VARS},GOOGLE_OAUTH_CLIENT_ID=$$GOOGLE_OAUTH_CLIENT_ID"
+        ENV_VARS="$${ENV_VARS},GOOGLE_OAUTH_CLIENT_SECRET=$$GOOGLE_OAUTH_CLIENT_SECRET"
+        ENV_VARS="$${ENV_VARS},MICROSOFT_OAUTH_TENANT_ID=${_MICROSOFT_TENANT_ID}"
+        ENV_VARS="$${ENV_VARS},MICROSOFT_OAUTH_CLIENT_ID=$$MICROSOFT_OAUTH_CLIENT_ID"
+        ENV_VARS="$${ENV_VARS},MICROSOFT_OAUTH_CLIENT_SECRET=$$MICROSOFT_OAUTH_CLIENT_SECRET"
+        ENV_VARS="$${ENV_VARS},ATLASSIAN_OAUTH_CLIENT_ID=$$ATLASSIAN_OAUTH_CLIENT_ID"
+        ENV_VARS="$${ENV_VARS},ATLASSIAN_OAUTH_CLIENT_SECRET=$$ATLASSIAN_OAUTH_CLIENT_SECRET"
+        
         # OpenTelemetry & Observability configuration
         ENV_VARS="$${ENV_VARS},OTEL_METRICS_EXPORTER=gcp_monitoring"
         ENV_VARS="$${ENV_VARS},OTEL_TRACES_EXPORTER=gcp_trace"
@@ -266,6 +279,7 @@ steps:
         
         grep -o "reasoningEngines/[0-9]*" deploy_output.txt | tail -n 1 | cut -d'/' -f2 > /workspace/adk_resource.txt
         echo "Captured ADK_RESOURCE_ID: $(cat /workspace/adk_resource.txt)"
+    secretEnv: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'ATLASSIAN_OAUTH_CLIENT_ID', 'ATLASSIAN_OAUTH_CLIENT_SECRET']
 
   # Step 10: Register the Agent in GE (Conditional)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'

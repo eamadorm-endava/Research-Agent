@@ -1,0 +1,87 @@
+substitutions:
+  _LOCATION: us-central1
+  _REPO_NAME: mcp-servers
+  _SERVICE_NAME: ui-backend
+
+steps:
+  # Step 1: Initialize Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/ui_backend_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/ui-backend-resources"
+
+  # Step 2: Validate Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/ui_backend_resources'
+
+  # Step 3: Apply Infrastructure Dependencies (excluding Prod Cloud Run)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply-deps'
+    args:
+      - 'apply'
+      - '-auto-approve'
+      - '-target=module.enable_apis'
+      - '-target=module.ui_backend_sa'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+    dir: 'terraform/ui_backend_resources'
+
+  # Step 4: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: [
+      'build', 
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA}', 
+      '-f', 'ui/backend/Dockerfile', 
+      '.'
+    ]
+
+  # Step 5: Docker Push
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA}
+
+  # Step 6: Deploy Test Instance to Cloud Run (Mirror of Prod)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Deploy-Test'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run deploy test-${_SERVICE_NAME} \
+          --image=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA} \
+          --region=${_LOCATION} \
+          --platform=managed \
+          --no-allow-unauthenticated \
+          --ingress=internal \
+          --service-account=osiris-ui-backend@${PROJECT_ID}.iam.gserviceaccount.com \
+          --set-env-vars="PROJECT_ID=${PROJECT_ID},REGION=${_LOCATION}" \
+          --quiet
+
+  # Step 7: Full Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args:
+      - 'plan'
+      - '-var=ui_backend_cloud_run_image_tag=test-${COMMIT_SHA}'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-out=tfplan'
+    dir: 'terraform/ui_backend_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

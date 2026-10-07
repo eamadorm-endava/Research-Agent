@@ -86,6 +86,10 @@ MCP_SERVERS_TO_DEPLOY="all"
 # --- Pipelines Parameters ---
 DEPLOY_EKB_PIPELINE="false"
 
+# --- UI Components Parameters ---
+DEPLOY_UI_BACKEND="false"
+DEPLOY_UI_FRONTEND="false"
+
 # --- CI/CD Parameters ---
 FORCE_RECREATE="false"
 
@@ -127,6 +131,10 @@ while [[ "$#" -gt 0 ]]; do
         
         # Pipelines
         --deploy-ekb-pipeline) DEPLOY_EKB_PIPELINE="$2"; shift ;;
+        
+        # UI Components
+        --deploy-ui-backend) DEPLOY_UI_BACKEND="$2"; shift ;;
+        --deploy-ui-frontend) DEPLOY_UI_FRONTEND="$2"; shift ;;
         
         # CI/CD
         --force-recreate) FORCE_RECREATE="$2"; shift ;;
@@ -241,6 +249,8 @@ if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     echo "  - Agent Display Name: $AGENT_DISPLAY_NAME"
     echo "  - Register in Gemini Enterprise: $REGISTER_AGENT_IN_GE"
 fi
+echo "Step 9: UI Backend: $DEPLOY_UI_BACKEND"
+echo "Step 10: UI Frontend: $DEPLOY_UI_FRONTEND"
 echo "================================================================="
 read -p "Are you absolutely sure you want to proceed with these deployments? (y/N): " confirm
 
@@ -317,6 +327,8 @@ bash "$SCRIPT_DIR/cicd_triggers_creation.sh" \
     --create-agent-gateway-triggers "$DEPLOY_AGENT_GATEWAY" \
     --create-gemini-enterprise-triggers "$DEPLOY_GE_APP" \
     --create-ai-agent-triggers "$DEPLOY_AI_AGENT" \
+    --create-ui-backend-triggers "$DEPLOY_UI_BACKEND" \
+    --create-ui-frontend-triggers "$DEPLOY_UI_FRONTEND" \
     --force-recreate "$FORCE_RECREATE"
 
 # 4. MCP Servers
@@ -488,6 +500,58 @@ if [[ "$DEPLOY_AI_AGENT" == "true" ]]; then
     fi
 else
     echo "Skipping AI Agent deployment."
+fi
+
+# 9. UI Backend
+if [[ "$DEPLOY_UI_BACKEND" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 9: Deploy UI Backend"
+    echo "-----------------------------------------------------------------"
+    
+    TRIGGER_NAME="ui-backend-services-apply"
+    if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
+        echo "Triggering Cloud Build for UI Backend: ${TRIGGER_NAME}"
+        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" \
+            --region="${REGION}" \
+            --branch="${CURRENT_BRANCH}" \
+            --format="value(metadata.build.id)" || echo "")
+        
+        if [ -n "$BUILD_ID" ]; then
+            wait_for_builds "$REGION" "$BUILD_ID"
+        else
+            echo "Warning: Failed to run UI Backend trigger."
+        fi
+    else
+        echo "Warning: Trigger ${TRIGGER_NAME} not found."
+    fi
+else
+    echo "Skipping UI Backend deployment."
+fi
+
+# 10. UI Frontend
+if [[ "$DEPLOY_UI_FRONTEND" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 10: Deploy UI Frontend"
+    echo "-----------------------------------------------------------------"
+    
+    TRIGGER_NAME="ui-frontend-services-apply"
+    if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
+        echo "Triggering Cloud Build for UI Frontend: ${TRIGGER_NAME}"
+        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" \
+            --region="${REGION}" \
+            --branch="${CURRENT_BRANCH}" \
+            --format="value(metadata.build.id)" || echo "")
+        
+        if [ -n "$BUILD_ID" ]; then
+            wait_for_builds "$REGION" "$BUILD_ID"
+        else
+            echo "Warning: Failed to run UI Frontend trigger."
+        fi
+    else
+        echo "Warning: Trigger ${TRIGGER_NAME} not found."
+    fi
+else
+    echo "Skipping UI Frontend deployment."
 fi
 
 echo "================================================================="

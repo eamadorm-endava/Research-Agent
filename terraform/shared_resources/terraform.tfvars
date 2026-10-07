@@ -10,7 +10,8 @@ services_to_enable = [
   "artifactregistry.googleapis.com",
   "bigqueryconnection.googleapis.com",
   "aiplatform.googleapis.com",
-  "containerscanning.googleapis.com"
+  "containerscanning.googleapis.com",
+  "firestore.googleapis.com"
 ]
 
 ################ Naming Configuration ################
@@ -23,3 +24,6 @@ bq_jobs_table_id              = "ingestion_jobs"
 kb_landing_zone_bucket_suffix = "-kb-landing-zone"
 rag_staging_bucket_suffix     = "-rag-staging"
 kb_domain_bucket_prefix       = "kb-"
+
+################ Firestore ################
+firestore_db_name = "osiris"

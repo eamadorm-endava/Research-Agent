@@ -199,8 +199,7 @@ def test_atlassian_auth_config_defaults():
     with patch.dict(os.environ, clear=True):
         config = AtlassianAuthConfig(_env_file=None)
 
-    assert config.AUTH_URI.startswith("https://auth.atlassian.com/authorize")
-    assert "audience=api.atlassian.com" in config.AUTH_URI
+    assert config.AUTH_URI == "https://auth.atlassian.com/authorize"
     assert config.TOKEN_URI == "https://auth.atlassian.com/oauth/token"
     assert config.TOKEN_ENDPOINT_AUTH_METHOD == "client_secret_post"
 
