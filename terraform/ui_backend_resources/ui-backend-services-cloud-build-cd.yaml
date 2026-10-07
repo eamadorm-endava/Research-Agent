@@ -4,16 +4,6 @@ substitutions:
   _SERVICE_NAME: ui-backend
 
 steps:
-  # Step 0: Delete Test Instance (from CI)
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'Cleanup-Test'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        gcloud run services delete test-${_SERVICE_NAME} \
-          --region=${_LOCATION} \
-          --quiet || true
 
   # Step 1: Initialize Terraform
   - name: 'hashicorp/terraform:1.12.2'
