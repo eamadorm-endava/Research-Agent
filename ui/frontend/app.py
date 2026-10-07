@@ -2,10 +2,28 @@ import streamlit as st
 import requests
 import json
 import time
+import os
+import urllib.request
 
 st.set_page_config(page_title="OSIRIS", layout="wide")
 
-API_URL = "http://localhost:8000/api"
+API_URL = os.getenv("API_URL", "http://localhost:8000/api")
+
+
+def get_id_token(target_audience: str) -> str:
+    """Fetches an ID token from the GCP metadata server for Server-to-Server authentication."""
+    try:
+        req = urllib.request.Request(
+            f"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={target_audience}",
+            headers={"Metadata-Flavor": "Google"},
+        )
+        with urllib.request.urlopen(req, timeout=2) as response:
+            return response.read().decode("utf-8")
+    except Exception:
+        return (
+            ""  # Fallback for local development where metadata server isn't available
+        )
+
 
 st.markdown(
     """
@@ -248,7 +266,13 @@ if st.session_state.pending_prompt:
         user_email = st.context.headers.get(
             "X-Goog-Authenticated-User-Email", "mock-user@example.com"
         )
+
+        # Add the Service-to-Service OIDC token required by Cloud Run internal ingress
         headers = {"X-Goog-Authenticated-User-Email": user_email}
+
+        id_token = get_id_token(target_audience=API_URL.replace("/api", ""))
+        if id_token:
+            headers["Authorization"] = f"Bearer {id_token}"
 
         try:
             # Initialize status immediately using a context manager so it renders BEFORE blocking

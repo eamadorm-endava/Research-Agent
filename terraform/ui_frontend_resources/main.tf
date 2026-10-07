@@ -32,6 +32,12 @@ locals {
   cloud_run_image = "${var.main_region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_name}/${var.ui_frontend_service_name}"
 }
 
+data "google_cloud_run_v2_service" "ui_backend" {
+  name     = "ui-backend"
+  location = var.main_region
+  project  = var.project_id
+}
+
 module "ui_frontend_cloud_run" {
   source              = "../base_modules/cloud-run-v2"
   project_id          = var.project_id
@@ -50,6 +56,9 @@ module "ui_frontend_cloud_run" {
   containers = {
     ui-frontend = {
       image = "${local.cloud_run_image}:${var.ui_frontend_cloud_run_image_tag}"
+      env = {
+        API_URL = "${data.google_cloud_run_v2_service.ui_backend.uri}/api"
+      }
       resources = {
         limits = {
           cpu    = var.ui_frontend_cloud_run_cpu
