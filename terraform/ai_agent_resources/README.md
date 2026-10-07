@@ -29,7 +29,7 @@ Bash
 gcloud auth application-default login \
     --impersonate-service-account=[SA_NAME]@[PROJECT_ID].iam.gserviceaccount.com
 ```
-
+ 
 ### 3. Verification
 Verify that you are currently impersonating the account:
 
