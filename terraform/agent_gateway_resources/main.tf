@@ -28,7 +28,7 @@ resource "google_compute_subnetwork" "app_subnet" {
   depends_on = [module.enable_apis]
 }
 
-################ Proxy-Only Subnet ################
+################# Proxy-Only Subnet ################
 # Regional Internal Application Load Balancers (Envoy-based L7) require a dedicated proxy-only subnet.
 resource "google_compute_subnetwork" "proxy_only_subnet" {
   name          = "${var.network_name}-proxy-only-subnet-${var.main_region}"
