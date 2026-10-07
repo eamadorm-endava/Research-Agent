@@ -20,7 +20,7 @@ ui_backend_cloud_run_labels = {
 }
 
 ui_backend_cloud_run_env = {
-  "AGENT_RESOURCE_NAME"          = "projects/1051281656239/locations/us-central1/reasoningEngines/3036630663835942912" # OSIRIS - Test, at the end of this PR, this variable should point the production one
+  "AGENT_RESOURCE_NAME"          = "projects/1051281656239/locations/us-central1/reasoningEngines/3921150384986390528" # OSIRIS - Test, at the end of this PR, this variable should point the production one
   "FIRESTORE_DB_NAME"            = "osiris"
   "FIRESTORE_COLLECTION_NAME"    = "user_oauth_tokens"
   "GOOGLE_OAUTH_REDIRECT_URI"    = "https://osiris.endava.app/api/auth/google/callback"
