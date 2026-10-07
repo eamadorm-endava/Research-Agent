@@ -49,6 +49,8 @@ CREATE_GEMINI_ENTERPRISE_TRIGGERS="false"
 CREATE_AGENT_GATEWAY_TRIGGERS="false"
 CREATE_AI_AGENT_TRIGGERS="false"
 CREATE_UI_BACKEND_TRIGGERS="false"
+CREATE_UI_FRONTEND_TRIGGERS="false"
+CREATE_UI_BACKEND_TRIGGERS="false"
 
 # --- Optional / Overridable Variables ---
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
@@ -72,6 +74,7 @@ while [[ "$#" -gt 0 ]]; do
         --create-agent-gateway-triggers) CREATE_AGENT_GATEWAY_TRIGGERS="$2"; shift ;;
         --create-ai-agent-triggers) CREATE_AI_AGENT_TRIGGERS="$2"; shift ;;
         --create-ui-backend-triggers) CREATE_UI_BACKEND_TRIGGERS="$2"; shift ;;
+        --create-ui-frontend-triggers) CREATE_UI_FRONTEND_TRIGGERS="$2"; shift ;;
         --force-recreate) FORCE_RECREATE="$2"; shift ;;
         *) ;; # Ignore unknown params
     esac
