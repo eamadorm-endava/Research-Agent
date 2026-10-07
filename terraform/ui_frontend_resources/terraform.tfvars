@@ -17,7 +17,7 @@ ui_frontend_iam_project_roles = [
 artifact_registry_name          = "mcp-servers"
 ui_frontend_service_name        = "ui-frontend"
 ui_frontend_service_name_test   = "test-ui-frontend"
-vpc_name                        = "osiris-vpc"
+vpc_name                        = "mcp-agent-vpc"
 ui_frontend_cloud_run_image_tag = "latest"
 
 
