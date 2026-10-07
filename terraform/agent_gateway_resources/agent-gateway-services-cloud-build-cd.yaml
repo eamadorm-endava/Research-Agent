@@ -1,6 +1,6 @@
 substitutions:
   _REGION: "us-central1"
-  _NETWORK_NAME: "mcp-agent-vpc"
+  _NETWORK_NAME: "osiris-vpc"
   _APP_SUBNET_CIDR: "10.10.0.0/24"
   _PROXY_SUBNET_CIDR: "10.129.0.0/23"
 
