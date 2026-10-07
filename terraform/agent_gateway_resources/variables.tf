@@ -12,7 +12,7 @@ variable "main_region" {
 variable "network_name" {
   description = "The VPC network where the Internal Load Balancer and Private DNS will be attached"
   type        = string
-  default     = "osiris-vpc"
+  default     = "mcp-agent-vpc"
 }
 
 variable "app_subnet_cidr" {
