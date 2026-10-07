@@ -16,7 +16,7 @@ class UIConfig(BaseSettings):
         str,
         Field(
             default="mock-agent-runtime-endpoint",
-            description="The full resource name of the deployed Agent Platform - Reasoning Engine.",
+            description="The full resource name of the deployed Agent Platform -  Reasoning Engine.",
         ),
     ]
 
