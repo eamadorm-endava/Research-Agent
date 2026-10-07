@@ -75,7 +75,7 @@ resource "null_resource" "create_multimodal_model" {
   }
 
   provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
+    interpreter = ["/bin/sh", "-c"]
 
     command = <<EOT
       set -euo pipefail
