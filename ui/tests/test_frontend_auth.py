@@ -97,6 +97,10 @@ def test_connections_advance_and_resume_the_original_message(
         assert post.call_count == 1
         missing.pop(0)
         app.run()
+        assert not app.get("iframe")
+        assert app.status[0].label == "Loading…"
+        assert post.call_count == 1
+        app.run()
     assert not app.exception
     assert not app.get("iframe")
     assert app.session_state.pending_prompt is None

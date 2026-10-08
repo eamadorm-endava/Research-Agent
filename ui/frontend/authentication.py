@@ -35,9 +35,7 @@ def request_headers(api_url: str) -> dict[str, str]:
 def connection_card(provider: str, public_base_url: str) -> str:
     """Build fixed provider metadata and a user-initiated, reusable OAuth popup."""
     label = PROVIDER_LABELS[provider]
-    login_url = json.dumps(
-        f"{public_base_url}/api/auth/{provider}/login?connect_all=true"
-    )
+    login_url = json.dumps(f"{public_base_url}/api/auth/{provider}/login")
     return f"""<style>
   body {{ margin: 0; color: #e6e7eb; font-family: sans-serif; }}
   button {{ display: flex; align-items: center; gap: 12px; width: 100%;
@@ -79,6 +77,9 @@ def render_authentication(api_url: str, public_base_url: str) -> None:
         missing = response.json()["missing_providers"]
         if missing != st.session_state.required_connections:
             st.session_state.required_connections = missing
+            st.status("Loading…", state="running", expanded=False)
+            return
+        if not missing:
             st.rerun()
     except requests.RequestException as error:
         if error.response is not None and error.response.status_code == 401:

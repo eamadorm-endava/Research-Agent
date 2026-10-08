@@ -209,14 +209,17 @@ PR #292 are separate release steps; unit checks do not claim they have happened.
 
 The existing chat authentication flow now shows one compact, neutral card:
 `Authentication Required: Google Workspace Connection`. A user click opens a
-named popup. After each successful OAuth exchange, the backend selects the next
-missing connection and redirects the same popup to Microsoft 365 or Atlassian.
-After the last exchange, the existing CSP-authorized script closes the popup.
+named popup for that provider only. After each successful OAuth exchange, the
+existing CSP-authorized script closes the popup. The next provider's OAuth flow
+starts only when the user clicks its connection card; callbacks never redirect
+automatically into another provider's consent flow.
 Browser settings can affect whether a requested popup appears as a window or tab.
 
 `GET /api/auth/status` checks credentials for the verified IAP user and returns
 only provider names. A Streamlit fragment polls it every three seconds while
-consent is pending. The card advances only on confirmed server state; canceled
+consent is pending. After confirmation, it shows a running `Loading…` indicator
+for one polling interval before displaying the next connection card. The card
+advances only on confirmed server state; canceled
 consent or closing a window never marks a connection ready. Once no providers
 remain, the original chat question resumes without a Continue button or a second
 user message. A 401 still requires reloading the access session.
@@ -227,5 +230,5 @@ tests. No GCP resources or additional Python packages are introduced. The
 frontend requires Streamlit 1.57 or newer for `st.iframe`, and keeps its existing
 locked version. Service tokens and IAP assertions stay separate; signatures,
 audiences, expiry, state, PKCE and browser/user binding remain enforced. The
-multi-provider flag is stored in single-use server state rather than trusted
-from callback query parameters.
+previous multi-provider chaining flag is no longer used, including for older
+pending transactions. Each provider requires a separate user-initiated login.
