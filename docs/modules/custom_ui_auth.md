@@ -139,8 +139,8 @@ The execution will follow the mandatory two-issue strategy (Part A: Prototyping,
 - Shared apply runs Terraform 1.12.2 in Cloud SDK so the existing provisioner has
   `bq` and Bash. The original model/resource/state handling is retained.
 - Enable Private Google Access on the app subnet and use ALL_TRAFFIC frontend
-  egress. The existing proxy-only subnet has a native Terraform import block
-  because it was missing from this project's gateway state (Error 409).
+  egress. The existing proxy-only subnet was imported into the remote GCS state using
+  `terraform import`; it remains declared as a resource with no import block.
 - IAP service identity is created before invoker IAM; serverless load-balancer
   backends use no health checks. `/api/*` routes reach the appropriate backend.
 - The backend points at the existing production OSIRIS resource
@@ -156,12 +156,50 @@ The execution will follow the mandatory two-issue strategy (Part A: Prototyping,
   debug file, use public OAuth popup URLs and display stream failures correctly.
 
 Register callbacks on both public domains for the existing OAuth clients, and
-point both domain A records to `136.81.113.202`. The developer group configured
+point both domain A records to `136.81.113.202`. The group `osiris_app_users@endava.com` configured
 in `iap_accessor` is granted site access. The deployer needs `roles/iap.admin`
 for these access bindings; bootstrap and frontend CD include that permission.
 
 Verification: `make test-ui`, Terraform fmt/validate for shared resources,
 gateway and both UI stacks. Deployment still uses the existing individual
 pipelines. Uploads remain the original placeholder; additional features,
-refresh locks, rate limiting, caching, CI orchestration and broad refactors are
+refresh locks, caching, CI orchestration and broad refactors are
 outside this correction.
+
+
+## Repository practice checks
+
+The existing remote backend is retained at
+`gs://prd-endava-ge-prod-01-2u00-1-terraform-state/terraform/state/agent-gateway-resources`.
+The proxy-only subnet import was executed successfully there. No Terraform import
+blocks or new discovery scripts are used. `make import-gateway-proxy-subnet` wraps
+initialization and the import command for this existing environment.
+
+Shared apply uses the exact Terraform 1.12.2 binary copied from the init container
+into `/workspace/terraform-bin`. Cloud SDK supplies Bash and `bq` for its existing
+provisioner. No Python installer, SSL override or Terraform download is needed.
+Each build step has one `args` list.
+
+Trigger source filters omit tests, `pyproject.toml` and `uv.lock`. Cookie metadata
+is selected from a fixed dictionary; internal helpers return named dictionaries.
+Configuration fields use Pydantic `Annotated`/`Field`, provider requests have
+bounded timeouts, and logs do not include tokens or full agent events. Backend
+CORS permits only the configured public origin. HSTS, nosniff and CSP are set;
+the OAuth close-window script is allowed by its exact CSP hash. SlowAPI supplies
+the application-level request limit required by `.agents/rules/cybersecurity-guide.md`.
+
+Use feature dependency groups for Python execution:
+
+```bash
+make test-ui
+make lint-ui
+make validate-ui-terraform
+uv run --group backend --group dev python -m your.backend.module
+uv run --group frontend python -m your.frontend.module
+```
+
+This is a correction of the existing UI, not a new deployment feature. The
+existing GCS state naming and repository layout are retained rather than migrated;
+no new infrastructure or broad CFF/module refactor is introduced. The existing
+CFF service/load-balancer modules remain in use. Acceptance in GCP and merging
+PR #292 are separate release steps; unit checks do not claim they have happened.
