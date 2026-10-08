@@ -241,6 +241,15 @@ Responses without call IDs are matched by function name; calls without a
 completion event remain in the history. The final response and subsequent
 Streamlit reruns preserve the execution panel.
 
+Tool duration labels use the call and response events' ADK timestamps, not the
+time between their arrival in Streamlit. This preserves event intervals when
+streaming data is delivered in a batch. Missing, equal or out-of-order timestamps
+leave the duration unlabeled; positive intervals below 0.1 seconds show `<0.1s`.
+These intervals describe agent events, rather than individual profiling spans
+for tools that share a batched event.
+The overall execution label also considers the event interval, so a buffered
+response cannot reduce a known multi-second interval to zero in the history.
+
 UI test fixtures use isolated OAuth URLs so local `.env` values cannot change
 their consent behavior. Run deployable suites separately with their `uv`
 dependency groups, as the CI Make targets do; this also avoids collisions between

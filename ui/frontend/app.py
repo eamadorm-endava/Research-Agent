@@ -4,6 +4,7 @@ import json
 import time
 import os
 from ui.frontend.authentication import render_authentication, request_headers
+from ui.frontend.timing import duration_suffix, event_timestamp
 
 st.set_page_config(page_title="OSIRIS", layout="wide")
 
@@ -283,7 +284,9 @@ if st.session_state.pending_prompt:
                     thought_text = ""
                     thought_placeholder = None
                     recorded_actions = []
-                    process_start_time = time.time()
+                    process_start_time = time.monotonic()
+                    first_event_timestamp = None
+                    last_event_timestamp = None
                     final_label = "Executed"
 
                     for line in response.iter_lines(chunk_size=1, decode_unicode=True):
@@ -324,6 +327,11 @@ if st.session_state.pending_prompt:
                                 message_placeholder.markdown(full_response + "▌")
                             # Basic ADK Event Parser
                             elif isinstance(payload, dict):
+                                timestamp = event_timestamp(payload.get("timestamp"))
+                                if timestamp is not None:
+                                    if first_event_timestamp is None:
+                                        first_event_timestamp = timestamp
+                                    last_event_timestamp = timestamp
                                 if (
                                     "content" in payload
                                     and "parts" in payload["content"]
@@ -401,7 +409,9 @@ if st.session_state.pending_prompt:
                                                 recorded_actions.append(action_html)
                                             else:
                                                 ph = status_box.container().empty()
-                                                start_time = time.time()
+                                                start_time = event_timestamp(
+                                                    payload.get("timestamp")
+                                                )
 
                                                 is_skill = (
                                                     "skill" in str(func_args).lower()
@@ -492,20 +502,23 @@ if st.session_state.pending_prompt:
                                                 )
                                             if call_id in active_tools:
                                                 tool_info = active_tools[call_id]
-                                                duration = (
-                                                    time.time() - tool_info["start"]
+                                                timing = duration_suffix(
+                                                    tool_info["start"],
+                                                    event_timestamp(
+                                                        payload.get("timestamp")
+                                                    ),
                                                 )
                                                 ph = tool_info["ph"]
 
                                                 if tool_info["type"] == "skill":
                                                     action_html = format_agent_action(
                                                         tool_info["svg"],
-                                                        f"Reading Skill {tool_info['name']} - {duration:.1f}s",
+                                                        f"Reading Skill {tool_info['name']}{timing}",
                                                     )
                                                 else:
                                                     action_html = format_agent_action(
                                                         tool_info["svg"],
-                                                        f"{tool_info['name']} - {duration:.1f}s",
+                                                        f"{tool_info['name']}{timing}",
                                                     )
                                                 ph.markdown(
                                                     action_html, unsafe_allow_html=True
@@ -534,13 +547,21 @@ if st.session_state.pending_prompt:
 
                     # Update status block before context manager exits (if no auth required)
                     if not auth_required:
-                        total_duration = time.time() - process_start_time
+                        event_duration = (
+                            last_event_timestamp - first_event_timestamp
+                            if first_event_timestamp is not None
+                            and last_event_timestamp is not None
+                            else 0
+                        )
+                        total_duration = max(
+                            time.monotonic() - process_start_time, event_duration
+                        )
                         mins = int(total_duration // 60)
                         secs = int(total_duration % 60)
                         if mins > 0:
                             time_str = f"{mins} min {secs} s"
                         else:
-                            time_str = f"{secs} s"
+                            time_str = f"{secs} s" if secs else "<1 s"
 
                         final_label = f"Executed in {time_str}"
                         if stream_failed:

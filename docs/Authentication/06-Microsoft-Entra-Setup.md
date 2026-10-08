@@ -13,7 +13,7 @@ Follow these steps to configure the application, generate credentials, and grant
 2. Navigate to **Identity** > **Applications** > **App registrations**.
 3. Click on **New registration**.
 4. **Name**: Provide a descriptive name for your application (e.g., `Research-Agent-Connectors`).
-5. **Supported account types**: Select **Accounts in this organizational directory only (Single tenant)**.
+5. **Supported account types**: Enable accounts from any organizational directory and personal Microsoft accounts.
 6. Click **Register**.
 
 ## 2. Generate a Client Secret
@@ -75,8 +75,10 @@ To prevent users from being blocked by corporate policies:
 
 ### Current deployment configuration
 
-The current deployment keeps the Cortex Bridge tenant authority:
-`93f8f3d2-54f6-417d-9a37-10ff2952f228`. It has not been switched to `common`.
+The deployment uses the `common` Microsoft authority to support organizational
+accounts from multiple tenants and personal Microsoft accounts. The Entra app
+registration must enable both account types; changing the authority alone does
+not change the app registration's supported accounts.
 
 - Agent CI and CD inject it through `_MICROSOFT_TENANT_ID` in their Cloud Build YAMLs.
 - The production UI backend receives `MICROSOFT_OAUTH_TENANT_ID` from

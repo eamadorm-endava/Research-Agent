@@ -26,7 +26,7 @@ ui_backend_cloud_run_env = {
   "FIRESTORE_DB_NAME"            = "osiris"
   "FIRESTORE_COLLECTION_NAME"    = "user_oauth_tokens"
   "GOOGLE_OAUTH_REDIRECT_URI"    = "https://osiris.endava.app/api/auth/google/callback"
-  "MICROSOFT_OAUTH_TENANT_ID"    = "93f8f3d2-54f6-417d-9a37-10ff2952f228"
+  "MICROSOFT_OAUTH_TENANT_ID"    = "common"
   "MICROSOFT_OAUTH_REDIRECT_URI" = "https://osiris.endava.app/api/auth/microsoft/callback"
   "ATLASSIAN_OAUTH_REDIRECT_URI" = "https://osiris.endava.app/api/auth/atlassian/callback"
 }
