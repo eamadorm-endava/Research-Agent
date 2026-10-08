@@ -1,157 +1,150 @@
-import time
-from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import RedirectResponse, HTMLResponse
-from loguru import logger
-import requests
-import urllib.parse
+"""Provider consent and single-use OAuth callbacks behind IAP."""
 
-# We import the configurations from the core_agent
+import base64
+import hashlib
+import time
+from urllib.parse import urlencode
+
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from loguru import logger
+
 from agent.core_agent.config import (
+    ATLASSIAN_AUTH_CONFIG,
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
-    ATLASSIAN_AUTH_CONFIG,
 )
-from agent.core_agent.security.token_store import token_store, TokenData
+from agent.core_agent.security.token_store import TokenData, token_store
+
+from ..auth import get_current_user
+from ..config import UI_CONFIG
+from ..oauth_state import consume_state, create_state
 
 router = APIRouter()
-
-
-# Helper function to extract user_id from IAP headers
-def get_current_user(request: Request) -> str:
-    # In production with IAP, the email is in this header:
-    user_email = request.headers.get("X-Goog-Authenticated-User-Email")
-    if not user_email:
-        # For local development fallback
-        logger.warning("No IAP header found. Using mock-user for development.")
-        return "mock-user@example.com"
-
-    # IAP returns emails with 'accounts.google.com:' prefix sometimes
-    if user_email.startswith("accounts.google.com:"):
-        user_email = user_email.replace("accounts.google.com:", "")
-
-    return user_email
-
-
 PROVIDER_CONFIGS = {
     "google": GOOGLE_AUTH_CONFIG,
     "microsoft": MICROSOFT_AUTH_CONFIG,
     "atlassian": ATLASSIAN_AUTH_CONFIG,
 }
+PKCE_PROVIDERS = {"google", "microsoft"}
 
 
 def get_provider_config(provider: str):
+    """Reject unknown providers and missing client configuration."""
     config = PROVIDER_CONFIGS.get(provider)
     if not config:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+        raise HTTPException(400, "Unknown provider")
+    if (
+        not config.CLIENT_ID
+        or not config.CLIENT_SECRET
+        or config.CLIENT_ID.startswith("mock-")
+        or config.CLIENT_SECRET.startswith("mock-")
+    ):
+        raise HTTPException(503, "OAuth provider is not configured")
     return config
 
 
+def redirect_uri(provider: str) -> str:
+    """Use the configured public origin, never a caller-provided Host header."""
+    return f"{UI_CONFIG.PUBLIC_BASE_URL.rstrip('/')}/api/auth/{provider}/callback"
+
+
 @router.get("/{provider}/login")
-async def login(provider: str, request: Request):
-    """
-    Redirects the user to the provider's OAuth 2.0 authorization screen.
-    """
+def login(provider: str, user_id: str = Depends(get_current_user)):
+    """Start consent and set a secure cookie binding the popup to its transaction."""
     config = get_provider_config(provider)
-
-    # We pass the redirect URI configured in the environment
-    redirect_uri = config.REDIRECT_URI
-
-    scopes = config.SCOPES
-    scope_str = " ".join(scopes)
-
-    import uuid
-
+    state, browser_secret, verifier = create_state(user_id, provider)
     params = {
         "client_id": config.CLIENT_ID,
-        "redirect_uri": redirect_uri,
+        "redirect_uri": redirect_uri(provider),
         "response_type": "code",
-        "scope": scope_str,
-        "state": str(uuid.uuid4()),  # State is STRICTLY REQUIRED by Atlassian 3LO
+        "scope": " ".join(config.SCOPES),
+        "state": state,
     }
-
-    # Provider-specific parameters
+    if provider in PKCE_PROVIDERS:
+        params["code_challenge"] = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+        params["code_challenge_method"] = "S256"
     if provider == "google":
-        params["access_type"] = "offline"
-        params["prompt"] = "consent"
+        params.update(access_type="offline", prompt="consent")
     elif provider == "microsoft":
         params["prompt"] = "select_account"
-    elif provider == "atlassian":
-        params["audience"] = "api.atlassian.com"
-        params["prompt"] = "consent"
-
-    auth_url = f"{config.AUTH_URI}?{urllib.parse.urlencode(params)}"
-    logger.info(f"Redirecting user to {provider} login...")
-    return RedirectResponse(url=auth_url)
+    else:
+        # Atlassian's documented confidential 3LO flow uses a client secret.
+        params.update(audience="api.atlassian.com", prompt="consent")
+    response = RedirectResponse(f"{config.AUTH_URI}?{urlencode(params)}")
+    response.set_cookie(
+        f"oauth_{provider}",
+        browser_secret,
+        httponly=True,
+        secure=UI_CONFIG.ENVIRONMENT != "development",
+        samesite="lax",
+        max_age=UI_CONFIG.OAUTH_STATE_SECONDS,
+        path=f"/api/auth/{provider}",
+    )
+    return response
 
 
 @router.get("/{provider}/callback")
-async def callback(
-    provider: str, request: Request, code: str, user_id: str = Depends(get_current_user)
+def callback(
+    provider: str,
+    request: Request,
+    state: str,
+    code: str | None = None,
+    error: str | None = None,
+    user_id: str = Depends(get_current_user),
 ):
-    """
-    Handles the OAuth 2.0 callback, exchanges the code for tokens,
-    and saves them in Firestore.
-    """
-    logger.info(f"Received OAuth callback for {provider} from user {user_id}")
+    """Validate the transaction before exchanging or storing any credentials."""
     config = get_provider_config(provider)
-
+    verifier = consume_state(
+        state,
+        request.cookies.get(f"oauth_{provider}", ""),
+        user_id,
+        provider,
+    )
+    if error or not code:
+        raise HTTPException(400, "Provider authorization was not completed")
     payload = {
         "client_id": config.CLIENT_ID,
         "client_secret": config.CLIENT_SECRET,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": config.REDIRECT_URI,
+        "redirect_uri": redirect_uri(provider),
     }
+    if provider in PKCE_PROVIDERS:
+        payload["code_verifier"] = verifier
+    tokens = exchange_tokens(provider, config.TOKEN_URI, payload)
+    token_store.save_tokens(user_id=user_id, provider=provider, token_data=tokens)
+    response = HTMLResponse(
+        "<html><head><title>Authorization completed</title></head>"
+        "<body><p>Account connected. Close this tab and continue in OSIRIS.</p>"
+        "</body></html>"
+    )
+    response.delete_cookie(f"oauth_{provider}", path=f"/api/auth/{provider}")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
+
+def exchange_tokens(provider: str, token_uri: str, payload: dict) -> TokenData:
+    """Exchange a code with a timeout, keeping credentials and responses out of logs."""
     try:
-        # Atlassian expects JSON, others expect Form URL-Encoded
-        if provider == "atlassian":
-            response = requests.post(config.TOKEN_URI, json=payload)
-        else:
-            response = requests.post(config.TOKEN_URI, data=payload)
-
+        body = {"json": payload} if provider == "atlassian" else {"data": payload}
+        response = requests.post(
+            token_uri,
+            timeout=UI_CONFIG.HTTP_TIMEOUT_SECONDS,
+            **body,
+        )
         response.raise_for_status()
-        data = response.json()
-
-        # Build token data
-        token_data = TokenData(
-            access_token=data["access_token"],
-            refresh_token=data.get(
-                "refresh_token"
-            ),  # Important: user must consent to get this
-            expires_at=time.time() + float(data["expires_in"]),
+        tokens = response.json()
+        return TokenData(
+            access_token=tokens["access_token"],
+            refresh_token=tokens.get("refresh_token"),
+            expires_at=time.time() + float(tokens["expires_in"]),
         )
-
-        # Save securely to Firestore
-        token_store.save_tokens(
-            user_id=user_id, provider=provider, token_data=token_data
-        )
-        logger.info(f"Successfully saved {provider} tokens for {user_id}")
-
-        # Return an auto-closing HTML page so the user stays in their original session
-        html_content = """
-        <html>
-            <head>
-                <title>Autenticación Exitosa</title>
-                <script>
-                    window.onload = function() {
-                        setTimeout(function() { window.close(); }, 2000);
-                    }
-                </script>
-            </head>
-            <body style="font-family: Arial, sans-serif; text-align: center; padding-top: 50px;">
-                <h1 style="color: #4CAF50;">¡Autenticación Exitosa!</h1>
-                <p>Hemos vinculado tu cuenta de <b>{provider.title()}</b> correctamente.</p>
-                <p>Ya puedes cerrar esta pestaña o ventana y volver al chat.</p>
-            </body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
-
-    except Exception as e:
-        logger.error(f"Failed to exchange code for {provider} tokens: {e}")
-        if isinstance(e, requests.exceptions.HTTPError):
-            logger.error(f"Response: {e.response.text}")
-        raise HTTPException(
-            status_code=500, detail=f"Authentication failed for {provider}"
-        )
+    except (requests.RequestException, KeyError, ValueError):
+        logger.warning("OAuth token exchange failed for {}", provider)
+        raise HTTPException(502, "Provider token exchange failed") from None
