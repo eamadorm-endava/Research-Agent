@@ -29,27 +29,39 @@ data "google_secret_manager_secret_version" "iap_client_secret" {
 
 ################ Cloud Run ################
 locals {
+  environments = {
+    prod = { name = var.ui_frontend_service_name, domain = var.domain_name }
+    test = { name = var.ui_frontend_service_name_test, domain = var.test_domain_name }
+  }
   cloud_run_image = "${var.main_region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_name}/${var.ui_frontend_service_name}"
 }
 
 data "google_cloud_run_v2_service" "ui_backend" {
-  name     = "ui-backend"
+  for_each = local.environments
+  name     = each.key == "prod" ? "ui-backend" : "test-ui-backend"
   location = var.main_region
   project  = var.project_id
 }
 
+moved {
+  from = module.ui_frontend_cloud_run
+  to   = module.ui_frontend_cloud_run["prod"]
+}
+
 module "ui_frontend_cloud_run" {
+  for_each            = local.environments
   source              = "../base_modules/cloud-run-v2"
   project_id          = var.project_id
   region              = var.main_region
-  name                = var.ui_frontend_service_name
+  name                = each.value.name
   deletion_protection = false
 
   revision = {
+    session_affinity = true
     vpc_access = {
       network = var.vpc_name
       subnet  = "${var.vpc_name}-app-subnet-${var.main_region}"
-      egress  = "PRIVATE_RANGES_ONLY"
+      egress  = "ALL_TRAFFIC"
     }
   }
 
@@ -57,7 +69,8 @@ module "ui_frontend_cloud_run" {
     ui-frontend = {
       image = "${local.cloud_run_image}:${var.ui_frontend_cloud_run_image_tag}"
       env = {
-        API_URL = "${data.google_cloud_run_v2_service.ui_backend.uri}/api"
+        API_URL         = "${data.google_cloud_run_v2_service.ui_backend[each.key].uri}/api"
+        PUBLIC_BASE_URL = "https://${each.value.domain}"
       }
       resources = {
         limits = {
@@ -70,7 +83,7 @@ module "ui_frontend_cloud_run" {
 
   iam = {
     "roles/run.invoker" = [
-      "serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com"
+      "serviceAccount:${data.google_service_account.iap.email}"
     ]
   }
 
@@ -81,6 +94,7 @@ module "ui_frontend_cloud_run" {
 
   service_config = {
     ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+    timeout = "3600s"
     scaling = {
       min_instance_count = var.ui_frontend_cloud_run_min_instances
     }
@@ -100,7 +114,7 @@ resource "google_compute_region_network_endpoint_group" "prod_neg" {
   project               = var.project_id
 
   cloud_run {
-    service = module.ui_frontend_cloud_run.resource.name
+    service = module.ui_frontend_cloud_run["prod"].resource.name
   }
 
   depends_on = [module.enable_apis]
@@ -113,7 +127,7 @@ resource "google_compute_region_network_endpoint_group" "test_neg" {
   project               = var.project_id
 
   cloud_run {
-    service = var.ui_frontend_service_name_test
+    service = module.ui_frontend_cloud_run["test"].resource.name
   }
 
   depends_on = [module.enable_apis]
@@ -124,6 +138,8 @@ resource "google_compute_region_network_endpoint_group" "test_neg" {
 ################ Global IP and SSL Certificate ################
 resource "google_compute_global_address" "ui_frontend_ip" {
   name    = "ui-frontend-global-ip"
+  address = var.load_balancer_ip
+  lifecycle { prevent_destroy = true }
   project = var.project_id
 }
 
@@ -155,8 +171,10 @@ module "ui_frontend_elb" {
     certificate_ids = [google_compute_managed_ssl_certificate.ui_frontend_cert.self_link]
   }
 
-  backend_service_configs = {
+  health_check_configs = {}
+  backend_service_configs = merge({
     prod-backend = {
+      health_checks = []
       iap_config = {
         enable               = true
         oauth2_client_id     = data.google_secret_manager_secret_version.iap_client_id.secret_data
@@ -167,6 +185,7 @@ module "ui_frontend_elb" {
       ]
     }
     test-backend = {
+      health_checks = []
       iap_config = {
         enable               = true
         oauth2_client_id     = data.google_secret_manager_secret_version.iap_client_id.secret_data
@@ -176,7 +195,17 @@ module "ui_frontend_elb" {
         { backend = google_compute_region_network_endpoint_group.test_neg.id }
       ]
     }
-  }
+    }, {
+    for environment in keys(local.environments) : "${environment}-api" => {
+      health_checks = []
+      iap_config = {
+        enable               = true
+        oauth2_client_id     = data.google_secret_manager_secret_version.iap_client_id.secret_data
+        oauth2_client_secret = data.google_secret_manager_secret_version.iap_client_secret.secret_data
+      }
+      backends = [{ backend = google_compute_region_network_endpoint_group.api_neg[environment].id }]
+    }
+  })
 
   urlmap_config = {
     default_service = "prod-backend"
@@ -193,10 +222,35 @@ module "ui_frontend_elb" {
     path_matchers = {
       test-paths = {
         default_service = "test-backend"
+        path_rules      = [{ paths = ["/api", "/api/*"], service = "test-api" }]
       }
       prod-paths = {
         default_service = "prod-backend"
+        path_rules      = [{ paths = ["/api", "/api/*"], service = "prod-api" }]
       }
     }
   }
+}
+
+resource "google_compute_region_network_endpoint_group" "api_neg" {
+  for_each              = local.environments
+  name                  = "neg-${each.key}-ui-api"
+  network_endpoint_type = "SERVERLESS"
+  region                = var.main_region
+  project               = var.project_id
+  cloud_run { service = data.google_cloud_run_v2_service.ui_backend[each.key].name }
+}
+
+# IAP identity is owned by the backend stack; apply it first.
+data "google_service_account" "iap" {
+  project    = var.project_id
+  account_id = "service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com"
+}
+
+resource "google_iap_web_backend_service_iam_member" "users" {
+  for_each            = { for pair in setproduct(["prod-backend", "test-backend", "prod-api", "test-api"], var.iap_accessors) : "${pair[0]}-${pair[1]}" => pair }
+  project             = var.project_id
+  web_backend_service = module.ui_frontend_elb.backend_service_names[each.value[0]]
+  role                = "roles/iap.httpsResourceAccessor"
+  member              = each.value[1]
 }
