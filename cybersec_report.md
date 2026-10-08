@@ -75,3 +75,14 @@ Live HTTPS/IAP/OAuth/conversation/upload acceptance remains a deployment check.
 References: [IAP assertion validation](https://docs.cloud.google.com/iap/docs/signed-headers-howto),
 [Cloud Run private networking](https://docs.cloud.google.com/run/docs/securing/private-networking),
 [Atlassian confidential 3LO](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/).
+
+## PR #292: CodeQL cookie construction alert #10
+
+The URL provider was allowlisted before cookie creation, but cookie names and
+paths were still interpolated from that request parameter. The remediation
+returns literal names/paths for each supported provider, and uses those same
+constants for setting, reading and deleting the cookie and building callback
+paths. The cookie value remains a server-generated random secret. No query
+suppression or alert dismissal is used. Regression coverage checks all three
+providers, injected/unknown provider strings, fresh random values and matching
+cookie deletion. GitHub must rerun CodeQL to confirm the alert status.

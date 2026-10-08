@@ -30,6 +30,17 @@ PROVIDER_CONFIGS = {
 PKCE_PROVIDERS = {"google", "microsoft"}
 
 
+def get_cookie_settings(provider: str) -> tuple[str, str]:
+    """Return constant cookie metadata; URL input never forms cookie attributes."""
+    if provider == "google":
+        return "oauth_google", "/api/auth/google"
+    if provider == "microsoft":
+        return "oauth_microsoft", "/api/auth/microsoft"
+    if provider == "atlassian":
+        return "oauth_atlassian", "/api/auth/atlassian"
+    raise HTTPException(400, "Unknown provider")
+
+
 def get_provider_config(provider: str):
     """Reject unknown providers and missing client configuration."""
     config = PROVIDER_CONFIGS.get(provider)
@@ -47,7 +58,8 @@ def get_provider_config(provider: str):
 
 def redirect_uri(provider: str) -> str:
     """Use the configured public origin, never a caller-provided Host header."""
-    return f"{UI_CONFIG.PUBLIC_BASE_URL.rstrip('/')}/api/auth/{provider}/callback"
+    _, cookie_path = get_cookie_settings(provider)
+    return f"{UI_CONFIG.PUBLIC_BASE_URL.rstrip('/')}{cookie_path}/callback"
 
 
 @router.get("/{provider}/login")
@@ -77,14 +89,15 @@ def login(provider: str, user_id: str = Depends(get_current_user)):
         # Atlassian's documented confidential 3LO flow uses a client secret.
         params.update(audience="api.atlassian.com", prompt="consent")
     response = RedirectResponse(f"{config.AUTH_URI}?{urlencode(params)}")
+    cookie_name, cookie_path = get_cookie_settings(provider)
     response.set_cookie(
-        f"oauth_{provider}",
+        cookie_name,
         browser_secret,
         httponly=True,
         secure=UI_CONFIG.ENVIRONMENT != "development",
         samesite="lax",
         max_age=UI_CONFIG.OAUTH_STATE_SECONDS,
-        path=f"/api/auth/{provider}",
+        path=cookie_path,
     )
     return response
 
@@ -100,9 +113,10 @@ def callback(
 ):
     """Validate the transaction before exchanging or storing any credentials."""
     config = get_provider_config(provider)
+    cookie_name, cookie_path = get_cookie_settings(provider)
     verifier = consume_state(
         state,
-        request.cookies.get(f"oauth_{provider}", ""),
+        request.cookies.get(cookie_name, ""),
         user_id,
         provider,
     )
@@ -124,7 +138,7 @@ def callback(
         "<body><p>Account connected. Close this tab and continue in OSIRIS.</p>"
         "</body></html>"
     )
-    response.delete_cookie(f"oauth_{provider}", path=f"/api/auth/{provider}")
+    response.delete_cookie(cookie_name, path=cookie_path)
     response.headers["Cache-Control"] = "no-store"
     return response
 

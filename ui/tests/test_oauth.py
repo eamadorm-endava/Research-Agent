@@ -1,6 +1,7 @@
 """Exercise browser-bound single-use consent without external token calls."""
 
 from datetime import UTC, datetime, timedelta
+from http.cookies import SimpleCookie
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
@@ -95,3 +96,53 @@ def test_unknown_provider_and_missing_configuration_fail_closed(client, monkeypa
     assert client.get("/api/auth/unknown/login").status_code == 400
     monkeypatch.setattr(oauth.GOOGLE_AUTH_CONFIG, "CLIENT_SECRET", "mock-secret")
     assert client.get("/api/auth/google/login").status_code == 503
+
+
+@pytest.mark.parametrize(
+    "provider,name,path",
+    [
+        ("google", "oauth_google", "/api/auth/google"),
+        ("microsoft", "oauth_microsoft", "/api/auth/microsoft"),
+        ("atlassian", "oauth_atlassian", "/api/auth/atlassian"),
+    ],
+)
+def test_consent_cookie_uses_fixed_metadata_and_random_value(
+    client, provider, name, path
+):
+    _, _, response = start_consent(client, provider)
+    cookie = SimpleCookie(response.headers["set-cookie"])
+    assert set(cookie) == {name}
+    assert cookie[name]["path"] == path
+    assert cookie[name]["httponly"] is True
+    assert cookie[name]["secure"] is True
+    assert len(cookie[name].value) == 43
+    _, _, second_response = start_consent(client, provider)
+    assert (
+        SimpleCookie(second_response.headers["set-cookie"])[name].value
+        != cookie[name].value
+    )
+
+
+@pytest.mark.parametrize(
+    "provider",
+    ["unknown", "google;HttpOnly=false", "google%0d%0aSet-Cookie:injected=yes"],
+)
+def test_invalid_provider_cannot_create_a_cookie(client, provider):
+    response = client.get(f"/api/auth/{provider}/login", follow_redirects=False)
+    assert response.status_code == 400
+    assert "set-cookie" not in response.headers
+
+
+def test_callback_removes_cookie_with_the_same_fixed_metadata(client, monkeypatch):
+    state, _, _ = start_consent(client, "microsoft")
+    monkeypatch.setattr(
+        oauth,
+        "exchange_tokens",
+        lambda *args: oauth.TokenData(access_token="token", expires_at=3600),
+    )
+    response = client.get(f"/api/auth/microsoft/callback?state={state}&code=valid")
+    assert response.status_code == 200
+    cookie = SimpleCookie(response.headers["set-cookie"])
+    assert set(cookie) == {"oauth_microsoft"}
+    assert cookie["oauth_microsoft"]["path"] == "/api/auth/microsoft"
+    assert cookie["oauth_microsoft"]["max-age"] == "0"
