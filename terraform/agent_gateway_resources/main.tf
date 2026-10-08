@@ -268,3 +268,9 @@ resource "google_project_iam_member" "vertex_dns_peer" {
 
   depends_on = [module.enable_apis]
 }
+
+# This existing subnet was absent from the gateway state and caused Error 409.
+import {
+  to = google_compute_subnetwork.proxy_only_subnet
+  id = "projects/${var.project_id}/regions/${var.main_region}/subnetworks/${var.network_name}-proxy-only-subnet-${var.main_region}"
+}

@@ -14,27 +14,18 @@ steps:
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
           -backend-config="prefix=terraform/state/shared-resources"
 
-  # Step 2: Apply (Terraform)
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-apply'
-    args: 
-      - 'apply'
-      - '-lock-timeout=5m'
-      - '-auto-approve'
-      - '-var=project_id=${PROJECT_ID}'
-      - '-var=main_region=${_LOCATION}'
-    dir: 'terraform/shared_resources'
-
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'export-model-config'
-    entrypoint: 'sh'
-    dir: 'terraform/shared_resources'
-    args: ['-ec', 'terraform output -json embedding_model_config > /workspace/embedding-model.json']
-
+  # The provisioner needs Cloud SDK (bq) and bash in the same container as Terraform.
   - name: 'gcr.io/google.com/cloudsdktool/google-cloud-cli:stable'
-    id: 'ensure-embedding-model'
-    entrypoint: 'python3'
-    args: ['terraform/scripts/ensure_embedding_model.py', '/workspace/embedding-model.json']
+    id: 'tf-apply'
+    entrypoint: 'bash'
+    dir: 'terraform/shared_resources'
+    args:
+      - '-ceu'
+      - |
+        SSL_CERT_FILE=/usr/lib/google-cloud-sdk/lib/third_party/certifi/cacert.pem /usr/lib/google-cloud-sdk/platform/bundledpythonunix/bin/python3 -c "import urllib.request, zipfile; urllib.request.urlretrieve('https://releases.hashicorp.com/terraform/1.12.2/terraform_1.12.2_linux_amd64.zip', '/tmp/terraform.zip'); zipfile.ZipFile('/tmp/terraform.zip').extract('terraform', '/usr/local/bin')"
+        chmod +x /usr/local/bin/terraform
+        terraform apply -auto-approve -lock-timeout=5m \
+          -var=project_id=${PROJECT_ID} -var=main_region=${_LOCATION}
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 
