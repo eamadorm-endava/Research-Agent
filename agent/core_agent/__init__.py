@@ -1,3 +1,6 @@
-"""Agent package; importing configuration must not initialize cloud telemetry."""
+from .observability import setup_observability
+
+# Initialize OpenTelemetry and standard Logging upon package load
+setup_observability()
 
 __all__ = ["agent"]
