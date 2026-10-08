@@ -13,11 +13,10 @@ from pydantic import BaseModel, Field
 from vertexai import agent_engines
 
 from agent.core_agent.config import GCP_CONFIG
-from agent.core_agent.security.token_store import token_store
 
 from ..config import UI_CONFIG
 from ..limits import limiter, request_limit
-from .oauth import get_current_user
+from .oauth import check_missing_providers, get_current_user
 
 router = APIRouter()
 
@@ -46,22 +45,6 @@ class ChatRequest(BaseModel):
         str | None,
         Field(default=None, max_length=256, description="Existing user session ID."),
     ]
-
-
-# Re-use the IAP header extraction
-
-
-def check_missing_providers(user_id: str) -> list[str]:
-    """Checks which required data source tokens are missing for the user."""
-    required_providers = ["google", "microsoft", "atlassian"]
-    missing = []
-
-    for provider in required_providers:
-        token = token_store.get_valid_access_token(user_id=user_id, provider=provider)
-        if not token:
-            missing.append(provider)
-
-    return missing
 
 
 @router.post("/")

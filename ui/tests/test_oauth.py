@@ -12,8 +12,11 @@ from ui.backend import oauth_state
 from ui.backend.routers import oauth
 
 
-def start_consent(client, provider="google"):
-    response = client.get(f"/api/auth/{provider}/login", follow_redirects=False)
+def start_consent(client, provider="google", connect_all=False):
+    response = client.get(
+        f"/api/auth/{provider}/login?connect_all={str(connect_all).lower()}",
+        follow_redirects=False,
+    )
     assert response.status_code == 307
     params = parse_qs(urlsplit(response.headers["location"]).query)
     return params["state"][0], params, response

@@ -7,6 +7,15 @@ from pydantic import BaseModel, Field
 from .config import PROVIDER_COOKIES
 
 
+class ConnectionStatus(BaseModel):
+    """Report only which connections the authenticated user still needs."""
+
+    missing_providers: Annotated[
+        list[Literal["google", "microsoft", "atlassian"]],
+        Field(description="Providers requiring consent, in connection order."),
+    ]
+
+
 class OAuthProviderRequest(BaseModel):
     """Validate the supported provider before selecting server-owned metadata."""
 

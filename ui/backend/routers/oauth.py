@@ -24,7 +24,7 @@ from ..auth import get_current_user
 from ..config import OAUTH_CALLBACK_SCRIPT, UI_CONFIG
 from ..limits import limiter, request_limit
 from ..oauth_state import consume_state, create_state
-from ..schemas import OAuthProviderRequest
+from ..schemas import ConnectionStatus, OAuthProviderRequest
 
 router = APIRouter()
 PROVIDER_CONFIGS = {
@@ -33,6 +33,22 @@ PROVIDER_CONFIGS = {
     "atlassian": ATLASSIAN_AUTH_CONFIG,
 }
 PKCE_PROVIDERS = {"google", "microsoft"}
+
+
+def check_missing_providers(user_id: str) -> list[str]:
+    """Check server-side credentials in the configured consent order."""
+    return [
+        provider
+        for provider in PROVIDER_CONFIGS
+        if not token_store.get_valid_access_token(user_id=user_id, provider=provider)
+    ]
+
+
+@router.get("/status", response_model=ConnectionStatus)
+@limiter.limit(request_limit)
+def connection_status(request: Request, user_id: str = Depends(get_current_user)):
+    """Return connection readiness for the verified user, without exposing tokens."""
+    return ConnectionStatus(missing_providers=check_missing_providers(user_id))
 
 
 def get_cookie_settings(provider: str) -> dict[str, str]:
@@ -66,11 +82,16 @@ def redirect_uri(provider: str) -> str:
 
 @router.get("/{provider}/login")
 @limiter.limit(request_limit)
-def login(provider: str, request: Request, user_id: str = Depends(get_current_user)):
+def login(
+    provider: str,
+    request: Request,
+    connect_all: bool = False,
+    user_id: str = Depends(get_current_user),
+):
     """Start consent and set a secure cookie binding the popup to its transaction."""
     config = get_provider_config(provider)
     browser_session_id = uuid4().hex
-    transaction = create_state(user_id, provider, browser_session_id)
+    transaction = create_state(user_id, provider, browser_session_id, connect_all)
     state = transaction["state"]
     verifier = transaction["verifier"]
     params = _authorization_params(provider, config, state, verifier)
@@ -131,7 +152,7 @@ def callback(
     config = get_provider_config(provider)
     cookie_settings = get_cookie_settings(provider)
     cookie_name, cookie_path = cookie_settings["name"], cookie_settings["path"]
-    verifier = consume_state(
+    transaction = consume_state(
         state,
         request.cookies.get(cookie_name, ""),
         user_id,
@@ -147,19 +168,30 @@ def callback(
         "redirect_uri": redirect_uri(provider),
     }
     if provider in PKCE_PROVIDERS:
-        payload["code_verifier"] = verifier
+        payload["code_verifier"] = transaction["verifier"]
     tokens = exchange_tokens(provider, config.TOKEN_URI, payload)
     token_store.save_tokens(user_id=user_id, provider=provider, token_data=tokens)
-    response = HTMLResponse(
+    response = _connection_response(user_id, bool(transaction["connect_all"]))
+    response.delete_cookie(cookie_name, path=cookie_path)
+    return response
+
+
+def _connection_response(
+    user_id: str, connect_all: bool
+) -> HTMLResponse | RedirectResponse:
+    """Continue consent in the same popup, or close it when connections are ready."""
+    missing = check_missing_providers(user_id) if connect_all else []
+    if missing:
+        next_provider = OAuthProviderRequest(provider=missing[0])
+        login_path = f"{next_provider.cookie_settings['path']}/login?connect_all=true"
+        return RedirectResponse(f"{UI_CONFIG.PUBLIC_BASE_URL.rstrip('/')}{login_path}")
+    return HTMLResponse(
         "<html><head><title>Authorization completed</title>"
         f"<script>{OAUTH_CALLBACK_SCRIPT}</script>"
         "</head>"
-        "<body><p>Account connected. Close this tab and continue in OSIRIS.</p>"
+        "<body><p>Connected. This window will close automatically.</p>"
         "</body></html>"
     )
-    response.delete_cookie(cookie_name, path=cookie_path)
-    response.headers["Cache-Control"] = "no-store"
-    return response
 
 
 def exchange_tokens(
