@@ -4,7 +4,6 @@ import httpx
 from loguru import logger
 from fpdf import FPDF
 
-from .url_utils import strip_html_tags
 from ..gcs_connector import GCSConnector
 from ..schemas import (
     ListConfluenceSpacesRequest,
@@ -34,53 +33,16 @@ from ..schemas import (
 )
 
 
-def html_to_markdown(html_content: str) -> str:
-    """Converts Confluence storage format XHTML to readable Markdown."""
+def strip_html_tags(html_content: str) -> str:
+    """Strips all HTML tags from the content to produce plain text."""
     if not html_content:
         return ""
 
-    # Replace headers
-    html = re.sub(r"<h1[^>]*>(.*?)</h1>", r"# \1\n\n", html_content, flags=re.DOTALL)
-    html = re.sub(r"<h2[^>]*>(.*?)</h2>", r"## \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h3[^>]*>(.*?)</h3>", r"### \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h4[^>]*>(.*?)</h4>", r"#### \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h5[^>]*>(.*?)</h5>", r"##### \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h6[^>]*>(.*?)</h6>", r"###### \1\n\n", html, flags=re.DOTALL)
-
-    # Replace paragraphs
-    html = re.sub(r"<p[^>]*>(.*?)</p>", r"\1\n\n", html, flags=re.DOTALL)
-
-    # Replace bold/strong
-    html = re.sub(r"<strong[^>]*>(.*?)</strong>", r"**\1**", html, flags=re.DOTALL)
-    html = re.sub(r"<b[^>]*>(.*?)</b>", r"**\1**", html, flags=re.DOTALL)
-
-    # Replace italic/em
-    html = re.sub(r"<em[^>]*>(.*?)</em>", r"*\1*", html, flags=re.DOTALL)
-    html = re.sub(r"<i[^>]*>(.*?)</i>", r"*\1*", html, flags=re.DOTALL)
-
-    # Replace links
-    html = re.sub(
-        r'<a[^>]*href=["\'](.*?)["\'][^>]*>(.*?)</a>',
-        r"[\2](\1)",
-        html,
-        flags=re.DOTALL,
-    )
-
-    # Replace lists
-    html = re.sub(r"<li[^>]*>(.*?)</li>", r"* \1\n", html, flags=re.DOTALL)
-    html = re.sub(r"<ul[^>]*>(.*?)</ul>", r"\1\n", html, flags=re.DOTALL)
-    html = re.sub(r"<ol[^>]*>(.*?)</ol>", r"\1\n", html, flags=re.DOTALL)
-
-    # Replace breaks
-    html = re.sub(r"<br\s*/?>", r"\n", html, flags=re.IGNORECASE)
-
-    # Strip remaining HTML tags
-    html = re.sub(r"<[^>]+>", "", html)
-
-    # Clean up multiple newlines
-    html = re.sub(r"\n{3,}", "\n\n", html)
-
-    return html.strip()
+    # Simple regex to strip HTML tags
+    text = re.sub(r"<[^>]+>", " ", html_content)
+    # Replace multiple spaces with a single space
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 class ConfluenceClient:
