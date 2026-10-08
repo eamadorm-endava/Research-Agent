@@ -23,17 +23,10 @@ steps:
     args: ['validate']
     dir: 'terraform/ui_backend_resources'
 
-  # Step 3: Apply Infrastructure Dependencies (excluding Prod Cloud Run)
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-apply-deps'
-    args:
-      - 'apply'
-      - '-auto-approve'
-      - '-target=module.enable_apis'
-      - '-target=module.ui_backend_sa'
-      - '-var=project_id=${PROJECT_ID}'
-      - '-var=main_region=${_LOCATION}'
-    dir: 'terraform/ui_backend_resources'
+  # Dependencies are provisioned by CD; CI only verifies the existing service account.
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'check-deps'
+    args: ['iam', 'service-accounts', 'describe', 'osiris-ui-backend@${PROJECT_ID}.iam.gserviceaccount.com', '--project=${PROJECT_ID}', '--format=none']
 
   # Step 4: Docker Build
   - name: 'gcr.io/cloud-builders/docker'

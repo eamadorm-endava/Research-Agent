@@ -247,3 +247,9 @@ dependency groups, as the CI Make targets do; this also avoids collisions betwee
 test modules with the same filename. The UI CI's image build has three bounded
 attempts, and frontend Terraform initialization allows a longer registry timeout
 and connection retries for the download timeouts observed in Cloud Build.
+
+The backend CI verifies that its runtime service account already exists, then
+builds/deploys the test instance and generates a Terraform plan. It does not run
+`terraform apply -target` or persist a refreshed production state. Runtime IAM
+and API prerequisites are provisioned by the production CD before running CI
+in a new environment. The GCS state bucket and prefix remain unchanged.
