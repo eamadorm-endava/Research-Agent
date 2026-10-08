@@ -29,10 +29,9 @@ resource "google_cloud_run_v2_service" "service" {
   iap_enabled          = var.service_config.iap_config != null
 
   template {
-    session_affinity = var.revision.session_affinity
-    labels           = var.revision.labels
-    encryption_key   = var.encryption_key
-    revision         = local.revision_name
+    labels         = var.revision.labels
+    encryption_key = var.encryption_key
+    revision       = local.revision_name
     execution_environment = (
       var.service_config.gen2_execution_environment
       ? "EXECUTION_ENVIRONMENT_GEN2" : "EXECUTION_ENVIRONMENT_GEN1"

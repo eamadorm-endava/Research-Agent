@@ -193,7 +193,6 @@ variable "region" {
 variable "revision" {
   description = "Revision template configurations."
   type = object({
-    session_affinity              = optional(bool)
     gpu_zonal_redundancy_disabled = optional(bool)
     labels                        = optional(map(string))
     name                          = optional(string)

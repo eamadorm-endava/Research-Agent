@@ -207,7 +207,7 @@ steps:
         
         # Firestore configuration
         ENV_VARS="$${ENV_VARS},FIRESTORE_DB_NAME=osiris"
-        ENV_VARS="$${ENV_VARS},FIRESTORE_COLLECTION_NAME=test_user_oauth_tokens"
+        ENV_VARS="$${ENV_VARS},FIRESTORE_COLLECTION_NAME=user_oauth_tokens"
 
         # OAuth secrets for token refresh
         ENV_VARS="$${ENV_VARS},GOOGLE_OAUTH_CLIENT_ID=$$GOOGLE_OAUTH_CLIENT_ID"
