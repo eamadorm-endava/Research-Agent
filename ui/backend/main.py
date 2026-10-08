@@ -1,8 +1,5 @@
 """UI API with explicit browser boundaries and process/agent health reporting."""
 
-import base64
-import hashlib
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,7 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.responses import Response
 
-from .config import OAUTH_CALLBACK_SCRIPT, UI_CONFIG
+from .config import OAUTH_CALLBACK_CSP_SOURCE, UI_CONFIG
 from .limits import limiter
 from .routers import chat, oauth, upload
 
@@ -34,11 +31,8 @@ app.add_middleware(
 async def secure_headers(request: Request, call_next) -> Response:
     """Keep private responses uncached and constrain browser content execution."""
     response = await call_next(request)
-    script_hash = base64.b64encode(
-        hashlib.sha256(OAUTH_CALLBACK_SCRIPT.encode()).digest()
-    ).decode()
     response.headers["Content-Security-Policy"] = (
-        f"default-src 'none'; script-src 'sha256-{script_hash}'; "
+        f"default-src 'none'; script-src {OAUTH_CALLBACK_CSP_SOURCE}; "
         "base-uri 'none'; frame-ancestors 'none'"
     )
     response.headers["Strict-Transport-Security"] = (

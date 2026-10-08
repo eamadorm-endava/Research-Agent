@@ -52,3 +52,32 @@ def test_rate_limit_rejects_excess_requests(client, monkeypatch):
     second = client.get("/api/auth/google/login", follow_redirects=False)
     assert first.status_code == 307
     assert second.status_code == 429
+
+
+def test_csp_fingerprint_matches_the_public_popup_script(client, monkeypatch):
+    import base64
+    import hashlib
+    import re
+
+    from ui.backend.config import OAUTH_CALLBACK_CSP_SOURCE
+    from ui.backend.routers import oauth
+    from ui.tests.test_oauth import start_consent
+
+    state, _, _ = start_consent(client)
+    monkeypatch.setattr(
+        oauth,
+        "exchange_tokens",
+        lambda *args: oauth.TokenData(access_token="token", expires_at=3600),
+    )
+    response = client.get(f"/api/auth/google/callback?state={state}&code=valid")
+    assert response.status_code == 200
+    public_script_content = re.search(r"<script>(.*?)</script>", response.text).group(1)
+    expected_fingerprint = base64.b64encode(
+        hashlib.sha256(public_script_content.encode()).digest()
+    ).decode()
+    assert OAUTH_CALLBACK_CSP_SOURCE == f"'sha256-{expected_fingerprint}'"
+    assert (
+        f"script-src {OAUTH_CALLBACK_CSP_SOURCE};"
+        in response.headers["content-security-policy"]
+    )
+    assert "unsafe-inline" not in response.headers["content-security-policy"]

@@ -8,6 +8,10 @@ OAUTH_CALLBACK_SCRIPT = (
 )
 
 
+# CSP fingerprint of the fixed public script above; verified by the regression test.
+OAUTH_CALLBACK_CSP_SOURCE = "'sha256-f/Ri5mz3Ga19XOXQ5kKofBviUCTr6dgE9st/E1+v7gg='"
+
+
 PROVIDER_COOKIES = {
     "google": {"name": "oauth_google", "path": "/api/auth/google"},
     "microsoft": {"name": "oauth_microsoft", "path": "/api/auth/microsoft"},
