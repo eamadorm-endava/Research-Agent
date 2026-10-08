@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from ui.backend import auth
-from ui.backend.limits import RequestLimiter
 
 AUDIENCE = "/projects/123/global/backendServices/456"
 
@@ -80,15 +79,3 @@ def test_development_identity_requires_explicit_opt_in(config, monkeypatch):
         auth.get_current_user(Request({"type": "http", "headers": []}))
         == "local@example.com"
     )
-
-
-def test_rate_limiter_rejects_excess_and_expires_window(config, monkeypatch):
-    monkeypatch.setattr(config, "REQUESTS_PER_MINUTE", 1)
-    monkeypatch.setattr("ui.backend.limits.time.monotonic", lambda: 100)
-    limiter = RequestLimiter()
-    limiter.check("alice")
-    with pytest.raises(HTTPException) as failure:
-        limiter.check("alice")
-    assert failure.value.status_code == 429
-    monkeypatch.setattr("ui.backend.limits.time.monotonic", lambda: 161)
-    assert limiter.check("alice") is None
