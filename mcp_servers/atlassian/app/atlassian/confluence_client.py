@@ -2,7 +2,9 @@ import io
 import re
 import httpx
 from loguru import logger
+from fpdf import FPDF
 
+from .url_utils import strip_html_tags
 from ..gcs_connector import GCSConnector
 from ..schemas import (
     ListConfluenceSpacesRequest,
@@ -411,8 +413,6 @@ class ConfluenceClient:
                 )
 
                 # Generate PDF using fpdf2
-                from fpdf import FPDF
-
                 pdf = FPDF()
                 pdf.add_page()
 
@@ -431,13 +431,7 @@ class ConfluenceClient:
                     logger.warning(
                         f"Failed to parse HTML directly, falling back to text: {html_err}"
                     )
-                    from .url_utils import strip_html_tags
-
-                    fallback_text = (
-                        strip_html_tags(body_html)
-                        if "strip_html_tags" in globals()
-                        else body_html
-                    )
+                    fallback_text = strip_html_tags(body_html)
                     pdf.multi_cell(0, 5, fallback_text)
 
                 # Output PDF to bytes stream
