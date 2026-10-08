@@ -18,12 +18,13 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_subnetwork" "app_subnet" {
-  name          = "${var.network_name}-app-subnet-${var.main_region}"
-  project       = var.project_id
-  region        = var.main_region
-  network       = google_compute_network.vpc.id
-  ip_cidr_range = var.app_subnet_cidr
-  purpose       = "PRIVATE"
+  name                     = "${var.network_name}-app-subnet-${var.main_region}"
+  project                  = var.project_id
+  region                   = var.main_region
+  network                  = google_compute_network.vpc.id
+  ip_cidr_range            = var.app_subnet_cidr
+  purpose                  = "PRIVATE"
+  private_ip_google_access = true
 
   depends_on = [module.enable_apis]
 }
