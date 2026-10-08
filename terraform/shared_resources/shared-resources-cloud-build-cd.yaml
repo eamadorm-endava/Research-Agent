@@ -14,12 +14,15 @@ steps:
           -backend-config="bucket=${PROJECT_ID}-terraform-state" \
           -backend-config="prefix=terraform/state/shared-resources"
         cp /bin/terraform /workspace/terraform-bin
+        cp /etc/ssl/certs/ca-certificates.crt /workspace/terraform-ca-certificates.crt
 
   # The provisioner needs Cloud SDK (bq) and bash in the same container as Terraform.
   - name: 'gcr.io/google.com/cloudsdktool/google-cloud-cli:stable'
     id: 'tf-apply'
     entrypoint: 'bash'
     dir: 'terraform/shared_resources'
+    env:
+      - 'SSL_CERT_FILE=/workspace/terraform-ca-certificates.crt'
     args:
       - '-ceu'
       - |
