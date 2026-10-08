@@ -303,9 +303,7 @@ if [[ "$DEPLOY_SHARED_RESOURCES" == "true" ]]; then
         -backend-config="bucket=${BUCKET_NAME}" \
         -backend-config="prefix=terraform/state/shared-resources"
     terraform plan -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
-    terraform apply -lock-timeout=5m -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
-    terraform output -json embedding_model_config > /tmp/osiris-embedding-model.json
-    python3 "$SCRIPT_DIR/ensure_embedding_model.py" /tmp/osiris-embedding-model.json
+    terraform apply -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
     popd >/dev/null
 else
     echo "Skipping Shared Resources deployment."
@@ -425,10 +423,8 @@ if [[ "$DEPLOY_AGENT_GATEWAY" == "true" ]]; then
         terraform init -upgrade -reconfigure \
             -backend-config="bucket=${BUCKET_NAME}" \
             -backend-config="prefix=terraform/state/agent-gateway-resources"
-        python3 "$SCRIPT_DIR/discover_gateway_imports.py" "$PROJECT_ID" "$REGION" mcp-agent-vpc 10.10.0.0/24 10.129.0.0/23 > /tmp/osiris-gateway-imports
-        sh "$SCRIPT_DIR/import_gateway_state.sh" /tmp/osiris-gateway-imports "$PROJECT_ID" "$REGION" mcp-agent-vpc 10.10.0.0/24 10.129.0.0/23
-        terraform plan -lock-timeout=5m -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
-        terraform apply -lock-timeout=5m -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
+        terraform plan -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
+        terraform apply -auto-approve -var="project_id=$PROJECT_ID" -var="main_region=$REGION"
         popd >/dev/null
         echo "Agent Gateway deployed successfully."
     fi
@@ -506,22 +502,56 @@ else
     echo "Skipping AI Agent deployment."
 fi
 
-# 9/10. One coordinated pipeline owns both UI stacks and their dependencies.
-if [[ "$DEPLOY_UI_BACKEND" == "true" || "$DEPLOY_UI_FRONTEND" == "true" ]]; then
-    TRIGGER_NAME="ui-frontend-services-apply"
-    if ! gcloud builds triggers describe "$TRIGGER_NAME" --region="$REGION" >/dev/null 2>&1; then
-        echo "Error: Coordinated UI deployment trigger is missing."
-        exit 1
+# 9. UI Backend
+if [[ "$DEPLOY_UI_BACKEND" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 9: Deploy UI Backend"
+    echo "-----------------------------------------------------------------"
+    
+    TRIGGER_NAME="ui-backend-services-apply"
+    if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
+        echo "Triggering Cloud Build for UI Backend: ${TRIGGER_NAME}"
+        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" \
+            --region="${REGION}" \
+            --branch="${CURRENT_BRANCH}" \
+            --format="value(metadata.build.id)" || echo "")
+        
+        if [ -n "$BUILD_ID" ]; then
+            wait_for_builds "$REGION" "$BUILD_ID"
+        else
+            echo "Warning: Failed to run UI Backend trigger."
+        fi
+    else
+        echo "Warning: Trigger ${TRIGGER_NAME} not found."
     fi
-    BUILD_ID=$(gcloud builds triggers run "$TRIGGER_NAME" --region="$REGION" \
-        --branch="$CURRENT_BRANCH" --format="value(metadata.build.id)")
-    if [[ -z "$BUILD_ID" ]]; then
-        echo "Error: UI deployment did not return a build ID."
-        exit 1
-    fi
-    wait_for_builds "$REGION" "$BUILD_ID"
 else
-    echo "Skipping UI deployment."
+    echo "Skipping UI Backend deployment."
+fi
+
+# 10. UI Frontend
+if [[ "$DEPLOY_UI_FRONTEND" == "true" ]]; then
+    echo "-----------------------------------------------------------------"
+    echo "STEP 10: Deploy UI Frontend"
+    echo "-----------------------------------------------------------------"
+    
+    TRIGGER_NAME="ui-frontend-services-apply"
+    if gcloud builds triggers describe "${TRIGGER_NAME}" --region="${REGION}" >/dev/null 2>&1; then
+        echo "Triggering Cloud Build for UI Frontend: ${TRIGGER_NAME}"
+        BUILD_ID=$(gcloud builds triggers run "${TRIGGER_NAME}" \
+            --region="${REGION}" \
+            --branch="${CURRENT_BRANCH}" \
+            --format="value(metadata.build.id)" || echo "")
+        
+        if [ -n "$BUILD_ID" ]; then
+            wait_for_builds "$REGION" "$BUILD_ID"
+        else
+            echo "Warning: Failed to run UI Frontend trigger."
+        fi
+    else
+        echo "Warning: Trigger ${TRIGGER_NAME} not found."
+    fi
+else
+    echo "Skipping UI Frontend deployment."
 fi
 
 echo "================================================================="

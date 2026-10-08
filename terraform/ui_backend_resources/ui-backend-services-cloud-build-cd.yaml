@@ -1,45 +1,61 @@
-# Backend-only CD is retired. This read-only configuration also makes
-# existing legacy triggers harmless until trigger reconciliation removes them.
-# Deploy both UI stacks through ui-frontend-services-cloud-build-cd.yaml.
 substitutions:
   _LOCATION: us-central1
   _REPO_NAME: mcp-servers
+  _SERVICE_NAME: ui-backend
+
 steps:
-- name: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-  id: ui-regressions
-  args:
-  - -ec
-  - uv run --group backend --group frontend --group dev pytest ui/tests terraform/tests
-    -q
-  entrypoint: sh
-- name: hashicorp/terraform:1.12.2
-  id: ui_backend-init
-  args:
-  - -ec
-  - terraform init -backend-config="bucket=${PROJECT_ID}-terraform-state" -backend-config="prefix=terraform/state/ui-backend-resources"
-  dir: terraform/ui_backend_resources
-  entrypoint: sh
-- name: hashicorp/terraform:1.12.2
-  id: backend-fmt
-  args:
-  - fmt
-  - -check
-  dir: terraform/ui_backend_resources
-- name: hashicorp/terraform:1.12.2
-  id: backend-validate
-  args:
-  - validate
-  dir: terraform/ui_backend_resources
-- name: gcr.io/cloud-builders/docker
-  id: backend-build
-  args:
-  - build
-  - -t
-  - ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/ui-backend:${COMMIT_SHA}
-  - -f
-  - ui/backend/Dockerfile
-  - .
-serviceAccount: projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+
+  # Step 1: Initialize Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/ui_backend_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/ui-backend-resources"
+
+  # Step 2: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: [
+      'build', 
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}', 
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest', 
+      '-f', 'ui/backend/Dockerfile', 
+      '.'
+    ]
+
+  # Step 3: Docker Push
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest
+
+  # Step 4: Full Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args:
+      - 'plan'
+      - '-var=ui_backend_cloud_run_image_tag=${COMMIT_SHA}'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-out=tfplan'
+    dir: 'terraform/ui_backend_resources'
+
+  # Step 5: Full Terraform Apply
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply'
+    args: ['apply', '-auto-approve', 'tfplan']
+    dir: 'terraform/ui_backend_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
 options:
   logging: CLOUD_LOGGING_ONLY
-timeout: 1800s

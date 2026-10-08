@@ -17,28 +17,11 @@ steps:
           -backend-config="prefix=terraform/state/agent-gateway-resources"
     dir: 'terraform/agent_gateway_resources'
 
-
-  - name: 'gcr.io/google.com/cloudsdktool/google-cloud-cli:stable'
-    id: 'discover-existing-gateway'
-    entrypoint: 'bash'
-    args:
-      - '-ec'
-      - >-
-        python3 terraform/scripts/discover_gateway_imports.py '${PROJECT_ID}' '${_REGION}'
-        '${_NETWORK_NAME}' '${_APP_SUBNET_CIDR}' '${_PROXY_SUBNET_CIDR}' > /workspace/gateway-imports
-
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'import-existing-gateway'
-    entrypoint: 'sh'
-    dir: 'terraform/agent_gateway_resources'
-    args: ['../scripts/import_gateway_state.sh', '/workspace/gateway-imports', '${PROJECT_ID}', '${_REGION}', '${_NETWORK_NAME}', '${_APP_SUBNET_CIDR}', '${_PROXY_SUBNET_CIDR}']
-
   # Step 2: Run Terraform Apply
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-apply'
     args:
       - 'apply'
-      - '-lock-timeout=5m'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_REGION}'
       - '-var=network_name=${_NETWORK_NAME}'
