@@ -50,6 +50,7 @@ CREATE_AGENT_GATEWAY_TRIGGERS="false"
 CREATE_AI_AGENT_TRIGGERS="false"
 CREATE_UI_BACKEND_TRIGGERS="false"
 CREATE_UI_FRONTEND_TRIGGERS="false"
+CREATE_UI_BACKEND_TRIGGERS="false"
 
 # --- Optional / Overridable Variables ---
 PR_TARGET_BRANCH_REGEX="${PR_TARGET_BRANCH_REGEX:-^main$}"
@@ -120,7 +121,7 @@ create_trigger() {
   local extra_dir="$5"
   local extra_substitutions="${6:-}"
 
-  local included_files="${dir}/**,terraform/base_modules/**,terraform/scripts/**"
+  local included_files="${dir}/**"
   if [[ -n "$extra_dir" ]]; then
     included_files="${included_files},${extra_dir}"
   fi
@@ -135,16 +136,7 @@ create_trigger() {
       echo "Trigger exists and will be recreated: ${name}"
       delete_trigger "$name"
     else
-      echo "Updating existing trigger: ${name}"
-      local trigger_kind="--branch-pattern=$PUSH_BRANCH_REGEX"
-      if [[ "$type" == "pr" ]]; then
-        trigger_kind="--pull-request-pattern=$PR_TARGET_BRANCH_REGEX"
-      fi
-      gcloud builds triggers update github "$name" \
-        --project="$PROJECT_ID" --region="$REGION" \
-        --build-config="$config" --included-files="$included_files" \
-        --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
-        --update-substitutions="$subs" "$trigger_kind"
+      echo "Trigger already exists, skipping: ${name}"
       return
     fi
   fi
@@ -265,20 +257,17 @@ if [[ "$CREATE_SHARED_RESOURCES_TRIGGERS" == "true" ]]; then
 fi
 
 # --- UI Backend Triggers ---
-if [[ "$CREATE_UI_BACKEND_TRIGGERS" == "true" || "$CREATE_UI_FRONTEND_TRIGGERS" == "true" ]]; then
+if [[ "$CREATE_UI_BACKEND_TRIGGERS" == "true" ]]; then
     # The backend depends on ui/backend, terraform/ui_backend_resources, but also strictly on
     # specific core_agent files like the token_store and configurations it imports.
-    UI_BACKEND_INCLUDED_FILES="ui/backend/**,ui/tests/**,terraform/tests/**,agent/core_agent/security/token_store.py,agent/core_agent/security/__init__.py,agent/core_agent/__init__.py,agent/core_agent/config/**,pyproject.toml,uv.lock"
+    UI_BACKEND_INCLUDED_FILES="ui/backend/**,ui/tests/**,agent/core_agent/security/token_store.py,agent/core_agent/config/**,pyproject.toml,uv.lock"
     create_trigger "ui-backend-services-plan" "pr" "terraform/ui_backend_resources" "terraform/ui_backend_resources/ui-backend-services-cloud-build-ci.yaml" "$UI_BACKEND_INCLUDED_FILES"
-    # UI CD has one owner: the frontend pipeline applies shared -> backend -> frontend.
-    if trigger_exists "ui-backend-services-apply"; then
-      delete_trigger "ui-backend-services-apply"
-    fi
+    create_trigger "ui-backend-services-apply" "push" "terraform/ui_backend_resources" "terraform/ui_backend_resources/ui-backend-services-cloud-build-cd.yaml" "$UI_BACKEND_INCLUDED_FILES"
 fi
 
 # --- UI Frontend Triggers ---
-if [[ "$CREATE_UI_FRONTEND_TRIGGERS" == "true" || "$CREATE_UI_BACKEND_TRIGGERS" == "true" ]]; then
-    UI_FRONTEND_INCLUDED_FILES="ui/**,terraform/ui_backend_resources/**,terraform/shared_resources/**,terraform/agent_gateway_resources/**,terraform/tests/**,agent/core_agent/security/token_store.py,agent/core_agent/security/__init__.py,agent/core_agent/__init__.py,agent/core_agent/config/**,pyproject.toml,uv.lock"
+if [[ "$CREATE_UI_FRONTEND_TRIGGERS" == "true" ]]; then
+    UI_FRONTEND_INCLUDED_FILES="ui/frontend/**,pyproject.toml,uv.lock"
     create_trigger "ui-frontend-services-plan" "pr" "terraform/ui_frontend_resources" "terraform/ui_frontend_resources/ui-frontend-services-cloud-build-ci.yaml" "$UI_FRONTEND_INCLUDED_FILES"
     create_trigger "ui-frontend-services-apply" "push" "terraform/ui_frontend_resources" "terraform/ui_frontend_resources/ui-frontend-services-cloud-build-cd.yaml" "$UI_FRONTEND_INCLUDED_FILES"
 fi

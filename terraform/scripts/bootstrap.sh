@@ -84,8 +84,6 @@ echo "Assigning infrastructure roles to $SA_NAME..."
 ROLES=(
     "roles/serviceusage.serviceUsageAdmin" # To enable APIs
     "roles/iam.serviceAccountAdmin" # To create and manage service accounts
-    "roles/iam.roleAdmin" # To create the minimal IAP audience reader role
-    "roles/iap.admin" # To manage access to the IAP-protected UI backends
     "roles/resourcemanager.projectIamAdmin" # To manage IAM policies
     "roles/artifactregistry.admin" # To manage Artifact Registry
     "roles/run.admin" # To deploy services to Cloud Run
@@ -99,6 +97,7 @@ ROLES=(
     "roles/bigquery.admin" # To manage BigQuery datasets and tables
     "roles/storage.admin" # To manage GCS buckets
     "roles/cloudtasks.admin" # To manage Cloud Tasks queues
+    "roles/iap.admin" # To manage UI access through IAP
     "roles/compute.admin" # To manage Load Balancers, Subnets, NEGs and Forwarding Rules
     "roles/dns.admin" # To manage Cloud DNS private zones and record sets
     "roles/datastore.owner" # To manage Firestore databases and collections
