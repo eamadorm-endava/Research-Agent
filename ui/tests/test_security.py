@@ -1,5 +1,30 @@
 """Check the browser and request boundaries required by cybersecurity-guide."""
 
+from html.parser import HTMLParser
+
+
+class ScriptParser(HTMLParser):
+    """Extract script text from the callback HTML for its CSP assertion."""
+
+    def __init__(self):
+        super().__init__()
+        self.in_script = False
+        self.script_count = 0
+        self.script_content = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script":
+            self.in_script = True
+            self.script_count += 1
+
+    def handle_endtag(self, tag):
+        if tag == "script":
+            self.in_script = False
+
+    def handle_data(self, text):
+        if self.in_script:
+            self.script_content.append(text)
+
 
 def test_response_sets_security_headers(client):
     response = client.get("/health")
@@ -57,7 +82,6 @@ def test_rate_limit_rejects_excess_requests(client, monkeypatch):
 def test_csp_fingerprint_matches_the_public_popup_script(client, monkeypatch):
     import base64
     import hashlib
-    import re
 
     from ui.backend.config import OAUTH_CALLBACK_CSP_SOURCE
     from ui.backend.routers import oauth
@@ -71,7 +95,11 @@ def test_csp_fingerprint_matches_the_public_popup_script(client, monkeypatch):
     )
     response = client.get(f"/api/auth/google/callback?state={state}&code=valid")
     assert response.status_code == 200
-    public_script_content = re.search(r"<script>(.*?)</script>", response.text).group(1)
+    parser = ScriptParser()
+    parser.feed(response.text)
+    parser.close()
+    assert parser.script_count == 1
+    public_script_content = "".join(parser.script_content)
     expected_fingerprint = base64.b64encode(
         hashlib.sha256(public_script_content.encode()).digest()
     ).decode()
