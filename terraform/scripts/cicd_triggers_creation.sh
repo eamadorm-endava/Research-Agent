@@ -151,6 +151,7 @@ create_trigger() {
       --pull-request-pattern="$PR_TARGET_BRANCH_REGEX" \
       --build-config="$config" \
       --included-files="$included_files" \
+      --ignored-files="**/tests/**,pyproject.toml,uv.lock" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
       --substitutions="$subs"
   else
@@ -163,6 +164,7 @@ create_trigger() {
       --branch-pattern="$PUSH_BRANCH_REGEX" \
       --build-config="$config" \
       --included-files="$included_files" \
+      --ignored-files="**/tests/**,pyproject.toml,uv.lock" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
       --substitutions="$subs"
   fi
@@ -260,14 +262,14 @@ fi
 if [[ "$CREATE_UI_BACKEND_TRIGGERS" == "true" ]]; then
     # The backend depends on ui/backend, terraform/ui_backend_resources, but also strictly on
     # specific core_agent files like the token_store and configurations it imports.
-    UI_BACKEND_INCLUDED_FILES="ui/backend/**,ui/tests/**,agent/core_agent/security/token_store.py,agent/core_agent/config/**,pyproject.toml,uv.lock"
+    UI_BACKEND_INCLUDED_FILES="ui/backend/**,agent/core_agent/security/token_store.py,agent/core_agent/config/**"
     create_trigger "ui-backend-services-plan" "pr" "terraform/ui_backend_resources" "terraform/ui_backend_resources/ui-backend-services-cloud-build-ci.yaml" "$UI_BACKEND_INCLUDED_FILES"
     create_trigger "ui-backend-services-apply" "push" "terraform/ui_backend_resources" "terraform/ui_backend_resources/ui-backend-services-cloud-build-cd.yaml" "$UI_BACKEND_INCLUDED_FILES"
 fi
 
 # --- UI Frontend Triggers ---
 if [[ "$CREATE_UI_FRONTEND_TRIGGERS" == "true" ]]; then
-    UI_FRONTEND_INCLUDED_FILES="ui/frontend/**,pyproject.toml,uv.lock"
+    UI_FRONTEND_INCLUDED_FILES="ui/frontend/**"
     create_trigger "ui-frontend-services-plan" "pr" "terraform/ui_frontend_resources" "terraform/ui_frontend_resources/ui-frontend-services-cloud-build-ci.yaml" "$UI_FRONTEND_INCLUDED_FILES"
     create_trigger "ui-frontend-services-apply" "push" "terraform/ui_frontend_resources" "terraform/ui_frontend_resources/ui-frontend-services-cloud-build-cd.yaml" "$UI_FRONTEND_INCLUDED_FILES"
 fi

@@ -30,4 +30,4 @@ domain_name      = "osiris.endava.app"
 test_domain_name = "test.osiris.endava.app"
 
 load_balancer_ip = "136.81.113.202"
-iap_accessor     = "group:gcu_latam_team_devs@endava.com"
+iap_accessor     = "group:osiris_app_users@endava.com"
