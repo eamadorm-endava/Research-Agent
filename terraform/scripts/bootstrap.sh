@@ -84,6 +84,8 @@ echo "Assigning infrastructure roles to $SA_NAME..."
 ROLES=(
     "roles/serviceusage.serviceUsageAdmin" # To enable APIs
     "roles/iam.serviceAccountAdmin" # To create and manage service accounts
+    "roles/iam.roleAdmin" # To create the minimal IAP audience reader role
+    "roles/iap.admin" # To manage access to the IAP-protected UI backends
     "roles/resourcemanager.projectIamAdmin" # To manage IAM policies
     "roles/artifactregistry.admin" # To manage Artifact Registry
     "roles/run.admin" # To deploy services to Cloud Run

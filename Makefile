@@ -42,6 +42,7 @@ verify-all-ci:
 	$(MAKE) verify-atlassian-ci
 	$(MAKE) verify-outlook-ci
 	$(MAKE) verify-ge-ci
+	$(MAKE) verify-ui-ci
 
 create-cloudbuild-triggers:
 	./terraform/scripts/cicd_triggers_creation.sh
@@ -320,3 +321,34 @@ run-backend:
 
 run-ui:
 	uv run --group frontend streamlit run ui/frontend/app.py --server.port 8501
+
+### Independent OSIRIS UI ###
+
+.PHONY: lint-ui test-ui test-ui-terraform verify-ui-ci build-ui run-ui-backend run-ui-frontend
+lint-ui:
+	uvx ruff check ui agent/core_agent/security/token_store.py agent/core_agent/security/__init__.py terraform/scripts/ensure_embedding_model.py terraform/scripts/discover_gateway_imports.py terraform/scripts/discover_ui_imports.py terraform/tests
+	uvx ruff format --check ui agent/core_agent/security/token_store.py agent/core_agent/security/__init__.py terraform/scripts/ensure_embedding_model.py terraform/scripts/discover_gateway_imports.py terraform/scripts/discover_ui_imports.py terraform/tests
+	bash -n terraform/scripts/cicd_triggers_creation.sh terraform/scripts/creation_manager.sh
+	sh -n terraform/scripts/import_gateway_state.sh terraform/scripts/import_ui_state.sh terraform/scripts/prepare_ui_deployer.sh
+
+test-ui:
+	uv run --group backend --group frontend --group dev pytest ui/tests terraform/tests -q
+
+test-ui-terraform:
+	@for stack in shared_resources agent_gateway_resources ui_backend_resources ui_frontend_resources; do \
+		terraform -chdir=terraform/$$stack fmt -check && \
+		terraform -chdir=terraform/$$stack init -backend=false && \
+		terraform -chdir=terraform/$$stack validate || exit 1; \
+	done
+
+verify-ui-ci: lint-ui test-ui test-ui-terraform
+
+build-ui:
+	docker build -t osiris-ui-backend -f ui/backend/Dockerfile .
+	docker build -t osiris-ui-frontend -f ui/frontend/Dockerfile .
+
+run-ui-backend:
+	ENVIRONMENT=development LOCAL_USER_EMAIL=dev@example.com PUBLIC_BASE_URL=http://localhost:8000 uv run --group backend uvicorn ui.backend.main:app --port 8000
+
+run-ui-frontend:
+	ENVIRONMENT=development API_URL=http://localhost:8000/api PUBLIC_BASE_URL=http://localhost:8000 uv run --group frontend streamlit run ui/frontend/app.py
