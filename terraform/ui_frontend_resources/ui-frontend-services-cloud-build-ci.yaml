@@ -1,66 +1,42 @@
 substitutions:
   _LOCATION: us-central1
   _REPO_NAME: mcp-servers
-  _SERVICE_NAME: ui-frontend
-
 steps:
-  # Step 1: Docker Build for Test
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-build'
-    args: [
-      'build', 
-      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA}', 
-      '-f', 'ui/frontend/Dockerfile', 
-      '.'
-    ]
-
-  # Step 2: Docker Push
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-push'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
-        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA}
-
-  # Step 3: Deploy Test Instance (Ephemeral)
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-test'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        gcloud run deploy test-${_SERVICE_NAME} \
-          --image=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA} \
-          --region=${_LOCATION} \
-          --platform=managed \
-          --no-allow-unauthenticated \
-          --ingress=internal-and-cloud-load-balancing \
-          --service-account=osiris-ui-frontend@${PROJECT_ID}.iam.gserviceaccount.com \
-          --quiet
-
-  # Step 4: Initialize Terraform
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-init'
-    entrypoint: 'sh'
-    dir: 'terraform/ui_frontend_resources'
-    args:
-      - '-c'
-      - |
-        terraform init \
-          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
-          -backend-config="prefix=terraform/state/ui-frontend-resources"
-
-  # Step 5: Full Terraform Plan
-  - name: 'hashicorp/terraform:1.12.2'
-    id: 'tf-plan'
-    args:
-      - 'plan'
-      - '-var=project_id=${PROJECT_ID}'
-      - '-var=main_region=${_LOCATION}'
-    dir: 'terraform/ui_frontend_resources'
-
-serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
-
+- name: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+  id: ui-regressions
+  args:
+  - -ec
+  - uv run --group backend --group frontend --group dev pytest ui/tests terraform/tests
+    -q
+  entrypoint: sh
+- name: hashicorp/terraform:1.12.2
+  id: ui_frontend-init
+  args:
+  - -ec
+  - terraform init -backend-config="bucket=${PROJECT_ID}-terraform-state" -backend-config="prefix=terraform/state/ui-frontend-resources"
+  dir: terraform/ui_frontend_resources
+  entrypoint: sh
+- name: hashicorp/terraform:1.12.2
+  id: frontend-fmt
+  args:
+  - fmt
+  - -check
+  dir: terraform/ui_frontend_resources
+- name: hashicorp/terraform:1.12.2
+  id: frontend-validate
+  args:
+  - validate
+  dir: terraform/ui_frontend_resources
+- name: gcr.io/cloud-builders/docker
+  id: frontend-build
+  args:
+  - build
+  - -t
+  - ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/ui-frontend:${COMMIT_SHA}
+  - -f
+  - ui/frontend/Dockerfile
+  - .
+serviceAccount: projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
 options:
   logging: CLOUD_LOGGING_ONLY
+timeout: 1800s
