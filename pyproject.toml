@@ -143,6 +143,7 @@ mcp_sharepoint = [
     "loguru>=0.7.3",
 ]
 backend = [
+    "slowapi>=0.1.9",
     "PyJWT[crypto]>=2.10.1",
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
