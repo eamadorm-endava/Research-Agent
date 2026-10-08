@@ -117,9 +117,15 @@ def client(database, config, monkeypatch):
     from ui.backend.auth import get_current_user
     from ui.backend.routers.oauth import PROVIDER_CONFIGS
 
-    for provider_config in PROVIDER_CONFIGS.values():
+    for provider, provider_config in PROVIDER_CONFIGS.items():
         monkeypatch.setattr(provider_config, "CLIENT_ID", "test-client")
         monkeypatch.setattr(provider_config, "CLIENT_SECRET", "test-secret")
+        monkeypatch.setattr(
+            provider_config, "AUTH_URI", f"https://login.example/{provider}/authorize"
+        )
+        monkeypatch.setattr(
+            provider_config, "TOKEN_URI", f"https://login.example/{provider}/token"
+        )
     app.dependency_overrides[get_current_user] = lambda: "alice@example.com"
     with TestClient(app, base_url="https://osiris.example.com") as api_client:
         yield api_client

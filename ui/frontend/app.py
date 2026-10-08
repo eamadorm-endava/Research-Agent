@@ -282,7 +282,7 @@ if st.session_state.pending_prompt:
                     active_tools = {}
                     thought_text = ""
                     thought_placeholder = None
-                    completed_actions = []
+                    recorded_actions = []
                     process_start_time = time.time()
                     final_label = "Executed"
 
@@ -363,8 +363,10 @@ if st.session_state.pending_prompt:
                                             call_data = part.get(
                                                 "functionCall"
                                             ) or part.get("function_call")
-                                            call_id = call_data.get("id")
                                             func_name = call_data.get("name", "unknown")
+                                            call_id = call_data.get("id") or (
+                                                f"{func_name}:{len(recorded_actions)}"
+                                            )
                                             func_args = call_data.get("args", {})
 
                                             # Format Name (e.g., transfer_to_agent -> Transfer To Agent)
@@ -396,7 +398,7 @@ if st.session_state.pending_prompt:
                                                 status_box.markdown(
                                                     action_html, unsafe_allow_html=True
                                                 )
-                                                completed_actions.append(action_html)
+                                                recorded_actions.append(action_html)
                                             else:
                                                 ph = status_box.container().empty()
                                                 start_time = time.time()
@@ -424,12 +426,23 @@ if st.session_state.pending_prompt:
                                                         ),
                                                         unsafe_allow_html=True,
                                                     )
+                                                    recorded_actions.append(
+                                                        format_agent_action(
+                                                            svg_skill,
+                                                            f"Reading Skill {clean_skill}",
+                                                        )
+                                                    )
                                                     active_tools[call_id] = {
                                                         "ph": ph,
                                                         "start": start_time,
                                                         "type": "skill",
                                                         "name": clean_skill,
                                                         "svg": svg_skill,
+                                                        "function_name": func_name,
+                                                        "action_index": len(
+                                                            recorded_actions
+                                                        )
+                                                        - 1,
                                                     }
                                                 else:
                                                     svg_spinner = '<svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>'
@@ -440,12 +453,22 @@ if st.session_state.pending_prompt:
                                                         ),
                                                         unsafe_allow_html=True,
                                                     )
+                                                    recorded_actions.append(
+                                                        format_agent_action(
+                                                            svg_tool, clean_name
+                                                        )
+                                                    )
                                                     active_tools[call_id] = {
                                                         "ph": ph,
                                                         "start": start_time,
                                                         "type": "function",
                                                         "name": clean_name,
                                                         "svg": svg_tool,
+                                                        "function_name": func_name,
+                                                        "action_index": len(
+                                                            recorded_actions
+                                                        )
+                                                        - 1,
                                                     }
 
                                         # 3. Tool Responses
@@ -457,6 +480,16 @@ if st.session_state.pending_prompt:
                                                 "functionResponse"
                                             ) or part.get("function_response")
                                             call_id = resp_data.get("id")
+                                            if not call_id:
+                                                call_id = next(
+                                                    (
+                                                        key
+                                                        for key, tool in active_tools.items()
+                                                        if tool["function_name"]
+                                                        == resp_data.get("name")
+                                                    ),
+                                                    None,
+                                                )
                                             if call_id in active_tools:
                                                 tool_info = active_tools[call_id]
                                                 duration = (
@@ -477,7 +510,9 @@ if st.session_state.pending_prompt:
                                                 ph.markdown(
                                                     action_html, unsafe_allow_html=True
                                                 )
-                                                completed_actions.append(action_html)
+                                                recorded_actions[
+                                                    tool_info["action_index"]
+                                                ] = action_html
 
                                                 del active_tools[call_id]
 
@@ -525,12 +560,12 @@ if st.session_state.pending_prompt:
                 # If we successfully completed the loop without requiring auth
                 if not auth_required:
                     st.session_state.pending_prompt = None  # Clear the prompt
-                    if full_response:
+                    if full_response or recorded_actions or thought_text:
                         message_placeholder.markdown(full_response)
                         msg_data = {"role": "assistant", "content": full_response}
                         msg_data["status_label"] = final_label
-                        if completed_actions or thought_text:
-                            msg_data["actions"] = completed_actions
+                        if recorded_actions or thought_text:
+                            msg_data["actions"] = recorded_actions
                             msg_data["thought_text"] = thought_text
                         st.session_state.messages.append(msg_data)
                     st.rerun()

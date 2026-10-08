@@ -1,6 +1,7 @@
 """Exercise the actual Streamlit chat request and unauthorized-response handling."""
 
 from io import BytesIO
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -108,3 +109,55 @@ def test_connections_advance_and_resume_the_original_message(
     assert post.call_count == 2
     assert post.call_args.kwargs["json"]["message"] == "Original question"
     assert len(app.session_state.messages) == 2
+
+
+@pytest.mark.parametrize("response_ids", ["missing", "names", "ids"])
+def test_execution_history_survives_final_response_and_rerun(
+    browser_identity, monkeypatch, response_ids
+):
+    calls = [
+        {"name": "search_documents", "args": {}},
+        {"name": "load_skill", "args": {"skill_name": "document_search"}},
+        {"name": "search_documents", "args": {}},
+    ]
+    if response_ids == "ids":
+        for index, call in enumerate(calls):
+            call["id"] = str(index)
+    parts = [{"functionCall": call} for call in calls]
+    if response_ids != "missing":
+        responses = reversed(calls) if response_ids == "ids" else calls
+        parts.extend(
+            {
+                "functionResponse": {
+                    "name": call["name"],
+                    **({"id": call["id"]} if "id" in call else {}),
+                }
+            }
+            for call in responses
+        )
+    parts.append({"text": "Finished."})
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.iter_lines.return_value = [
+        "data: "
+        + json.dumps({"type": "agent_event", "payload": {"content": {"parts": [part]}}})
+        for part in parts
+    ]
+    monkeypatch.setattr(requests, "post", MagicMock(return_value=response))
+    app = AppTest.from_file(
+        Path(__file__).resolve().parents[1] / "frontend" / "app.py"
+    ).run()
+    app.chat_input[0].set_value("Find a document").run()
+    assert not app.exception
+    message = app.session_state.messages[-1]
+    assert message["content"] == "Finished."
+    assert len(message["actions"]) == 3
+    assert "Search Documents" in message["actions"][0]
+    assert "Reading Skill Document Search" in message["actions"][1]
+    assert "Search Documents" in message["actions"][2]
+    app.run()
+    assert not app.exception
+    rendered = "\n".join(item.value for item in app.markdown)
+    assert rendered.count("Search Documents") == 2
+    assert "Reading Skill Document Search" in rendered
+    assert "Finished." in rendered

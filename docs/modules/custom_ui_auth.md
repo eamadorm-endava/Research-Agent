@@ -232,3 +232,18 @@ locked version. Service tokens and IAP assertions stay separate; signatures,
 audiences, expiry, state, PKCE and browser/user binding remain enforced. The
 previous multi-provider chaining flag is no longer used, including for older
 pending transactions. Each provider requires a separate user-initiated login.
+
+## Execution history and CI verification
+
+The frontend records each displayed function or skill when its call arrives.
+Completion events update the existing row instead of creating a second record.
+Responses without call IDs are matched by function name; calls without a
+completion event remain in the history. The final response and subsequent
+Streamlit reruns preserve the execution panel.
+
+UI test fixtures use isolated OAuth URLs so local `.env` values cannot change
+their consent behavior. Run deployable suites separately with their `uv`
+dependency groups, as the CI Make targets do; this also avoids collisions between
+test modules with the same filename. The UI CI's image build has three bounded
+attempts, and frontend Terraform initialization allows a longer registry timeout
+and connection retries for the download timeouts observed in Cloud Build.
