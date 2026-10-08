@@ -69,14 +69,16 @@ def test_forged_state_never_exchanges_code(client, monkeypatch):
     "user,provider", [("bob@example.com", "google"), ("alice@example.com", "microsoft")]
 )
 def test_state_cannot_cross_users_or_providers(database, config, user, provider):
-    state, browser, _ = oauth_state.create_state("alice@example.com", "google")
+    transaction = oauth_state.create_state("alice@example.com", "google")
+    state, browser = transaction["state"], transaction["browser_secret"]
     with pytest.raises(HTTPException) as failure:
         oauth_state.consume_state(state, browser, user, provider)
     assert failure.value.status_code == 400
 
 
 def test_expired_state_cannot_be_used(database, config):
-    state, browser, _ = oauth_state.create_state("alice@example.com", "google")
+    transaction = oauth_state.create_state("alice@example.com", "google")
+    state, browser = transaction["state"], transaction["browser_secret"]
     next(iter(database.records.values()))["expires_at"] = datetime.now(UTC) - timedelta(
         seconds=1
     )

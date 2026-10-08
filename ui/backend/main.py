@@ -1,32 +1,63 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+"""UI API with explicit browser boundaries and process/agent health reporting."""
 
-from .routers import oauth, chat, upload
+import base64
+import hashlib
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.responses import Response
+
+from .config import OAUTH_CALLBACK_SCRIPT, UI_CONFIG
+from .limits import limiter
+from .routers import chat, oauth, upload
 
 app = FastAPI(
     title="Research-Agent Custom UI API",
     description="Backend for handling Agent Engine streaming and unified OAuth",
     version="1.0.0",
 )
-
-# Configure CORS (restrict in production)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=UI_CONFIG.allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type", "X-Goog-IAP-JWT-Assertion"],
 )
 
-# Include routers
+
+@app.middleware("http")
+async def secure_headers(request: Request, call_next) -> Response:
+    """Keep private responses uncached and constrain browser content execution."""
+    response = await call_next(request)
+    script_hash = base64.b64encode(
+        hashlib.sha256(OAUTH_CALLBACK_SCRIPT.encode()).digest()
+    ).decode()
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'none'; script-src 'sha256-{script_hash}'; "
+        "base-uri 'none'; frame-ancestors 'none'"
+    )
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=31536000; includeSubDomains"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 app.include_router(oauth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 
 
 @app.get("/health")
-async def health_check():
+@limiter.exempt
+async def health_check() -> JSONResponse:
+    """Return unavailable when the configured agent lookup failed."""
     if chat.remote_app is None:
-        from fastapi.responses import JSONResponse
         return JSONResponse({"status": "agent_unavailable"}, status_code=503)
-    return {"status": "ok"}
+    return JSONResponse({"status": "ok"})

@@ -17,7 +17,7 @@ def digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def create_state(user: str, provider: str) -> tuple[str, str, str]:
+def create_state(user: str, provider: str) -> dict[str, str]:
     """Persist a short-lived authorization transaction and PKCE verifier."""
     state, browser_secret, verifier = (secrets.token_urlsafe(32) for _ in range(3))
     token_store.db.collection(f"{token_store.collection_name}_oauth_states").document(
@@ -32,7 +32,7 @@ def create_state(user: str, provider: str) -> tuple[str, str, str]:
             + timedelta(seconds=UI_CONFIG.OAUTH_STATE_SECONDS),
         }
     )
-    return state, browser_secret, verifier
+    return {"state": state, "browser_secret": browser_secret, "verifier": verifier}
 
 
 def consume_state(state: str, browser_secret: str, user: str, provider: str) -> str:
