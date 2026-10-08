@@ -3847,7 +3847,7 @@ ekb-integration = [
 frontend = [
     { name = "google-auth", specifier = ">=2.55.0" },
     { name = "requests", specifier = ">=2.31.0" },
-    { name = "streamlit", specifier = ">=1.32.0" },
+    { name = "streamlit", specifier = ">=1.57.0" },
 ]
 mcp-atlassian = [
     { name = "google-auth", specifier = ">=2.0.0" },

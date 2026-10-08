@@ -30,6 +30,7 @@ COPY --from=builder --chown=nonroot:nonroot /app /app
 USER nonroot
 
 ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     PORT=8080
 

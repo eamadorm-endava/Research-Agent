@@ -176,8 +176,9 @@ blocks or new discovery scripts are used. `make import-gateway-proxy-subnet` wra
 initialization and the import command for this existing environment.
 
 Shared apply uses the exact Terraform 1.12.2 binary copied from the init container
-into `/workspace/terraform-bin`. Cloud SDK supplies Bash and `bq` for its existing
-provisioner. No Python installer, SSL override or Terraform download is needed.
+into `/workspace/terraform-bin`, together with its trusted CA bundle. Cloud SDK
+supplies Bash and `bq`; `SSL_CERT_FILE` selects that bundle for Terraform's HTTPS
+connections. No Python installer or Terraform download is needed.
 Each build step has one `args` list.
 
 Trigger source filters omit tests, `pyproject.toml` and `uv.lock`. Cookie metadata
@@ -203,3 +204,28 @@ existing GCS state naming and repository layout are retained rather than migrate
 no new infrastructure or broad CFF/module refactor is introduced. The existing
 CFF service/load-balancer modules remain in use. Acceptance in GCP and merging
 PR #292 are separate release steps; unit checks do not claim they have happened.
+
+## Sequential connection card
+
+The existing chat authentication flow now shows one compact, neutral card:
+`Authentication Required: Google Workspace Connection`. A user click opens a
+named popup. After each successful OAuth exchange, the backend selects the next
+missing connection and redirects the same popup to Microsoft 365 or Atlassian.
+After the last exchange, the existing CSP-authorized script closes the popup.
+Browser settings can affect whether a requested popup appears as a window or tab.
+
+`GET /api/auth/status` checks credentials for the verified IAP user and returns
+only provider names. A Streamlit fragment polls it every three seconds while
+consent is pending. The card advances only on confirmed server state; canceled
+consent or closing a window never marks a connection ready. Once no providers
+remain, the original chat question resumes without a Continue button or a second
+user message. A 401 still requires reloading the access session.
+
+The implementation is limited to the OAuth router/state, connection response
+schema, frontend `authentication.py`/chat integration, and their regression
+tests. No GCP resources or additional Python packages are introduced. The
+frontend requires Streamlit 1.57 or newer for `st.iframe`, and keeps its existing
+locked version. Service tokens and IAP assertions stay separate; signatures,
+audiences, expiry, state, PKCE and browser/user binding remain enforced. The
+multi-provider flag is stored in single-use server state rather than trusted
+from callback query parameters.
