@@ -85,13 +85,12 @@ def redirect_uri(provider: str) -> str:
 def login(
     provider: str,
     request: Request,
-    connect_all: bool = False,
     user_id: str = Depends(get_current_user),
 ):
     """Start consent and set a secure cookie binding the popup to its transaction."""
     config = get_provider_config(provider)
     browser_session_id = uuid4().hex
-    transaction = create_state(user_id, provider, browser_session_id, connect_all)
+    transaction = create_state(user_id, provider, browser_session_id)
     state = transaction["state"]
     verifier = transaction["verifier"]
     params = _authorization_params(provider, config, state, verifier)
@@ -171,20 +170,13 @@ def callback(
         payload["code_verifier"] = transaction["verifier"]
     tokens = exchange_tokens(provider, config.TOKEN_URI, payload)
     token_store.save_tokens(user_id=user_id, provider=provider, token_data=tokens)
-    response = _connection_response(user_id, bool(transaction["connect_all"]))
+    response = _connection_response()
     response.delete_cookie(cookie_name, path=cookie_path)
     return response
 
 
-def _connection_response(
-    user_id: str, connect_all: bool
-) -> HTMLResponse | RedirectResponse:
-    """Continue consent in the same popup, or close it when connections are ready."""
-    missing = check_missing_providers(user_id) if connect_all else []
-    if missing:
-        next_provider = OAuthProviderRequest(provider=missing[0])
-        login_path = f"{next_provider.cookie_settings['path']}/login?connect_all=true"
-        return RedirectResponse(f"{UI_CONFIG.PUBLIC_BASE_URL.rstrip('/')}{login_path}")
+def _connection_response() -> HTMLResponse:
+    """Close this provider's popup; the next consent requires a new user click."""
     return HTMLResponse(
         "<html><head><title>Authorization completed</title>"
         f"<script>{OAUTH_CALLBACK_SCRIPT}</script>"
