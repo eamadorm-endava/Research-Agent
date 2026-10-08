@@ -2,6 +2,7 @@ import io
 import re
 import httpx
 from loguru import logger
+from fpdf import FPDF
 
 from ..gcs_connector import GCSConnector
 from ..schemas import (
@@ -32,53 +33,16 @@ from ..schemas import (
 )
 
 
-def html_to_markdown(html_content: str) -> str:
-    """Converts Confluence storage format XHTML to readable Markdown."""
+def strip_html_tags(html_content: str) -> str:
+    """Strips all HTML tags from the content to produce plain text."""
     if not html_content:
         return ""
 
-    # Replace headers
-    html = re.sub(r"<h1[^>]*>(.*?)</h1>", r"# \1\n\n", html_content, flags=re.DOTALL)
-    html = re.sub(r"<h2[^>]*>(.*?)</h2>", r"## \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h3[^>]*>(.*?)</h3>", r"### \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h4[^>]*>(.*?)</h4>", r"#### \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h5[^>]*>(.*?)</h5>", r"##### \1\n\n", html, flags=re.DOTALL)
-    html = re.sub(r"<h6[^>]*>(.*?)</h6>", r"###### \1\n\n", html, flags=re.DOTALL)
-
-    # Replace paragraphs
-    html = re.sub(r"<p[^>]*>(.*?)</p>", r"\1\n\n", html, flags=re.DOTALL)
-
-    # Replace bold/strong
-    html = re.sub(r"<strong[^>]*>(.*?)</strong>", r"**\1**", html, flags=re.DOTALL)
-    html = re.sub(r"<b[^>]*>(.*?)</b>", r"**\1**", html, flags=re.DOTALL)
-
-    # Replace italic/em
-    html = re.sub(r"<em[^>]*>(.*?)</em>", r"*\1*", html, flags=re.DOTALL)
-    html = re.sub(r"<i[^>]*>(.*?)</i>", r"*\1*", html, flags=re.DOTALL)
-
-    # Replace links
-    html = re.sub(
-        r'<a[^>]*href=["\'](.*?)["\'][^>]*>(.*?)</a>',
-        r"[\2](\1)",
-        html,
-        flags=re.DOTALL,
-    )
-
-    # Replace lists
-    html = re.sub(r"<li[^>]*>(.*?)</li>", r"* \1\n", html, flags=re.DOTALL)
-    html = re.sub(r"<ul[^>]*>(.*?)</ul>", r"\1\n", html, flags=re.DOTALL)
-    html = re.sub(r"<ol[^>]*>(.*?)</ol>", r"\1\n", html, flags=re.DOTALL)
-
-    # Replace breaks
-    html = re.sub(r"<br\s*/?>", r"\n", html, flags=re.IGNORECASE)
-
-    # Strip remaining HTML tags
-    html = re.sub(r"<[^>]+>", "", html)
-
-    # Clean up multiple newlines
-    html = re.sub(r"\n{3,}", "\n\n", html)
-
-    return html.strip()
+    # Simple regex to strip HTML tags
+    text = re.sub(r"<[^>]+>", " ", html_content)
+    # Replace multiple spaces with a single space
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 class ConfluenceClient:
@@ -403,19 +367,38 @@ class ConfluenceClient:
                 title = page_data.get("title", "Untitled Page")
                 # Clean title for filename mapping
                 safe_title = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")
-                filename = f"{safe_title}.md"
+                filename = f"{safe_title}.pdf"
 
                 # Extract HTML storage body
                 body_html = (
                     page_data.get("body", {}).get("storage", {}).get("value", "")
                 )
 
-                # Convert HTML to Markdown
-                markdown_text = f"# {title}\n\n" + html_to_markdown(body_html)
+                # Generate PDF using fpdf2
+                pdf = FPDF()
+                pdf.add_page()
 
-                # Convert markdown string to binary stream
-                markdown_bytes = markdown_text.encode("utf-8")
-                stream = io.BytesIO(markdown_bytes)
+                # Write title
+                pdf.set_font("helvetica", "B", 16)
+                pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT", align="C")
+                pdf.ln(5)
+
+                # Set font for body
+                pdf.set_font("helvetica", size=11)
+
+                # Write HTML content
+                try:
+                    pdf.write_html(body_html)
+                except Exception as html_err:
+                    logger.warning(
+                        f"Failed to parse HTML directly, falling back to text: {html_err}"
+                    )
+                    fallback_text = strip_html_tags(body_html)
+                    pdf.multi_cell(0, 5, fallback_text)
+
+                # Output PDF to bytes stream
+                pdf_bytes = pdf.output()
+                stream = io.BytesIO(pdf_bytes)
 
                 # Fetch DI credentials
                 app_name = "core_agent"
@@ -430,18 +413,18 @@ class ConfluenceClient:
                 # Stream upload to GCS Landing Zone
                 gcs_uri = self.gcs.upload_stream(
                     file_obj=stream,
-                    content_type="text/markdown",
+                    content_type="application/pdf",
                     app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
                     filename=filename,
-                    size=len(markdown_bytes),
+                    size=len(pdf_bytes),
                 )
 
                 return ReadConfluencePageResponse(
                     execution_status="success",
                     gcs_uri=gcs_uri,
-                    mime_type="text/markdown",
+                    mime_type="application/pdf",
                     filename=filename,
                     inject_file_data=True,
                 )
