@@ -75,10 +75,11 @@ resource "null_resource" "create_multimodal_model" {
   }
 
   provisioner "local-exec" {
-    interpreter = ["/bin/sh", "-c"]
+    interpreter = ["/bin/bash", "-c"]
 
     command = <<EOT
       set -euo pipefail
+      command -v bq >/dev/null || { echo "ERROR: bq is required to verify the model."; exit 1; }
 
       PROJECT_ID="${var.project_id}"
       REGION="${var.main_region}"
@@ -99,7 +100,7 @@ resource "null_resource" "create_multimodal_model" {
 
       echo "Embedding model does not exist. Creating with retries..."
 
-      for attempt in {1..10}; do
+      for attempt in $(seq 1 10); do
         echo "Attempt $${attempt}/10..."
 
         if bq query \

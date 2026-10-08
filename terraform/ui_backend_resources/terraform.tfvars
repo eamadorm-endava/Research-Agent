@@ -7,6 +7,7 @@ apis_to_enable = [
 ui_backend_sa_name = "osiris-ui-backend"
 ui_backend_iam_project_roles = [
   "roles/aiplatform.user",
+  "roles/compute.viewer", # Read the configured IAP backend IDs for JWT validation
   "roles/datastore.user",
   "roles/serviceusage.serviceUsageConsumer",
   "roles/iam.serviceAccountOpenIdTokenCreator",
@@ -20,7 +21,8 @@ ui_backend_cloud_run_labels = {
 }
 
 ui_backend_cloud_run_env = {
-  "AGENT_RESOURCE_NAME"          = "projects/1051281656239/locations/us-central1/reasoningEngines/3921150384986390528" # OSIRIS - Test, at the end of this PR, this variable should point the production one
+  "PUBLIC_BASE_URL"              = "https://osiris.endava.app"
+  "AGENT_RESOURCE_NAME"          = "projects/1051281656239/locations/us-central1/reasoningEngines/5233147857510334464" # OSIRIS production
   "FIRESTORE_DB_NAME"            = "osiris"
   "FIRESTORE_COLLECTION_NAME"    = "user_oauth_tokens"
   "GOOGLE_OAUTH_REDIRECT_URI"    = "https://osiris.endava.app/api/auth/google/callback"

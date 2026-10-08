@@ -97,6 +97,7 @@ ROLES=(
     "roles/bigquery.admin" # To manage BigQuery datasets and tables
     "roles/storage.admin" # To manage GCS buckets
     "roles/cloudtasks.admin" # To manage Cloud Tasks queues
+    "roles/iap.admin" # To manage UI access through IAP
     "roles/compute.admin" # To manage Load Balancers, Subnets, NEGs and Forwarding Rules
     "roles/dns.admin" # To manage Cloud DNS private zones and record sets
     "roles/datastore.owner" # To manage Firestore databases and collections

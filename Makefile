@@ -320,3 +320,22 @@ run-backend:
 
 run-ui:
 	uv run --group frontend streamlit run ui/frontend/app.py --server.port 8501
+
+# Regression checks for the UI authentication fixes.
+.PHONY: test-ui
+test-ui:
+	uv run --group backend --group frontend --group dev pytest ui/tests -q
+
+.PHONY: lint-ui validate-ui-terraform import-gateway-proxy-subnet
+lint-ui:
+	uvx ruff check ui/backend ui/tests
+	uvx ruff format --check ui/backend ui/tests
+
+validate-ui-terraform:
+	@for stack in shared_resources agent_gateway_resources ui_backend_resources ui_frontend_resources; do \
+		terraform -chdir=terraform/$$stack fmt -check && terraform -chdir=terraform/$$stack validate || exit 1; \
+	done
+
+import-gateway-proxy-subnet:
+	terraform -chdir=terraform/agent_gateway_resources init -reconfigure -backend-config="bucket=$(PROJECT_ID)-terraform-state" -backend-config="prefix=terraform/state/agent-gateway-resources"
+	terraform -chdir=terraform/agent_gateway_resources import -lock-timeout=5m -var="project_id=$(PROJECT_ID)" -var="main_region=$(REGION)" google_compute_subnetwork.proxy_only_subnet "projects/$(PROJECT_ID)/regions/$(REGION)/subnetworks/mcp-agent-vpc-proxy-only-subnet-$(REGION)"

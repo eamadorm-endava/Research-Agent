@@ -6,7 +6,7 @@ This document outlines the technical design and implementation plan to migrate t
 ## 1. Technical Architecture & Constraints
 
 ### 1.1 Core Architecture
-*   **UI Stack**: A **FastAPI** backend to handle API routing, Vertex AI Agent Engine streaming, and Signed URLs. A generic **React/Next.js** frontend for the chat interface.
+*   **UI Stack**: A **FastAPI** backend to handle API routing, Vertex AI Agent Engine streaming, and Signed URLs. A generic **Streamlit** frontend for the chat interface.
 *   **Token Storage**: **Firestore** (Native Mode) for secure, scalable, and serverless storage of user refresh tokens.
 *   **Agent Execution**: The custom UI will invoke the agent remotely using the `vertexai.agent_engines` SDK to stream responses and tool execution (`async_stream_query`).
 
@@ -32,7 +32,7 @@ Research-Agent/
 │   │   │   ├── upload.py               # GCS Signed URL generator
 │   │   │   └── oauth.py                # Provider-specific OAuth callback handlers
 │   │   └── requirements.txt
-│   └── frontend/                       # React / Web UI assets (Tool Accordion, Auth Buttons)
+│   └── frontend/                       # Streamlit UI assets (Tool Accordion, Auth Buttons)
 ├── agent/core_agent/security/
 │   ├── auth.py                         # EDITED: Remove GE logic
 │   └── token_store.py                  # NEW: Firestore integration for tokens
@@ -132,3 +132,124 @@ The execution will follow the mandatory two-issue strategy (Part A: Prototyping,
 > ## Technical Specifications & Constraints
 > - **Scope**: `terraform/ui_resources/`
 > - **Logic**: Provision Cloud Run service, Global External HTTP Load Balancer, IAP enablement, and SSL certificates.
+
+## Minimal deployment corrections
+
+- Keep `mcp-agent-vpc` and load-balancer IP `136.81.113.202`.
+- Shared apply runs Terraform 1.12.2 in Cloud SDK so the existing provisioner has
+  `bq` and Bash. The original model/resource/state handling is retained.
+- Enable Private Google Access on the app subnet and use ALL_TRAFFIC frontend
+  egress. The existing proxy-only subnet was imported into the remote GCS state using
+  `terraform import`; it remains declared as a resource with no import block.
+- IAP service identity is created before invoker IAM; serverless load-balancer
+  backends use no health checks. `/api/*` routes reach the appropriate backend.
+- The backend points at the existing production OSIRIS resource
+  `projects/1051281656239/locations/us-central1/reasoningEngines/5233147857510334464`.
+  Test UI uses that same agent; no new test-agent lifecycle is introduced.
+- Test service deployments carry the necessary URL, network, OAuth secrets,
+  Firestore and identity settings. Deploy the backend before the frontend on
+  initial setup, as the frontend reads the backend URL.
+- IAP assertions are verified before using user identity. OAuth transactions
+  validate expiring, browser/user/provider-bound state and PKCE where supported.
+  Cookie names and paths are literals for each provider (CodeQL alert #10).
+- Retain the existing Streamlit layout and streaming flow. Remove the unwritable
+  debug file, use public OAuth popup URLs and display stream failures correctly.
+
+Register callbacks on both public domains for the existing OAuth clients, and
+point both domain A records to `136.81.113.202`. The group `osiris_app_users@endava.com` configured
+in `iap_accessor` is granted site access. The deployer needs `roles/iap.admin`
+for these access bindings; bootstrap and frontend CD include that permission.
+
+Verification: `make test-ui`, Terraform fmt/validate for shared resources,
+gateway and both UI stacks. Deployment still uses the existing individual
+pipelines. Uploads remain the original placeholder; additional features,
+refresh locks, caching, CI orchestration and broad refactors are
+outside this correction.
+
+
+## Repository practice checks
+
+The existing remote backend is retained at
+`gs://prd-endava-ge-prod-01-2u00-1-terraform-state/terraform/state/agent-gateway-resources`.
+The proxy-only subnet import was executed successfully there. No Terraform import
+blocks or new discovery scripts are used. `make import-gateway-proxy-subnet` wraps
+initialization and the import command for this existing environment.
+
+Shared apply uses the exact Terraform 1.12.2 binary copied from the init container
+into `/workspace/terraform-bin`, together with its trusted CA bundle. Cloud SDK
+supplies Bash and `bq`; `SSL_CERT_FILE` selects that bundle for Terraform's HTTPS
+connections. No Python installer or Terraform download is needed.
+Each build step has one `args` list.
+
+Trigger source filters omit tests, `pyproject.toml` and `uv.lock`. Cookie metadata
+is selected from a fixed dictionary; internal helpers return named dictionaries.
+Configuration fields use Pydantic `Annotated`/`Field`, provider requests have
+bounded timeouts, and logs do not include tokens or full agent events. Backend
+CORS permits only the configured public origin. HSTS, nosniff and CSP are set;
+the OAuth close-window script is allowed by its exact CSP hash. SlowAPI supplies
+the application-level request limit required by `.agents/rules/cybersecurity-guide.md`.
+
+Use feature dependency groups for Python execution:
+
+```bash
+make test-ui
+make lint-ui
+make validate-ui-terraform
+uv run --group backend --group dev python -m your.backend.module
+uv run --group frontend python -m your.frontend.module
+```
+
+This is a correction of the existing UI, not a new deployment feature. The
+existing GCS state naming and repository layout are retained rather than migrated;
+no new infrastructure or broad CFF/module refactor is introduced. The existing
+CFF service/load-balancer modules remain in use. Acceptance in GCP and merging
+PR #292 are separate release steps; unit checks do not claim they have happened.
+
+## Sequential connection card
+
+The existing chat authentication flow now shows one compact, neutral card:
+`Authentication Required: Google Workspace Connection`. A user click opens a
+named popup for that provider only. After each successful OAuth exchange, the
+existing CSP-authorized script closes the popup. The next provider's OAuth flow
+starts only when the user clicks its connection card; callbacks never redirect
+automatically into another provider's consent flow.
+Browser settings can affect whether a requested popup appears as a window or tab.
+
+`GET /api/auth/status` checks credentials for the verified IAP user and returns
+only provider names. A Streamlit fragment polls it every three seconds while
+consent is pending. After confirmation, it shows a running `Loading…` indicator
+for one polling interval before displaying the next connection card. The card
+advances only on confirmed server state; canceled
+consent or closing a window never marks a connection ready. Once no providers
+remain, the original chat question resumes without a Continue button or a second
+user message. A 401 still requires reloading the access session.
+
+The implementation is limited to the OAuth router/state, connection response
+schema, frontend `authentication.py`/chat integration, and their regression
+tests. No GCP resources or additional Python packages are introduced. The
+frontend requires Streamlit 1.57 or newer for `st.iframe`, and keeps its existing
+locked version. Service tokens and IAP assertions stay separate; signatures,
+audiences, expiry, state, PKCE and browser/user binding remain enforced. The
+previous multi-provider chaining flag is no longer used, including for older
+pending transactions. Each provider requires a separate user-initiated login.
+
+## Execution history and CI verification
+
+The frontend records each displayed function or skill when its call arrives.
+Completion events update the existing row instead of creating a second record.
+Responses without call IDs are matched by function name; calls without a
+completion event remain in the history. The final response and subsequent
+Streamlit reruns preserve the execution panel.
+
+UI test fixtures use isolated OAuth URLs so local `.env` values cannot change
+their consent behavior. Run deployable suites separately with their `uv`
+dependency groups, as the CI Make targets do; this also avoids collisions between
+test modules with the same filename. The UI CI's image build has three bounded
+attempts, and frontend Terraform initialization allows a longer registry timeout
+and connection retries for the download timeouts observed in Cloud Build.
+
+The backend CI verifies that its runtime service account already exists, then
+builds/deploys the test instance and generates a Terraform plan. It does not run
+`terraform apply -target` or persist a refreshed production state. Runtime IAM
+and API prerequisites are provisioned by the production CD before running CI
+in a new environment. The GCS state bucket and prefix remain unchanged.

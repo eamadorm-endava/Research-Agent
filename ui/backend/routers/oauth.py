@@ -1,157 +1,209 @@
-import time
-from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import RedirectResponse, HTMLResponse
-from loguru import logger
-import requests
-import urllib.parse
+"""Provider consent and single-use OAuth callbacks behind IAP."""
 
-# We import the configurations from the core_agent
+import base64
+import hashlib
+import time
+from urllib.parse import urlencode
+from uuid import uuid4
+
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from loguru import logger
+from pydantic import ValidationError
+
 from agent.core_agent.config import (
+    ATLASSIAN_AUTH_CONFIG,
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
-    ATLASSIAN_AUTH_CONFIG,
+    BaseOAuthConfig,
 )
-from agent.core_agent.security.token_store import token_store, TokenData
+from agent.core_agent.security.token_store import TokenData, token_store
+
+from ..auth import get_current_user
+from ..config import OAUTH_CALLBACK_SCRIPT, UI_CONFIG
+from ..limits import limiter, request_limit
+from ..oauth_state import consume_state, create_state
+from ..schemas import ConnectionStatus, OAuthProviderRequest
 
 router = APIRouter()
-
-
-# Helper function to extract user_id from IAP headers
-def get_current_user(request: Request) -> str:
-    # In production with IAP, the email is in this header:
-    user_email = request.headers.get("X-Goog-Authenticated-User-Email")
-    if not user_email:
-        # For local development fallback
-        logger.warning("No IAP header found. Using mock-user for development.")
-        return "mock-user@example.com"
-
-    # IAP returns emails with 'accounts.google.com:' prefix sometimes
-    if user_email.startswith("accounts.google.com:"):
-        user_email = user_email.replace("accounts.google.com:", "")
-
-    return user_email
-
-
 PROVIDER_CONFIGS = {
     "google": GOOGLE_AUTH_CONFIG,
     "microsoft": MICROSOFT_AUTH_CONFIG,
     "atlassian": ATLASSIAN_AUTH_CONFIG,
 }
+PKCE_PROVIDERS = {"google", "microsoft"}
 
 
-def get_provider_config(provider: str):
+def check_missing_providers(user_id: str) -> list[str]:
+    """Check server-side credentials in the configured consent order."""
+    return [
+        provider
+        for provider in PROVIDER_CONFIGS
+        if not token_store.get_valid_access_token(user_id=user_id, provider=provider)
+    ]
+
+
+@router.get("/status", response_model=ConnectionStatus)
+@limiter.limit(request_limit)
+def connection_status(request: Request, user_id: str = Depends(get_current_user)):
+    """Return connection readiness for the verified user, without exposing tokens."""
+    return ConnectionStatus(missing_providers=check_missing_providers(user_id))
+
+
+def get_cookie_settings(provider: str) -> dict[str, str]:
+    """Select constant cookie metadata; URL input never forms cookie attributes."""
+    try:
+        return OAuthProviderRequest(provider=provider).cookie_settings
+    except ValidationError:
+        raise HTTPException(400, "Unknown provider") from None
+
+
+def get_provider_config(provider: str) -> BaseOAuthConfig:
+    """Reject unknown providers and missing client configuration."""
     config = PROVIDER_CONFIGS.get(provider)
     if not config:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+        raise HTTPException(400, "Unknown provider")
+    if (
+        not config.CLIENT_ID
+        or not config.CLIENT_SECRET
+        or config.CLIENT_ID.startswith("mock-")
+        or config.CLIENT_SECRET.startswith("mock-")
+    ):
+        raise HTTPException(503, "OAuth provider is not configured")
     return config
 
 
+def redirect_uri(provider: str) -> str:
+    """Use the configured public origin, never a caller-provided Host header."""
+    callback_path = OAuthProviderRequest(provider=provider).callback_path
+    return f"{UI_CONFIG.PUBLIC_BASE_URL.rstrip('/')}{callback_path}"
+
+
 @router.get("/{provider}/login")
-async def login(provider: str, request: Request):
-    """
-    Redirects the user to the provider's OAuth 2.0 authorization screen.
-    """
+@limiter.limit(request_limit)
+def login(
+    provider: str,
+    request: Request,
+    user_id: str = Depends(get_current_user),
+):
+    """Start consent and set a secure cookie binding the popup to its transaction."""
     config = get_provider_config(provider)
+    browser_session_id = uuid4().hex
+    transaction = create_state(user_id, provider, browser_session_id)
+    state = transaction["state"]
+    verifier = transaction["verifier"]
+    params = _authorization_params(provider, config, state, verifier)
+    response = RedirectResponse(f"{config.AUTH_URI}?{urlencode(params)}")
+    cookie_settings = get_cookie_settings(provider)
+    cookie_name, cookie_path = cookie_settings["name"], cookie_settings["path"]
+    response.set_cookie(
+        cookie_name,
+        browser_session_id,
+        httponly=True,
+        secure=UI_CONFIG.ENVIRONMENT != "development",
+        samesite="lax",
+        max_age=UI_CONFIG.OAUTH_STATE_SECONDS,
+        path=cookie_path,
+    )
+    return response
 
-    # We pass the redirect URI configured in the environment
-    redirect_uri = config.REDIRECT_URI
 
-    scopes = config.SCOPES
-    scope_str = " ".join(scopes)
-
-    import uuid
-
+def _authorization_params(
+    provider: str, config: BaseOAuthConfig, state: str, verifier: str
+) -> dict[str, str]:
+    """Build provider authorization parameters from trusted configuration."""
     params = {
         "client_id": config.CLIENT_ID,
-        "redirect_uri": redirect_uri,
+        "redirect_uri": redirect_uri(provider),
         "response_type": "code",
-        "scope": scope_str,
-        "state": str(uuid.uuid4()),  # State is STRICTLY REQUIRED by Atlassian 3LO
+        "scope": " ".join(config.SCOPES),
+        "state": state,
     }
-
-    # Provider-specific parameters
+    if provider in PKCE_PROVIDERS:
+        params["code_challenge"] = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+        params["code_challenge_method"] = "S256"
     if provider == "google":
-        params["access_type"] = "offline"
-        params["prompt"] = "consent"
+        params.update(access_type="offline", prompt="consent")
     elif provider == "microsoft":
         params["prompt"] = "select_account"
-    elif provider == "atlassian":
-        params["audience"] = "api.atlassian.com"
-        params["prompt"] = "consent"
-
-    auth_url = f"{config.AUTH_URI}?{urllib.parse.urlencode(params)}"
-    logger.info(f"Redirecting user to {provider} login...")
-    return RedirectResponse(url=auth_url)
+    else:
+        # Atlassian's documented confidential 3LO flow uses a client secret.
+        params.update(audience="api.atlassian.com", prompt="consent")
+    return params
 
 
 @router.get("/{provider}/callback")
-async def callback(
-    provider: str, request: Request, code: str, user_id: str = Depends(get_current_user)
+@limiter.limit(request_limit)
+def callback(
+    provider: str,
+    request: Request,
+    state: str,
+    code: str | None = None,
+    error: str | None = None,
+    user_id: str = Depends(get_current_user),
 ):
-    """
-    Handles the OAuth 2.0 callback, exchanges the code for tokens,
-    and saves them in Firestore.
-    """
-    logger.info(f"Received OAuth callback for {provider} from user {user_id}")
+    """Validate the transaction before exchanging or storing any credentials."""
     config = get_provider_config(provider)
-
+    cookie_settings = get_cookie_settings(provider)
+    cookie_name, cookie_path = cookie_settings["name"], cookie_settings["path"]
+    transaction = consume_state(
+        state,
+        request.cookies.get(cookie_name, ""),
+        user_id,
+        provider,
+    )
+    if error or not code:
+        raise HTTPException(400, "Provider authorization was not completed")
     payload = {
         "client_id": config.CLIENT_ID,
         "client_secret": config.CLIENT_SECRET,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": config.REDIRECT_URI,
+        "redirect_uri": redirect_uri(provider),
     }
+    if provider in PKCE_PROVIDERS:
+        payload["code_verifier"] = transaction["verifier"]
+    tokens = exchange_tokens(provider, config.TOKEN_URI, payload)
+    token_store.save_tokens(user_id=user_id, provider=provider, token_data=tokens)
+    response = _connection_response()
+    response.delete_cookie(cookie_name, path=cookie_path)
+    return response
 
+
+def _connection_response() -> HTMLResponse:
+    """Close this provider's popup; the next consent requires a new user click."""
+    return HTMLResponse(
+        "<html><head><title>Authorization completed</title>"
+        f"<script>{OAUTH_CALLBACK_SCRIPT}</script>"
+        "</head>"
+        "<body><p>Connected. This window will close automatically.</p>"
+        "</body></html>"
+    )
+
+
+def exchange_tokens(
+    provider: str, token_uri: str, payload: dict[str, str]
+) -> TokenData:
+    """Exchange a code with a timeout, keeping credentials and responses out of logs."""
     try:
-        # Atlassian expects JSON, others expect Form URL-Encoded
-        if provider == "atlassian":
-            response = requests.post(config.TOKEN_URI, json=payload)
-        else:
-            response = requests.post(config.TOKEN_URI, data=payload)
-
+        body = {"json": payload} if provider == "atlassian" else {"data": payload}
+        response = requests.post(
+            token_uri,
+            timeout=UI_CONFIG.HTTP_TIMEOUT_SECONDS,
+            **body,
+        )
         response.raise_for_status()
-        data = response.json()
-
-        # Build token data
-        token_data = TokenData(
-            access_token=data["access_token"],
-            refresh_token=data.get(
-                "refresh_token"
-            ),  # Important: user must consent to get this
-            expires_at=time.time() + float(data["expires_in"]),
+        tokens = response.json()
+        return TokenData(
+            access_token=tokens["access_token"],
+            refresh_token=tokens.get("refresh_token"),
+            expires_at=time.time() + float(tokens["expires_in"]),
         )
-
-        # Save securely to Firestore
-        token_store.save_tokens(
-            user_id=user_id, provider=provider, token_data=token_data
-        )
-        logger.info(f"Successfully saved {provider} tokens for {user_id}")
-
-        # Return an auto-closing HTML page so the user stays in their original session
-        html_content = """
-        <html>
-            <head>
-                <title>Autenticación Exitosa</title>
-                <script>
-                    window.onload = function() {
-                        setTimeout(function() { window.close(); }, 2000);
-                    }
-                </script>
-            </head>
-            <body style="font-family: Arial, sans-serif; text-align: center; padding-top: 50px;">
-                <h1 style="color: #4CAF50;">¡Autenticación Exitosa!</h1>
-                <p>Hemos vinculado tu cuenta de <b>{provider.title()}</b> correctamente.</p>
-                <p>Ya puedes cerrar esta pestaña o ventana y volver al chat.</p>
-            </body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
-
-    except Exception as e:
-        logger.error(f"Failed to exchange code for {provider} tokens: {e}")
-        if isinstance(e, requests.exceptions.HTTPError):
-            logger.error(f"Response: {e.response.text}")
-        raise HTTPException(
-            status_code=500, detail=f"Authentication failed for {provider}"
-        )
+    except (requests.RequestException, KeyError, ValueError):
+        logger.warning("OAuth token exchange failed for {}", provider)
+        raise HTTPException(502, "Provider token exchange failed") from None

@@ -151,6 +151,7 @@ create_trigger() {
       --pull-request-pattern="$PR_TARGET_BRANCH_REGEX" \
       --build-config="$config" \
       --included-files="$included_files" \
+      --ignored-files="**/tests/**,pyproject.toml,uv.lock" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
       --substitutions="$subs"
   else
@@ -163,6 +164,7 @@ create_trigger() {
       --branch-pattern="$PUSH_BRANCH_REGEX" \
       --build-config="$config" \
       --included-files="$included_files" \
+      --ignored-files="**/tests/**,pyproject.toml,uv.lock" \
       --service-account="projects/$PROJECT_ID/serviceAccounts/$SA_EMAIL" \
       --substitutions="$subs"
   fi

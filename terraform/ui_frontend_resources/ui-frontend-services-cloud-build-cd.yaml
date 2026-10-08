@@ -38,6 +38,10 @@ steps:
         docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
         docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest
 
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'iap-permissions'
+    args: ['projects', 'add-iam-policy-binding', '${PROJECT_ID}', '--member=serviceAccount:${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com', '--role=roles/iap.admin', '--condition=None', '--quiet', '--format=none']
+
   # Step 4: Full Terraform Plan
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-plan'

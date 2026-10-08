@@ -73,6 +73,20 @@ To prevent users from being blocked by corporate policies:
 > [!IMPORTANT]
 > Store the **CLIENT_ID**, **TENANT_ID**, and **CLIENT_SECRET** securely. These will be used in the GE auth resources and local `.env` files.
 
+### Current deployment configuration
+
+The current deployment keeps the Cortex Bridge tenant authority:
+`93f8f3d2-54f6-417d-9a37-10ff2952f228`. It has not been switched to `common`.
+
+- Agent CI and CD inject it through `_MICROSOFT_TENANT_ID` in their Cloud Build YAMLs.
+- The production UI backend receives `MICROSOFT_OAUTH_TENANT_ID` from
+  `terraform/ui_backend_resources/terraform.tfvars`.
+- The test UI backend receives it through `--set-env-vars` in its CI YAML.
+- `MICROSOFT_OAUTH_CLIENT_ID` and `MICROSOFT_OAUTH_CLIENT_SECRET` come from
+  Secret Manager. The frontend delegates Microsoft OAuth to the backend.
+
+Pydantic defaults remain mock values so missing deployment injection stays visible.
+
 ## 8. Gemini Enterprise Auth Configuration Note
 
 When creating the Auth ID in Gemini Enterprise for this Microsoft Entra application, ensure that you set the prompt parameter to `select_account` (as defined in the CI/CD pipelines) instead of the default `consent`.

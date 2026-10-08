@@ -30,6 +30,9 @@ steps:
     args:
       - '-c'
       - |
+        BACKEND_URL=$$(gcloud run services describe test-ui-backend --region=${_LOCATION} --format='value(status.url)')
+        gcloud services enable iap.googleapis.com --project=${PROJECT_ID}
+        gcloud beta services identity create --service=iap.googleapis.com --project=${PROJECT_ID}
         gcloud run deploy test-${_SERVICE_NAME} \
           --image=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA} \
           --region=${_LOCATION} \
@@ -37,11 +40,22 @@ steps:
           --no-allow-unauthenticated \
           --ingress=internal-and-cloud-load-balancing \
           --service-account=osiris-ui-frontend@${PROJECT_ID}.iam.gserviceaccount.com \
+          --network=mcp-agent-vpc \
+          --subnet=mcp-agent-vpc-app-subnet-${_LOCATION} \
+          --vpc-egress=all-traffic \
+          --set-env-vars="API_URL=$${BACKEND_URL}/api,PUBLIC_BASE_URL=https://test.osiris.endava.app" \
           --quiet
+        PROJECT_NUMBER=$$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+        gcloud run services add-iam-policy-binding test-${_SERVICE_NAME} \
+          --region=${_LOCATION} --role=roles/run.invoker \
+          --member="serviceAccount:service-$${PROJECT_NUMBER}@gcp-sa-iap.iam.gserviceaccount.com" --quiet
 
   # Step 4: Initialize Terraform
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
+    env:
+      - 'TF_REGISTRY_CLIENT_TIMEOUT=60'
+      - 'TF_REGISTRY_DISCOVERY_RETRY=3'
     entrypoint: 'sh'
     dir: 'terraform/ui_frontend_resources'
     args:

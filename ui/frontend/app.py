@@ -3,26 +3,12 @@ import requests
 import json
 import time
 import os
-import urllib.request
+from ui.frontend.authentication import render_authentication, request_headers
 
 st.set_page_config(page_title="OSIRIS", layout="wide")
 
 API_URL = os.getenv("API_URL", "http://localhost:8000/api")
-
-
-def get_id_token(target_audience: str) -> str:
-    """Fetches an ID token from the GCP metadata server for Server-to-Server authentication."""
-    try:
-        req = urllib.request.Request(
-            f"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={target_audience}",
-            headers={"Metadata-Flavor": "Google"},
-        )
-        with urllib.request.urlopen(req, timeout=2) as response:
-            return response.read().decode("utf-8")
-    except Exception:
-        return (
-            ""  # Fallback for local development where metadata server isn't available
-        )
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://osiris.endava.app").rstrip("/")
 
 
 st.markdown(
@@ -212,6 +198,8 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = None
 if "pending_prompt" not in st.session_state:
     st.session_state.pending_prompt = None
+if "required_connections" not in st.session_state:
+    st.session_state.required_connections = []
 
 # Display chat history
 for msg in st.session_state.messages:
@@ -242,13 +230,21 @@ for msg in st.session_state.messages:
         st.markdown(content, unsafe_allow_html=True)
 
 # Chat input
-user_input = st.chat_input("Ask OSIRIS to search your organization's data...")
+user_input = st.chat_input(
+    "Ask OSIRIS to search your organization's data...",
+    disabled=bool(st.session_state.required_connections),
+)
 
 # If the user typed something new, capture it and trigger a rerun
 if user_input:
     st.session_state.pending_prompt = user_input
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.rerun()
+
+if st.session_state.pending_prompt and st.session_state.required_connections:
+    with st.chat_message("assistant", avatar="🔘"):
+        render_authentication(API_URL, PUBLIC_BASE_URL)
+    st.stop()
 
 # Process the pending prompt (either newly captured or re-attempted after auth)
 if st.session_state.pending_prompt:
@@ -262,18 +258,10 @@ if st.session_state.pending_prompt:
         # Prepare request
         payload = {"message": prompt, "session_id": st.session_state.session_id}
 
-        # Extract IAP header from Streamlit context, fallback to mock for local dev
-        user_email = st.context.headers.get(
-            "X-Goog-Authenticated-User-Email", "mock-user@example.com"
-        )
+        # Forward the signed user assertion separately from the Cloud Run ID token.
+        headers = request_headers(API_URL)
 
-        # Add the Service-to-Service OIDC token required by Cloud Run internal ingress
-        headers = {"X-Goog-Authenticated-User-Email": user_email}
-
-        id_token = get_id_token(target_audience=API_URL.replace("/api", ""))
-        if id_token:
-            headers["Authorization"] = f"Bearer {id_token}"
-
+        status_box = None
         try:
             # Initialize status immediately using a context manager so it renders BEFORE blocking
             with status_container.status("Thinking...", expanded=True) as status_box:
@@ -290,10 +278,11 @@ if st.session_state.pending_prompt:
                     response.raise_for_status()
 
                     auth_required = False
+                    stream_failed = False
                     active_tools = {}
                     thought_text = ""
                     thought_placeholder = None
-                    completed_actions = []
+                    recorded_actions = []
                     process_start_time = time.time()
                     final_label = "Executed"
 
@@ -306,9 +295,6 @@ if st.session_state.pending_prompt:
                         event_data = json.loads(raw_data)
 
                         event_type = event_data.get("type")
-                        open("fe_debug.log", "a").write(
-                            f"[{time.time() - process_start_time:.2f}s] FE received: {event_type}\n"
-                        )
                         # DEBUG: uncomment if needed
                         # st.write(f"Received event: {event_type}")
 
@@ -318,53 +304,8 @@ if st.session_state.pending_prompt:
                             missing = event_data.get("missing_providers", [])
 
                             if missing:
-                                # 1. SEQUENTIAL AUTH: Only process the first missing provider
-                                provider = missing[0]
-                                st.warning(
-                                    f"Sequential authentication required. Next step: Connect **{provider.title()}**."
-                                )
-
-                                login_url = f"{API_URL}/auth/{provider}/login"
-
-                                import streamlit.components.v1 as components
-
-                                components.html(
-                                    f"""
-                                    <script>
-                                        function openAuth() {{
-                                            var authWindow = window.open('{login_url}', 'AuthWindow', 'width=500,height=650,resizable=yes,scrollbars=yes');
-                                            var timer = setInterval(function() {{
-                                                if (authWindow && authWindow.closed) {{
-                                                    clearInterval(timer);
-                                                    // Auto-click the continue button in the parent Streamlit window
-                                                    var parentDoc = window.parent.document;
-                                                    var buttons = parentDoc.querySelectorAll('button');
-                                                    for (var i = 0; i < buttons.length; i++) {{
-                                                        if (buttons[i].innerText.includes('Continue (Authentication completed)')) {{
-                                                            buttons[i].click();
-                                                            break;
-                                                        }}
-                                                    }}
-                                                }}
-                                            }}, 1000);
-                                        }}
-                                    </script>
-                                    <div style="display: flex; justify-content: left; margin-top: 10px;">
-                                        <button onclick="openAuth()" style="background-color: #FF4B4B; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; font-family: sans-serif;">
-                                            🔗 Connect {provider.title()}
-                                        </button>
-                                    </div>
-                                    """,
-                                    height=80,
-                                )
-
-                                st.info(
-                                    "💡 Click the button to open the authentication popup. When finished, the window will close itself and the chat will continue automatically."
-                                )
-
-                                # Fallback button that the JS script will automatically click
-                                if st.button("Continue (Authentication completed)"):
-                                    st.rerun()
+                                st.session_state.required_connections = missing
+                                st.rerun()
 
                             break
 
@@ -422,8 +363,10 @@ if st.session_state.pending_prompt:
                                             call_data = part.get(
                                                 "functionCall"
                                             ) or part.get("function_call")
-                                            call_id = call_data.get("id")
                                             func_name = call_data.get("name", "unknown")
+                                            call_id = call_data.get("id") or (
+                                                f"{func_name}:{len(recorded_actions)}"
+                                            )
                                             func_args = call_data.get("args", {})
 
                                             # Format Name (e.g., transfer_to_agent -> Transfer To Agent)
@@ -455,7 +398,7 @@ if st.session_state.pending_prompt:
                                                 status_box.markdown(
                                                     action_html, unsafe_allow_html=True
                                                 )
-                                                completed_actions.append(action_html)
+                                                recorded_actions.append(action_html)
                                             else:
                                                 ph = status_box.container().empty()
                                                 start_time = time.time()
@@ -483,12 +426,23 @@ if st.session_state.pending_prompt:
                                                         ),
                                                         unsafe_allow_html=True,
                                                     )
+                                                    recorded_actions.append(
+                                                        format_agent_action(
+                                                            svg_skill,
+                                                            f"Reading Skill {clean_skill}",
+                                                        )
+                                                    )
                                                     active_tools[call_id] = {
                                                         "ph": ph,
                                                         "start": start_time,
                                                         "type": "skill",
                                                         "name": clean_skill,
                                                         "svg": svg_skill,
+                                                        "function_name": func_name,
+                                                        "action_index": len(
+                                                            recorded_actions
+                                                        )
+                                                        - 1,
                                                     }
                                                 else:
                                                     svg_spinner = '<svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>'
@@ -499,12 +453,22 @@ if st.session_state.pending_prompt:
                                                         ),
                                                         unsafe_allow_html=True,
                                                     )
+                                                    recorded_actions.append(
+                                                        format_agent_action(
+                                                            svg_tool, clean_name
+                                                        )
+                                                    )
                                                     active_tools[call_id] = {
                                                         "ph": ph,
                                                         "start": start_time,
                                                         "type": "function",
                                                         "name": clean_name,
                                                         "svg": svg_tool,
+                                                        "function_name": func_name,
+                                                        "action_index": len(
+                                                            recorded_actions
+                                                        )
+                                                        - 1,
                                                     }
 
                                         # 3. Tool Responses
@@ -516,6 +480,16 @@ if st.session_state.pending_prompt:
                                                 "functionResponse"
                                             ) or part.get("function_response")
                                             call_id = resp_data.get("id")
+                                            if not call_id:
+                                                call_id = next(
+                                                    (
+                                                        key
+                                                        for key, tool in active_tools.items()
+                                                        if tool["function_name"]
+                                                        == resp_data.get("name")
+                                                    ),
+                                                    None,
+                                                )
                                             if call_id in active_tools:
                                                 tool_info = active_tools[call_id]
                                                 duration = (
@@ -536,7 +510,9 @@ if st.session_state.pending_prompt:
                                                 ph.markdown(
                                                     action_html, unsafe_allow_html=True
                                                 )
-                                                completed_actions.append(action_html)
+                                                recorded_actions[
+                                                    tool_info["action_index"]
+                                                ] = action_html
 
                                                 del active_tools[call_id]
 
@@ -547,11 +523,13 @@ if st.session_state.pending_prompt:
                                     err_msg = payload.get(
                                         "error_message"
                                     ) or payload.get("errorMessage")
+                                    stream_failed = True
                                     full_response += f"❌ **Agent Error**: {err_msg}"
                                     message_placeholder.markdown(full_response)
 
                         # Handle Errors
                         elif event_type == "error":
+                            stream_failed = True
                             st.error(event_data.get("message"))
 
                     # Update status block before context manager exits (if no auth required)
@@ -565,8 +543,12 @@ if st.session_state.pending_prompt:
                             time_str = f"{secs} s"
 
                         final_label = f"Executed in {time_str}"
+                        if stream_failed:
+                            final_label = "Request failed"
                         status_box.update(
-                            label=final_label, state="complete", expanded=False
+                            label=final_label,
+                            state="error" if stream_failed else "complete",
+                            expanded=False,
                         )
                     else:
                         status_box.update(
@@ -578,17 +560,28 @@ if st.session_state.pending_prompt:
                 # If we successfully completed the loop without requiring auth
                 if not auth_required:
                     st.session_state.pending_prompt = None  # Clear the prompt
-                    if full_response:
+                    if full_response or recorded_actions or thought_text:
                         message_placeholder.markdown(full_response)
                         msg_data = {"role": "assistant", "content": full_response}
                         msg_data["status_label"] = final_label
-                        if completed_actions or thought_text:
-                            msg_data["actions"] = completed_actions
+                        if recorded_actions or thought_text:
+                            msg_data["actions"] = recorded_actions
                             msg_data["thought_text"] = thought_text
                         st.session_state.messages.append(msg_data)
                     st.rerun()
 
         except Exception as e:
-            st.error(f"Error connecting to the backend: {e}")
+            if status_box is not None:
+                status_box.update(label="Request failed", state="error")
+            if (
+                isinstance(e, requests.HTTPError)
+                and e.response is not None
+                and e.response.status_code == 401
+            ):
+                st.error(
+                    "Your access session could not be verified. Reload this page and try again."
+                )
+            else:
+                st.error(f"Error connecting to the backend: {e}")
             # Clear the prompt to avoid infinite loop of failures
             st.session_state.pending_prompt = None

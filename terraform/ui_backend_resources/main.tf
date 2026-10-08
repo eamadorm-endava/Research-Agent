@@ -1,3 +1,7 @@
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
 module "enable_apis" {
   source           = "../base_modules/api-manager"
   project_services = { (var.project_id) = var.apis_to_enable }
@@ -38,8 +42,9 @@ module "ui_backend_cloud_run" {
     ui-backend = {
       image = "${local.cloud_run_image}:${var.ui_backend_cloud_run_image_tag}"
       env = merge(var.ui_backend_cloud_run_env, {
-        PROJECT_ID = var.project_id
-        REGION     = local.cloud_run_region
+        PROJECT_NUMBER = data.google_project.project.number
+        PROJECT_ID     = var.project_id
+        REGION         = local.cloud_run_region
       })
       env_from_key = {
         "GOOGLE_OAUTH_CLIENT_ID" = {
@@ -84,7 +89,7 @@ module "ui_backend_cloud_run" {
   }
 
   service_config = {
-    ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY" # required to communicate with the frontend (frontend requires a VPC Egress)
+    ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" # OAuth callbacks also arrive through the load balancer
     scaling = {
       min_instance_count = var.ui_backend_cloud_run_min_instances
     }

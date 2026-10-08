@@ -82,3 +82,10 @@ variable "test_domain_name" {
   description = "The custom domain name for the test frontend."
   type        = string
 }
+
+variable "load_balancer_ip" {
+  type = string
+}
+variable "iap_accessor" {
+  type = string
+}

@@ -1,21 +1,22 @@
 import json
-from typing import Optional
-from fastapi import APIRouter, Request, Depends, HTTPException
+from typing import Annotated
+
+import vertexai
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from pydantic import BaseModel
-
-from .oauth import get_current_user
+from pydantic import BaseModel, Field
 
 # In a real scenario, this would use vertexai SDK
 # e.g., from vertexai.preview import reasoning_engines
 # For now, we mock the stream to demonstrate the architecture
 from vertexai import agent_engines
-import vertexai
 
-from agent.core_agent.security.token_store import token_store
 from agent.core_agent.config import GCP_CONFIG
+
 from ..config import UI_CONFIG
+from ..limits import limiter, request_limit
+from .oauth import check_missing_providers, get_current_user
 
 router = APIRouter()
 
@@ -28,33 +29,26 @@ try:
     logger.info(
         f"Successfully connected to remote agent engine: {UI_CONFIG.AGENT_RESOURCE_NAME}"
     )
-except Exception as e:
-    logger.error(f"Failed to connect to agent engine. Is the ID correct? Error: {e}")
+except Exception:  # noqa: BLE001 - SDK boundary reports unavailable without credential details
+    logger.error("Failed to connect to the configured Agent Engine")
     remote_app = None
 
 
 class ChatRequest(BaseModel):
-    message: str
-    session_id: Optional[str] = None
-
-
-# Re-use the IAP header extraction
-
-
-def check_missing_providers(user_id: str) -> list[str]:
-    """Checks which required data source tokens are missing for the user."""
-    required_providers = ["google", "microsoft", "atlassian"]
-    missing = []
-
-    for provider in required_providers:
-        token = token_store.get_valid_access_token(user_id=user_id, provider=provider)
-        if not token:
-            missing.append(provider)
-
-    return missing
+    message: Annotated[
+        str,
+        Field(
+            min_length=1, max_length=32000, description="User message for the agent."
+        ),
+    ]
+    session_id: Annotated[
+        str | None,
+        Field(default=None, max_length=256, description="Existing user session ID."),
+    ]
 
 
 @router.post("/")
+@limiter.limit(request_limit)
 async def chat_stream(
     request: Request, body: ChatRequest, user_id: str = Depends(get_current_user)
 ):
@@ -103,10 +97,9 @@ async def chat_stream(
                 message=body.message,
             ):
                 # The event from async_stream_query is a dict, we need to pass it safely to JSON
-                logger.info(f"Agent event received: {event}")
                 yield f"data: {json.dumps({'type': 'agent_event', 'payload': event})}\n\n"
-        except Exception as e:
-            logger.error(f"Error during agent streaming: {e}")
+        except Exception:  # noqa: BLE001 - Convert SDK failures into the existing SSE error event
+            logger.error("Agent streaming failed")
             yield f"data: {json.dumps({'type': 'error', 'message': 'An error occurred during agent streaming. Please try again later.'})}\n\n"
 
     return StreamingResponse(generate_agent_stream(), media_type="text/event-stream")
