@@ -1,206 +1,65 @@
 substitutions:
   _LOCATION: us-central1
   _REPO_NAME: mcp-servers
+  _SERVICE_NAME: ui-frontend
+
 steps:
-- name: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-  id: ui-regressions
-  args:
-  - -ec
-  - uv run --group backend --group frontend --group dev pytest ui/tests terraform/tests
-    -q
-  entrypoint: sh
-- name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
-  id: ui-deployer-permissions
-  entrypoint: sh
-  args:
-  - terraform/scripts/prepare_ui_deployer.sh
-  - ${PROJECT_ID}
-  - ${_SA_NAME}
-- name: hashicorp/terraform:1.12.2
-  id: shared-init
-  args:
-  - -ec
-  - terraform init -backend-config="bucket=${PROJECT_ID}-terraform-state" -backend-config="prefix=terraform/state/shared-resources"
-  dir: terraform/shared_resources
-  entrypoint: sh
-- name: hashicorp/terraform:1.12.2
-  id: shared-apply
-  args:
-  - apply
-  - -auto-approve
-  - -lock-timeout=5m
-  - -var=project_id=${PROJECT_ID}
-  - -var=main_region=${_LOCATION}
-  dir: terraform/shared_resources
-- name: hashicorp/terraform:1.12.2
-  id: model-config
-  args:
-  - -ec
-  - terraform output -json embedding_model_config > /workspace/embedding-model.json
-  dir: terraform/shared_resources
-  entrypoint: sh
-- name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
-  id: ensure-model
-  args:
-  - terraform/scripts/ensure_embedding_model.py
-  - /workspace/embedding-model.json
-  entrypoint: python3
-- name: hashicorp/terraform:1.12.2
-  id: agent_gateway-init
-  args:
-  - -ec
-  - terraform init -backend-config="bucket=${PROJECT_ID}-terraform-state" -backend-config="prefix=terraform/state/agent-gateway-resources"
-  dir: terraform/agent_gateway_resources
-  entrypoint: sh
-- name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
-  id: gateway-discover
-  args:
-  - -ec
-  - python3 terraform/scripts/discover_gateway_imports.py '${PROJECT_ID}' '${_LOCATION}'
-    mcp-agent-vpc 10.10.0.0/24 10.129.0.0/23 > /workspace/gateway-imports
-  entrypoint: bash
-- name: hashicorp/terraform:1.12.2
-  id: gateway-import
-  args:
-  - ../scripts/import_gateway_state.sh
-  - /workspace/gateway-imports
-  - ${PROJECT_ID}
-  - ${_LOCATION}
-  - mcp-agent-vpc
-  - 10.10.0.0/24
-  - 10.129.0.0/23
-  dir: terraform/agent_gateway_resources
-  entrypoint: sh
-- name: hashicorp/terraform:1.12.2
-  id: gateway-apply
-  args:
-  - apply
-  - -auto-approve
-  - -lock-timeout=5m
-  - -var=project_id=${PROJECT_ID}
-  - -var=main_region=${_LOCATION}
-  dir: terraform/agent_gateway_resources
-- name: hashicorp/terraform:1.12.2
-  id: ui_frontend-init
-  args:
-  - -ec
-  - terraform init -backend-config="bucket=${PROJECT_ID}-terraform-state" -backend-config="prefix=terraform/state/ui-frontend-resources"
-  dir: terraform/ui_frontend_resources
-  entrypoint: sh
-- name: hashicorp/terraform:1.12.2
-  id: frontend-identity
-  args:
-  - apply
-  - -auto-approve
-  - -lock-timeout=5m
-  - -target=module.ui_frontend_sa
-  - -var=project_id=${PROJECT_ID}
-  - -var=main_region=${_LOCATION}
-  dir: terraform/ui_frontend_resources
-- name: hashicorp/terraform:1.12.2
-  id: ui_backend-init
-  args:
-  - -ec
-  - terraform init -backend-config="bucket=${PROJECT_ID}-terraform-state" -backend-config="prefix=terraform/state/ui-backend-resources"
-  dir: terraform/ui_backend_resources
-  entrypoint: sh
-- name: gcr.io/cloud-builders/docker
-  id: backend-build
-  args:
-  - build
-  - -t
-  - ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/ui-backend:${COMMIT_SHA}
-  - -f
-  - ui/backend/Dockerfile
-  - .
-- name: gcr.io/cloud-builders/docker
-  id: backend-push
-  args:
-  - push
-  - ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/ui-backend:${COMMIT_SHA}
-- name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
-  id: backend-discover
-  entrypoint: bash
-  args:
-  - -ec
-  - python3 terraform/scripts/discover_ui_imports.py backend "${PROJECT_ID}" "${_LOCATION}"
-    > /workspace/backend-imports
-- name: hashicorp/terraform:1.12.2
-  id: backend-import
-  entrypoint: sh
-  dir: terraform/ui_backend_resources
-  args:
-  - ../scripts/import_ui_state.sh
-  - /workspace/backend-imports
-  - ${PROJECT_ID}
-  - ${_LOCATION}
-- name: hashicorp/terraform:1.12.2
-  id: backend-plan
-  args:
-  - plan
-  - -lock-timeout=5m
-  - -var=project_id=${PROJECT_ID}
-  - -var=main_region=${_LOCATION}
-  - -var=ui_backend_cloud_run_image_tag=${COMMIT_SHA}
-  - -out=tfplan
-  dir: terraform/ui_backend_resources
-- name: hashicorp/terraform:1.12.2
-  id: backend-apply
-  args:
-  - apply
-  - -lock-timeout=5m
-  - -auto-approve
-  - tfplan
-  dir: terraform/ui_backend_resources
-- name: gcr.io/cloud-builders/docker
-  id: frontend-build
-  args:
-  - build
-  - -t
-  - ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/ui-frontend:${COMMIT_SHA}
-  - -f
-  - ui/frontend/Dockerfile
-  - .
-- name: gcr.io/cloud-builders/docker
-  id: frontend-push
-  args:
-  - push
-  - ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/ui-frontend:${COMMIT_SHA}
-- name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
-  id: frontend-discover
-  entrypoint: bash
-  args:
-  - -ec
-  - python3 terraform/scripts/discover_ui_imports.py frontend "${PROJECT_ID}" "${_LOCATION}"
-    > /workspace/frontend-imports
-- name: hashicorp/terraform:1.12.2
-  id: frontend-import
-  entrypoint: sh
-  dir: terraform/ui_frontend_resources
-  args:
-  - ../scripts/import_ui_state.sh
-  - /workspace/frontend-imports
-  - ${PROJECT_ID}
-  - ${_LOCATION}
-- name: hashicorp/terraform:1.12.2
-  id: frontend-plan
-  args:
-  - plan
-  - -lock-timeout=5m
-  - -var=project_id=${PROJECT_ID}
-  - -var=main_region=${_LOCATION}
-  - -var=ui_frontend_cloud_run_image_tag=${COMMIT_SHA}
-  - -out=tfplan
-  dir: terraform/ui_frontend_resources
-- name: hashicorp/terraform:1.12.2
-  id: frontend-apply
-  args:
-  - apply
-  - -lock-timeout=5m
-  - -auto-approve
-  - tfplan
-  dir: terraform/ui_frontend_resources
-serviceAccount: projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+
+  # Step 1: Initialize Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/ui_frontend_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/ui-frontend-resources"
+
+  # Step 2: Docker Build for Prod
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: [
+      'build', 
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}', 
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest', 
+      '-f', 'ui/frontend/Dockerfile', 
+      '.'
+    ]
+
+  # Step 3: Docker Push for Prod
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:latest
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'iap-permissions'
+    args: ['projects', 'add-iam-policy-binding', '${PROJECT_ID}', '--member=serviceAccount:${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com', '--role=roles/iap.admin', '--condition=None', '--quiet', '--format=none']
+
+  # Step 4: Full Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args:
+      - 'plan'
+      - '-var=ui_frontend_cloud_run_image_tag=${COMMIT_SHA}'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-out=tfplan'
+    dir: 'terraform/ui_frontend_resources'
+
+  # Step 5: Full Terraform Apply
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply'
+    args: ['apply', '-auto-approve', 'tfplan']
+    dir: 'terraform/ui_frontend_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
 options:
   logging: CLOUD_LOGGING_ONLY
-timeout: 1800s

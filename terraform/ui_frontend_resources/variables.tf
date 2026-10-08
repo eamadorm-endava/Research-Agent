@@ -14,9 +14,9 @@ variable "artifact_registry_name" {
 }
 
 variable "vpc_name" {
-  description = "Existing VPC used for Direct VPC egress."
+  description = "The name of the VPC network where the ILB will be deployed."
   type        = string
-  default     = "mcp-agent-vpc"
+  default     = "default"
 }
 
 
@@ -83,13 +83,9 @@ variable "test_domain_name" {
   type        = string
 }
 
-variable "iap_accessors" {
-  description = "Users/groups allowed to access both UI environments through IAP."
-  type        = set(string)
-}
-
 variable "load_balancer_ip" {
-  description = "Reserved global IP to retain across UI deployments."
-  type        = string
-  default     = "136.81.113.202"
+  type = string
+}
+variable "iap_accessor" {
+  type = string
 }

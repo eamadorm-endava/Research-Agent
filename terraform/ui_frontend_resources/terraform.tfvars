@@ -10,6 +10,7 @@ apis_to_enable = [
 ui_frontend_sa_name = "osiris-ui-frontend"
 
 ui_frontend_iam_project_roles = [
+  "roles/run.invoker",
   "roles/logging.logWriter"
 ]
 
@@ -28,4 +29,5 @@ ui_frontend_cloud_run_image_tag = "latest"
 domain_name      = "osiris.endava.app"
 test_domain_name = "test.osiris.endava.app"
 
-iap_accessors = ["group:gcu_latam_team_devs@endava.com"]
+load_balancer_ip = "136.81.113.202"
+iap_accessor     = "group:gcu_latam_team_devs@endava.com"
