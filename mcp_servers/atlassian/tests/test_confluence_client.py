@@ -145,7 +145,7 @@ async def test_read_page_success(mock_storage_client) -> None:
     ):
         mock_get.return_value = mock_response
         mock_upload.return_value = (
-            "gs://test-bucket/app/user/session/atlassian-timestamp-My_Page.md"
+            "gs://test-bucket/app/user/session/atlassian-timestamp-My_Page.pdf"
         )
 
         req = ReadConfluencePageRequest(page_id="123")
@@ -153,7 +153,7 @@ async def test_read_page_success(mock_storage_client) -> None:
 
         assert res.execution_status == "success"
         assert res.gcs_uri.startswith("gs://test-bucket")
-        assert res.filename == "My_Page.md"
+        assert res.filename == "My_Page.pdf"
         assert res.inject_file_data is True
         mock_upload.assert_called_once()
 

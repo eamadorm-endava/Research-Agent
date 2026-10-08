@@ -403,19 +403,46 @@ class ConfluenceClient:
                 title = page_data.get("title", "Untitled Page")
                 # Clean title for filename mapping
                 safe_title = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")
-                filename = f"{safe_title}.md"
+                filename = f"{safe_title}.pdf"
 
                 # Extract HTML storage body
                 body_html = (
                     page_data.get("body", {}).get("storage", {}).get("value", "")
                 )
 
-                # Convert HTML to Markdown
-                markdown_text = f"# {title}\n\n" + html_to_markdown(body_html)
+                # Generate PDF using fpdf2
+                from fpdf import FPDF
 
-                # Convert markdown string to binary stream
-                markdown_bytes = markdown_text.encode("utf-8")
-                stream = io.BytesIO(markdown_bytes)
+                pdf = FPDF()
+                pdf.add_page()
+
+                # Write title
+                pdf.set_font("helvetica", "B", 16)
+                pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT", align="C")
+                pdf.ln(5)
+
+                # Set font for body
+                pdf.set_font("helvetica", size=11)
+
+                # Write HTML content
+                try:
+                    pdf.write_html(body_html)
+                except Exception as html_err:
+                    logger.warning(
+                        f"Failed to parse HTML directly, falling back to text: {html_err}"
+                    )
+                    from .url_utils import strip_html_tags
+
+                    fallback_text = (
+                        strip_html_tags(body_html)
+                        if "strip_html_tags" in globals()
+                        else body_html
+                    )
+                    pdf.multi_cell(0, 5, fallback_text)
+
+                # Output PDF to bytes stream
+                pdf_bytes = pdf.output()
+                stream = io.BytesIO(pdf_bytes)
 
                 # Fetch DI credentials
                 app_name = "core_agent"
@@ -430,18 +457,18 @@ class ConfluenceClient:
                 # Stream upload to GCS Landing Zone
                 gcs_uri = self.gcs.upload_stream(
                     file_obj=stream,
-                    content_type="text/markdown",
+                    content_type="application/pdf",
                     app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
                     filename=filename,
-                    size=len(markdown_bytes),
+                    size=len(pdf_bytes),
                 )
 
                 return ReadConfluencePageResponse(
                     execution_status="success",
                     gcs_uri=gcs_uri,
-                    mime_type="text/markdown",
+                    mime_type="application/pdf",
                     filename=filename,
                     inject_file_data=True,
                 )
