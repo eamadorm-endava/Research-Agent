@@ -168,6 +168,7 @@ module "ui_frontend_elb" {
   backend_service_configs = merge({
     prod-backend = {
       health_checks = []
+      port_name     = ""
       iap_config = {
         enable               = true
         oauth2_client_id     = data.google_secret_manager_secret_version.iap_client_id.secret_data
@@ -179,6 +180,7 @@ module "ui_frontend_elb" {
     }
     test-backend = {
       health_checks = []
+      port_name     = ""
       iap_config = {
         enable               = true
         oauth2_client_id     = data.google_secret_manager_secret_version.iap_client_id.secret_data
@@ -191,6 +193,7 @@ module "ui_frontend_elb" {
     }, {
     for environment in ["prod", "test"] : "${environment}-api" => {
       health_checks = []
+      port_name     = ""
       iap_config = {
         enable               = true
         oauth2_client_id     = data.google_secret_manager_secret_version.iap_client_id.secret_data
