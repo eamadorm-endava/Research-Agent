@@ -38,12 +38,19 @@ steps:
   # Step 4: Docker Build
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-build'
-    args: [
-      'build', 
-      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA}', 
-      '-f', 'ui/backend/Dockerfile', 
-      '.'
-    ]
+    entrypoint: 'sh'
+    args:
+      - '-ec'
+      - |
+        for attempt in 1 2 3; do
+          if docker build \
+            -t ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA} \
+            -f ui/backend/Dockerfile .; then
+            exit 0
+          fi
+          if [ "$${attempt}" -lt 3 ]; then sleep 10; fi
+        done
+        exit 1
 
   # Step 5: Docker Push
   - name: 'gcr.io/cloud-builders/docker'

@@ -53,6 +53,9 @@ steps:
   # Step 4: Initialize Terraform
   - name: 'hashicorp/terraform:1.12.2'
     id: 'tf-init'
+    env:
+      - 'TF_REGISTRY_CLIENT_TIMEOUT=60'
+      - 'TF_REGISTRY_DISCOVERY_RETRY=3'
     entrypoint: 'sh'
     dir: 'terraform/ui_frontend_resources'
     args:

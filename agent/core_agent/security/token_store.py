@@ -60,7 +60,9 @@ class GoogleRefreshStrategy(BaseOAuthRefreshStrategy):
         }
 
         try:
-            response = requests.post(GOOGLE_AUTH_CONFIG.TOKEN_URI, data=payload, timeout=20)
+            response = requests.post(
+                GOOGLE_AUTH_CONFIG.TOKEN_URI, data=payload, timeout=20
+            )
             response.raise_for_status()
             data = response.json()
 
@@ -87,7 +89,9 @@ class MicrosoftRefreshStrategy(BaseOAuthRefreshStrategy):
         }
 
         try:
-            response = requests.post(MICROSOFT_AUTH_CONFIG.TOKEN_URI, data=payload, timeout=20)
+            response = requests.post(
+                MICROSOFT_AUTH_CONFIG.TOKEN_URI, data=payload, timeout=20
+            )
             response.raise_for_status()
             data = response.json()
 
