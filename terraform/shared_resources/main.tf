@@ -99,7 +99,7 @@ resource "null_resource" "create_multimodal_model" {
 
       echo "Embedding model does not exist. Creating with retries..."
 
-      for attempt in {1..10}; do
+      for attempt in $(seq 1 10); do
         echo "Attempt $${attempt}/10..."
 
         if bq query \
