@@ -1,7 +1,7 @@
 ARG UV_VERSION=0.10.7
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv_image
 
-FROM python:3.12-alpine AS builder
+FROM python:3.12-slim AS builder
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
@@ -10,21 +10,21 @@ ENV UV_LINK_MODE=copy \
 WORKDIR /app
 COPY --from=uv_image /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
-RUN uv sync --group backend --no-dev --no-install-project --locked
+RUN uv sync --only-group backend --no-dev --no-install-project --locked
 
 # Copy backend code
 COPY ui/backend/ ./ui/backend/
 
 # Copy required modules from core_agent (token_store and config are used by UI backend routers)
 COPY agent/core_agent/config/ ./agent/core_agent/config/
-COPY agent/core_agent/security/token_store.py ./agent/core_agent/security/token_store.py
+COPY agent/core_agent/security/token_store.py agent/core_agent/security/__init__.py ./agent/core_agent/security/
 
 # --- Runtime Stage ---
-FROM python:3.12-alpine
+FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN adduser -D nonroot
+RUN useradd --create-home --uid 10001 nonroot
 
 # Remove native package managers
 RUN rm -rf /usr/local/lib/python3.12/site-packages/pip* \
