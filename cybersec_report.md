@@ -52,3 +52,23 @@ The final checks include 27 UI tests (including CORS, header and rate-limit
 regressions), full lint/format checks for the backend and tests, Terraform
 validation for four stacks and a successful backend image build. The copied
 Terraform executable was verified as 1.12.2 in Cloud SDK alongside bq and Bash.
+
+## CodeQL alert #12: CSP public-script fingerprint
+
+The flagged SHA-256 input was the fixed public popup-close script, not a password
+or credential. CSP uses this fingerprint to authorize that exact script. The
+response middleware now reads a precomputed CSP source constant instead of
+hashing it on every response. A regression test calculates the fingerprint from
+the actual callback HTML and checks it against the emitted policy. The CSP
+restriction is preserved, with no unsafe-inline allowance or query suppression.
+GitHub's next CodeQL analysis must confirm the remote alert status.
+
+## CodeQL alert #11: browser transaction reference
+
+The cookie now stores only a fresh opaque UUID session identifier. It is generated
+independently of the OAuth transaction's state/verifier and is bound to that
+transaction in Firestore. The server still verifies the authenticated user,
+provider, expiry, matching browser session and single-use consumption before
+exchanging any code. Provider credentials, access/refresh tokens and the PKCE
+verifier are never placed in the cookie. Regression tests reject another
+browser's identifier and confirm the cookie contains no provider secret.

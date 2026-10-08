@@ -69,16 +69,20 @@ def test_forged_state_never_exchanges_code(client, monkeypatch):
     "user,provider", [("bob@example.com", "google"), ("alice@example.com", "microsoft")]
 )
 def test_state_cannot_cross_users_or_providers(database, config, user, provider):
-    transaction = oauth_state.create_state("alice@example.com", "google")
-    state, browser = transaction["state"], transaction["browser_secret"]
+    transaction = oauth_state.create_state(
+        "alice@example.com", "google", "test-browser-session"
+    )
+    state, browser = transaction["state"], "test-browser-session"
     with pytest.raises(HTTPException) as failure:
         oauth_state.consume_state(state, browser, user, provider)
     assert failure.value.status_code == 400
 
 
 def test_expired_state_cannot_be_used(database, config):
-    transaction = oauth_state.create_state("alice@example.com", "google")
-    state, browser = transaction["state"], transaction["browser_secret"]
+    transaction = oauth_state.create_state(
+        "alice@example.com", "google", "test-browser-session"
+    )
+    state, browser = transaction["state"], "test-browser-session"
     next(iter(database.records.values()))["expires_at"] = datetime.now(UTC) - timedelta(
         seconds=1
     )
@@ -117,7 +121,8 @@ def test_consent_cookie_uses_fixed_metadata_and_random_value(
     assert cookie[name]["path"] == path
     assert cookie[name]["httponly"] is True
     assert cookie[name]["secure"] is True
-    assert len(cookie[name].value) == 43
+    assert len(cookie[name].value) == 32
+    assert all(character in "0123456789abcdef" for character in cookie[name].value)
     _, _, second_response = start_consent(client, provider)
     assert (
         SimpleCookie(second_response.headers["set-cookie"])[name].value
@@ -148,3 +153,37 @@ def test_callback_removes_cookie_with_the_same_fixed_metadata(client, monkeypatc
     assert set(cookie) == {"oauth_microsoft"}
     assert cookie["oauth_microsoft"]["path"] == "/api/auth/microsoft"
     assert cookie["oauth_microsoft"]["max-age"] == "0"
+
+
+def test_cookie_contains_only_session_id_and_not_provider_secrets(client, database):
+    _, _, response = start_consent(client)
+    cookie_value = SimpleCookie(response.headers["set-cookie"])["oauth_google"].value
+    transaction = next(iter(database.records.values()))
+    assert cookie_value == transaction["browser_session_id"]
+    assert cookie_value != transaction["verifier"]
+    assert "access_token" not in cookie_value
+    assert "refresh_token" not in cookie_value
+    assert "test-secret" not in cookie_value
+
+
+def test_callback_rejects_cookie_from_another_browser(client, monkeypatch):
+    state, _, _ = start_consent(client)
+    monkeypatch.setattr(
+        oauth.requests,
+        "post",
+        lambda *args, **kwargs: pytest.fail("Token exchange must not run"),
+    )
+    response = client.get(
+        f"/api/auth/google/callback?state={state}&code=valid",
+        headers={"Cookie": "oauth_google=00000000000000000000000000000000"},
+    )
+    assert response.status_code == 400
+
+
+def test_callback_rejects_state_created_before_session_id_change(client, database):
+    state, _, _ = start_consent(client)
+    transaction = next(iter(database.records.values()))
+    transaction.pop("browser_session_id")
+    transaction["browser_digest"] = "legacy-cookie-digest"
+    response = client.get(f"/api/auth/google/callback?state={state}&code=valid")
+    assert response.status_code == 400

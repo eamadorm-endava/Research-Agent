@@ -4,6 +4,7 @@ import base64
 import hashlib
 import time
 from urllib.parse import urlencode
+from uuid import uuid4
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -68,9 +69,9 @@ def redirect_uri(provider: str) -> str:
 def login(provider: str, request: Request, user_id: str = Depends(get_current_user)):
     """Start consent and set a secure cookie binding the popup to its transaction."""
     config = get_provider_config(provider)
-    transaction = create_state(user_id, provider)
+    browser_session_id = uuid4().hex
+    transaction = create_state(user_id, provider, browser_session_id)
     state = transaction["state"]
-    browser_secret = transaction["browser_secret"]
     verifier = transaction["verifier"]
     params = _authorization_params(provider, config, state, verifier)
     response = RedirectResponse(f"{config.AUTH_URI}?{urlencode(params)}")
@@ -78,7 +79,7 @@ def login(provider: str, request: Request, user_id: str = Depends(get_current_us
     cookie_name, cookie_path = cookie_settings["name"], cookie_settings["path"]
     response.set_cookie(
         cookie_name,
-        browser_secret,
+        browser_session_id,
         httponly=True,
         secure=UI_CONFIG.ENVIRONMENT != "development",
         samesite="lax",

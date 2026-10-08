@@ -13,31 +13,31 @@ from .config import UI_CONFIG
 
 
 def digest(value: str) -> str:
-    """Hash high-entropy browser/state values before persisting them."""
+    """Hash high-entropy state values before using them as document identifiers."""
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def create_state(user: str, provider: str) -> dict[str, str]:
+def create_state(user: str, provider: str, browser_session_id: str) -> dict[str, str]:
     """Persist a short-lived authorization transaction and PKCE verifier."""
-    state, browser_secret, verifier = (secrets.token_urlsafe(32) for _ in range(3))
+    state, verifier = (secrets.token_urlsafe(32) for _ in range(2))
     token_store.db.collection(f"{token_store.collection_name}_oauth_states").document(
         digest(state)
     ).set(
         {
             "user": user,
             "provider": provider,
-            "browser_digest": digest(browser_secret),
+            "browser_session_id": browser_session_id,
             "verifier": verifier,
             "expires_at": datetime.now(UTC)
             + timedelta(seconds=UI_CONFIG.OAUTH_STATE_SECONDS),
         }
     )
-    return {"state": state, "browser_secret": browser_secret, "verifier": verifier}
+    return {"state": state, "verifier": verifier}
 
 
-def consume_state(state: str, browser_secret: str, user: str, provider: str) -> str:
+def consume_state(state: str, browser_session_id: str, user: str, provider: str) -> str:
     """Atomically consume state; reject expired, replayed or mismatched callbacks."""
-    if not state or len(state) > 128 or not browser_secret:
+    if not state or len(state) > 128 or not browser_session_id:
         raise HTTPException(400, "Invalid OAuth transaction")
     reference = token_store.db.collection(
         f"{token_store.collection_name}_oauth_states"
@@ -53,7 +53,7 @@ def consume_state(state: str, browser_secret: str, user: str, provider: str) -> 
             or record["user"] != user
             or record["provider"] != provider
             or not secrets.compare_digest(
-                record["browser_digest"], digest(browser_secret)
+                record.get("browser_session_id", ""), browser_session_id
             )
         ):
             raise HTTPException(400, "Invalid OAuth transaction")
