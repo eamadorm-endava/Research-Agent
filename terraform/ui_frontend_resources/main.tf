@@ -141,7 +141,7 @@ resource "google_compute_managed_ssl_certificate" "ui_frontend_cert" {
   project = var.project_id
 
   managed {
-    domains = [var.domain_name, var.test_domain_name]
+    domains = [var.domain_name]
   }
 }
 
