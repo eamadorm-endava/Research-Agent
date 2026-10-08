@@ -44,6 +44,58 @@ def test_valid_signed_identity(signing_key):
     assert auth.verify_assertion(assertion(signing_key)) == "alice@example.com"
 
 
+def test_forwarded_signed_identity_authenticates(signing_key):
+    request = Request(
+        {
+            "type": "http",
+            "headers": [(b"x-osiris-iap-assertion", assertion(signing_key).encode())],
+        }
+    )
+    assert auth.get_current_user(request) == "alice@example.com"
+
+
+@pytest.mark.parametrize("overrides", [{"exp": 1}, {"aud": "another-backend"}])
+def test_forwarded_invalid_assertion_is_rejected(signing_key, overrides):
+    request = Request(
+        {
+            "type": "http",
+            "headers": [
+                (
+                    b"x-osiris-iap-assertion",
+                    assertion(signing_key, **overrides).encode(),
+                )
+            ],
+        }
+    )
+    with pytest.raises(HTTPException) as failure:
+        auth.get_current_user(request)
+    assert failure.value.status_code == 401
+
+
+def test_forwarded_unsigned_identity_is_rejected(config):
+    request = Request(
+        {"type": "http", "headers": [(b"x-osiris-iap-assertion", b"alice@example.com")]}
+    )
+    with pytest.raises(HTTPException) as failure:
+        auth.get_current_user(request)
+    assert failure.value.status_code == 401
+
+
+def test_direct_iap_header_takes_precedence_over_forwarded_header(signing_key):
+    request = Request(
+        {
+            "type": "http",
+            "headers": [
+                (b"x-goog-iap-jwt-assertion", b"forged"),
+                (b"x-osiris-iap-assertion", assertion(signing_key).encode()),
+            ],
+        }
+    )
+    with pytest.raises(HTTPException) as failure:
+        auth.get_current_user(request)
+    assert failure.value.status_code == 401
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

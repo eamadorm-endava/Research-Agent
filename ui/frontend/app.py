@@ -264,7 +264,11 @@ if st.session_state.pending_prompt:
         payload = {"message": prompt, "session_id": st.session_state.session_id}
 
         # Forward the signed user assertion separately from the Cloud Run ID token.
-        headers = {"X-Goog-IAP-JWT-Assertion": st.context.headers.get("X-Goog-IAP-JWT-Assertion", "")}
+        headers = {
+            "X-Osiris-IAP-Assertion": st.context.headers.get(
+                "X-Goog-IAP-JWT-Assertion", ""
+            )
+        }
 
         id_token = get_id_token(target_audience=API_URL.replace("/api", ""))
         if id_token:
@@ -319,7 +323,9 @@ if st.session_state.pending_prompt:
                                     f"Sequential authentication required. Next step: Connect **{provider.title()}**."
                                 )
 
-                                login_url = f"{PUBLIC_BASE_URL}/api/auth/{provider}/login"
+                                login_url = (
+                                    f"{PUBLIC_BASE_URL}/api/auth/{provider}/login"
+                                )
 
                                 import streamlit.components.v1 as components
 
@@ -565,7 +571,9 @@ if st.session_state.pending_prompt:
                         if stream_failed:
                             final_label = "Request failed"
                         status_box.update(
-                            label=final_label, state="error" if stream_failed else "complete", expanded=False
+                            label=final_label,
+                            state="error" if stream_failed else "complete",
+                            expanded=False,
                         )
                     else:
                         status_box.update(
@@ -590,6 +598,15 @@ if st.session_state.pending_prompt:
         except Exception as e:
             if status_box is not None:
                 status_box.update(label="Request failed", state="error")
-            st.error(f"Error connecting to the backend: {e}")
+            if (
+                isinstance(e, requests.HTTPError)
+                and e.response is not None
+                and e.response.status_code == 401
+            ):
+                st.error(
+                    "Your access session could not be verified. Reload this page and try again."
+                )
+            else:
+                st.error(f"Error connecting to the backend: {e}")
             # Clear the prompt to avoid infinite loop of failures
             st.session_state.pending_prompt = None

@@ -6,6 +6,7 @@ import google.auth
 import jwt
 from fastapi import HTTPException, Request
 from google.auth.transport.requests import AuthorizedSession
+from loguru import logger
 
 from agent.core_agent.config import GCP_CONFIG
 
@@ -66,14 +67,18 @@ def verify_assertion(assertion: str) -> str:
 
 def get_current_user(request: Request) -> str:
     """Require a verified user; a local identity is allowed only by explicit opt-in."""
-    assertion = request.headers.get("X-Goog-IAP-JWT-Assertion")
+    assertion = request.headers.get("X-Goog-IAP-JWT-Assertion") or request.headers.get(
+        "X-Osiris-IAP-Assertion"
+    )
     if not assertion:
         if UI_CONFIG.ENVIRONMENT == "development" and UI_CONFIG.LOCAL_USER_EMAIL:
             return UI_CONFIG.LOCAL_USER_EMAIL
+        logger.warning("IAP authentication rejected: assertion missing")
         raise HTTPException(status_code=401, detail="IAP authentication required")
     try:
         user = verify_assertion(assertion)
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as error:
+        logger.warning("IAP authentication rejected: {}", type(error).__name__)
         raise HTTPException(status_code=401, detail="Invalid IAP assertion") from None
     except Exception:  # noqa: BLE001 - API/UI boundary must not disclose credentials
         raise HTTPException(
