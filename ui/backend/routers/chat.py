@@ -1,98 +1,111 @@
-"""Authenticated Agent Engine sessions and SSE responses."""
-
 import json
-
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from pydantic import BaseModel, Field
-from starlette.concurrency import run_in_threadpool
+from pydantic import BaseModel
+
+from .oauth import get_current_user
+
+# In a real scenario, this would use vertexai SDK
+# e.g., from vertexai.preview import reasoning_engines
+# For now, we mock the stream to demonstrate the architecture
+from vertexai import agent_engines
+import vertexai
 
 from agent.core_agent.security.token_store import token_store
-
-from ..agent_client import get_remote_agent
-from ..auth import get_current_user
+from agent.core_agent.config import GCP_CONFIG
 from ..config import UI_CONFIG
 
 router = APIRouter()
 
+# Initialize Vertex AI
+vertexai.init(project=GCP_CONFIG.PROJECT_ID, location=GCP_CONFIG.REGION)
+
+# Initialize the remote app globally to reuse the connection
+try:
+    remote_app = agent_engines.get(UI_CONFIG.AGENT_RESOURCE_NAME)
+    logger.info(
+        f"Successfully connected to remote agent engine: {UI_CONFIG.AGENT_RESOURCE_NAME}"
+    )
+except Exception as e:
+    logger.error(f"Failed to connect to agent engine. Is the ID correct? Error: {e}")
+    remote_app = None
+
 
 class ChatRequest(BaseModel):
-    """Bound input size and allow the client to resume its own session."""
+    message: str
+    session_id: Optional[str] = None
 
-    message: str = Field(min_length=1, max_length=32000)
-    session_id: str | None = Field(default=None, max_length=256)
+
+# Re-use the IAP header extraction
 
 
 def check_missing_providers(user_id: str) -> list[str]:
-    """Check only explicitly required providers, rather than blocking every source."""
-    return [
-        provider
-        for provider in UI_CONFIG.REQUIRED_PROVIDERS
-        if not token_store.get_valid_access_token(user_id, provider)
-    ]
+    """Checks which required data source tokens are missing for the user."""
+    required_providers = ["google", "microsoft", "atlassian"]
+    missing = []
 
+    for provider in required_providers:
+        token = token_store.get_valid_access_token(user_id=user_id, provider=provider)
+        if not token:
+            missing.append(provider)
 
-def encode_event(event: dict) -> str:
-    """Encode one complete SSE message."""
-    return f"data: {json.dumps(event)}\n\n"
+    return missing
 
 
 @router.post("/")
-async def chat_stream(body: ChatRequest, user_id: str = Depends(get_current_user)):
-    """Invoke the remote app using the verified user for session ownership."""
-    missing = await run_in_threadpool(check_missing_providers, user_id)
-    if missing:
-        return StreamingResponse(
-            iter(
-                [
-                    encode_event(
-                        {
-                            "type": "AUTH_REQUIRED",
-                            "missing_providers": missing,
-                        }
-                    )
-                ]
-            ),
-            media_type="text/event-stream",
+async def chat_stream(
+    request: Request, body: ChatRequest, user_id: str = Depends(get_current_user)
+):
+    """
+    Handles chat messages, checks authentication status, and streams
+    Agent Engine responses back to the client.
+    """
+    logger.info(f"Received chat request from {user_id}")
+
+    missing_providers = check_missing_providers(user_id)
+
+    if missing_providers:
+        logger.warning(f"User {user_id} is missing tokens for: {missing_providers}")
+
+        async def auth_required_stream():
+            event = {
+                "type": "AUTH_REQUIRED",
+                "missing_providers": missing_providers,
+                "message": "Please authenticate with the required data sources before continuing.",
+            }
+            yield f"data: {json.dumps(event)}\n\n"
+
+        return StreamingResponse(auth_required_stream(), media_type="text/event-stream")
+
+    if not remote_app:
+        raise HTTPException(
+            status_code=500, detail="Agent Engine is not configured or unreachable."
         )
-    remote_app = await run_in_threadpool(get_remote_agent)
+
+    # 2. AGENT EXECUTION
+    # Create session if not provided
     session_id = body.session_id
-    if session_id:
+    if not session_id:
+        remote_session = await remote_app.async_create_session(user_id=user_id)
+        session_id = remote_session["id"]
+        logger.info(f"Created new session {session_id} for user {user_id}")
+
+    async def generate_agent_stream():
+        # First event to let the frontend know the session_id
+        yield f"data: {json.dumps({'type': 'session_info', 'session_id': session_id})}\n\n"
+
         try:
-            session = await remote_app.async_get_session(
-                user_id=user_id, session_id=session_id
-            )
-        except Exception:  # noqa: BLE001 - Hide remote session lookup details
-            raise HTTPException(404, "Session is unavailable") from None
-        if not session or session.get("userId", session.get("user_id")) != user_id:
-            raise HTTPException(
-                403, "Session does not belong to the authenticated user"
-            )
-    else:
-        session = await remote_app.async_create_session(user_id=user_id)
-        session_id = session["id"]
-    return StreamingResponse(
-        generate_stream(remote_app, user_id, session_id, body.message),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-store"},
-    )
+            async for event in remote_app.async_stream_query(
+                user_id=user_id,
+                session_id=session_id,
+                message=body.message,
+            ):
+                # The event from async_stream_query is a dict, we need to pass it safely to JSON
+                yield f"data: {json.dumps({'type': 'agent_event', 'payload': event})}\n\n"
+        except Exception as e:
+            logger.error(f"Error during agent streaming: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': 'An error occurred during agent streaming. Please try again later.'})}\n\n"
 
-
-async def generate_stream(remote_app, user_id: str, session_id: str, message: str):
-    """Stream output without logging user content or presenting errors as success."""
-    yield encode_event({"type": "session_info", "session_id": session_id})
-    try:
-        async for event in remote_app.async_stream_query(
-            user_id=user_id,
-            session_id=session_id,
-            message=message,
-        ):
-            yield encode_event({"type": "agent_event", "payload": event})
-        yield encode_event({"type": "done"})
-    except Exception:  # noqa: BLE001 - API/UI boundary must not disclose credentials
-        get_remote_agent.cache_clear()
-        logger.warning("Agent stream failed")
-        yield encode_event(
-            {"type": "error", "message": "Agent request failed. Please retry."}
-        )
+    return StreamingResponse(generate_agent_stream(), media_type="text/event-stream")
