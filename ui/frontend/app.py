@@ -3,27 +3,12 @@ import requests
 import json
 import time
 import os
-import urllib.request
+from ui.frontend.authentication import render_authentication, request_headers
 
 st.set_page_config(page_title="OSIRIS", layout="wide")
 
 API_URL = os.getenv("API_URL", "http://localhost:8000/api")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://osiris.endava.app").rstrip("/")
-
-
-def get_id_token(target_audience: str) -> str:
-    """Fetches an ID token from the GCP metadata server for Server-to-Server authentication."""
-    try:
-        req = urllib.request.Request(
-            f"http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={target_audience}",
-            headers={"Metadata-Flavor": "Google"},
-        )
-        with urllib.request.urlopen(req, timeout=2) as response:
-            return response.read().decode("utf-8")
-    except Exception:
-        return (
-            ""  # Fallback for local development where metadata server isn't available
-        )
 
 
 st.markdown(
@@ -213,6 +198,8 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = None
 if "pending_prompt" not in st.session_state:
     st.session_state.pending_prompt = None
+if "required_connections" not in st.session_state:
+    st.session_state.required_connections = []
 
 # Display chat history
 for msg in st.session_state.messages:
@@ -243,13 +230,21 @@ for msg in st.session_state.messages:
         st.markdown(content, unsafe_allow_html=True)
 
 # Chat input
-user_input = st.chat_input("Ask OSIRIS to search your organization's data...")
+user_input = st.chat_input(
+    "Ask OSIRIS to search your organization's data...",
+    disabled=bool(st.session_state.required_connections),
+)
 
 # If the user typed something new, capture it and trigger a rerun
 if user_input:
     st.session_state.pending_prompt = user_input
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.rerun()
+
+if st.session_state.pending_prompt and st.session_state.required_connections:
+    with st.chat_message("assistant", avatar="🔘"):
+        render_authentication(API_URL, PUBLIC_BASE_URL)
+    st.stop()
 
 # Process the pending prompt (either newly captured or re-attempted after auth)
 if st.session_state.pending_prompt:
@@ -264,15 +259,7 @@ if st.session_state.pending_prompt:
         payload = {"message": prompt, "session_id": st.session_state.session_id}
 
         # Forward the signed user assertion separately from the Cloud Run ID token.
-        headers = {
-            "X-Osiris-IAP-Assertion": st.context.headers.get(
-                "X-Goog-IAP-JWT-Assertion", ""
-            )
-        }
-
-        id_token = get_id_token(target_audience=API_URL.replace("/api", ""))
-        if id_token:
-            headers["Authorization"] = f"Bearer {id_token}"
+        headers = request_headers(API_URL)
 
         status_box = None
         try:
@@ -317,55 +304,8 @@ if st.session_state.pending_prompt:
                             missing = event_data.get("missing_providers", [])
 
                             if missing:
-                                # 1. SEQUENTIAL AUTH: Only process the first missing provider
-                                provider = missing[0]
-                                st.warning(
-                                    f"Sequential authentication required. Next step: Connect **{provider.title()}**."
-                                )
-
-                                login_url = (
-                                    f"{PUBLIC_BASE_URL}/api/auth/{provider}/login"
-                                )
-
-                                import streamlit.components.v1 as components
-
-                                components.html(
-                                    f"""
-                                    <script>
-                                        function openAuth() {{
-                                            var authWindow = window.open('{login_url}', 'AuthWindow', 'width=500,height=650,resizable=yes,scrollbars=yes');
-                                            var timer = setInterval(function() {{
-                                                if (authWindow && authWindow.closed) {{
-                                                    clearInterval(timer);
-                                                    // Auto-click the continue button in the parent Streamlit window
-                                                    var parentDoc = window.parent.document;
-                                                    var buttons = parentDoc.querySelectorAll('button');
-                                                    for (var i = 0; i < buttons.length; i++) {{
-                                                        if (buttons[i].innerText.includes('Continue (Authentication completed)')) {{
-                                                            buttons[i].click();
-                                                            break;
-                                                        }}
-                                                    }}
-                                                }}
-                                            }}, 1000);
-                                        }}
-                                    </script>
-                                    <div style="display: flex; justify-content: left; margin-top: 10px;">
-                                        <button onclick="openAuth()" style="background-color: #FF4B4B; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; font-family: sans-serif;">
-                                            🔗 Connect {provider.title()}
-                                        </button>
-                                    </div>
-                                    """,
-                                    height=80,
-                                )
-
-                                st.info(
-                                    "💡 Click the button to open the authentication popup. When finished, the window will close itself and the chat will continue automatically."
-                                )
-
-                                # Fallback button that the JS script will automatically click
-                                if st.button("Continue (Authentication completed)"):
-                                    st.rerun()
+                                st.session_state.required_connections = missing
+                                st.rerun()
 
                             break
 
