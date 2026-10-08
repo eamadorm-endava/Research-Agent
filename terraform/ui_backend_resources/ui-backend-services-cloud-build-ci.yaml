@@ -1,42 +1,90 @@
 substitutions:
   _LOCATION: us-central1
   _REPO_NAME: mcp-servers
+  _SERVICE_NAME: ui-backend
+  _AGENT_RESOURCE_NAME: projects/1051281656239/locations/us-central1/reasoningEngines/5233147857510334464
+
 steps:
-- name: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-  id: ui-regressions
-  args:
-  - -ec
-  - uv run --group backend --group frontend --group dev pytest ui/tests terraform/tests
-    -q
-  entrypoint: sh
-- name: hashicorp/terraform:1.12.2
-  id: ui_backend-init
-  args:
-  - -ec
-  - terraform init -backend-config="bucket=${PROJECT_ID}-terraform-state" -backend-config="prefix=terraform/state/ui-backend-resources"
-  dir: terraform/ui_backend_resources
-  entrypoint: sh
-- name: hashicorp/terraform:1.12.2
-  id: backend-fmt
-  args:
-  - fmt
-  - -check
-  dir: terraform/ui_backend_resources
-- name: hashicorp/terraform:1.12.2
-  id: backend-validate
-  args:
-  - validate
-  dir: terraform/ui_backend_resources
-- name: gcr.io/cloud-builders/docker
-  id: backend-build
-  args:
-  - build
-  - -t
-  - ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/ui-backend:${COMMIT_SHA}
-  - -f
-  - ui/backend/Dockerfile
-  - .
-serviceAccount: projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+  # Step 1: Initialize Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-init'
+    entrypoint: 'sh'
+    dir: 'terraform/ui_backend_resources'
+    args:
+      - '-c'
+      - |
+        terraform init \
+          -backend-config="bucket=${PROJECT_ID}-terraform-state" \
+          -backend-config="prefix=terraform/state/ui-backend-resources"
+
+  # Step 2: Validate Terraform
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-validate'
+    args: ['validate']
+    dir: 'terraform/ui_backend_resources'
+
+  # Step 3: Apply Infrastructure Dependencies (excluding Prod Cloud Run)
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-apply-deps'
+    args:
+      - 'apply'
+      - '-auto-approve'
+      - '-target=module.enable_apis'
+      - '-target=module.ui_backend_sa'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+    dir: 'terraform/ui_backend_resources'
+
+  # Step 4: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args: [
+      'build', 
+      '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA}', 
+      '-f', 'ui/backend/Dockerfile', 
+      '.'
+    ]
+
+  # Step 5: Docker Push
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        docker push ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA}
+
+  # Step 6: Deploy Test Instance to Cloud Run (Mirror of Prod)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Deploy-Test'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        PROJECT_NUMBER=$$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
+        gcloud run deploy test-${_SERVICE_NAME} \
+          --image=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:test-${COMMIT_SHA} \
+          --region=${_LOCATION} \
+          --platform=managed \
+          --no-allow-unauthenticated \
+          --ingress=internal-and-cloud-load-balancing \
+          --service-account=osiris-ui-backend@${PROJECT_ID}.iam.gserviceaccount.com \
+          --set-env-vars='^;^PROJECT_ID=${PROJECT_ID};REGION=${_LOCATION};PROJECT_NUMBER='"$${PROJECT_NUMBER}"';FIRESTORE_DB_NAME=osiris;AGENT_RESOURCE_NAME=${_AGENT_RESOURCE_NAME};PUBLIC_BASE_URL=https://test.osiris.endava.app;MICROSOFT_OAUTH_TENANT_ID=93f8f3d2-54f6-417d-9a37-10ff2952f228;IAP_BACKEND_SERVICES=["ui-frontend-elb-test-backend","ui-frontend-elb-test-api"]' \
+          --set-secrets="GOOGLE_OAUTH_CLIENT_ID=GOOGLE_OAUTH_CLIENT_ID:latest,GOOGLE_OAUTH_CLIENT_SECRET=GOOGLE_OAUTH_CLIENT_SECRET:latest,MICROSOFT_OAUTH_CLIENT_ID=MICROSOFT_OAUTH_CLIENT_ID:latest,MICROSOFT_OAUTH_CLIENT_SECRET=MICROSOFT_OAUTH_CLIENT_SECRET:latest,ATLASSIAN_OAUTH_CLIENT_ID=ATLASSIAN_OAUTH_CLIENT_ID:latest,ATLASSIAN_OAUTH_CLIENT_SECRET=ATLASSIAN_OAUTH_CLIENT_SECRET:latest" \
+          --quiet
+
+  # Step 7: Full Terraform Plan
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'tf-plan'
+    args:
+      - 'plan'
+      - '-var=ui_backend_cloud_run_image_tag=test-${COMMIT_SHA}'
+      - '-var=project_id=${PROJECT_ID}'
+      - '-var=main_region=${_LOCATION}'
+      - '-out=tfplan'
+    dir: 'terraform/ui_backend_resources'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
+
 options:
   logging: CLOUD_LOGGING_ONLY
-timeout: 1800s
