@@ -79,3 +79,12 @@ variable "ui_backend_cloud_run_labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "domain_name" { type = string }
+variable "test_domain_name" { type = string }
+variable "agent_display_name" { type = string }
+variable "test_agent_display_name" { type = string }
+variable "ui_frontend_sa_name" {
+  type    = string
+  default = "osiris-ui-frontend"
+}
