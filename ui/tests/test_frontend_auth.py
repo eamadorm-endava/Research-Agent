@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 from streamlit.runtime.context import ContextProxy, StreamlitHeaders
+from streamlit.delta_generator import DeltaGenerator
 from streamlit.testing.v1 import AppTest
 
 
@@ -161,3 +162,113 @@ def test_execution_history_survives_final_response_and_rerun(
     assert rendered.count("Search Documents") == 2
     assert "Reading Skill Document Search" in rendered
     assert "Finished." in rendered
+
+
+@pytest.mark.parametrize(
+    "start,end,label",
+    [
+        (100.0, 104.2, "Search Documents - 4.2s"),
+        (100.0, 100.03, "Search Documents - <0.1s"),
+        (None, None, "Search Documents"),
+        (100.0, 100.0, "Search Documents"),
+        (104.2, 100.0, "Search Documents"),
+    ],
+)
+def test_tool_duration_uses_agent_timestamps_for_buffered_events(
+    browser_identity, monkeypatch, start, end, label
+):
+    events = [
+        {
+            "timestamp": start,
+            "content": {
+                "parts": [
+                    {
+                        "functionCall": {
+                            "id": "call-1",
+                            "name": "search_documents",
+                            "args": {},
+                        }
+                    }
+                ]
+            },
+        },
+        {
+            "timestamp": end,
+            "content": {
+                "parts": [
+                    {"functionResponse": {"id": "call-1", "name": "search_documents"}}
+                ]
+            },
+        },
+        {"content": {"parts": [{"text": "Finished."}]}},
+    ]
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.iter_lines.return_value = [
+        "data: " + json.dumps({"type": "agent_event", "payload": event})
+        for event in events
+    ]
+    monkeypatch.setattr(requests, "post", MagicMock(return_value=response))
+    app = AppTest.from_file(
+        Path(__file__).resolve().parents[1] / "frontend" / "app.py"
+    ).run()
+    app.chat_input[0].set_value("Find a document").run()
+    assert not app.exception
+    action = app.session_state.messages[-1]["actions"][0]
+    assert f">{label}</span>" in action
+    assert " - 0.0s" not in action
+    if start == 100.0 and end == 104.2:
+        assert app.session_state.messages[-1]["status_label"] == "Executed in 4 s"
+
+
+def test_tool_name_and_spinner_remain_until_its_response(browser_identity, monkeypatch):
+    rendered = []
+    markdown = DeltaGenerator.markdown
+
+    def record_markdown(self, body, *args, **kwargs):
+        rendered.append(body)
+        return markdown(self, body, *args, **kwargs)
+
+    monkeypatch.setattr(DeltaGenerator, "markdown", record_markdown)
+    events = [
+        {
+            "timestamp": 100,
+            "content": {
+                "parts": [
+                    {
+                        "functionCall": {
+                            "id": "time-1",
+                            "name": "get_current_time",
+                            "args": {},
+                        }
+                    }
+                ]
+            },
+        },
+        {
+            "timestamp": 102,
+            "content": {
+                "parts": [
+                    {"functionResponse": {"id": "time-1", "name": "get_current_time"}}
+                ]
+            },
+        },
+        {"content": {"parts": [{"text": "Finished."}]}},
+    ]
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.iter_lines.return_value = [
+        "data: " + json.dumps({"type": "agent_event", "payload": event})
+        for event in events
+    ]
+    monkeypatch.setattr(requests, "post", MagicMock(return_value=response))
+    app = AppTest.from_file(
+        Path(__file__).resolve().parents[1] / "frontend" / "app.py"
+    ).run()
+    app.chat_input[0].set_value("What time is it?").run()
+    assert not app.exception
+    pending = next(body for body in rendered if "Get Current Time" in body)
+    assert 'class="spin-icon"' in pending
+    completed = app.session_state.messages[-1]["actions"][0]
+    assert "Get Current Time - 2.0s" in completed
+    assert "spin-icon" not in completed
