@@ -1,11 +1,32 @@
 """Isolated API tests with a transactional in-memory Firestore substitute."""
 
+import sys
 from copy import deepcopy
 from functools import wraps
+from pathlib import Path
 from threading import RLock
+from types import ModuleType
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+
+# Match the UI image's partial core_agent packages and isolate cloud clients.
+# The Dockerfile copies config and token_store, without agent/ADK package startup.
+repository = Path(__file__).resolve().parents[2]
+for name, directory in (
+    ("agent.core_agent", "agent/core_agent"),
+    ("agent.core_agent.security", "agent/core_agent/security"),
+):
+    package = ModuleType(name)
+    package.__path__ = [str(repository / directory)]
+    sys.modules[name] = package
+with (
+    patch("google.cloud.firestore.Client"),
+    patch("vertexai.init"),
+    patch("vertexai.agent_engines.get"),
+):
+    from ui.backend import main as backend_main
 
 
 class Snapshot:
@@ -73,7 +94,7 @@ def database(monkeypatch):
 
     db = FakeDB()
     monkeypatch.setattr(firestore, "transactional", transactional)
-    monkeypatch.setattr(token_store, "_db", db)
+    monkeypatch.setattr(token_store, "db", db)
     return db
 
 
@@ -84,11 +105,7 @@ def config(monkeypatch):
     for name, value in {
         "PUBLIC_BASE_URL": "https://osiris.example.com",
         "ENVIRONMENT": "production",
-        "REQUIRED_PROVIDERS": [],
         "LOCAL_USER_EMAIL": "",
-        "REQUESTS_PER_MINUTE": 30,
-        "LANDING_ZONE_BUCKET": "private-uploads",
-        "SERVICE_ACCOUNT_EMAIL": "backend@example.iam.gserviceaccount.com",
     }.items():
         monkeypatch.setattr(UI_CONFIG, name, value)
     return UI_CONFIG
@@ -96,8 +113,8 @@ def config(monkeypatch):
 
 @pytest.fixture
 def client(database, config, monkeypatch):
+    app = backend_main.app
     from ui.backend.auth import get_current_user
-    from ui.backend.main import app
     from ui.backend.routers.oauth import PROVIDER_CONFIGS
 
     for provider_config in PROVIDER_CONFIGS.values():

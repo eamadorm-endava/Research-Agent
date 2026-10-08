@@ -1,12 +1,13 @@
 """Verify IAP assertions forwarded by Streamlit or received from the API NEG."""
 
 import time
-from functools import lru_cache
 
 import google.auth
 import jwt
 from fastapi import HTTPException, Request
 from google.auth.transport.requests import AuthorizedSession
+
+from agent.core_agent.config import GCP_CONFIG
 
 from .config import UI_CONFIG
 
@@ -16,12 +17,11 @@ IAP_KEYS = jwt.PyJWKClient(
 )
 
 
-@lru_cache(maxsize=1)
 def expected_audiences() -> tuple[str, ...]:
     """Resolve only configured backend names; never derive trust from token claims."""
     if UI_CONFIG.IAP_AUDIENCES:
         return tuple(UI_CONFIG.IAP_AUDIENCES)
-    if not UI_CONFIG.PROJECT_ID or not UI_CONFIG.PROJECT_NUMBER:
+    if not GCP_CONFIG.PROJECT_ID or not UI_CONFIG.PROJECT_NUMBER:
         raise RuntimeError("IAP project configuration is missing")
     credentials, _ = google.auth.default(
         scopes=["https://www.googleapis.com/auth/cloud-platform"]
@@ -31,7 +31,7 @@ def expected_audiences() -> tuple[str, ...]:
         for name in UI_CONFIG.IAP_BACKEND_SERVICES:
             response = session.get(
                 "https://compute.googleapis.com/compute/v1/projects/"
-                f"{UI_CONFIG.PROJECT_ID}/global/backendServices/{name}",
+                f"{GCP_CONFIG.PROJECT_ID}/global/backendServices/{name}",
                 timeout=10,
             )
             response.raise_for_status()
@@ -79,7 +79,4 @@ def get_current_user(request: Request) -> str:
         raise HTTPException(
             status_code=503, detail="Identity verification unavailable"
         ) from None
-    from .limits import limiter
-
-    limiter.check(user)
     return user

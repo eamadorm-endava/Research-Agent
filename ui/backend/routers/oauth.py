@@ -134,7 +134,9 @@ def callback(
     tokens = exchange_tokens(provider, config.TOKEN_URI, payload)
     token_store.save_tokens(user_id=user_id, provider=provider, token_data=tokens)
     response = HTMLResponse(
-        "<html><head><title>Authorization completed</title></head>"
+        "<html><head><title>Authorization completed</title>"
+        "<script>window.onload = function() { setTimeout(function() { window.close(); }, 2000); };</script>"
+        "</head>"
         "<body><p>Account connected. Close this tab and continue in OSIRIS.</p>"
         "</body></html>"
     )
