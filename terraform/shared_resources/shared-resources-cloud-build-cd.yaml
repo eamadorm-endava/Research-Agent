@@ -19,10 +19,22 @@ steps:
     id: 'tf-apply'
     args: 
       - 'apply'
+      - '-lock-timeout=5m'
       - '-auto-approve'
       - '-var=project_id=${PROJECT_ID}'
       - '-var=main_region=${_LOCATION}'
     dir: 'terraform/shared_resources'
+
+  - name: 'hashicorp/terraform:1.12.2'
+    id: 'export-model-config'
+    entrypoint: 'sh'
+    dir: 'terraform/shared_resources'
+    args: ['-ec', 'terraform output -json embedding_model_config > /workspace/embedding-model.json']
+
+  - name: 'gcr.io/google.com/cloudsdktool/google-cloud-cli:stable'
+    id: 'ensure-embedding-model'
+    entrypoint: 'python3'
+    args: ['terraform/scripts/ensure_embedding_model.py', '/workspace/embedding-model.json']
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com'
 
