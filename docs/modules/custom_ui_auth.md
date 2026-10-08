@@ -1,134 +1,171 @@
-# Custom UI & Authentication Architecture Plan
+# Independent OSIRIS UI
 
-## Overview
-This document outlines the technical design and implementation plan to migrate the Research-Agent system from Gemini Enterprise to a custom UI (Cloud Run + IAP) with custom OAuth token management (Firestore) and GCS Signed URL uploads.
+The UI consists of a Streamlit frontend and a FastAPI backend. Both production
+and test Cloud Run services are managed by Terraform. Existing production module
+addresses are preserved with `moved` blocks; existing test services are discovered
+and imported before apply. The network remains **mcp-agent-vpc**.
 
-## 1. Technical Architecture & Constraints
+The reserved global load balancer IP is **136.81.113.202**
+(`ui-frontend-global-ip`). Terraform pins this address and prevents its destruction.
+Both `osiris.endava.app` and `test.osiris.endava.app` must resolve to it. DNS is
+managed outside this repository; certificate provisioning requires valid DNS.
 
-### 1.1 Core Architecture
-*   **UI Stack**: A **FastAPI** backend to handle API routing, Vertex AI Agent Engine streaming, and Signed URLs. A generic **React/Next.js** frontend for the chat interface.
-*   **Token Storage**: **Firestore** (Native Mode) for secure, scalable, and serverless storage of user refresh tokens.
-*   **Agent Execution**: The custom UI will invoke the agent remotely using the `vertexai.agent_engines` SDK to stream responses and tool execution (`async_stream_query`).
+## Request and identity paths
 
-### 1.2 UX/UI Specific Requirements
-*   **Collapsible Tool Logs**: When the agent executes tools, the frontend will group these events into an expandable/collapsible accordion (similar to the Gemini app).
-    *   On `FunctionCall`: Display the function name with a loading spinner.
-    *   On `FunctionResponse`: Replace the spinner with a checkmark.
-*   **In-Stream Authentication**:
-    *   Instead of a dedicated settings page, authentication is triggered in the chat.
-    *   When the user sends their first message, the backend will verify if the required tokens exist in Firestore.
-    *   If tokens are missing, the backend will pause agent execution and stream an `AUTH_REQUIRED` event to the frontend, specifying *which* data sources are missing (Google, Microsoft, Atlassian).
-    *   The frontend will render specific "Authenticate [Source]" buttons directly in the chat stream (e.g., "Authenticate Microsoft", "Authenticate Google", "Authenticate Atlassian").
-    *   Each button will trigger its respective OAuth flow. Once authenticated, the user can proceed with their request.
-
-### 1.3 Folder Structure & File Manifest
-```text
-Research-Agent/
-├── ui/
-│   ├── backend/
-│   │   ├── main.py                     # FastAPI entry point
-│   │   ├── routers/
-│   │   │   ├── chat.py                 # Agent streaming & AUTH_REQUIRED check
-│   │   │   ├── upload.py               # GCS Signed URL generator
-│   │   │   └── oauth.py                # Provider-specific OAuth callback handlers
-│   │   └── requirements.txt
-│   └── frontend/                       # React / Web UI assets (Tool Accordion, Auth Buttons)
-├── agent/core_agent/security/
-│   ├── auth.py                         # EDITED: Remove GE logic
-│   └── token_store.py                  # NEW: Firestore integration for tokens
-├── agent/core_agent/builder/
-│   └── mcp_factory.py                  # EDITED: Use token_store.py instead of GE Context
-├── terraform/
-│   ├── shared_resources/
-│   │   └── firestore.tf                # NEW: Firestore database provisioning
-│   └── ui_resources/                   # NEW: IAP, Load Balancer, and Cloud Run modules
-└── docs/modules/
-    └── custom_ui_auth.md               # This document
+```mermaid
+flowchart LR
+    Browser --> IAP[HTTPS load balancer and IAP]
+    IAP -->|default path| Frontend[Streamlit]
+    IAP -->|/api/*| Backend[FastAPI]
+    Frontend -->|VPC plus service ID token and signed user assertion| Backend
+    Backend --> Agent[Agent Engine]
+    Backend --> Firestore[Tokens and OAuth transactions]
+    Backend --> GCS[Private upload bucket]
 ```
 
----
+Frontend egress is `ALL_TRAFFIC`, and the existing app subnet enables Private
+Google Access. Frontend calls to the backend use a Cloud Run ID token in
+`Authorization` and the user's signed IAP assertion in
+`X-Goog-IAP-JWT-Assertion`. The backend also accepts IAP-protected requests through
+the API serverless NEG. Its ingress is `internal-and-cloud-load-balancing`.
 
-## 2. Implementation Plan (GitHub Issues)
+The backend verifies ES256 signatures, issuer, expiry, issued-at, lifetime,
+configured audiences and identity claims. Trusted audience IDs are resolved
+from explicitly configured backend service names, never from a request header.
+A custom role grants only `compute.backendServices.get` for that lookup. There
+is no production fallback to a mock user or an unsigned email header.
 
-The execution will follow the mandatory two-issue strategy (Part A: Prototyping, Part B: Deployment).
+`iap_accessors` controls who can open the site. The configured developer group
+is granted `roles/iap.httpsResourceAccessor` on both frontend and API backend
+services. IAP's service identity is created by the backend stack before its
+Cloud Run invoker bindings. The frontend service account's invoker permission
+is scoped to the UI backend services; OAuth Secret Accessor is scoped to the six
+required secrets. Upload signing permission is scoped to the backend's own
+service account, and object creation to the landing-zone bucket.
 
-### Issue #1: [Part A] Implement Custom OAuth Token Storage (Firestore)
-> **User Story**
-> - **As a** System Architect
-> - **I want to** establish a custom token storage mechanism using Firestore
-> - **So that** we can securely store and refresh 3rd-party OAuth tokens independently of Gemini Enterprise.
->
-> ## Technical Specifications & Constraints
-> - **Scope**: `agent/core_agent/security/token_store.py`
-> - **Logic**: Implement a Firestore client to store and retrieve `refresh_token` and `access_token` objects keyed by `user_id` (email) and `provider` (google, microsoft, atlassian).
-> - **Validation**: Implement a script to test saving and retrieving tokens.
->
-> ## Acceptance Criteria
-> - [ ] Firestore utility class is created with `save_token` and `get_valid_access_token` methods.
-> - [ ] `get_valid_access_token` automatically refreshes expired tokens.
+## OAuth
 
-### Issue #2: [Part A] Refactor Agent Security & MCP Factory
-> **User Story**
-> - **As an** AI Agent
-> - **I want to** retrieve 3rd-party credentials from Firestore instead of GE Context
-> - **So that** I can continue accessing MCP servers in the new custom UI environment.
->
-> ## Technical Specifications & Constraints
-> - **Scope**: `agent/core_agent/security/auth.py`, `agent/core_agent/builder/mcp_factory.py`
-> - **Logic**: Deprecate `get_ge_oauth_token`. Update `mcp_factory.py` to inject tokens fetched via the new `token_store.py` based on the `user_id` present in the `ReadonlyContext`.
->
-> ## Acceptance Criteria
-> - [ ] MCP servers successfully receive Bearer tokens from Firestore during agent execution.
+Use the sidebar's Connect buttons to open the **public** origin, authorize the
+provider, close the confirmation tab and retry the message. Each callback
+uses `/api/auth/{provider}/callback` on the same public domain.
 
-### Issue #3: [Part A] Develop UI Backend (Streaming, In-Stream Auth, Signed URLs)
-> **User Story**
-> - **As a** User
-> - **I want to** have a backend that handles my file uploads, checks my auth status, and streams the agent's thought process
-> - **So that** I can interact with the agent in real-time.
->
-> ## Technical Specifications & Constraints
-> - **Scope**: `ui/backend/`
-> - **Logic**: 
->   - Parse `X-Goog-Authenticated-User-Email` header for `user_id`.
->   - `/api/chat`: Check Firestore for tokens. If missing, yield an `AUTH_REQUIRED` SSE event containing the list of missing providers (e.g., `["microsoft", "google"]`). Otherwise, connect to Vertex AI and stream `FunctionCall` and `FunctionResponse` events.
->   - `/api/auth/{provider}`: Handle individual OAuth flows for microsoft, google, and atlassian.
->
-> ## Acceptance Criteria
-> - [ ] Chat endpoint streams `AUTH_REQUIRED` with missing providers array if tokens are missing.
-> - [ ] Chat endpoint streams `FunctionCall` and text chunks when authenticated.
+Transactions use random state and an HttpOnly, Secure, SameSite=Lax browser
+cookie. Firestore binds state to the provider, verified user and browser, with
+a ten-minute deadline and atomic single-use consumption. Google and Microsoft
+use S256 PKCE. Atlassian uses its documented confidential 3LO code exchange with
+a client secret and validated state; its Jira/Confluence documentation does not
+specify the same PKCE contract. No tokens are returned to the browser.
 
-### Issue #4: [Part A] Develop UI Frontend (Chat, Tool Accordions, Auth Buttons)
-> **User Story**
-> - **As a** User
-> - **I want to** see a clean chat interface with collapsible tool logs and in-stream auth buttons
-> - **So that** I can easily monitor what the agent is doing and authenticate per data source when needed.
->
-> ## Technical Specifications & Constraints
-> - **Scope**: `ui/frontend/`
-> - **Logic**: 
->   - **Tools Accordion**: Render `FunctionCall` events with a spinner. Update to a checkmark when `FunctionResponse` is received. Group them in a collapsible UI block.
->   - **Auth Buttons**: Listen for `AUTH_REQUIRED` stream event and render separate "Authenticate [Provider]" buttons inline based on the missing providers array.
->
-> ## Acceptance Criteria
-> - [ ] Tool executions show spinner -> checkmark in a collapsible tab.
-> - [ ] Distinct provider authentication buttons appear in chat and redirect to `/api/auth/{provider}`.
+Register **both production and test callback URLs** for all three OAuth clients.
+The clients/secret versions must exist in Secret Manager before deploying:
 
-### Issue #5: [Part B] Provision Firestore Infrastructure
-> **User Story**
-> - **As a** DevOps Engineer
-> - **I want to** provision a Firestore database using Terraform
-> - **So that** the application has a production-ready database for tokens.
->
-> ## Technical Specifications & Constraints
-> - **Scope**: `terraform/shared_resources/firestore.tf`
-> - **Logic**: Use Cloud Foundation Fabric (CFF) modules to provision a Native Mode Firestore database.
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`
+- `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`
+- `ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`
+- `IAP_OSIRIS_CLIENT_ID`, `IAP_OSIRIS_CLIENT_SECRET`
 
-### Issue #6: [Part B] Provision UI Infrastructure (Cloud Run, IAP, LB)
-> **User Story**
-> - **As a** DevOps Engineer
-> - **I want to** deploy the Custom UI behind an IAP-protected Global Load Balancer
-> - **So that** enterprise users can access it securely without a custom login screen.
->
-> ## Technical Specifications & Constraints
-> - **Scope**: `terraform/ui_resources/`
-> - **Logic**: Provision Cloud Run service, Global External HTTP Load Balancer, IAP enablement, and SSL certificates.
+The backend does not require all three providers before every conversation.
+Users connect the sources they need; `REQUIRED_PROVIDERS` can explicitly enforce
+a subset using a JSON list. Refresh requests have timeouts and a distributed
+Firestore lease to avoid reusing a rotating refresh token across instances.
+Expired transactions/abandoned leases use Firestore TTL cleanup.
+
+## Agent and file handling
+
+Production resolves exactly one live Agent Engine named `OSIRIS`. Test resolves
+`OSIRIS - Test`. An optional `AGENT_RESOURCE_NAME` override is supported, but the
+checked-in configuration has no stale resource ID. `/health` reports process
+liveness; authenticated `/api/ready` refreshes the agent lookup and returns 503
+if the agent is missing, inaccessible or ambiguous. A failed lookup is not
+cached, and a failed stream invalidates the cache.
+
+Deploy the test agent using the agent CI pipeline before testing the test UI.
+Its `FIRESTORE_COLLECTION_NAME` is `test_user_oauth_tokens`; production uses
+`user_oauth_tokens`. Agent CD preserves the test Agent Engine by default because
+it is now a dependency of the independent test UI. Set
+`_PRESERVE_UI_TEST_AGENT=false` only when deliberately removing that environment.
+
+Every session lookup uses the verified user, and the backend checks ownership
+before accepting a session ID. The SSE protocol includes `session_info`,
+`agent_event`, `done` and `error`; the frontend treats an interrupted/error stream
+as failure. User and agent text are rendered without `unsafe_allow_html`; thought
+parts are omitted. Only controlled CSS/header templates use HTML.
+
+Uploads support PDF, text, Markdown, CSV and DOCX, with a 20 MB limit. The backend
+signs a five-minute PUT using ADC and IAM signBlob, with the exact content type
+and byte count. Object paths contain a hashed user ID and UUID. The frontend
+uploads the bytes and includes the resulting private GCS URI in the next message.
+This implements the former upload stub; the agent still needs bucket read access
+and its existing document/artifact tools to process the file.
+
+## Deployment and state reconciliation
+
+The frontend CD pipeline is the **single automatic owner of UI deployment**:
+
+1. Run unit/regression tests and reconcile the deployer's UI-specific IAM roles.
+2. Apply shared resources and verify/create the embedding model in a Cloud SDK step.
+3. Discover/import compatible existing gateway objects and apply the gateway.
+4. Bootstrap the frontend service account, build the backend image, import any
+   existing test backend and apply both backend environments.
+5. Build the frontend image, import any existing test frontend and apply both
+   frontend environments and their IAP-protected load balancer routes.
+
+The Terraform provisioner requiring `bq`/Bash was removed. Its state removal does
+not delete the existing BigQuery model. `ensure_embedding_model.py` uses Cloud
+SDK credentials and the BigQuery REST API; a 404 means absent, while read/auth
+errors fail explicitly. Creation uses `CREATE MODEL IF NOT EXISTS` and bounded
+retries, and success requires verifying the actual model. Local orchestration
+uses the same script and honors `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`.
+
+The gateway import procedure verifies an existing network is custom and that
+subnets match the configured network, CIDR and purpose. It only imports objects
+absent from the selected Terraform state; it does not delete existing networks,
+subnets or services. Imports require choosing the correct project/backend and
+reviewing state ownership. If an object is managed by another stack, resolve
+that ownership before invoking deployment.
+
+Cloud Build PR pipelines run tests, validate Terraform and build images. They
+**do not apply infrastructure or deploy a shared test service**. The trigger
+management script updates existing filters in place, covers dependency locks,
+shared modules and scripts, and removes the obsolete independent backend push
+trigger. Its retained build configuration is read-only, so even an unreconciled
+legacy trigger cannot race the coordinated deployment. The coordinated UI push trigger remains restricted to `main`; pushing
+a feature branch does not deploy production.
+
+Existing triggers must be reconciled using `cicd_triggers_creation.sh`, invoked
+by `creation_manager.sh`. Either UI flag selects the coordinated pipeline. The
+Cloud Build deployer already requires project IAM administration; UI deployment
+also needs `roles/iam.roleAdmin` and `roles/iap.admin`. Bootstrap grants these and
+the UI CD preparation step reconciles them for already bootstrapped deployers.
+The two new roles are for the deployer, not the application service accounts.
+
+## Verification and local use
+
+```bash
+make verify-ui-ci
+make build-ui
+```
+
+The checks cover forged/expired IAP claims, OAuth state/cookie/PKCE and replay,
+session ownership, missing engines, stream failure, upload bounds/signing,
+concurrent refresh, model creation failure and safe resource discovery. Images
+use Python 3.12 slim, locked dependency groups and a nonroot user. There are no
+file-based debug logs or telemetry clients initialized by importing UI config.
+
+For explicit local development, using ADC and locally configured provider
+credentials:
+
+```bash
+make run-ui-backend
+make run-ui-frontend
+```
+
+These targets explicitly enable development mode with `dev@example.com`; that
+fallback is never enabled by the production/test Terraform configuration. For
+live acceptance, check HTTPS/IAP on both domains, verify `/api/ready`, complete
+provider consent, send two messages in one session, reject a foreign session,
+and upload a supported document. Local tests do not replace this acceptance run.
+
+References: [Cloud Run private networking](https://docs.cloud.google.com/run/docs/securing/private-networking),
+[IAP signed headers](https://docs.cloud.google.com/iap/docs/signed-headers-howto),
+[Atlassian confidential 3LO](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/).

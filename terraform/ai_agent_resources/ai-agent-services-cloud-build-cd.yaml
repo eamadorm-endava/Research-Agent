@@ -19,6 +19,7 @@ substitutions:
 
   # Test Agent Variables
   _TEST_AGENT_DISPLAY_NAME: "OSIRIS - Test"
+  _PRESERVE_UI_TEST_AGENT: "true"
   _TEST_GOOGLE_AUTH_ID: "google-workspace-authentication-test"
   _TEST_MICROSOFT_AUTH_ID: "microsoft-entra-authentication-test"
   _TEST_ATLASSIAN_AUTH_ID: "atlassian-authentication-test"
@@ -95,6 +96,10 @@ steps:
     args:
       - '-c'
       - |
+        if [ "${_PRESERVE_UI_TEST_AGENT}" = "true" ]; then
+          echo "Keeping the test Agent Engine used by the independent UI."
+          exit 0
+        fi
         pip install google-cloud-aiplatform click loguru
         echo "Deleting test agent engine..."
         python terraform/ai_agent_resources/scripts/delete_agent_engine.py \
