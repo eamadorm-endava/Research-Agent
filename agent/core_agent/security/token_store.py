@@ -1,25 +1,29 @@
+import hashlib
+import threading
 import time
-import requests
-from typing import Annotated, Optional
+import uuid
 from abc import ABC, abstractmethod
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
-from loguru import logger
+import requests
 from google.cloud import firestore
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from ..config import (
+    ATLASSIAN_AUTH_CONFIG,
+    FIRESTORE_CONFIG,
     GCP_CONFIG,
     GOOGLE_AUTH_CONFIG,
     MICROSOFT_AUTH_CONFIG,
-    ATLASSIAN_AUTH_CONFIG,
-    FIRESTORE_CONFIG,
 )
 
 
 class TokenData(BaseModel):
     access_token: Annotated[str, Field(description="The current access token")]
     refresh_token: Annotated[
-        Optional[str],
+        str | None,
         Field(
             description="The refresh token to obtain a new access token", default=None
         ),
@@ -36,7 +40,7 @@ class BaseOAuthRefreshStrategy(ABC):
     """
 
     @abstractmethod
-    def refresh_token(self, refresh_token: str) -> Optional[TokenData]:
+    def refresh_token(self, refresh_token: str) -> TokenData | None:
         """
         Exchanges a refresh token for a new access token.
 
@@ -46,11 +50,10 @@ class BaseOAuthRefreshStrategy(ABC):
         Returns:
             Optional[TokenData] -> The newly acquired token data, or None if failed.
         """
-        pass
 
 
 class GoogleRefreshStrategy(BaseOAuthRefreshStrategy):
-    def refresh_token(self, refresh_token: str) -> Optional[TokenData]:
+    def refresh_token(self, refresh_token: str) -> TokenData | None:
         logger.info("Attempting to refresh Google OAuth token")
         payload = {
             "client_id": GOOGLE_AUTH_CONFIG.CLIENT_ID,
@@ -60,7 +63,9 @@ class GoogleRefreshStrategy(BaseOAuthRefreshStrategy):
         }
 
         try:
-            response = requests.post(GOOGLE_AUTH_CONFIG.TOKEN_URI, data=payload)
+            response = requests.post(
+                GOOGLE_AUTH_CONFIG.TOKEN_URI, data=payload, timeout=20
+            )
             response.raise_for_status()
             data = response.json()
 
@@ -71,13 +76,13 @@ class GoogleRefreshStrategy(BaseOAuthRefreshStrategy):
                 ),  # Sometimes Google doesn't return a new refresh token
                 expires_at=time.time() + float(data["expires_in"]),
             )
-        except Exception as e:
-            logger.error(f"Failed to refresh Google token: {e}")
+        except (requests.RequestException, KeyError, ValueError):
+            logger.warning("Google token refresh failed")
             return None
 
 
 class MicrosoftRefreshStrategy(BaseOAuthRefreshStrategy):
-    def refresh_token(self, refresh_token: str) -> Optional[TokenData]:
+    def refresh_token(self, refresh_token: str) -> TokenData | None:
         logger.info("Attempting to refresh Microsoft OAuth token")
         payload = {
             "client_id": MICROSOFT_AUTH_CONFIG.CLIENT_ID,
@@ -87,7 +92,9 @@ class MicrosoftRefreshStrategy(BaseOAuthRefreshStrategy):
         }
 
         try:
-            response = requests.post(MICROSOFT_AUTH_CONFIG.TOKEN_URI, data=payload)
+            response = requests.post(
+                MICROSOFT_AUTH_CONFIG.TOKEN_URI, data=payload, timeout=20
+            )
             response.raise_for_status()
             data = response.json()
 
@@ -96,13 +103,13 @@ class MicrosoftRefreshStrategy(BaseOAuthRefreshStrategy):
                 refresh_token=data.get("refresh_token", refresh_token),
                 expires_at=time.time() + float(data["expires_in"]),
             )
-        except Exception as e:
-            logger.error(f"Failed to refresh Microsoft token: {e}")
+        except (requests.RequestException, KeyError, ValueError):
+            logger.warning("Microsoft token refresh failed")
             return None
 
 
 class AtlassianRefreshStrategy(BaseOAuthRefreshStrategy):
-    def refresh_token(self, refresh_token: str) -> Optional[TokenData]:
+    def refresh_token(self, refresh_token: str) -> TokenData | None:
         logger.info("Attempting to refresh Atlassian OAuth token")
         payload = {
             "client_id": ATLASSIAN_AUTH_CONFIG.CLIENT_ID,
@@ -113,7 +120,7 @@ class AtlassianRefreshStrategy(BaseOAuthRefreshStrategy):
 
         try:
             response = requests.post(
-                ATLASSIAN_AUTH_CONFIG.TOKEN_URI, json=payload
+                ATLASSIAN_AUTH_CONFIG.TOKEN_URI, json=payload, timeout=20
             )  # Atlassian uses JSON
             response.raise_for_status()
             data = response.json()
@@ -123,8 +130,8 @@ class AtlassianRefreshStrategy(BaseOAuthRefreshStrategy):
                 refresh_token=data.get("refresh_token", refresh_token),
                 expires_at=time.time() + float(data["expires_in"]),
             )
-        except Exception as e:
-            logger.error(f"Failed to refresh Atlassian token: {e}")
+        except (requests.RequestException, KeyError, ValueError):
+            logger.warning("Atlassian token refresh failed")
             return None
 
 
@@ -133,7 +140,7 @@ class TokenStore:
     Handles secure storage and retrieval of OAuth tokens using Google Cloud Firestore.
     """
 
-    def __init__(self, project_id: Optional[str] = None) -> None:
+    def __init__(self, project_id: str | None = None) -> None:
         """
         Initializes the Firestore client and the refresh strategies.
 
@@ -141,9 +148,9 @@ class TokenStore:
             project_id: Optional[str] -> Target GCP project ID. Defaults to GCP_CONFIG.
         """
         resolved_project_id = project_id or GCP_CONFIG.PROJECT_ID
-        self.db = firestore.Client(
-            project=resolved_project_id, database=FIRESTORE_CONFIG.DB_NAME
-        )
+        self.project_id = resolved_project_id
+        self._db = None
+        self._client_lock = threading.Lock()
         self.collection_name = FIRESTORE_CONFIG.COLLECTION_NAME
 
         self.refresh_strategies: dict[str, BaseOAuthRefreshStrategy] = {
@@ -151,6 +158,16 @@ class TokenStore:
             "microsoft": MicrosoftRefreshStrategy(),
             "atlassian": AtlassianRefreshStrategy(),
         }
+
+    @property
+    def db(self):
+        """Create ADC-backed clients on first use, not on module import."""
+        with self._client_lock:
+            if self._db is None:
+                self._db = firestore.Client(
+                    project=self.project_id, database=FIRESTORE_CONFIG.DB_NAME
+                )
+            return self._db
 
     def save_tokens(self, user_id: str, provider: str, token_data: TokenData) -> None:
         """
@@ -173,7 +190,7 @@ class TokenStore:
 
         logger.debug(f"Tokens saved successfully for {user_id} - {provider}")
 
-    def get_token_data(self, user_id: str, provider: str) -> Optional[TokenData]:
+    def get_token_data(self, user_id: str, provider: str) -> TokenData | None:
         """
         Retrieves the token data for a specific user and provider.
 
@@ -204,7 +221,7 @@ class TokenStore:
 
         return TokenData(**provider_data)
 
-    def get_valid_access_token(self, user_id: str, provider: str) -> Optional[str]:
+    def get_valid_access_token(self, user_id: str, provider: str) -> str | None:
         """
         Retrieves a valid access token. If the token is expired, it uses the specific
         provider strategy to refresh it.
@@ -232,7 +249,7 @@ class TokenStore:
 
     def _refresh_access_token(
         self, user_id: str, provider: str, token_data: TokenData
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Internal method to refresh an expired access token using the provider's API.
 
@@ -248,6 +265,70 @@ class TokenStore:
             logger.warning(f"No refresh token available for {user_id} ({provider})")
             return None
 
+        return self._refresh_with_lease(user_id, provider)
+
+    def _refresh_with_lease(self, user_id: str, provider: str) -> str | None:
+        """Coordinate refresh across instances so rotating credentials are not reused."""
+        lock_id = hashlib.sha256(f"{user_id}:{provider}".encode()).hexdigest()
+        reference = self.db.collection(
+            f"{self.collection_name}_refresh_locks"
+        ).document(lock_id)
+        owner = uuid.uuid4().hex
+        deadline = time.monotonic() + 25
+        while not self._acquire_lease(reference, owner):
+            current = self.get_token_data(user_id, provider)
+            if current and current.expires_at > time.time() + 60:
+                return current.access_token
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(0.5)
+        try:
+            current = self.get_token_data(user_id, provider)
+            if not current:
+                return None
+            if current.expires_at > time.time() + 60:
+                return current.access_token
+            return self._perform_refresh(user_id, provider, current)
+        finally:
+            self._release_lease(reference, owner)
+
+    def _acquire_lease(self, reference, owner: str) -> bool:
+        """Acquire a short lease with a Firestore transaction."""
+
+        @firestore.transactional
+        def acquire(transaction):
+            snapshot = reference.get(transaction=transaction)
+            existing = snapshot.to_dict() if snapshot.exists else {}
+            if existing.get(
+                "expires_at", datetime.min.replace(tzinfo=UTC)
+            ) > datetime.now(UTC):
+                return False
+            transaction.set(
+                reference,
+                {
+                    "owner": owner,
+                    "expires_at": datetime.now(UTC) + timedelta(seconds=90),
+                },
+            )
+            return True
+
+        return acquire(self.db.transaction())
+
+    def _release_lease(self, reference, owner: str) -> None:
+        """Only the current owner can release a lease."""
+
+        @firestore.transactional
+        def release(transaction):
+            snapshot = reference.get(transaction=transaction)
+            if snapshot.exists and snapshot.to_dict().get("owner") == owner:
+                transaction.delete(reference)
+
+        release(self.db.transaction())
+
+    def _perform_refresh(
+        self, user_id: str, provider: str, token_data: TokenData
+    ) -> str | None:
+        """Refresh once while holding the distributed lease."""
         strategy = self.refresh_strategies.get(provider)
         if not strategy:
             logger.error(f"No refresh strategy found for provider: {provider}")
@@ -256,10 +337,38 @@ class TokenStore:
         new_token_data = strategy.refresh_token(token_data.refresh_token)
 
         if new_token_data:
-            self.save_tokens(user_id, provider, new_token_data)
-            return new_token_data.access_token
+            return self._save_rotated_tokens(
+                user_id, provider, token_data, new_token_data
+            )
 
         return None
+
+    def _save_rotated_tokens(
+        self, user_id: str, provider: str, previous: TokenData, refreshed: TokenData
+    ) -> str | None:
+        """Never overwrite credentials from a reconnect that completed during refresh."""
+        reference = self.db.collection(self.collection_name).document(user_id)
+
+        @firestore.transactional
+        def persist(transaction):
+            snapshot = reference.get(transaction=transaction)
+            record = snapshot.to_dict() if snapshot.exists else {}
+            current = record.get(provider)
+            if not current:
+                return None
+            if (
+                current.get("access_token") != previous.access_token
+                or current.get("refresh_token") != previous.refresh_token
+            ):
+                return (
+                    current["access_token"]
+                    if current["expires_at"] > time.time() + 60
+                    else None
+                )
+            transaction.set(reference, {provider: refreshed.model_dump()}, merge=True)
+            return refreshed.access_token
+
+        return persist(self.db.transaction())
 
 
 # Singleton instance for the application to share

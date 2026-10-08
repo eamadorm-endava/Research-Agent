@@ -1,34 +1,36 @@
+from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
 from google.adk.tools import load_artifacts
+from loguru import logger
 
 from .builder import AgentBuilder, AppBuilder
-from .tools.artifact_tools import GetArtifactURITool
-from .tools.ekb_tools import TriggerEKBPipelineTool, CheckIngestionStatusTool
-from .tools.time_tools import GetCurrentTimeTool
 from .callbacks.before_agent_callbacks import sync_ekb_job_status
-from loguru import logger
-from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
-from google.adk.plugins.save_files_as_artifacts_plugin import SaveFilesAsArtifactsPlugin
-from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
-from .plugins.continuation import ContinuationPlugin
-from .plugins.observability_plugin.plugin import ObservabilityPlugin
 from .config import (
-    GCP_CONFIG,
+    ATLASSIAN_AUTH_CONFIG,
     COORDINATOR_CONFIG,
-    RESEARCH_AGENT_CONFIG,
+    GCP_CONFIG,
+    GOOGLE_AUTH_CONFIG,
     INGESTION_AGENT_CONFIG,
+    MICROSOFT_AUTH_CONFIG,
+    RESEARCH_AGENT_CONFIG,
+    AtlassianMCPConfig,
     BigQueryMCPConfig,
     CalendarMCPConfig,
     DriveMCPConfig,
     GCSMCPConfig,
     OneDriveMCPConfig,
-    SharePointMCPConfig,
-    AtlassianMCPConfig,
     OutlookMCPConfig,
-    GOOGLE_AUTH_CONFIG,
-    MICROSOFT_AUTH_CONFIG,
-    ATLASSIAN_AUTH_CONFIG,
+    SharePointMCPConfig,
 )
+from .observability import setup_observability
+from .plugins.continuation import ContinuationPlugin
+from .plugins.gemini_enterprise_ingestion import GeminiEnterpriseFileIngestionPlugin
+from .plugins.multimodal_file_injection import MultimodalFileInjectionPlugin
+from .plugins.observability_plugin.plugin import ObservabilityPlugin
+from .tools.artifact_tools import GetArtifactURITool
+from .tools.ekb_tools import CheckIngestionStatusTool, TriggerEKBPipelineTool
+from .tools.time_tools import GetCurrentTimeTool
 
+setup_observability()
 
 # ---------------------------------------------------------------------------
 
@@ -127,23 +129,21 @@ app = (
         agent_config=COORDINATOR_CONFIG,
     )
     .with_plugins(
-        (
-            # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
-            # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
-            [
-                GeminiEnterpriseFileIngestionPlugin(),
-                MultimodalFileInjectionPlugin(),
-                ContinuationPlugin(),
-                ObservabilityPlugin(),
-            ]
-            if GCP_CONFIG.PROD_EXECUTION
-            else [
-                SaveFilesAsArtifactsPlugin(),
-                MultimodalFileInjectionPlugin(),
-                ContinuationPlugin(),
-                ObservabilityPlugin(),
-            ]
-        )
+        # SaveFilesAsArtifactsPlugin targets ADK Web UI only; in production,
+        # GeminiEnterpriseFileIngestionPlugin handles upload persistence instead.
+        [
+            GeminiEnterpriseFileIngestionPlugin(),
+            MultimodalFileInjectionPlugin(),
+            ContinuationPlugin(),
+            ObservabilityPlugin(),
+        ]
+        if GCP_CONFIG.PROD_EXECUTION
+        else [
+            SaveFilesAsArtifactsPlugin(),
+            MultimodalFileInjectionPlugin(),
+            ContinuationPlugin(),
+            ObservabilityPlugin(),
+        ]
     )
     .build()
 )
